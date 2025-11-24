@@ -2,7 +2,7 @@
 
 import { useCallback, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Search } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -44,6 +44,11 @@ export function MoleculeSearchBar() {
         handleSearch(query)
     }
 
+    const handleClear = () => {
+        setQuery('')
+        handleSearch('')
+    }
+
     return (
         <form onSubmit={handleSubmit} className="flex gap-2">
             <div className="relative flex-1">
@@ -53,9 +58,21 @@ export function MoleculeSearchBar() {
                     placeholder="Filter by SMILES or InChiKey..."
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    className="pl-10"
+                    className="pr-10 pl-10"
                     disabled={isPending}
                 />
+                {query && (
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleClear}
+                        className="absolute top-1/2 right-2 h-6 w-6 -translate-y-1/2 p-0"
+                        disabled={isPending}
+                    >
+                        <X className="h-4 w-4" />
+                    </Button>
+                )}
             </div>
             <Button type="submit" disabled={isPending || !query.trim()}>
                 {isPending ? 'Searching...' : 'Search'}
