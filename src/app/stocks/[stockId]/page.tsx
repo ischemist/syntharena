@@ -1,15 +1,9 @@
-import { Suspense } from 'react'
-import Link from 'next/link'
-import { notFound } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
-
-import * as stockService from '@/lib/services/stock.service'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Suspense, use } from 'react'
 
 import { MoleculeSearchBar } from '../_components/client/molecule-search-bar'
 import { MoleculeSearchResults } from '../_components/server/molecule-search-results'
-import { MoleculeTableSkeleton } from '../_components/skeletons'
+import { StockHeader } from '../_components/server/stock-header'
+import { MoleculeTableSkeleton, StockDetailHeaderSkeleton } from '../_components/skeletons'
 
 interface StockDetailPageProps {
     params: Promise<{ stockId: string }>
@@ -18,42 +12,25 @@ interface StockDetailPageProps {
 
 /**
  * Stock detail page showing stock information and molecule search interface.
- * Uses streaming with Suspense for search results.
+ * Remains synchronous per the app router manifesto, unwrapping promises with use().
+ * Delegates data fetching to async server components wrapped in Suspense boundaries.
+ * Stock header and search results load independently via streaming.
  */
-export default async function StockDetailPage({ params, searchParams }: StockDetailPageProps) {
-    const { stockId } = await params
-    const search = await searchParams
+export default function StockDetailPage(props: StockDetailPageProps) {
+    // ORTHODOXY: Unwrap promises in sync component (Next.js 15 pattern)
+    const params = use(props.params)
+    const searchParams = use(props.searchParams)
 
-    // Fetch stock details
-    let stock
-    try {
-        stock = await stockService.getStockById(stockId)
-    } catch {
-        notFound()
-    }
-
-    const query = typeof search.q === 'string' ? search.q : ''
-    const page = typeof search.page === 'string' ? parseInt(search.page, 10) : 1
+    const { stockId } = params
+    const query = typeof searchParams.q === 'string' ? searchParams.q : ''
+    const page = typeof searchParams.page === 'string' ? parseInt(searchParams.page, 10) : 1
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="space-y-4">
-                <Link href="/stocks">
-                    <Button variant="ghost" size="sm" className="gap-2">
-                        <ArrowLeft className="h-4 w-4" />
-                        Back to Stocks
-                    </Button>
-                </Link>
-
-                <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                        <h1 className="text-3xl font-bold tracking-tight">{stock.name}</h1>
-                        <Badge variant="secondary">{stock.itemCount.toLocaleString()} molecules</Badge>
-                    </div>
-                    {stock.description && <p className="text-muted-foreground">{stock.description}</p>}
-                </div>
-            </div>
+            {/* Stock header with lazy loading */}
+            <Suspense fallback={<StockDetailHeaderSkeleton />}>
+                <StockHeader stockId={stockId} />
+            </Suspense>
 
             {/* Search Interface */}
             <div className="space-y-4">
