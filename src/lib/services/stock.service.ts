@@ -309,6 +309,99 @@ export async function searchStockMolecules(
 }
 
 /**
+ * Searches for molecules by SMILES or InChiKey with optional stock filtering.
+ * Returns molecules with their cross-stock information in a single optimized query.
+ * This avoids the N+1 query problem by fetching related stocks in the same query.
+ *
+ * @param query - Optional search term (SMILES or InChiKey prefix). If empty, shows all molecules.
+ * @param stockId - Optional stock ID to filter results
+ * @param limit - Maximum number of results (default 50, max 1000)
+ * @param offset - Number of results to skip for pagination (default 0)
+ * @returns Search results with molecules (including stocks) and pagination info
+ */
+export async function searchStockMoleculesWithStocks(
+    query: string = '',
+    stockId?: string,
+    limit: number = 50,
+    offset: number = 0
+): Promise<{ molecules: MoleculeWithStocks[]; total: number; hasMore: boolean }> {
+    // Sanitize and validate inputs
+    const sanitizedQuery = query.trim()
+    const validLimit = Math.min(Math.max(1, limit), 1000)
+    const validOffset = Math.max(0, offset)
+
+    // Build base filter (stock filtering)
+    const baseFilter = stockId
+        ? {
+              stockItems: {
+                  some: { stockId },
+              },
+          }
+        : {}
+
+    // Build search filter (only if query provided)
+    const searchFilter = sanitizedQuery
+        ? {
+              OR: [
+                  { smiles: { contains: sanitizedQuery } },
+                  { inchikey: { startsWith: sanitizedQuery.toUpperCase() } },
+              ],
+          }
+        : {}
+
+    // Combine filters
+    const whereClause =
+        sanitizedQuery && stockId
+            ? { AND: [baseFilter, searchFilter] }
+            : sanitizedQuery
+              ? searchFilter
+              : stockId
+                ? baseFilter
+                : {}
+
+    // Execute query with pagination - include stocks in main query
+    const [molecules, total] = await Promise.all([
+        prisma.molecule.findMany({
+            where: whereClause,
+            include: {
+                stockItems: {
+                    include: {
+                        stock: {
+                            select: { id: true, name: true },
+                        },
+                    },
+                },
+            },
+            take: validLimit + 1,
+            skip: validOffset,
+            orderBy: { smiles: 'asc' },
+        }),
+        prisma.molecule.count({ where: whereClause }),
+    ])
+
+    // Check if there are more results
+    const hasMore = molecules.length > validLimit
+    const resultMolecules = hasMore ? molecules.slice(0, validLimit) : molecules
+
+    // Transform to MoleculeWithStocks format
+    const transformedMolecules: MoleculeWithStocks[] = resultMolecules.map((molecule) => ({
+        id: molecule.id,
+        smiles: molecule.smiles,
+        inchikey: molecule.inchikey,
+        stocks: molecule.stockItems.map((item) => ({
+            id: item.stock.id,
+            name: item.stock.name,
+        })),
+    }))
+
+    return {
+        molecules: transformedMolecules,
+        total,
+        hasMore,
+    }
+}
+
+/**
  * Fetches a molecule with all stocks it appears in.
  * Used for displaying cross-stock information in the UI.
  *

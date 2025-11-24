@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input'
 /**
  * Client component for molecule search input.
  * Updates URL search params to trigger server-side search re-render.
+ * The URL is the single source of truth for search results (Rule #3).
+ * Local state tracks input value during typing (ephemeral UI state).
  */
 export function MoleculeSearchBar() {
     const router = useRouter()
@@ -17,7 +19,12 @@ export function MoleculeSearchBar() {
     const searchParams = useSearchParams()
     const [isPending, startTransition] = useTransition()
 
-    const [query, setQuery] = useState(searchParams.get('q') || '')
+    // Read query from URL (the canonical state for rendered results)
+    const urlQuery = searchParams.get('q') || ''
+
+    // Local state for input value during typing (ephemeral, non-canonical UI state)
+    // Initialized from URL but updated as user types
+    const [inputValue, setInputValue] = useState(urlQuery)
 
     const handleSearch = useCallback(
         (searchQuery: string) => {
@@ -41,11 +48,11 @@ export function MoleculeSearchBar() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
-        handleSearch(query)
+        handleSearch(inputValue)
     }
 
     const handleClear = () => {
-        setQuery('')
+        setInputValue('')
         handleSearch('')
     }
 
@@ -56,12 +63,12 @@ export function MoleculeSearchBar() {
                 <Input
                     type="text"
                     placeholder="Filter by SMILES or InChiKey..."
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
                     className="pr-10 pl-10"
                     disabled={isPending}
                 />
-                {query && (
+                {inputValue && (
                     <Button
                         type="button"
                         variant="ghost"
@@ -74,7 +81,7 @@ export function MoleculeSearchBar() {
                     </Button>
                 )}
             </div>
-            <Button type="submit" disabled={isPending || !query.trim()}>
+            <Button type="submit" disabled={isPending || !inputValue.trim()}>
                 {isPending ? 'Searching...' : 'Search'}
             </Button>
         </form>

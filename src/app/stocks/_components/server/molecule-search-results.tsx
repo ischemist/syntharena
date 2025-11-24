@@ -17,13 +17,14 @@ interface MoleculeSearchResultsProps {
  * Server component that fetches and displays molecule search results.
  * Shows all molecules by default, optionally filtered by search query.
  * Shows molecules in a responsive grid layout with pagination.
+ * Uses optimized search function to fetch molecules with stocks in single query.
  */
 export async function MoleculeSearchResults({ query = '', stockId, page = 1, limit = 50 }: MoleculeSearchResultsProps) {
     const offset = (page - 1) * limit
-    const result = await stockService.searchStockMolecules(query, stockId, limit, offset)
+    // Use optimized function that fetches molecules with stocks in a single query
+    const result = await stockService.searchStockMoleculesWithStocks(query, stockId, limit, offset)
 
-    // Fetch cross-stock information for all molecules
-    const moleculesWithStocks = await stockService.getMoleculesWithStocks(result.molecules.map((m) => m.id))
+    const moleculesWithStocks = result.molecules
 
     if (result.molecules.length === 0) {
         return (
