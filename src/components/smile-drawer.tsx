@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef } from 'react'
 import { useTheme } from 'next-themes'
-// @ts-expect-error SMILES Drawer doesn't have types
+// @ts-expect-error - no types available for smiles-drawer
 import SmilesDrawer from 'smiles-drawer'
 
 export const SmileDrawerSvg = ({

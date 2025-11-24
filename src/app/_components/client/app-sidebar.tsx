@@ -1,105 +1,38 @@
 'use client'
 
 import * as React from 'react'
-import { BookOpen, Bot, Frame, LifeBuoy, Map, PieChart, Send, Settings2, SquareTerminal, Trophy } from 'lucide-react'
+import { LayoutDashboard, LifeBuoy, Send, Settings2, Trophy } from 'lucide-react'
 
 import { ModeToggle } from '@/components/mode-toggle'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar'
 
-import { NavMain } from './nav-main'
-import { NavProjects } from './nav-projects'
+import { NavDropdowns } from './nav-dropdowns'
+import { NavLinks } from './nav-links'
 import { NavSecondary } from './nav-secondary'
 import { NavUser } from './nav-user'
 
 const data = {
     user: {
-        name: 'shadcn',
-        email: 'm@example.com',
+        name: 'Guest',
+        email: 'local@argus.dev',
         avatar: '/avatars/shadcn.jpg',
     },
-    navMain: [
+    navLinks: [
         {
-            title: 'Playground',
-            url: '#',
-            icon: SquareTerminal,
-            isActive: true,
-            items: [
-                {
-                    title: 'History',
-                    url: '#',
-                },
-                {
-                    title: 'Starred',
-                    url: '#',
-                },
-                {
-                    title: 'Settings',
-                    url: '#',
-                },
-            ],
+            title: 'Dashboard',
+            url: '/dashboard',
+            icon: LayoutDashboard,
         },
+    ],
+    navDropdowns: [
         {
-            title: 'Models',
-            url: '#',
-            icon: Bot,
-            items: [
-                {
-                    title: 'Genesis',
-                    url: '#',
-                },
-                {
-                    title: 'Explorer',
-                    url: '#',
-                },
-                {
-                    title: 'Quantum',
-                    url: '#',
-                },
-            ],
-        },
-        {
-            title: 'Documentation',
-            url: '#',
-            icon: BookOpen,
-            items: [
-                {
-                    title: 'Introduction',
-                    url: '#',
-                },
-                {
-                    title: 'Get Started',
-                    url: '#',
-                },
-                {
-                    title: 'Tutorials',
-                    url: '#',
-                },
-                {
-                    title: 'Changelog',
-                    url: '#',
-                },
-            ],
-        },
-        {
-            title: 'Settings',
+            title: 'Dev',
             url: '#',
             icon: Settings2,
             items: [
                 {
-                    title: 'General',
-                    url: '#',
-                },
-                {
-                    title: 'Team',
-                    url: '#',
-                },
-                {
-                    title: 'Billing',
-                    url: '#',
-                },
-                {
-                    title: 'Limits',
-                    url: '#',
+                    title: 'Badges',
+                    url: '/design/badges',
                 },
             ],
         },
@@ -114,23 +47,6 @@ const data = {
             title: 'Feedback',
             url: '#',
             icon: Send,
-        },
-    ],
-    projects: [
-        {
-            name: 'Design Engineering',
-            url: '#',
-            icon: Frame,
-        },
-        {
-            name: 'Sales & Marketing',
-            url: '#',
-            icon: PieChart,
-        },
-        {
-            name: 'Travel',
-            url: '#',
-            icon: Map,
         },
     ],
 }
@@ -153,8 +69,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </div>
             </SidebarHeader>
             <SidebarContent>
-                <NavMain items={data.navMain} />
-                <NavProjects projects={data.projects} />
+                <NavLinks items={data.navLinks} />
+                <NavDropdowns items={data.navDropdowns} />
                 <NavSecondary items={data.navSecondary} className="mt-auto" />
             </SidebarContent>
             <SidebarFooter>
