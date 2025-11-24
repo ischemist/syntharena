@@ -6,7 +6,7 @@ const globalForPrisma = global as unknown as {
 }
 
 const adapter = new PrismaBetterSqlite3({
-    url: 'file:./prisma/dev.db',
+    url: process.env.DATABASE_URL,
 })
 const prisma =
     globalForPrisma.prisma ||

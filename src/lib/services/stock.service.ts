@@ -115,19 +115,16 @@ export async function loadStockFromFile(
 
         await prisma.$transaction(async (tx) => {
             for (const { smiles, inchikey } of batch) {
-                // Check if molecule exists before upserting
+                // Check if molecule exists before creating
                 let molecule: Molecule
                 try {
                     const existingMolecule = await tx.molecule.findUnique({
                         where: { inchikey },
-                        select: { id: true },
                     })
 
                     if (existingMolecule) {
                         moleculesSkipped++
-                        molecule = (await tx.molecule.findUnique({
-                            where: { inchikey },
-                        })) as Molecule
+                        molecule = existingMolecule
                     } else {
                         molecule = await tx.molecule.create({
                             data: { smiles, inchikey },

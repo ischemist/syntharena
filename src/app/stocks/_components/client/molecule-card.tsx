@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Check, Copy, Info } from 'lucide-react'
 
@@ -26,11 +26,20 @@ export function MoleculeCard({ molecule }: MoleculeCardProps) {
         try {
             await navigator.clipboard.writeText(text)
             setCopiedField(field)
-            setTimeout(() => setCopiedField(null), 2000)
         } catch (error) {
             console.error('Failed to copy:', error)
         }
     }
+
+    useEffect(() => {
+        if (!copiedField) return
+
+        const timer = setTimeout(() => {
+            setCopiedField(null)
+        }, 2000)
+
+        return () => clearTimeout(timer)
+    }, [copiedField])
 
     return (
         <Card className="group relative aspect-square overflow-hidden transition-all hover:shadow-lg">
