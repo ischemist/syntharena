@@ -13,7 +13,48 @@ generator client {
 }
 
 model User {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid(2))
   username  String   @unique
   createdAt DateTime @default(now())
+}
+
+// =================================================================================
+// 1. CHEMISTRY & TOPOLOGY (The "Graph" Layer)
+// Matches retrocast.models.chem
+// =================================================================================
+
+model Molecule {
+  id       String @id @default(cuid(2))
+  inchikey String @unique // The true canonical identifier
+  smiles   String // Canonical SMILES
+
+  // Relations
+  stockItems StockItem[]
+
+  @@index([smiles])
+}
+
+
+// =================================================================================
+// 4. SCORING & EVALUATION (The "Stock" Layer)
+// Matches retrocast.models.evaluation and data/4-scored/
+// =================================================================================
+
+model Stock {
+  id          String   @id @default(cuid(2))
+  name        String   @unique // "buyables-stock" (matches directory name)
+  description String?
+
+  items       StockItem[]
+}
+
+model StockItem {
+  id         String @id @default(cuid(2))
+  stockId    String
+  moleculeId String
+
+  stock    Stock    @relation(fields: [stockId], references: [id])
+  molecule Molecule @relation(fields: [moleculeId], references: [id])
+
+  @@unique([stockId, moleculeId])
 }
