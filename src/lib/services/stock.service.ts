@@ -1,4 +1,5 @@
 import * as fs from 'fs/promises'
+import { Prisma } from '@prisma/client'
 
 import type { Molecule, MoleculeSearchResult, StockListItem } from '@/types'
 import prisma from '@/lib/db'
@@ -94,8 +95,8 @@ export async function loadStockFromFile(
                 description: stockDescription || null,
             },
         })
-    } catch (error: any) {
-        if (error.code === 'P2002') {
+    } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
             throw new Error(
                 `A stock with name "${stockName}" already exists. Use a different name or delete the existing stock.`
             )
@@ -150,9 +151,9 @@ export async function loadStockFromFile(
                         },
                     })
                     itemsCreated++
-                } catch (error: any) {
+                } catch (error) {
                     // If stock item already exists (duplicate), skip silently
-                    if (error.code === 'P2002') {
+                    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
                         // Unique constraint violation - item already exists
                         continue
                     }

@@ -64,12 +64,12 @@ async function main() {
         console.log('='.repeat(70))
 
         process.exit(0)
-    } catch (error: any) {
+    } catch (error) {
         console.error('')
         console.error('='.repeat(70))
         console.error('Error!')
         console.error('='.repeat(70))
-        console.error(error.message)
+        console.error(error instanceof Error ? error.message : String(error))
         console.error('='.repeat(70))
         process.exit(1)
     }
