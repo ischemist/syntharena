@@ -1,10 +1,16 @@
 'use client'
 
-import { useTransition } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { usePathname, useSearchParams } from 'next/navigation'
 
-import { Button } from '@/components/ui/button'
+import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from '@/components/ui/pagination'
 
 interface MoleculePaginationProps {
     currentPage: number
@@ -14,91 +20,114 @@ interface MoleculePaginationProps {
 }
 
 /**
- * Client component for pagination controls.
- * Updates URL search params to trigger server-side re-render.
+ * Client component for pagination controls using shadcn/ui Pagination.
+ * Updates URL search params to trigger server-side re-render with Next.js Link integration and prefetching.
  */
 export function MoleculePagination({ currentPage, totalPages, totalItems, itemsPerPage }: MoleculePaginationProps) {
-    const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
-    const [isPending, startTransition] = useTransition()
-
-    const handlePageChange = (newPage: number) => {
-        const params = new URLSearchParams(searchParams)
-
-        if (newPage === 1) {
-            params.delete('page')
-        } else {
-            params.set('page', newPage.toString())
-        }
-
-        startTransition(() => {
-            router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-        })
-    }
 
     if (totalPages <= 1) {
         return null
     }
 
+    const getPageUrl = (pageNum: number) => {
+        const params = new URLSearchParams(searchParams)
+
+        if (pageNum === 1) {
+            params.delete('page')
+        } else {
+            params.set('page', pageNum.toString())
+        }
+
+        const query = params.toString()
+        return query ? `${pathname}?${query}` : pathname
+    }
+
     const startItem = (currentPage - 1) * itemsPerPage + 1
     const endItem = Math.min(currentPage * itemsPerPage, totalItems)
 
+    // Calculate visible page numbers
+    const getVisiblePages = () => {
+        const pages: (number | string)[] = []
+
+        if (totalPages <= 7) {
+            // Show all pages if 7 or fewer
+            for (let i = 1; i <= totalPages; i++) {
+                pages.push(i)
+            }
+        } else {
+            // Show first page
+            pages.push(1)
+
+            // Determine range around current page
+            const rangeStart = Math.max(2, currentPage - 1)
+            const rangeEnd = Math.min(totalPages - 1, currentPage + 1)
+
+            // Add ellipsis if needed before range
+            if (rangeStart > 2) {
+                pages.push('ellipsis-1')
+            }
+
+            // Add page range
+            for (let i = rangeStart; i <= rangeEnd; i++) {
+                pages.push(i)
+            }
+
+            // Add ellipsis if needed after range
+            if (rangeEnd < totalPages - 1) {
+                pages.push('ellipsis-2')
+            }
+
+            // Add last page
+            pages.push(totalPages)
+        }
+
+        return pages
+    }
+
+    const visiblePages = getVisiblePages()
+
     return (
-        <div className="flex items-center justify-between">
-            <div className="text-muted-foreground text-sm">
-                Showing {startItem.toLocaleString()}-{endItem.toLocaleString()} of {totalItems.toLocaleString()}
-            </div>
+        <div className="flex flex-col items-center gap-4">
+            <Pagination>
+                <PaginationContent>
+                    <PaginationItem>
+                        <PaginationPrevious
+                            href={getPageUrl(currentPage - 1)}
+                            className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                        />
+                    </PaginationItem>
 
-            <div className="flex items-center gap-2">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1 || isPending}
-                >
-                    <ChevronLeft className="h-4 w-4" />
-                    Previous
-                </Button>
-
-                <div className="flex items-center gap-1">
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        let pageNum: number
-
-                        if (totalPages <= 5) {
-                            pageNum = i + 1
-                        } else if (currentPage <= 3) {
-                            pageNum = i + 1
-                        } else if (currentPage >= totalPages - 2) {
-                            pageNum = totalPages - 4 + i
-                        } else {
-                            pageNum = currentPage - 2 + i
+                    {visiblePages.map((page) => {
+                        if (typeof page === 'string') {
+                            return (
+                                <PaginationItem key={page}>
+                                    <PaginationEllipsis />
+                                </PaginationItem>
+                            )
                         }
 
                         return (
-                            <Button
-                                key={pageNum}
-                                variant={currentPage === pageNum ? 'default' : 'outline'}
-                                size="sm"
-                                onClick={() => handlePageChange(pageNum)}
-                                disabled={isPending}
-                                className="min-w-9"
-                            >
-                                {pageNum}
-                            </Button>
+                            <PaginationItem key={page}>
+                                <PaginationLink href={getPageUrl(page)} isActive={page === currentPage}>
+                                    {page}
+                                </PaginationLink>
+                            </PaginationItem>
                         )
                     })}
-                </div>
 
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage === totalPages || isPending}
-                >
-                    Next
-                    <ChevronRight className="h-4 w-4" />
-                </Button>
+                    <PaginationItem>
+                        <PaginationNext
+                            href={getPageUrl(currentPage + 1)}
+                            className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
+                        />
+                    </PaginationItem>
+                </PaginationContent>
+            </Pagination>
+
+            <div className="text-muted-foreground text-sm">
+                Showing {startItem.toLocaleString()}-{endItem.toLocaleString()} of {totalItems.toLocaleString()}
             </div>
         </div>
     )
