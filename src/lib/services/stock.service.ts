@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises'
 
 import type { Molecule, MoleculeSearchResult, StockListItem } from '@/types'
-import { prisma } from '@/lib/db'
+import prisma from '@/lib/db'
 
 // ============================================================================
 // Stock Loading Functions
