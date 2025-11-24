@@ -3,9 +3,10 @@ import { z } from 'zod'
 /**
  * Schema for searching molecules across stocks.
  * Validates search query and optional filters.
+ * Query is optional - if empty, returns all molecules (filtered by stock if provided).
  */
 export const SearchMoleculesSchema = z.object({
-    query: z.string().min(1, 'Search query is required').max(1000, 'Search query is too long'),
+    query: z.string().max(1000, 'Search query is too long').optional().default(''),
     stockId: z.string().cuid2('Valid stock ID required').optional(),
     limit: z.number().int().min(1).max(1000).default(50),
     offset: z.number().int().min(0).default(0),

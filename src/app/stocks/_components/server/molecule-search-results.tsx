@@ -2,32 +2,25 @@ import { AlertCircle } from 'lucide-react'
 
 import * as stockService from '@/lib/services/stock.service'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 
 import { MoleculeCard } from '../client/molecule-card'
+import { MoleculePagination } from '../client/molecule-pagination'
 
 interface MoleculeSearchResultsProps {
-    query: string
+    query?: string
     stockId: string
+    page?: number
     limit?: number
 }
 
 /**
  * Server component that fetches and displays molecule search results.
- * Shows molecules in a responsive grid layout.
+ * Shows all molecules by default, optionally filtered by search query.
+ * Shows molecules in a responsive grid layout with pagination.
  */
-export async function MoleculeSearchResults({ query, stockId, limit = 50 }: MoleculeSearchResultsProps) {
-    if (!query || query.trim().length === 0) {
-        return (
-            <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>No search query</AlertTitle>
-                <AlertDescription>Enter a SMILES or InChiKey to search for molecules.</AlertDescription>
-            </Alert>
-        )
-    }
-
-    const result = await stockService.searchStockMolecules(query, stockId, limit)
+export async function MoleculeSearchResults({ query = '', stockId, page = 1, limit = 50 }: MoleculeSearchResultsProps) {
+    const offset = (page - 1) * limit
+    const result = await stockService.searchStockMolecules(query, stockId, limit, offset)
 
     if (result.molecules.length === 0) {
         return (
@@ -35,23 +28,34 @@ export async function MoleculeSearchResults({ query, stockId, limit = 50 }: Mole
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>No results found</AlertTitle>
                 <AlertDescription>
-                    No molecules found matching &quot;{query}&quot;. Try a different search term.
+                    {query ? (
+                        <>No molecules found matching &quot;{query}&quot;. Try a different search term.</>
+                    ) : (
+                        <>This stock contains no molecules.</>
+                    )}
                 </AlertDescription>
             </Alert>
         )
     }
 
+    const isFiltering = query && query.trim().length > 0
+    const totalPages = Math.ceil(result.total / limit)
+
     return (
         <div className="space-y-4">
             <div className="flex items-center gap-2">
                 <p className="text-muted-foreground text-sm">
-                    Found {result.total.toLocaleString()} {result.total === 1 ? 'molecule' : 'molecules'}
+                    {isFiltering ? (
+                        <>
+                            Found {result.total.toLocaleString()} {result.total === 1 ? 'molecule' : 'molecules'}{' '}
+                            matching &quot;{query}&quot;
+                        </>
+                    ) : (
+                        <>
+                            Total: {result.total.toLocaleString()} {result.total === 1 ? 'molecule' : 'molecules'}
+                        </>
+                    )}
                 </p>
-                {result.hasMore && (
-                    <Badge variant="secondary" className="text-xs">
-                        Showing first {limit}
-                    </Badge>
-                )}
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -59,6 +63,13 @@ export async function MoleculeSearchResults({ query, stockId, limit = 50 }: Mole
                     <MoleculeCard key={molecule.id} molecule={molecule} />
                 ))}
             </div>
+
+            <MoleculePagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={result.total}
+                itemsPerPage={limit}
+            />
         </div>
     )
 }

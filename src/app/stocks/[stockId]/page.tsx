@@ -28,11 +28,12 @@ export default async function StockDetailPage({ params, searchParams }: StockDet
     let stock
     try {
         stock = await stockService.getStockById(stockId)
-    } catch (error) {
+    } catch {
         notFound()
     }
 
     const query = typeof search.q === 'string' ? search.q : ''
+    const page = typeof search.page === 'string' ? parseInt(search.page, 10) : 1
 
     return (
         <div className="space-y-6">
@@ -58,19 +59,9 @@ export default async function StockDetailPage({ params, searchParams }: StockDet
             <div className="space-y-4">
                 <MoleculeSearchBar />
 
-                {query && (
-                    <Suspense key={query} fallback={<MoleculeTableSkeleton />}>
-                        <MoleculeSearchResults query={query} stockId={stockId} limit={50} />
-                    </Suspense>
-                )}
-
-                {!query && (
-                    <div className="rounded-lg border border-dashed p-8 text-center">
-                        <p className="text-muted-foreground text-sm">
-                            Enter a search query to find molecules in this stock
-                        </p>
-                    </div>
-                )}
+                <Suspense key={`${query}-${page}`} fallback={<MoleculeTableSkeleton />}>
+                    <MoleculeSearchResults query={query} stockId={stockId} page={page} limit={50} />
+                </Suspense>
             </div>
         </div>
     )

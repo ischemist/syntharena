@@ -234,15 +234,16 @@ export async function getStockById(stockId: string): Promise<StockListItem> {
 /**
  * Searches for molecules by SMILES or InChiKey with optional stock filtering.
  * Uses prefix matching for efficient indexed search.
+ * If no query is provided, returns all molecules (optionally filtered by stock).
  *
- * @param query - Search term (SMILES or InChiKey prefix)
+ * @param query - Optional search term (SMILES or InChiKey prefix). If empty, shows all molecules.
  * @param stockId - Optional stock ID to filter results
  * @param limit - Maximum number of results (default 50, max 1000)
  * @param offset - Number of results to skip for pagination (default 0)
  * @returns Search results with molecules and pagination info
  */
 export async function searchStockMolecules(
-    query: string,
+    query: string = '',
     stockId?: string,
     limit: number = 50,
     offset: number = 0
@@ -252,31 +253,34 @@ export async function searchStockMolecules(
     const validLimit = Math.min(Math.max(1, limit), 1000)
     const validOffset = Math.max(0, offset)
 
-    if (!sanitizedQuery) {
-        return { molecules: [], total: 0, hasMore: false }
-    }
-
-    // Build query conditions
-    const searchConditions = {
-        OR: [
-            { smiles: { contains: sanitizedQuery, mode: 'insensitive' as const } },
-            { inchikey: { startsWith: sanitizedQuery.toUpperCase() } },
-        ],
-    }
-
-    // If stockId provided, filter to molecules in that stock
-    const whereClause = stockId
+    // Build base filter (stock filtering)
+    const baseFilter = stockId
         ? {
-              AND: [
-                  searchConditions,
-                  {
-                      stockItems: {
-                          some: { stockId },
-                      },
-                  },
+              stockItems: {
+                  some: { stockId },
+              },
+          }
+        : {}
+
+    // Build search filter (only if query provided)
+    const searchFilter = sanitizedQuery
+        ? {
+              OR: [
+                  { smiles: { contains: sanitizedQuery } }, // SQLite is case-insensitive by default
+                  { inchikey: { startsWith: sanitizedQuery.toUpperCase() } },
               ],
           }
-        : searchConditions
+        : {}
+
+    // Combine filters
+    const whereClause =
+        sanitizedQuery && stockId
+            ? { AND: [baseFilter, searchFilter] }
+            : sanitizedQuery
+              ? searchFilter
+              : stockId
+                ? baseFilter
+                : {} // No filters = all molecules
 
     // Execute query with pagination
     const [molecules, total] = await Promise.all([
