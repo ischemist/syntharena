@@ -44,3 +44,5 @@ next-env.d.ts
 
 prompts/
 .ignore
+
+prisma/dev.db*
