@@ -55,12 +55,18 @@ importers:
             react-dom:
                 specifier: 19.2.0
                 version: 19.2.0(react@19.2.0)
+            smiles-drawer:
+                specifier: ^2.1.7
+                version: 2.1.7
             sonner:
                 specifier: ^2.0.7
                 version: 2.0.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
             tailwind-merge:
                 specifier: ^3.4.0
                 version: 3.4.0
+            zod:
+                specifier: ^4.1.13
+                version: 4.1.13
         devDependencies:
             '@ianvs/prettier-plugin-sort-imports':
                 specifier: ^4.7.0
@@ -2397,6 +2403,12 @@ packages:
         resolution:
             {
                 integrity: sha512-jJ0bqzaylmJtVnNgzTeSOs8DPavpbYgEr/b0YL8/2GO3xJEhInFmhKMUnEJQjZumK7KXGFhUy89PrsJWlakBVg==,
+            }
+
+    chroma-js@2.6.0:
+        resolution:
+            {
+                integrity: sha512-BLHvCB9s8Z1EV4ethr6xnkl/P2YRFOGqfgvuMG/MyCbZPrTA+NeiByY6XvgF0zP4/2deU2CXnWyMa3zu1LqQ3A==,
             }
 
     citty@0.1.6:
@@ -4736,6 +4748,12 @@ packages:
             }
         engines: { node: '>=18' }
 
+    smiles-drawer@2.1.7:
+        resolution:
+            {
+                integrity: sha512-gApm5tsWrAYDkjbGYQb5OhwIyHvtM2kIO40DfATaOV0DPm0wA63yn4Ow7us27BT49lDdU9busCOPN9fpyonzaA==,
+            }
+
     sonner@2.0.7:
         resolution:
             {
@@ -6638,6 +6656,8 @@ snapshots:
 
     chownr@1.1.4: {}
 
+    chroma-js@2.6.0: {}
+
     citty@0.1.6:
         dependencies:
             consola: 3.4.2
@@ -8151,6 +8171,10 @@ snapshots:
         dependencies:
             ansi-styles: 6.2.3
             is-fullwidth-code-point: 5.1.0
+
+    smiles-drawer@2.1.7:
+        dependencies:
+            chroma-js: 2.6.0
 
     sonner@2.0.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
         dependencies:
