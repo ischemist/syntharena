@@ -7,7 +7,9 @@
  *   tsx scripts/load-stock.ts <file-path> <stock-name> [description]
  *
  * Example:
- *   tsx scripts/load-stock.ts ./data/n5-stock-export.txt "N5 Stock" "Commercially available molecules from N5"
+ * pnpm tsx scripts/load-stock.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/stocks/export/n5-stock-export.txt "n5 Stock" "A set of all leaves from routes in PaRoutes n5 evaluation set"
+ * pnpm tsx scripts/load-stock.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/stocks/export/n1-stock-export.txt "n1 Stock" "A set of all leaves from routes in PaRoutes n1 evaluation set"
+ * pnpm tsx scripts/load-stock.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/stocks/export/buyables-stock-export.txt "Buyables Stock" "Buyables Stock (from ASKCOS)"
  *
  * File Format:
  *   - First line must be header: "SMILES,InChi Key"
