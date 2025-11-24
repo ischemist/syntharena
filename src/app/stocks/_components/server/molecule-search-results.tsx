@@ -22,6 +22,9 @@ export async function MoleculeSearchResults({ query = '', stockId, page = 1, lim
     const offset = (page - 1) * limit
     const result = await stockService.searchStockMolecules(query, stockId, limit, offset)
 
+    // Fetch cross-stock information for all molecules
+    const moleculesWithStocks = await stockService.getMoleculesWithStocks(result.molecules.map((m) => m.id))
+
     if (result.molecules.length === 0) {
         return (
             <Alert>
@@ -59,7 +62,7 @@ export async function MoleculeSearchResults({ query = '', stockId, page = 1, lim
             </div>
 
             <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-10">
-                {result.molecules.map((molecule) => (
+                {moleculesWithStocks.map((molecule) => (
                     <MoleculeCard key={molecule.id} molecule={molecule} />
                 ))}
             </div>

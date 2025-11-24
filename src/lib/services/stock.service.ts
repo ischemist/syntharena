@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises'
 import { Prisma } from '@prisma/client'
 
-import type { Molecule, MoleculeSearchResult, StockListItem } from '@/types'
+import type { Molecule, MoleculeSearchResult, MoleculeWithStocks, StockListItem } from '@/types'
 import prisma from '@/lib/db'
 
 // ============================================================================
@@ -306,6 +306,75 @@ export async function searchStockMolecules(
         total,
         hasMore,
     }
+}
+
+/**
+ * Fetches a molecule with all stocks it appears in.
+ * Used for displaying cross-stock information in the UI.
+ *
+ * @param moleculeId - The molecule ID
+ * @returns Molecule with array of stocks it appears in
+ * @throws Error if molecule not found
+ */
+export async function getMoleculeWithStocks(moleculeId: string): Promise<MoleculeWithStocks> {
+    const molecule = await prisma.molecule.findUnique({
+        where: { id: moleculeId },
+        include: {
+            stockItems: {
+                include: {
+                    stock: {
+                        select: { id: true, name: true },
+                    },
+                },
+            },
+        },
+    })
+
+    if (!molecule) {
+        throw new Error('Molecule not found')
+    }
+
+    return {
+        id: molecule.id,
+        inchikey: molecule.inchikey,
+        smiles: molecule.smiles,
+        stocks: molecule.stockItems.map((item) => ({
+            id: item.stock.id,
+            name: item.stock.name,
+        })),
+    }
+}
+
+/**
+ * Fetches multiple molecules with their cross-stock information.
+ * Batch operation for efficiency.
+ *
+ * @param moleculeIds - Array of molecule IDs
+ * @returns Array of molecules with their stocks
+ */
+export async function getMoleculesWithStocks(moleculeIds: string[]): Promise<MoleculeWithStocks[]> {
+    const molecules = await prisma.molecule.findMany({
+        where: { id: { in: moleculeIds } },
+        include: {
+            stockItems: {
+                include: {
+                    stock: {
+                        select: { id: true, name: true },
+                    },
+                },
+            },
+        },
+    })
+
+    return molecules.map((molecule) => ({
+        id: molecule.id,
+        inchikey: molecule.inchikey,
+        smiles: molecule.smiles,
+        stocks: molecule.stockItems.map((item) => ({
+            id: item.stock.id,
+            name: item.stock.name,
+        })),
+    }))
 }
 
 /**

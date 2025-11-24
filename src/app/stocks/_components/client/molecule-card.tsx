@@ -1,16 +1,18 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Check, Copy, Info } from 'lucide-react'
 
-import type { Molecule } from '@/types'
+import type { MoleculeWithStocks } from '@/types'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 
 interface MoleculeCardProps {
-    molecule: Molecule
+    molecule: MoleculeWithStocks
 }
 
 /**
@@ -82,6 +84,23 @@ export function MoleculeCard({ molecule }: MoleculeCardProps) {
                             </div>
                             <p className="text-foreground font-mono text-xs break-all">{molecule.inchikey}</p>
                         </div>
+
+                        {molecule.stocks.length > 0 && (
+                            <div className="space-y-2 border-t pt-3">
+                                <span className="text-muted-foreground text-xs font-semibold">
+                                    Found in {molecule.stocks.length} stock{molecule.stocks.length !== 1 ? 's' : ''}
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                    {molecule.stocks.map((stock) => (
+                                        <Link key={stock.id} href={`/stocks/${stock.id}`}>
+                                            <Badge variant="secondary" className="hover:bg-secondary/80 cursor-pointer">
+                                                {stock.name}
+                                            </Badge>
+                                        </Link>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </HoverCardContent>
             </HoverCard>

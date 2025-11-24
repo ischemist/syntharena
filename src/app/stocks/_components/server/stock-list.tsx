@@ -25,7 +25,7 @@ export async function StockList() {
         <div className="space-y-4">
             {stocks.map((stock) => (
                 <Link key={stock.id} href={`/stocks/${stock.id}`}>
-                    <Card className="hover:bg-accent transition-colors">
+                    <Card className="hover:bg-accent my-4 transition-colors">
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <CardTitle>{stock.name}</CardTitle>

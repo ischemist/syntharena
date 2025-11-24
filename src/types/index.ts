@@ -34,6 +34,14 @@ export interface Molecule {
 }
 
 /**
+ * Extended molecule information including stocks in which it appears.
+ * Used for displaying cross-stock information in the UI.
+ */
+export interface MoleculeWithStocks extends Molecule {
+    stocks: Array<{ id: string; name: string }>
+}
+
+/**
  * Represents a collection/library of commercially available molecules.
  * Stocks are loaded from CSV files and can have overlapping molecules.
  */
