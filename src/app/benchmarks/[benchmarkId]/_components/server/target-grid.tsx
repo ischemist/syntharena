@@ -5,6 +5,8 @@ import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 
+import { TargetPagination } from '../client/target-pagination'
+
 interface TargetGridProps {
     benchmarkId: string
     page?: number
@@ -59,32 +61,13 @@ export async function TargetGrid({ benchmarkId, page = 1, limit = 24 }: TargetGr
                 ))}
             </div>
 
-            {/* Pagination info */}
-            <div className="text-muted-foreground flex items-center justify-between text-sm">
-                <p>
-                    Showing {(page - 1) * limit + 1} - {Math.min(page * limit, result.total)} of {result.total} targets
-                </p>
-                <div className="flex gap-2">
-                    {page > 1 && (
-                        <Link
-                            href={`/benchmarks/${benchmarkId}?page=${page - 1}`}
-                            className="hover:underline"
-                            prefetch={true}
-                        >
-                            ← Previous
-                        </Link>
-                    )}
-                    {result.hasMore && (
-                        <Link
-                            href={`/benchmarks/${benchmarkId}?page=${page + 1}`}
-                            className="hover:underline"
-                            prefetch={true}
-                        >
-                            Next →
-                        </Link>
-                    )}
-                </div>
-            </div>
+            {/* Pagination component */}
+            <TargetPagination
+                currentPage={page}
+                totalPages={Math.ceil(result.total / limit)}
+                totalItems={result.total}
+                itemsPerPage={limit}
+            />
         </div>
     )
 }

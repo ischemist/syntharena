@@ -35,7 +35,7 @@ export default function TargetDetailPage(props: TargetDetailPageProps) {
                 fallback={
                     <Card>
                         <CardContent className="p-6">
-                            <Skeleton className="h-[400px] w-full" />
+                            <Skeleton className="h-[600px] w-full" />
                         </CardContent>
                     </Card>
                 }

@@ -35,44 +35,44 @@ export async function TargetHeader({ benchmarkId, targetId }: TargetHeaderProps)
                 </Button>
             </Link>
 
-            <div className="space-y-4">
-                {/* Target ID and badges */}
-                <div className="flex flex-wrap items-center gap-3">
-                    <h1 className="text-3xl font-bold tracking-tight">{target.targetId}</h1>
-                    {target.routeLength !== null && (
-                        <Badge variant="secondary">Route Length: {target.routeLength}</Badge>
-                    )}
-                    {target.isConvergent !== null && (
-                        <Badge variant={target.isConvergent ? 'default' : 'outline'}>
-                            {target.isConvergent ? 'Convergent' : 'Linear'}
-                        </Badge>
-                    )}
-                    {target.hasGroundTruth && <Badge variant="secondary">Has Ground Truth</Badge>}
-                </div>
+            {/* Compact target information card */}
+            <Card>
+                <CardContent className="p-4">
+                    {/* Target ID and badges */}
+                    <div className="mb-4 flex flex-wrap items-center gap-2">
+                        <h1 className="text-2xl font-bold tracking-tight">{target.targetId}</h1>
+                        {target.routeLength !== null && (
+                            <Badge variant="secondary">Route Length: {target.routeLength}</Badge>
+                        )}
+                        {target.isConvergent !== null && (
+                            <Badge variant={target.isConvergent ? 'default' : 'outline'}>
+                                {target.isConvergent ? 'Convergent' : 'Linear'}
+                            </Badge>
+                        )}
+                        {target.hasGroundTruth && <Badge variant="secondary">Has Ground Truth</Badge>}
+                    </div>
 
-                {/* Large molecule structure */}
-                <Card>
-                    <CardContent className="flex items-center justify-center p-8">
-                        <SmileDrawerSvg smilesStr={target.molecule.smiles} width={400} height={400} />
-                    </CardContent>
-                </Card>
+                    {/* Compact molecule visualization with identifiers */}
+                    <div className="grid gap-3 md:grid-cols-3">
+                        {/* Molecule structure - smaller and left-aligned */}
+                        <div className="flex items-center justify-center rounded p-2">
+                            <SmileDrawerSvg smilesStr={target.molecule.smiles} width={120} height={120} />
+                        </div>
 
-                {/* Molecule identifiers */}
-                <div className="grid gap-4 md:grid-cols-2">
-                    <Card>
-                        <CardContent className="p-4">
-                            <p className="text-muted-foreground mb-2 text-xs font-semibold">SMILES</p>
-                            <p className="font-mono text-sm break-all">{target.molecule.smiles}</p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardContent className="p-4">
-                            <p className="text-muted-foreground mb-2 text-xs font-semibold">InChiKey</p>
-                            <p className="font-mono text-sm break-all">{target.molecule.inchikey}</p>
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
+                        {/* SMILES and InChiKey stacked on right */}
+                        <div className="col-span-2 space-y-2">
+                            <div>
+                                <p className="text-muted-foreground mb-1 text-xs font-semibold">SMILES</p>
+                                <p className="font-mono text-xs break-all">{target.molecule.smiles}</p>
+                            </div>
+                            <div>
+                                <p className="text-muted-foreground mb-1 text-xs font-semibold">InChiKey</p>
+                                <p className="font-mono text-xs break-all">{target.molecule.inchikey}</p>
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     )
 }
