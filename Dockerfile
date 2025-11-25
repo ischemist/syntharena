@@ -30,4 +30,4 @@ EXPOSE 3000
 
 # migrate real db, then start
 # using 'pnpm start' because we have the full environment now
-CMD npx prisma migrate deploy && pnpm start
+CMD npx prisma migrate deploy --skip-generate && pnpm start

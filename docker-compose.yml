@@ -5,8 +5,6 @@ services:
         ports:
             - '1000:3000'
         env_file: .env
-        environment:
-            - DATABASE_URL=file:/app/data/prod.db
         volumes:
             - ./production_data:/app/data
         restart: unless-stopped
