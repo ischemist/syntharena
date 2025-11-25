@@ -29,9 +29,107 @@ model Molecule {
   smiles   String // Canonical SMILES
 
   // Relations
-  stockItems StockItem[]
+  stockItems       StockItem[]
+  routeNodes       RouteNode[]
+  benchmarkTargets BenchmarkTarget[]
 
   @@index([smiles])
+}
+
+// =================================================================================
+// 2. BENCHMARKS (The "Exam" Layer)
+// Matches retrocast.models.benchmark
+// =================================================================================
+
+model BenchmarkSet {
+  id          String  @id @default(cuid())
+  name        String  @unique // e.g. "mkt-lin-500"
+  description String?
+  stockName   String? // The "stock_name" required by the benchmark contract
+
+  createdAt DateTime @default(now())
+
+  targets BenchmarkTarget[]
+}
+
+model BenchmarkTarget {
+  id             String @id @default(cuid())
+  benchmarkSetId String
+  targetId       String // The external ID, e.g. "n5-00123"
+  moleculeId     String // The SMILES/InchiKey link
+
+  // Metadata for stratification (cached from Python model)
+  routeLength  Int? // Length of GT route
+  isConvergent Boolean? // Is GT route convergent?
+  metadata     String? // JSON blob for other metadata
+
+  // Ground Truth Link
+  // A target might have a ground truth route. This route is stored in the Route table
+  // but usually has no ModelInstance associated with it.
+  groundTruthRouteId String? @unique
+
+  // Relations
+  benchmarkSet     BenchmarkSet @relation(fields: [benchmarkSetId], references: [id])
+  molecule         Molecule     @relation(fields: [moleculeId], references: [id])
+  groundTruthRoute Route?       @relation("GroundTruth", fields: [groundTruthRouteId], references: [id])
+  predictedRoutes  Route[]      @relation("TargetPredictions")
+
+  @@unique([benchmarkSetId, targetId])
+}
+
+// =================================================================================
+// 3. MODELS & EXECUTION (The "Prediction" Layer)
+// Matches data/3-processed/
+// =================================================================================
+
+model Route {
+  id              String  @id @default(cuid())
+  predictionRunId String? // Optional: GT routes don't belong to a run
+  targetId        String // The BenchmarkTarget this route attempts to solve
+
+  // Core Route Properties
+  rank        Int // 1-indexed rank
+  contentHash String // SHA256 from get_content_hash()
+  signature   String? // SHA256 from get_signature() (topology only)
+
+  // Cached Computations (for fast filtering)
+  length       Int
+  isConvergent Boolean
+
+  metadata String? // JSON: scores, confidence, etc.
+
+  // Relations
+  target BenchmarkTarget @relation("TargetPredictions", fields: [targetId], references: [id])
+
+  // This reverse relation allows us to access the GT route from the target
+  asGroundTruthFor BenchmarkTarget? @relation("GroundTruth")
+
+  nodes RouteNode[]
+
+  @@index([targetId, rank])
+  @@index([contentHash])
+}
+
+model RouteNode {
+  id         String  @id @default(cuid())
+  routeId    String
+  moleculeId String
+  parentId   String? // Tree structure
+
+  // Reaction Step Data (The "Edge" info)
+  // If this node is a product, how was it made?
+  isLeaf       Boolean @default(false)
+  reactionHash String? // For checking reaction overlap
+  template     String?
+  metadata     String? // JSON: reagents, solvents, mapper output
+
+  // Relations
+  route    Route       @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  molecule Molecule    @relation(fields: [moleculeId], references: [id])
+  parent   RouteNode?  @relation("ReactionTree", fields: [parentId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  children RouteNode[] @relation("ReactionTree")
+
+  @@index([routeId])
 }
 
 // =================================================================================

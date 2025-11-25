@@ -489,3 +489,31 @@ export async function deleteStock(stockId: string): Promise<void> {
         prisma.stock.delete({ where: { id: stockId } }),
     ])
 }
+
+/**
+ * Batch checks if molecules (by SMILES) exist in a stock.
+ * Returns a Set of SMILES strings that are in stock.
+ *
+ * @param smilesArray - Array of SMILES strings to check
+ * @param stockId - The stock ID to check against
+ * @returns Set of SMILES strings that exist in the stock
+ */
+export async function checkMoleculesInStock(smilesArray: string[], stockId: string): Promise<Set<string>> {
+    if (smilesArray.length === 0) {
+        return new Set()
+    }
+
+    // Query molecules that match the SMILES and exist in the stock
+    const moleculesInStock = await prisma.molecule.findMany({
+        where: {
+            smiles: { in: smilesArray },
+            stockItems: {
+                some: { stockId },
+            },
+        },
+        select: { smiles: true },
+    })
+
+    // Return as Set for O(1) lookup
+    return new Set(moleculesInStock.map((mol) => mol.smiles))
+}
