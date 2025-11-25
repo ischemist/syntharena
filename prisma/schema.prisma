@@ -34,18 +34,17 @@ model Molecule {
   @@index([smiles])
 }
 
-
 // =================================================================================
 // 4. SCORING & EVALUATION (The "Stock" Layer)
 // Matches retrocast.models.evaluation and data/4-scored/
 // =================================================================================
 
 model Stock {
-  id          String   @id @default(cuid(2))
-  name        String   @unique // "buyables-stock" (matches directory name)
+  id          String  @id @default(cuid(2))
+  name        String  @unique // "buyables-stock" (matches directory name)
   description String?
 
-  items       StockItem[]
+  items StockItem[]
 }
 
 model StockItem {

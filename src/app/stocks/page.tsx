@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { connection } from 'next/server'
 
 import { StockList } from './_components/server/stock-list'
 import { StockListSkeleton } from './_components/skeletons'
@@ -7,7 +8,8 @@ import { StockListSkeleton } from './_components/skeletons'
  * Main stocks page showing all available stock libraries.
  * Uses streaming with Suspense for instant layout render.
  */
-export default function StocksPage() {
+export default async function StocksPage() {
+    await connection()
     return (
         <div className="space-y-6">
             <div>
