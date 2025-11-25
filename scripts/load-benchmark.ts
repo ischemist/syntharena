@@ -8,7 +8,7 @@
  *   tsx scripts/load-benchmark.ts <file-path> <benchmark-name> [description]
  *
  * Examples:
- *   pnpm tsx scripts/load-benchmark.ts /path/to/ref-lng-84.json.gz "ref-lng-84" "84 targets with extra long ground truth routes"
+ *   pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/ref-lng-84.json.gz "ref-lng-84" "84 targets with extra long ground truth routes"
  *   pnpm tsx scripts/load-benchmark.ts /path/to/mkt-lin-500.json.gz "mkt-lin-500" "500 targets from market data with linear routes"
  *
  * File Format:

@@ -28,7 +28,10 @@ export default function BenchmarkDetailPage(props: BenchmarkDetailPageProps) {
 
     // Parse search parameters
     const q = typeof searchParams.q === 'string' ? searchParams.q : undefined
-    const searchType = typeof searchParams.searchType === 'string' ? (searchParams.searchType as any) : 'all'
+    const searchType =
+        typeof searchParams.searchType === 'string'
+            ? (searchParams.searchType as 'smiles' | 'inchikey' | 'targetId' | 'all')
+            : 'all'
 
     // Parse filter parameters
     const convergentParam = typeof searchParams.convergent === 'string' ? searchParams.convergent : undefined

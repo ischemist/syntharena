@@ -1,4 +1,8 @@
 #!/usr/bin/env tsx
+
+/*
+ * pnpm tsx scripts/delete-benchmark.ts ref-lng-84
+ */
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { PrismaClient } from '@prisma/client'
 import { config } from 'dotenv'

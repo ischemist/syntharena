@@ -439,7 +439,7 @@ export async function loadBenchmarkFromFile(
                         targetId: externalId,
                         moleculeId: targetMol.id,
                         routeLength: targetData.route_length || null,
-                        isConvergent: targetData.is_convergent || null,
+                        isConvergent: targetData.is_convergent ?? null,
                         metadata: targetData.metadata ? JSON.stringify(targetData.metadata) : null,
                         groundTruthRouteId: null, // Will be set if ground truth exists
                     },
@@ -478,11 +478,13 @@ export async function loadBenchmarkFromFile(
                         },
                     })
 
-                    // Update benchmark target to link to ground truth route
+                    // Update benchmark target to link to ground truth route and use computed properties
                     await tx.benchmarkTarget.update({
                         where: { id: benchmarkTarget.id },
                         data: {
                             groundTruthRouteId: route.id,
+                            routeLength: length,
+                            isConvergent: isConvergent,
                         },
                     })
 
