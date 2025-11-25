@@ -148,9 +148,9 @@ describe('benchmark.service', () => {
 
     describe('getBenchmarkSets', () => {
         it('should return all benchmarks ordered by creation date descending', async () => {
-            const bench1 = await createBenchmark('bench-1')
-            const bench2 = await createBenchmark('bench-2')
-            const bench3 = await createBenchmark('bench-3')
+            await createBenchmark('bench-1')
+            await createBenchmark('bench-2')
+            await createBenchmark('bench-3')
 
             const results = await getBenchmarkSets()
 
