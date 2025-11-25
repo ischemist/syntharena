@@ -213,12 +213,31 @@ export const mockBenchmarkTarget = (id: string, benchmarkSetId: string, molecule
     createdAt: new Date(),
 })
 
+// Type definitions for Python route structures
+interface PythonReactionStep {
+    reactants: PythonMolecule[]
+    mapped_smiles?: string | null
+    template?: string | null
+    reagents?: string[] | null
+    solvents?: string[] | null
+    metadata?: Record<string, unknown>
+    is_convergent?: boolean
+}
+
+interface PythonMolecule {
+    smiles: string
+    inchikey: string
+    synthesis_step: PythonReactionStep | null
+    metadata?: Record<string, unknown>
+    is_leaf?: boolean
+}
+
 /**
  * Helper to create a complete tree structure with database models
  */
 export const createTreeStructure = (
     routeId: string,
-    pythonRoute: Record<string, unknown>
+    pythonRoute: PythonMolecule
 ): {
     molecules: Map<string, { id: string; smiles: string; inchikey: string }>
     nodes: Array<{
@@ -241,7 +260,7 @@ export const createTreeStructure = (
     }> = []
     let nodeCounter = 0
 
-    const processNode = (molecule: Record<string, unknown>, parentId: string | null): string => {
+    const processNode = (molecule: PythonMolecule, parentId: string | null): string => {
         const nodeId = `node-${nodeCounter++}`
 
         // Add molecule if not exists

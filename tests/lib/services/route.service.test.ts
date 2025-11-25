@@ -22,15 +22,29 @@ import {
     singleMoleculePython,
 } from './route.service.fixtures'
 
+// Type definitions for Python route structures
+interface PythonReactionStep {
+    reactants: PythonMolecule[]
+    mapped_smiles?: string | null
+    template?: string | null
+    reagents?: string[] | null
+    solvents?: string[] | null
+    metadata?: Record<string, unknown>
+    is_convergent?: boolean
+}
+
+interface PythonMolecule {
+    smiles: string
+    inchikey: string
+    synthesis_step: PythonReactionStep | null
+    metadata?: Record<string, unknown>
+    is_leaf?: boolean
+}
+
 /**
  * Helper to create test data in database
  */
-const createTestRoute = async (pythonRoute: {
-    smiles: string
-    inchikey: string
-    is_leaf?: boolean
-    synthesis_step?: unknown
-}) => {
+const createTestRoute = async (pythonRoute: PythonMolecule) => {
     const benchmark = await prisma.benchmarkSet.create({
         data: {
             name: `test-benchmark-${Date.now()}`,
@@ -68,10 +82,7 @@ const createTestRoute = async (pythonRoute: {
 /**
  * Helper to build tree nodes in database
  */
-const storeTreeInDatabase = async (
-    routeId: string,
-    pythonRoute: { smiles: string; inchikey: string; is_leaf?: boolean; synthesis_step?: unknown }
-) => {
+const storeTreeInDatabase = async (routeId: string, pythonRoute: PythonMolecule) => {
     const { molecules, nodes } = createTreeStructure(routeId, pythonRoute)
 
     // Insert molecules
