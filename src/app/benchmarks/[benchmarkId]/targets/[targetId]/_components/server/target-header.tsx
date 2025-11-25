@@ -3,10 +3,11 @@ import { notFound } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 
 import * as benchmarkService from '@/lib/services/benchmark.service'
+import { RouteLengthBadge, RouteTypeBadge } from '@/components/route-badges'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 
 interface TargetHeaderProps {
     benchmarkId: string
@@ -15,7 +16,9 @@ interface TargetHeaderProps {
 
 /**
  * Server component that fetches and displays target header information.
- * Shows the target molecule structure prominently with metadata.
+ * Shows the target molecule structure prominently with metadata in a 2-column layout.
+ * Left column: molecule structure with smile drawer
+ * Right column: target ID, badges, SMILES, and InChiKey
  * Handles 404 if target not found.
  */
 export async function TargetHeader({ benchmarkId, targetId }: TargetHeaderProps) {
@@ -35,36 +38,40 @@ export async function TargetHeader({ benchmarkId, targetId }: TargetHeaderProps)
                 </Button>
             </Link>
 
-            {/* Compact target information card */}
-            <Card>
+            {/* Target information card with 2-column layout */}
+            <Card variant="bordered">
                 <CardContent className="p-4">
-                    {/* Target ID and badges */}
-                    <div className="mb-4 flex flex-wrap items-center gap-2">
-                        <h1 className="text-2xl font-bold tracking-tight">{target.targetId}</h1>
-                        {target.routeLength !== null && (
-                            <Badge variant="secondary">Route Length: {target.routeLength}</Badge>
-                        )}
-                        {target.isConvergent !== null && (
-                            <Badge variant={target.isConvergent ? 'default' : 'outline'}>
-                                {target.isConvergent ? 'Convergent' : 'Linear'}
-                            </Badge>
-                        )}
-                        {target.hasGroundTruth && <Badge variant="secondary">Has Ground Truth</Badge>}
-                    </div>
-
-                    {/* Compact molecule visualization with identifiers */}
-                    <div className="grid gap-3 md:grid-cols-3">
-                        {/* Molecule structure - smaller and left-aligned */}
-                        <div className="flex items-center justify-center rounded p-2">
-                            <SmileDrawerSvg smilesStr={target.molecule.smiles} width={120} height={120} />
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                        {/* Left column: Molecule structure */}
+                        <div className="flex items-center justify-center">
+                            <SmileDrawerSvg smilesStr={target.molecule.smiles} width={200} height={200} />
                         </div>
 
-                        {/* SMILES and InChiKey stacked on right */}
-                        <div className="col-span-2 space-y-2">
+                        {/* Right column: Target info */}
+                        <div className="space-y-4">
+                            {/* Target ID */}
+                            <div>
+                                <h1 className="truncate font-mono text-lg font-medium">{target.targetId}</h1>
+                            </div>
+
+                            {/* Badges */}
+                            <div className="flex flex-wrap items-center gap-2">
+                                {target.routeLength !== null && (
+                                    <RouteLengthBadge length={target.routeLength} variant="ghost" />
+                                )}
+                                {target.isConvergent !== null && (
+                                    <RouteTypeBadge isConvergent={target.isConvergent} variant="ghost" />
+                                )}
+                                {target.hasGroundTruth && <Badge variant="secondary">Has Ground Truth</Badge>}
+                            </div>
+
+                            {/* SMILES */}
                             <div>
                                 <p className="text-muted-foreground mb-1 text-xs font-semibold">SMILES</p>
                                 <p className="font-mono text-xs break-all">{target.molecule.smiles}</p>
                             </div>
+
+                            {/* InChiKey */}
                             <div>
                                 <p className="text-muted-foreground mb-1 text-xs font-semibold">InChiKey</p>
                                 <p className="font-mono text-xs break-all">{target.molecule.inchikey}</p>
