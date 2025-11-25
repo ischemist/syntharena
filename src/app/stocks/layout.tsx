@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-    title: 'Stocks | SynthArena',
+    title: 'Stocks',
     description: 'Browse and search chemical stock libraries',
 }
 
