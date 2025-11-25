@@ -28,6 +28,8 @@ jobs:
 
             - name: Generate Prisma client
               run: pnpx prisma generate
+              env:
+                  DATABASE_URL: 'file:./prisma/test.db'
 
             - name: Run tests
               run: pnpm test:run
