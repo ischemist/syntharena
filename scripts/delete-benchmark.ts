@@ -7,6 +7,8 @@ import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { PrismaClient } from '@prisma/client'
 import { config } from 'dotenv'
 
+import { deleteBenchmark as deleteBenchmarkFromService } from '../src/lib/services/benchmark.service'
+
 // Load environment variables FIRST
 config({ path: '.env' })
 
@@ -19,7 +21,7 @@ const prisma = new PrismaClient({ adapter })
 async function deleteBenchmark(benchmarkName: string) {
     console.log(`Deleting benchmark: ${benchmarkName}`)
 
-    // Find the benchmark
+    // Find the benchmark to get its ID
     const benchmark = await prisma.benchmarkSet.findUnique({
         where: { name: benchmarkName },
         select: { id: true, name: true },
@@ -32,36 +34,8 @@ async function deleteBenchmark(benchmarkName: string) {
 
     console.log(`Found benchmark: ${benchmark.name} (ID: ${benchmark.id})`)
 
-    // Delete in the correct order to respect foreign key constraints
-    console.log('Deleting route nodes...')
-    await prisma.routeNode.deleteMany({
-        where: {
-            route: {
-                target: {
-                    benchmarkSetId: benchmark.id,
-                },
-            },
-        },
-    })
-
-    console.log('Deleting routes...')
-    await prisma.route.deleteMany({
-        where: {
-            target: {
-                benchmarkSetId: benchmark.id,
-            },
-        },
-    })
-
-    console.log('Deleting benchmark targets...')
-    await prisma.benchmarkTarget.deleteMany({
-        where: { benchmarkSetId: benchmark.id },
-    })
-
-    console.log('Deleting benchmark set...')
-    await prisma.benchmarkSet.delete({
-        where: { id: benchmark.id },
-    })
+    // Use the transactional service function for deletion
+    await deleteBenchmarkFromService(benchmark.id)
 
     console.log('Benchmark deleted successfully!')
 }

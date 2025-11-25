@@ -126,7 +126,7 @@ model RouteNode {
   // Relations
   route    Route       @relation(fields: [routeId], references: [id], onDelete: Cascade)
   molecule Molecule    @relation(fields: [moleculeId], references: [id])
-  parent   RouteNode?  @relation("ReactionTree", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  parent   RouteNode?  @relation("ReactionTree", fields: [parentId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   children RouteNode[] @relation("ReactionTree")
 
   @@index([routeId])

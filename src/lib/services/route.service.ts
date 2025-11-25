@@ -90,38 +90,54 @@ export async function getRouteById(routeId: string): Promise<Route> {
 }
 
 /**
- * Recursively builds route node tree for visualization.
+ * Builds route node tree in memory from a single database query.
+ * Fetches all nodes for a route at once to avoid N+1 query problem.
  *
- * @param nodeId - Root node ID
+ * @param rootNodeId - Root node ID
+ * @param routeId - Route ID to fetch all nodes for
  * @returns Complete route node tree
  */
-async function buildRouteNodeTree(nodeId: string): Promise<RouteNodeWithDetails> {
-    const node = await prisma.routeNode.findUnique({
-        where: { id: nodeId },
-        include: {
-            molecule: true,
-            children: true,
-        },
+async function buildRouteNodeTree(rootNodeId: string, routeId: string): Promise<RouteNodeWithDetails> {
+    // Fetch all nodes for this route in a single query
+    const nodes = await prisma.routeNode.findMany({
+        where: { routeId },
+        include: { molecule: true },
     })
 
-    if (!node) {
-        throw new Error('Route node not found')
+    if (nodes.length === 0) {
+        throw new Error('Route has no nodes')
     }
 
-    const childrenTrees = await Promise.all(node.children.map((child) => buildRouteNodeTree(child.id)))
+    // Build node map with empty children arrays
+    const nodeMap = new Map<string, RouteNodeWithDetails>()
+    nodes.forEach((node) => {
+        nodeMap.set(node.id, {
+            id: node.id,
+            routeId: node.routeId,
+            moleculeId: node.moleculeId,
+            parentId: node.parentId,
+            isLeaf: node.isLeaf,
+            reactionHash: node.reactionHash,
+            template: node.template,
+            metadata: node.metadata,
+            molecule: node.molecule,
+            children: [],
+        })
+    })
 
-    return {
-        id: node.id,
-        routeId: node.routeId,
-        moleculeId: node.moleculeId,
-        parentId: node.parentId,
-        isLeaf: node.isLeaf,
-        reactionHash: node.reactionHash,
-        template: node.template,
-        metadata: node.metadata,
-        molecule: node.molecule,
-        children: childrenTrees,
+    // Build parent-child relationships
+    nodes.forEach((node) => {
+        if (node.parentId && nodeMap.has(node.parentId)) {
+            nodeMap.get(node.parentId)!.children.push(nodeMap.get(node.id)!)
+        }
+    })
+
+    const rootNode = nodeMap.get(rootNodeId)
+    if (!rootNode) {
+        throw new Error('Root node not found in the fetched nodes')
     }
+
+    return rootNode
 }
 
 /**
@@ -159,8 +175,8 @@ export async function getRouteTreeData(routeId: string): Promise<RouteVisualizat
         throw new Error('Route has no root node')
     }
 
-    // Build tree from root
-    const tree = await buildRouteNodeTree(rootNode.id)
+    // Build tree from root (fetches all nodes in single query)
+    const tree = await buildRouteNodeTree(rootNode.id, routeId)
 
     return {
         route: {
@@ -259,8 +275,8 @@ export async function getRouteTreeForVisualization(routeId: string): Promise<Rou
         throw new Error('Route has no root node')
     }
 
-    // Build full tree with details
-    const tree = await buildRouteNodeTree(rootNode.id)
+    // Build full tree with details (fetches all nodes in single query)
+    const tree = await buildRouteNodeTree(rootNode.id, routeId)
 
     // Transform to visualization format
     return transformToVisualizationTree(tree)
@@ -304,122 +320,274 @@ async function parseBenchmarkFile(filePath: string): Promise<PythonBenchmarkSet>
 }
 
 /**
- * Recursively stores a route tree in the database.
- * Creates RouteNode records for all molecules in the synthesis tree.
+ * Internal structure for building route nodes in memory before bulk insert.
+ */
+interface RouteNodeToCreate {
+    tempId: string // Temporary ID for tracking parent-child relationships
+    routeId: string
+    moleculeInchikey: string
+    parentTempId: string | null
+    isLeaf: boolean
+    template: string | null
+    metadata: string | null
+    smiles: string
+}
+
+/**
+ * Recursively collects all molecules and nodes from a route tree in memory.
+ *
+ * @param molecule - Current molecule in the tree
+ * @param routeId - The route ID
+ * @param parentTempId - Parent's temporary ID
+ * @param molecules - Map to collect unique molecules
+ * @param nodes - Array to collect all nodes
+ * @returns Temporary ID of the created node
+ */
+function collectRouteTreeData(
+    molecule: PythonMolecule,
+    routeId: string,
+    parentTempId: string | null,
+    molecules: Map<string, { smiles: string; inchikey: string }>,
+    nodes: RouteNodeToCreate[],
+    tempIdCounter: { value: number }
+): string {
+    // Add molecule to collection if not already present
+    if (!molecules.has(molecule.inchikey)) {
+        molecules.set(molecule.inchikey, {
+            smiles: molecule.smiles,
+            inchikey: molecule.inchikey,
+        })
+    }
+
+    // Generate temporary ID for this node
+    const tempId = `temp-${tempIdCounter.value++}`
+
+    // Create node data
+    const isLeaf = !molecule.synthesis_step
+    const node: RouteNodeToCreate = {
+        tempId,
+        routeId,
+        moleculeInchikey: molecule.inchikey,
+        parentTempId,
+        isLeaf,
+        template: molecule.synthesis_step?.template || null,
+        metadata: molecule.synthesis_step?.metadata ? JSON.stringify(molecule.synthesis_step.metadata) : null,
+        smiles: molecule.smiles,
+    }
+    nodes.push(node)
+
+    // Recursively process reactants
+    if (molecule.synthesis_step?.reactants) {
+        for (const reactant of molecule.synthesis_step.reactants) {
+            collectRouteTreeData(reactant, routeId, tempId, molecules, nodes, tempIdCounter)
+        }
+    }
+
+    return tempId
+}
+
+/**
+ * Stores a route tree in the database using bulk operations.
+ * Minimizes database queries by collecting all data in memory first,
+ * then performing bulk inserts.
  *
  * @param routeId - The route ID
- * @param molecule - Root molecule (target)
- * @param parentNodeId - Parent node ID (null for root)
- * @returns Root node ID
+ * @param rootMolecule - Root molecule (target)
+ * @param tx - Transaction client
+ * @returns Number of new molecules created
  */
 async function storeRouteTree(
     routeId: string,
-    molecule: PythonMolecule,
-    parentNodeId: string | null,
+    rootMolecule: PythonMolecule,
     tx: Prisma.TransactionClient
-): Promise<{ nodeId: string; leafCount: number; moleculesCreated: number }> {
-    // Get or create molecule
-    let mol = await tx.molecule.findUnique({
-        where: { inchikey: molecule.inchikey },
-        select: { id: true },
+): Promise<number> {
+    // Step 1: Collect all unique molecules and nodes in memory
+    const moleculesMap = new Map<string, { smiles: string; inchikey: string }>()
+    const nodesData: RouteNodeToCreate[] = []
+    const tempIdCounter = { value: 0 }
+
+    collectRouteTreeData(rootMolecule, routeId, null, moleculesMap, nodesData, tempIdCounter)
+
+    // Step 2: Bulk handle molecules
+    const uniqueInchikeys = Array.from(moleculesMap.keys())
+
+    // Find existing molecules
+    const existingMolecules = await tx.molecule.findMany({
+        where: { inchikey: { in: uniqueInchikeys } },
+        select: { id: true, inchikey: true },
     })
 
-    let moleculesCreatedInThisCall = 0
-    if (!mol) {
-        mol = await tx.molecule.create({
-            data: {
-                smiles: molecule.smiles,
-                inchikey: molecule.inchikey,
-            },
-            select: { id: true },
-        })
-        moleculesCreatedInThisCall = 1
-    }
+    const existingInchikeyToId = new Map(existingMolecules.map((m) => [m.inchikey, m.id]))
 
-    // Create route node
-    const isLeaf = !molecule.synthesis_step
-    const node = await tx.routeNode.create({
-        data: {
-            routeId,
-            moleculeId: mol.id,
-            parentId: parentNodeId,
-            isLeaf,
-            template: molecule.synthesis_step?.template || null,
-            metadata: molecule.synthesis_step?.metadata ? JSON.stringify(molecule.synthesis_step.metadata) : null,
-        },
-        select: { id: true },
-    })
+    // Create new molecules
+    const newMolecules = Array.from(moleculesMap.values()).filter((m) => !existingInchikeyToId.has(m.inchikey))
 
-    // Recursively store reactants
-    let totalLeaves = isLeaf ? 1 : 0
-    let totalMoleculesCreated = moleculesCreatedInThisCall
-    if (molecule.synthesis_step?.reactants) {
-        for (const reactant of molecule.synthesis_step.reactants) {
-            const result = await storeRouteTree(routeId, reactant, node.id, tx)
-            totalLeaves += result.leafCount
-            totalMoleculesCreated += result.moleculesCreated
+    let moleculesCreated = 0
+    if (newMolecules.length > 0) {
+        // SQLite doesn't support skipDuplicates in createMany, so we use individual creates
+        // This is still much faster than the original recursive approach
+        const createdMolecules = await Promise.all(
+            newMolecules.map((m) =>
+                tx.molecule.create({
+                    data: m,
+                    select: { id: true, inchikey: true },
+                })
+            )
+        )
+        moleculesCreated = createdMolecules.length
+
+        for (const mol of createdMolecules) {
+            existingInchikeyToId.set(mol.inchikey, mol.id)
         }
     }
 
-    return {
-        nodeId: node.id,
-        leafCount: totalLeaves,
-        moleculesCreated: totalMoleculesCreated,
+    // Step 3: Create all nodes with proper parent-child relationships
+    // First pass: create all nodes and build a map of tempId to real ID
+    const tempIdToRealId = new Map<string, string>()
+
+    // We need to create nodes in order (parent before children)
+    // Build a tree structure to ensure proper ordering
+    const nodesByParent = new Map<string | null, RouteNodeToCreate[]>()
+    for (const node of nodesData) {
+        const parentKey = node.parentTempId
+        if (!nodesByParent.has(parentKey)) {
+            nodesByParent.set(parentKey, [])
+        }
+        nodesByParent.get(parentKey)!.push(node)
     }
+
+    // Breadth-first creation to ensure parents are created before children
+    const queue: RouteNodeToCreate[] = nodesByParent.get(null) || []
+    while (queue.length > 0) {
+        const currentBatch = [...queue]
+        queue.length = 0
+
+        // Create current batch
+        for (const nodeData of currentBatch) {
+            const moleculeId = existingInchikeyToId.get(nodeData.moleculeInchikey)
+            if (!moleculeId) {
+                throw new Error(`Molecule not found for inchikey: ${nodeData.moleculeInchikey}`)
+            }
+
+            const parentId = nodeData.parentTempId ? tempIdToRealId.get(nodeData.parentTempId) || null : null
+
+            const createdNode = await tx.routeNode.create({
+                data: {
+                    routeId: nodeData.routeId,
+                    moleculeId,
+                    parentId,
+                    isLeaf: nodeData.isLeaf,
+                    template: nodeData.template,
+                    metadata: nodeData.metadata,
+                },
+                select: { id: true },
+            })
+
+            tempIdToRealId.set(nodeData.tempId, createdNode.id)
+
+            // Add children to queue
+            const children = nodesByParent.get(nodeData.tempId) || []
+            queue.push(...children)
+        }
+    }
+
+    return moleculesCreated
 }
 
 /**
- * Computes route length (longest linear path) from route nodes.
+ * Internal structure for in-memory route node representation.
+ */
+interface InMemoryRouteNode {
+    id: string
+    isLeaf: boolean
+    childIds: string[]
+}
+
+/**
+ * Computes route length and convergence in-memory using a single database query.
+ * Fetches all nodes at once and performs graph traversal in memory.
  *
  * @param routeId - The route ID
- * @returns Maximum path length
+ * @param tx - Transaction client
+ * @returns Object with length and isConvergent properties
  */
-async function computeRouteLength(routeId: string, tx: Prisma.TransactionClient): Promise<number> {
-    const rootNode = await tx.routeNode.findFirst({
-        where: { routeId, parentId: null },
-        select: { id: true },
+async function computeRouteProperties(
+    routeId: string,
+    tx: Prisma.TransactionClient
+): Promise<{ length: number; isConvergent: boolean }> {
+    // Fetch all nodes for this route in a single query
+    const nodes = await tx.routeNode.findMany({
+        where: { routeId },
+        select: {
+            id: true,
+            parentId: true,
+            isLeaf: true,
+        },
     })
 
-    if (!rootNode) return 0
+    if (nodes.length === 0) {
+        return { length: 0, isConvergent: false }
+    }
 
-    async function getDepth(nodeId: string): Promise<number> {
-        const node = await tx.routeNode.findUnique({
-            where: { id: nodeId },
-            select: { children: true },
+    // Build in-memory graph structure
+    const nodeMap = new Map<string, InMemoryRouteNode>()
+    let rootId: string | null = null
+
+    for (const node of nodes) {
+        nodeMap.set(node.id, {
+            id: node.id,
+            isLeaf: node.isLeaf,
+            childIds: [],
         })
 
-        if (!node?.children || node.children.length === 0) {
+        if (node.parentId === null) {
+            rootId = node.id
+        }
+    }
+
+    // Build parent-child relationships
+    for (const node of nodes) {
+        if (node.parentId) {
+            const parent = nodeMap.get(node.parentId)
+            if (parent) {
+                parent.childIds.push(node.id)
+            }
+        }
+    }
+
+    if (!rootId) {
+        return { length: 0, isConvergent: false }
+    }
+
+    // Compute length using in-memory DFS
+    function getDepth(nodeId: string): number {
+        const node = nodeMap.get(nodeId)
+        if (!node || node.childIds.length === 0) {
             return 0
         }
 
-        const childDepths = await Promise.all(node.children.map((child) => getDepth(child.id)))
+        const childDepths = node.childIds.map((childId) => getDepth(childId))
         return 1 + Math.max(...childDepths)
     }
 
-    return getDepth(rootNode.id)
-}
+    const length = getDepth(rootId)
 
-/**
- * Detects convergent reactions in a route.
- *
- * @param routeId - The route ID
- * @returns True if route has convergent reactions
- */
-async function computeIsConvergent(routeId: string, tx: Prisma.TransactionClient): Promise<boolean> {
-    const nodes = await tx.routeNode.findMany({
-        where: { routeId },
-        include: { children: true },
-    })
-
-    for (const node of nodes) {
+    // Compute convergence in-memory
+    let isConvergent = false
+    for (const node of nodeMap.values()) {
         // Count non-leaf children
-        const nonLeafChildren = node.children.filter((child) => !child.isLeaf)
+        const nonLeafChildren = node.childIds.filter((childId) => {
+            const child = nodeMap.get(childId)
+            return child && !child.isLeaf
+        })
+
         if (nonLeafChildren.length >= 2) {
-            return true
+            isConvergent = true
+            break
         }
     }
 
-    return false
+    return { length, isConvergent }
 }
 
 /**
@@ -518,12 +686,11 @@ export async function loadBenchmarkFromFile(
                     })
 
                     // Store route tree
-                    const routeResult = await storeRouteTree(route.id, targetData.ground_truth.target, null, tx)
-                    moleculesCreated += routeResult.moleculesCreated
+                    const newMoleculesCreated = await storeRouteTree(route.id, targetData.ground_truth.target, tx)
+                    moleculesCreated += newMoleculesCreated
 
-                    // Compute route properties
-                    const length = await computeRouteLength(route.id, tx)
-                    const isConvergent = await computeIsConvergent(route.id, tx)
+                    // Compute route properties (in-memory using single query)
+                    const { length, isConvergent } = await computeRouteProperties(route.id, tx)
 
                     // Update route with computed properties
                     await tx.route.update({

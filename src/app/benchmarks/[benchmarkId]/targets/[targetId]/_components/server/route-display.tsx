@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 
 import type { RouteVisualizationNode } from '@/types'
+import { getAllRouteSmilesSet } from '@/lib/route-visualization'
 import * as benchmarkService from '@/lib/services/benchmark.service'
 import * as routeService from '@/lib/services/route.service'
 import { findMatchingStock } from '@/lib/services/stock-mapping'
@@ -55,14 +56,7 @@ async function RouteVisualizationContent({ routeId, benchmarkId }: { routeId: st
     const benchmark = await benchmarkService.getBenchmarkById(benchmarkId)
 
     // Collect all SMILES from route for stock checking
-    const allSmiles: string[] = []
-    function collectSmiles(node: RouteVisualizationNode) {
-        allSmiles.push(node.smiles)
-        if (node.children) {
-            node.children.forEach(collectSmiles)
-        }
-    }
-    collectSmiles(routeTree)
+    const allSmiles = Array.from(getAllRouteSmilesSet(routeTree))
 
     // Check stock availability if benchmark has a stock
     let inStockSmiles = new Set<string>()
