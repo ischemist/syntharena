@@ -1,63 +1,33 @@
-# ===== BUILD STAGE =====
-FROM node:22.16.0 AS builder
+FROM node:22-bookworm
 
-# Set environment variables for PNPM
-ENV PNPM_HOME="/root/.local/share/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-
-# Install pnpm
-RUN npm install -g pnpm
-
-# Set the working directory
 WORKDIR /app
 
-# Copy prisma schema and package files
-COPY prisma ./prisma/
+# install pnpm
+RUN npm install -g pnpm
+
+# copy package files
 COPY package.json pnpm-lock.yaml ./
 
-# Install dependencies with cache mounting
-RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile
+# install ALL dependencies (including devDependencies like typescript/prisma)
+# this ensures prisma.config.ts can actually be read
+RUN pnpm install --frozen-lockfile
 
-# Generate Prisma client
-RUN pnpm exec prisma generate
-
-# Copy the rest of the application code
+# copy source
 COPY . .
 
-# Build the application
+# rebuild sqlite bindings for this container's os
+RUN pnpm rebuild better-sqlite3
+
+# dummy env vars for build
+ENV DATABASE_URL="file:./dev.db"
+
+# generate client and build nextjs
+RUN pnpm exec prisma generate
 RUN pnpm run build
 
-# ===== RUNTIME STAGE =====
-FROM node:22.16.0-alpine
-
-# Set environment variables for PNPM
-ENV PNPM_HOME="/root/.local/share/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-ENV NODE_ENV=production
-
-# Install pnpm
-RUN npm install -g pnpm
-
-# Create non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001
-
-# Set the working directory
-WORKDIR /app
-
-# Copy only necessary files from builder
-COPY --from=builder --chown=nextjs:nodejs /app/package.json /app/pnpm-lock.yaml ./
-COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma/
-COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next/
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public/
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules/
-
-# Switch to non-root user
-USER nextjs
-
-# Expose the port
+# expose port
 EXPOSE 3000
 
-# Start the application
-CMD ["pnpm", "start"]
+# migrate real db, then start
+# using 'pnpm start' because we have the full environment now
+CMD npx prisma migrate deploy --skip-generate && pnpm start
