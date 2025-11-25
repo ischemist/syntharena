@@ -260,13 +260,14 @@ async function storeRouteTree(
     molecule: PythonMolecule,
     parentNodeId: string | null,
     tx: Prisma.TransactionClient
-): Promise<{ nodeId: string; leafCount: number }> {
+): Promise<{ nodeId: string; leafCount: number; moleculesCreated: number }> {
     // Get or create molecule
     let mol = await tx.molecule.findUnique({
         where: { inchikey: molecule.inchikey },
         select: { id: true },
     })
 
+    let moleculesCreatedInThisCall = 0
     if (!mol) {
         mol = await tx.molecule.create({
             data: {
@@ -275,6 +276,7 @@ async function storeRouteTree(
             },
             select: { id: true },
         })
+        moleculesCreatedInThisCall = 1
     }
 
     // Create route node
@@ -293,16 +295,19 @@ async function storeRouteTree(
 
     // Recursively store reactants
     let totalLeaves = isLeaf ? 1 : 0
+    let totalMoleculesCreated = moleculesCreatedInThisCall
     if (molecule.synthesis_step?.reactants) {
         for (const reactant of molecule.synthesis_step.reactants) {
             const result = await storeRouteTree(routeId, reactant, node.id, tx)
             totalLeaves += result.leafCount
+            totalMoleculesCreated += result.moleculesCreated
         }
     }
 
     return {
         nodeId: node.id,
         leafCount: totalLeaves,
+        moleculesCreated: totalMoleculesCreated,
     }
 }
 
@@ -403,8 +408,14 @@ export async function loadBenchmarkFromFile(
                 const targetData = benchmarkData.targets[externalId]
 
                 // Get or create target molecule
+                // For target molecules, we need to get the inchikey from the ground_truth data if available
+                let targetInchikey = targetData.smiles // fallback
+                if (targetData.ground_truth?.target?.inchikey) {
+                    targetInchikey = targetData.ground_truth.target.inchikey
+                }
+
                 let targetMol = await tx.molecule.findUnique({
-                    where: { inchikey: targetData.smiles },
+                    where: { inchikey: targetInchikey },
                     select: { id: true },
                 })
 
@@ -412,7 +423,7 @@ export async function loadBenchmarkFromFile(
                     targetMol = await tx.molecule.create({
                         data: {
                             smiles: targetData.smiles,
-                            inchikey: targetData.smiles, // Note: using SMILES as inchikey for now
+                            inchikey: targetInchikey,
                         },
                         select: { id: true },
                     })
@@ -450,7 +461,8 @@ export async function loadBenchmarkFromFile(
                     })
 
                     // Store route tree
-                    await storeRouteTree(route.id, targetData.ground_truth.target, null, tx)
+                    const routeResult = await storeRouteTree(route.id, targetData.ground_truth.target, null, tx)
+                    moleculesCreated += routeResult.moleculesCreated
 
                     // Compute route properties
                     const length = await computeRouteLength(route.id, tx)
