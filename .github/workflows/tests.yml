@@ -33,3 +33,5 @@ jobs:
 
             - name: Run tests
               run: pnpm test:run
+              env:
+                  DATABASE_URL: 'file:./prisma/test.db'
