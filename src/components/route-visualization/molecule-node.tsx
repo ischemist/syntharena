@@ -19,28 +19,13 @@ export function MoleculeNode({ data }: NodeProps<Node<RouteGraphNode>>) {
         default: 'border-gray-300 border-2',
     }
 
-    const badgeStyles = {
-        'in-stock': 'bg-emerald-500 text-white',
-        default: 'bg-gray-100 text-gray-700',
-    }
-
-    const badgeLabels = {
-        'in-stock': 'In Stock',
-        default: 'Not in Stock',
-    }
-
     return (
-        <div className={`rounded-lg bg-white shadow-md ${borderStyles[status]} p-2`}>
+        <div className={`rounded-lg bg-white shadow-md ${borderStyles[status]}`}>
             <Handle type="target" position={Position.Top} className="!bg-gray-400" />
 
             {/* Molecule visualization */}
-            <div className="flex justify-center py-1">
-                <SmileDrawerSvg smilesStr={smiles} width={120} height={80} compactDrawing={true} />
-            </div>
-
-            {/* Status badge */}
-            <div className={`mt-1 rounded-full px-2 py-1 text-center text-xs font-medium ${badgeStyles[status]}`}>
-                {badgeLabels[status]}
+            <div className="flex justify-center">
+                <SmileDrawerSvg smilesStr={smiles} width={160} height={120} compactDrawing={false} />
             </div>
 
             <Handle type="source" position={Position.Bottom} className="!bg-gray-400" />

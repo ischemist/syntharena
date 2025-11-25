@@ -27,7 +27,7 @@ export function RouteVisualizationWrapper({ routeTree, inStockSmiles }: RouteVis
             </div>
 
             {/* Visualization - tall for better tree exploration */}
-            <div className="h-[600px] w-full rounded-lg border border-gray-200 bg-white">
+            <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white">
                 <RouteGraph route={routeTree} inStockSmiles={inStockSmiles} idPrefix="target-route-" />
             </div>
 

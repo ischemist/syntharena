@@ -54,7 +54,7 @@ export function RouteGraph({ route, inStockSmiles, idPrefix = 'route-' }: RouteG
                 nodeTypes={nodeTypes}
                 fitView
                 fitViewOptions={{ padding: 0.2, minZoom: 0.1, maxZoom: 4 }}
-                nodesDraggable={false}
+                nodesDraggable={true}
                 nodesConnectable={false}
                 elementsSelectable={false}
             >
