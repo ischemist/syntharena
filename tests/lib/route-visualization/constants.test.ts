@@ -54,7 +54,7 @@ describe('Layout Constants', () => {
 
             // Attempting to mutate should either fail silently or throw
             try {
-                ;(LAYOUT_CONFIG as any).nodeWidth = 999
+                ;(LAYOUT_CONFIG as unknown as Record<string, number>).nodeWidth = 999
                 // If it doesn't throw, the value should be unchanged
                 expect(LAYOUT_CONFIG.nodeWidth).toBe(originalWidth)
             } catch {

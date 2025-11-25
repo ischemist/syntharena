@@ -9,7 +9,7 @@ export default defineConfig({
         coverage: {
             provider: 'v8',
             reporter: ['text', 'json', 'html'],
-            include: ['src/lib/route-visualization/**/*.ts'],
+            include: ['src/lib/route-visualization/**/*.ts', 'src/lib/services/**/*.ts'],
             exclude: ['src/lib/route-visualization/index.ts'],
         },
     },
