@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import type { RouteVisualizationNode } from '@/types'
 import { HORIZONTAL_SPACING, NODE_HEIGHT, NODE_WIDTH, VERTICAL_SPACING } from '@/lib/route-visualization/constants'
 import {
     assignPositions,
@@ -450,5 +451,240 @@ describe('collectSmiles', () => {
         expect(set.size).toBe(2)
         expect(set.has('A')).toBe(true)
         expect(set.has('B')).toBe(true)
+    })
+})
+
+describe('Global Layout Invariants', () => {
+    it('should ensure all nodes have non-negative coordinates', () => {
+        const trees = [singleNode, simpleTree, balancedTree, complexTree, wideTree, deepTree]
+
+        trees.forEach((tree) => {
+            const result = layoutTree(tree, 'test-')
+
+            result.nodes.forEach((node) => {
+                expect(node.x).toBeGreaterThanOrEqual(0)
+                expect(node.y).toBeGreaterThanOrEqual(0)
+            })
+        })
+    })
+
+    it('should ensure children are always positioned below parents in y-axis', () => {
+        const result = layoutTree(balancedTree, 'test-')
+
+        // Build parent-child map
+        const childToParent = new Map<string, string>()
+        const nodeMap = new Map(result.nodes.map((n) => [n.id, n]))
+
+        result.edges.forEach((edge) => {
+            childToParent.set(edge.target, edge.source)
+        })
+
+        // Verify every child is below its parent
+        childToParent.forEach((parentId, childId) => {
+            const parentNode = nodeMap.get(parentId)
+            const childNode = nodeMap.get(childId)
+
+            expect(childNode!.y).toBeGreaterThan(parentNode!.y)
+        })
+    })
+
+    it('should produce exactly (n-1) edges for n nodes', () => {
+        const trees = [singleNode, simpleTree, balancedTree, complexTree, asymmetricTree, deepTree, wideTree]
+
+        trees.forEach((tree) => {
+            const result = layoutTree(tree, 'test-')
+
+            expect(result.edges.length).toBe(result.nodes.length - 1)
+        })
+    })
+
+    it('should ensure all node coordinates are numbers', () => {
+        const result = layoutTree(complexTree, 'test-')
+
+        result.nodes.forEach((node) => {
+            expect(typeof node.x).toBe('number')
+            expect(typeof node.y).toBe('number')
+            expect(Number.isFinite(node.x)).toBe(true)
+            expect(Number.isFinite(node.y)).toBe(true)
+        })
+    })
+
+    it('should have no node overlaps at same level (within NODE_WIDTH margin)', () => {
+        const result = layoutTree(wideTree, 'test-')
+
+        // Group nodes by y coordinate
+        const nodesByLevel = new Map<number, typeof result.nodes>()
+        result.nodes.forEach((node) => {
+            if (!nodesByLevel.has(node.y)) {
+                nodesByLevel.set(node.y, [])
+            }
+            nodesByLevel.get(node.y)!.push(node)
+        })
+
+        // Check each level for overlaps
+        nodesByLevel.forEach((nodesAtLevel) => {
+            const sorted = [...nodesAtLevel].sort((a, b) => a.x - b.x)
+
+            for (let i = 0; i < sorted.length - 1; i++) {
+                const current = sorted[i]
+                const next = sorted[i + 1]
+
+                // Next node should start at or after current node ends
+                expect(next.x).toBeGreaterThanOrEqual(current.x + NODE_WIDTH - 1) // Allow 1px rounding tolerance
+            }
+        })
+    })
+})
+
+describe('Layout Functions - Input Immutability', () => {
+    it('should not mutate input tree in layoutTree', () => {
+        const treeClone = JSON.parse(JSON.stringify(simpleTree))
+
+        layoutTree(simpleTree, 'test-')
+
+        expect(simpleTree).toEqual(treeClone)
+    })
+
+    it('should not mutate input tree in buildLayoutTree', () => {
+        const treeClone = JSON.parse(JSON.stringify(simpleTree))
+
+        buildLayoutTree(simpleTree.smiles, simpleTree.children, 'test-')
+
+        expect(simpleTree).toEqual(treeClone)
+    })
+
+    it('should not mutate input tree in collectSmiles', () => {
+        const treeClone = JSON.parse(JSON.stringify(complexTree))
+        const set = new Set<string>()
+
+        collectSmiles(complexTree, set)
+
+        expect(complexTree).toEqual(treeClone)
+    })
+})
+
+describe('ID Generation & Uniqueness', () => {
+    it('should generate globally unique IDs in simple tree', () => {
+        const result = layoutTree(simpleTree, 'test-')
+        const ids = result.nodes.map((n) => n.id)
+
+        expect(new Set(ids).size).toBe(ids.length)
+    })
+
+    it('should generate globally unique IDs in complex tree', () => {
+        const result = layoutTree(complexTree, 'test-')
+        const ids = result.nodes.map((n) => n.id)
+
+        expect(new Set(ids).size).toBe(ids.length)
+    })
+
+    it('should generate globally unique IDs in balanced tree', () => {
+        const result = layoutTree(balancedTree, 'test-')
+        const ids = result.nodes.map((n) => n.id)
+
+        expect(new Set(ids).size).toBe(ids.length)
+    })
+
+    it('should preserve prefix in all generated IDs', () => {
+        const customPrefix = 'custom-prefix-'
+        const result = layoutTree(simpleTree, customPrefix)
+
+        result.nodes.forEach((node) => {
+            expect(node.id.startsWith(customPrefix)).toBe(true)
+        })
+    })
+
+    it('should generate different IDs when using different prefixes', () => {
+        const result1 = layoutTree(simpleTree, 'prefix1-')
+        const result2 = layoutTree(simpleTree, 'prefix2-')
+
+        const ids1 = new Set(result1.nodes.map((n) => n.id))
+        const ids2 = new Set(result2.nodes.map((n) => n.id))
+
+        // No overlap between IDs
+        ids1.forEach((id) => {
+            expect(ids2.has(id)).toBe(false)
+        })
+    })
+})
+
+describe('Large Tree Stress Tests', () => {
+    it('should handle large tree without stack overflow', () => {
+        // Create a tree with 100 nodes in a balanced structure
+        const createLargeTree = (depth: number, branchFactor: number = 3): RouteVisualizationNode => {
+            if (depth === 0) {
+                return { smiles: `node-${Math.random()}` }
+            }
+
+            const children: RouteVisualizationNode[] = []
+            for (let i = 0; i < branchFactor; i++) {
+                children.push(createLargeTree(depth - 1, branchFactor))
+            }
+            return { smiles: `node-${Math.random()}`, children }
+        }
+
+        const largeTree = createLargeTree(4, 3) // 3^4 = 81 nodes
+        expect(() => {
+            layoutTree(largeTree, 'large-')
+        }).not.toThrow()
+    })
+
+    it('should handle very deep tree without stack overflow', () => {
+        const createDeepTree = (depth: number): RouteVisualizationNode => {
+            if (depth === 0) {
+                return { smiles: 'leaf' }
+            }
+            return { smiles: `node-${depth}`, children: [createDeepTree(depth - 1)] }
+        }
+
+        const deepTree = createDeepTree(50) // 50 levels deep
+        expect(() => {
+            layoutTree(deepTree, 'deep-')
+        }).not.toThrow()
+    })
+
+    it('should produce correct results for large trees', () => {
+        const createLargeTree = (nodeCount: number): RouteVisualizationNode => {
+            const children: RouteVisualizationNode[] = []
+            for (let i = 0; i < nodeCount; i++) {
+                children.push({ smiles: `child-${i}` })
+            }
+            return { smiles: 'root', children }
+        }
+
+        const largeTree = createLargeTree(50)
+        const result = layoutTree(largeTree, 'large-')
+
+        // Verify structure
+        expect(result.nodes.length).toBe(51)
+        expect(result.edges.length).toBe(50)
+
+        // All nodes at level 1 should have same y
+        const level1Nodes = result.nodes.filter((n) => n.smiles !== 'root')
+        const level1Y = level1Nodes[0].y
+        level1Nodes.forEach((n) => {
+            expect(n.y).toBe(level1Y)
+        })
+    })
+
+    it('should maintain proper spacing even with wide trees', () => {
+        const createWideTree = (childCount: number): RouteVisualizationNode => {
+            const children: RouteVisualizationNode[] = []
+            for (let i = 0; i < childCount; i++) {
+                children.push({ smiles: `child-${i}` })
+            }
+            return { smiles: 'root', children }
+        }
+
+        const wideTree = createWideTree(20)
+        const result = layoutTree(wideTree, 'wide-')
+
+        // Check spacing between children
+        const sorted = [...result.nodes].filter((n) => n.smiles !== 'root').sort((a, b) => a.x - b.x)
+        for (let i = 0; i < sorted.length - 1; i++) {
+            const gap = sorted[i + 1].x - sorted[i].x
+            // Gap should be NODE_WIDTH + HORIZONTAL_SPACING
+            expect(gap).toBe(NODE_WIDTH + HORIZONTAL_SPACING)
+        }
     })
 })

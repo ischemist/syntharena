@@ -48,5 +48,52 @@ describe('Layout Constants', () => {
             expect(LAYOUT_CONFIG).toHaveProperty('horizontalSpacing')
             expect(LAYOUT_CONFIG).toHaveProperty('verticalSpacing')
         })
+
+        it('should prevent property mutations', () => {
+            const originalWidth = LAYOUT_CONFIG.nodeWidth
+
+            // Attempting to mutate should either fail silently or throw
+            try {
+                ;(LAYOUT_CONFIG as any).nodeWidth = 999
+                // If it doesn't throw, the value should be unchanged
+                expect(LAYOUT_CONFIG.nodeWidth).toBe(originalWidth)
+            } catch {
+                // Frozen object throws in strict mode, which is fine
+                expect(true).toBe(true)
+            }
+        })
+
+        it('should have exactly 4 properties', () => {
+            const keys = Object.keys(LAYOUT_CONFIG)
+            expect(keys).toHaveLength(4)
+        })
+
+        it('should have only numeric values', () => {
+            Object.values(LAYOUT_CONFIG).forEach((value) => {
+                expect(typeof value).toBe('number')
+            })
+        })
+    })
+
+    describe('Constants Relationships', () => {
+        it('should have horizontal spacing less than node width', () => {
+            expect(HORIZONTAL_SPACING).toBeLessThan(NODE_WIDTH)
+        })
+
+        it('should have vertical spacing less than twice the node height', () => {
+            expect(VERTICAL_SPACING).toBeLessThan(NODE_HEIGHT * 2)
+        })
+
+        it('should have node width and height greater than zero', () => {
+            expect(NODE_WIDTH).toBeGreaterThan(0)
+            expect(NODE_HEIGHT).toBeGreaterThan(0)
+        })
+
+        it('should maintain consistent spacing proportions', () => {
+            // Spacing should not exceed node dimensions
+            const maxReasonableSpacing = Math.max(NODE_WIDTH, NODE_HEIGHT) * 2
+            expect(HORIZONTAL_SPACING).toBeLessThan(maxReasonableSpacing)
+            expect(VERTICAL_SPACING).toBeLessThan(maxReasonableSpacing)
+        })
     })
 })

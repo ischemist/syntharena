@@ -49,6 +49,7 @@
         "@types/node": "^20",
         "@types/react": "^19",
         "@types/react-dom": "^19",
+        "@vitest/coverage-v8": "4.0.14",
         "@vitest/ui": "^4.0.14",
         "babel-plugin-react-compiler": "1.0.0",
         "eslint": "^9",
