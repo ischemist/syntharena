@@ -11,14 +11,39 @@ interface TargetGridProps {
     benchmarkId: string
     page?: number
     limit?: number
+    searchQuery?: string
+    searchType?: 'smiles' | 'inchikey' | 'targetId' | 'all'
+    isConvergent?: boolean
+    minRouteLength?: number
+    maxRouteLength?: number
 }
 
 /**
  * Server component that displays a grid of benchmark targets with molecule structures.
  * Shows pagination and target metadata (route length, convergence).
+ * Supports search and filtering by SMILES/InChiKey/TargetId and convergence/length.
  */
-export async function TargetGrid({ benchmarkId, page = 1, limit = 24 }: TargetGridProps) {
-    const result = await benchmarkService.getBenchmarkTargets(benchmarkId, page, limit)
+export async function TargetGrid({
+    benchmarkId,
+    page = 1,
+    limit = 24,
+    searchQuery,
+    searchType = 'all',
+    isConvergent,
+    minRouteLength,
+    maxRouteLength,
+}: TargetGridProps) {
+    const result = await benchmarkService.getBenchmarkTargets(
+        benchmarkId,
+        page,
+        limit,
+        searchQuery,
+        searchType,
+        undefined, // hasGroundTruth filter (not used here)
+        minRouteLength,
+        maxRouteLength,
+        isConvergent
+    )
 
     if (result.targets.length === 0) {
         return (

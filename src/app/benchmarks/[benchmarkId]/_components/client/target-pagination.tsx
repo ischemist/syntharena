@@ -34,12 +34,14 @@ export function TargetPagination({ currentPage, totalPages, totalItems, itemsPer
     const getPageUrl = (pageNum: number) => {
         const params = new URLSearchParams(searchParams)
 
+        // Update page parameter
         if (pageNum === 1) {
             params.delete('page')
         } else {
             params.set('page', pageNum.toString())
         }
 
+        // Build URL preserving all other search params
         const query = params.toString()
         return query ? `${pathname}?${query}` : pathname
     }

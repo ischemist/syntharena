@@ -147,11 +147,13 @@ export async function deleteBenchmark(benchmarkId: string): Promise<void> {
 // ============================================================================
 
 /**
- * Retrieves targets for a benchmark with pagination.
+ * Retrieves targets for a benchmark with pagination and search/filter support.
  *
  * @param benchmarkId - The benchmark ID
  * @param page - Page number (1-indexed)
  * @param limit - Number of results per page
+ * @param searchQuery - Search text for SMILES, InChiKey, or Target ID
+ * @param searchType - Type of search ('smiles' | 'inchikey' | 'targetId' | 'all')
  * @param hasGroundTruth - Filter by ground truth availability
  * @param minRouteLength - Filter by minimum route length
  * @param maxRouteLength - Filter by maximum route length
@@ -163,6 +165,8 @@ export async function getBenchmarkTargets(
     benchmarkId: string,
     page: number = 1,
     limit: number = 24,
+    searchQuery?: string,
+    searchType: 'smiles' | 'inchikey' | 'targetId' | 'all' = 'all',
     hasGroundTruth?: boolean,
     minRouteLength?: number,
     maxRouteLength?: number,
@@ -185,6 +189,38 @@ export async function getBenchmarkTargets(
     // Build where clause
     const where: Prisma.BenchmarkTargetWhereInput = {
         benchmarkSetId: benchmarkId,
+    }
+
+    // Add search filters
+    if (searchQuery && searchQuery.trim()) {
+        const query = searchQuery.trim()
+        const searchConditions: Prisma.BenchmarkTargetWhereInput[] = []
+
+        if (searchType === 'smiles' || searchType === 'all') {
+            searchConditions.push({
+                molecule: {
+                    smiles: { contains: query },
+                },
+            })
+        }
+
+        if (searchType === 'inchikey' || searchType === 'all') {
+            searchConditions.push({
+                molecule: {
+                    inchikey: { contains: query },
+                },
+            })
+        }
+
+        if (searchType === 'targetId' || searchType === 'all') {
+            searchConditions.push({
+                targetId: { contains: query },
+            })
+        }
+
+        if (searchConditions.length > 0) {
+            where.OR = searchConditions
+        }
     }
 
     if (hasGroundTruth !== undefined) {
