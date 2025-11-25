@@ -7,7 +7,7 @@
  *   tsx scripts/load-stock.ts <file-path> <stock-name> [description]
  *
  * Example:
- * pnpm tsx scripts/load-stock.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/stocks/export/n1-stock-export.txt "n1 Stock" "A set of all leaves from routes in PaRoutes n1 evaluation set"
+ * pnpm tsx scripts/load-stock.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/stocks/export/n1-n5-stock-export.txt "n1+n5 Stock" "A set of all leaves from routes in PaRoutes n1 and n5 evaluation sets"
  * pnpm tsx scripts/load-stock.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/stocks/export/n5-stock-export.txt "n5 Stock" "A set of all leaves from routes in PaRoutes n5 evaluation set"
  * pnpm tsx scripts/load-stock.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/stocks/export/buyables-stock-export.txt "ASKCOS Buyables Stock" "Compounds available for less than $100/g from eMolecules, Sigma-Aldrich, LabNetwork, Mcule, and ChemBridge, curated by ASKCOS team"
  *

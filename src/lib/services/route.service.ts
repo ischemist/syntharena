@@ -2,7 +2,13 @@ import * as fs from 'fs'
 import * as zlib from 'zlib'
 import { Prisma } from '@prisma/client'
 
-import type { LoadBenchmarkResult, Route, RouteNodeWithDetails, RouteVisualizationData } from '@/types'
+import type {
+    LoadBenchmarkResult,
+    Route,
+    RouteNodeWithDetails,
+    RouteVisualizationData,
+    RouteVisualizationNode,
+} from '@/types'
 import prisma from '@/lib/db'
 
 // ============================================================================
@@ -207,6 +213,57 @@ export async function getRoutesByTarget(targetId: string): Promise<Route[]> {
         isConvergent: route.isConvergent,
         metadata: route.metadata,
     }))
+}
+
+/**
+ * Transforms a RouteNodeWithDetails tree into a visualization tree.
+ * Extracts SMILES from molecules and flattens the structure.
+ *
+ * @param node - The route node tree with molecule details
+ * @returns Simplified tree structure with just SMILES and children
+ */
+function transformToVisualizationTree(node: RouteNodeWithDetails): RouteVisualizationNode {
+    return {
+        smiles: node.molecule.smiles,
+        children:
+            node.children.length > 0 ? node.children.map((child) => transformToVisualizationTree(child)) : undefined,
+    }
+}
+
+/**
+ * Retrieves a route tree optimized for visualization.
+ * Returns simplified tree structure with just SMILES for each node.
+ *
+ * @param routeId - The route ID
+ * @returns Route tree with SMILES hierarchy
+ * @throws Error if route not found
+ */
+export async function getRouteTreeForVisualization(routeId: string): Promise<RouteVisualizationNode> {
+    const route = await prisma.route.findUnique({
+        where: { id: routeId },
+    })
+
+    if (!route) {
+        throw new Error('Route not found')
+    }
+
+    // Find root node (node with no parent)
+    const rootNode = await prisma.routeNode.findFirst({
+        where: {
+            routeId,
+            parentId: null,
+        },
+    })
+
+    if (!rootNode) {
+        throw new Error('Route has no root node')
+    }
+
+    // Build full tree with details
+    const tree = await buildRouteNodeTree(rootNode.id)
+
+    // Transform to visualization format
+    return transformToVisualizationTree(tree)
 }
 
 // ============================================================================

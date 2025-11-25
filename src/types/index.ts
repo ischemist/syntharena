@@ -254,3 +254,45 @@ export interface LoadBenchmarkResult {
     routesCreated: number
     timeElapsed: number
 }
+
+// ============================================================================
+// Route Visualization Types
+// ============================================================================
+
+/**
+ * Tree structure for route visualization with SMILES and children.
+ * Matches the Prisma RouteNode with molecule data flattened.
+ */
+export interface RouteVisualizationNode {
+    smiles: string
+    children?: RouteVisualizationNode[]
+}
+
+/**
+ * React Flow node data with visualization metadata.
+ * Includes position, status, and stock availability.
+ */
+export interface RouteGraphNode {
+    smiles: string
+    status: NodeStatus
+    inStock?: boolean
+    [key: string]: unknown
+}
+
+/**
+ * Union type for node visual states.
+ * Phase 1: "in-stock" | "default"
+ * Future: Can expand to include "match" | "hallucination" | "ghost"
+ */
+export type NodeStatus = 'in-stock' | 'default'
+
+/**
+ * Configuration for tree layout algorithm.
+ * Controls spacing and node dimensions.
+ */
+export interface RouteLayoutConfig {
+    nodeWidth: number
+    nodeHeight: number
+    horizontalSpacing: number
+    verticalSpacing: number
+}
