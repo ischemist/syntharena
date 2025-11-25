@@ -9,7 +9,7 @@
  * - loadBenchmarkFromFile: Loading benchmarks from files
  */
 
-import * as fs from 'fs'
+import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as zlib from 'zlib'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -476,21 +476,21 @@ describe('route.service - Service Function Tests', () => {
             }
         ): Promise<string> => {
             const tmpDir = path.join(__dirname, '..', '..', 'tmp')
-            if (!fs.existsSync(tmpDir)) {
-                fs.mkdirSync(tmpDir, { recursive: true })
-            }
+            await fs.mkdir(tmpDir, { recursive: true })
 
             const filePath = path.join(tmpDir, filename)
             const jsonString = JSON.stringify(data)
             const compressed = zlib.gzipSync(Buffer.from(jsonString))
-            fs.writeFileSync(filePath, compressed)
+            await fs.writeFile(filePath, compressed)
 
             return filePath
         }
 
-        const cleanupTestFile = (filePath: string) => {
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath)
+        const cleanupTestFile = async (filePath: string) => {
+            try {
+                await fs.unlink(filePath)
+            } catch {
+                // ignore if file doesn't exist
             }
         }
 
@@ -525,7 +525,7 @@ describe('route.service - Service Function Tests', () => {
                 expect(result.routesCreated).toBe(1)
                 expect(result.moleculesCreated).toBeGreaterThan(0)
             } finally {
-                cleanupTestFile(filePath)
+                await cleanupTestFile(filePath)
             }
         })
 
@@ -572,7 +572,7 @@ describe('route.service - Service Function Tests', () => {
                 expect(result.targetsLoaded).toBe(2)
                 expect(result.routesCreated).toBe(2)
             } finally {
-                cleanupTestFile(filePath)
+                await cleanupTestFile(filePath)
             }
         })
 
@@ -614,7 +614,7 @@ describe('route.service - Service Function Tests', () => {
                 expect(route!.length).toBe(2)
                 expect(route!.isConvergent).toBe(false)
             } finally {
-                cleanupTestFile(filePath)
+                await cleanupTestFile(filePath)
             }
         })
 
@@ -647,7 +647,7 @@ describe('route.service - Service Function Tests', () => {
                 expect(target).toBeDefined()
                 expect(target!.groundTruthRouteId).toBeNull()
             } finally {
-                cleanupTestFile(filePath)
+                await cleanupTestFile(filePath)
             }
         })
 
@@ -684,7 +684,7 @@ describe('route.service - Service Function Tests', () => {
 
                 expect(result.moleculesReused).toBeGreaterThan(0)
             } finally {
-                cleanupTestFile(filePath)
+                await cleanupTestFile(filePath)
             }
         })
     })

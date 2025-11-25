@@ -211,7 +211,7 @@ describe('StockService', () => {
         })
 
         it('should handle large batch processing correctly', async () => {
-            const largeCSV = generateLargeCsv(1500) // More than batch size (500)
+            const largeCSV = generateLargeCsv(1500) // More than batch size (100)
             const csvPath = await createTempCsvFile(largeCSV)
 
             const result = await loadStockFromFile(csvPath, 'large-batch-test')

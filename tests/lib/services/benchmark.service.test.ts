@@ -387,6 +387,8 @@ describe('benchmark.service', () => {
 
             const result = await getBenchmarkTargets(benchmark.id, 1, 10, undefined, 'all', undefined, 4)
 
+            expect(result.targets).toHaveLength(1)
+            expect(result.targets[0].routeLength).toBe(5)
             expect(result.targets.every((t) => t.routeLength === null || t.routeLength >= 4)).toBe(true)
         })
 
@@ -395,6 +397,8 @@ describe('benchmark.service', () => {
 
             const result = await getBenchmarkTargets(benchmark.id, 1, 10, undefined, 'all', undefined, undefined, 4)
 
+            expect(result.targets).toHaveLength(1)
+            expect(result.targets[0].routeLength).toBe(3)
             expect(result.targets.every((t) => t.routeLength === null || t.routeLength <= 4)).toBe(true)
         })
 
@@ -403,6 +407,8 @@ describe('benchmark.service', () => {
 
             const result = await getBenchmarkTargets(benchmark.id, 1, 10, undefined, 'all', undefined, 2, 4)
 
+            expect(result.targets).toHaveLength(1)
+            expect(result.targets[0].routeLength).toBe(3)
             expect(
                 result.targets.every((t) => t.routeLength === null || (t.routeLength >= 2 && t.routeLength <= 4))
             ).toBe(true)
@@ -425,6 +431,8 @@ describe('benchmark.service', () => {
                 true
             )
 
+            expect(result.targets).toHaveLength(1)
+            expect(result.targets[0].isConvergent).toBe(true)
             expect(result.targets.every((t) => t.isConvergent === null || t.isConvergent === true)).toBe(true)
         })
 
@@ -443,6 +451,8 @@ describe('benchmark.service', () => {
                 false
             )
 
+            expect(result.targets).toHaveLength(1)
+            expect(result.targets[0].isConvergent).toBe(false)
             expect(result.targets.every((t) => t.isConvergent === null || t.isConvergent === false)).toBe(true)
         })
     })
