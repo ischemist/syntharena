@@ -25,52 +25,18 @@ export function BenchmarkDetailHeaderSkeleton() {
 }
 
 /**
- * Loading skeleton for the filter bar (search + filters).
- * Shows placeholder controls while benchmark stats are loading.
+ * Loading skeleton for the compact filter toolbar.
+ * Shows placeholder controls in a single row while benchmark stats are loading.
  */
 export function TargetFilterBarSkeleton() {
     return (
-        <Card>
-            <CardContent className="pt-6">
-                <div className="space-y-4">
-                    {/* Search bar */}
-                    <div className="flex gap-3">
-                        <Skeleton className="h-10 flex-1" /> {/* Search input */}
-                        <Skeleton className="h-10 w-24" /> {/* Clear button */}
-                    </div>
-
-                    {/* Search type buttons */}
-                    <div className="flex gap-2">
-                        {Array.from({ length: 4 }).map((_, i) => (
-                            <Skeleton key={i} className="h-8 w-24 rounded-full" />
-                        ))}
-                    </div>
-
-                    {/* Filters section */}
-                    <div className="space-y-3 border-t pt-4">
-                        {/* Convergence filter */}
-                        <div className="space-y-2">
-                            <Skeleton className="h-4 w-24" /> {/* Label */}
-                            <div className="flex gap-2">
-                                {Array.from({ length: 3 }).map((_, i) => (
-                                    <Skeleton key={i} className="h-8 w-24 rounded-full" />
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Route length filter */}
-                        <div className="space-y-2">
-                            <Skeleton className="h-4 w-32" /> {/* Label */}
-                            <div className="flex gap-2">
-                                <Skeleton className="h-10 flex-1" /> {/* Min input */}
-                                <Skeleton className="h-10 flex-1" /> {/* Max input */}
-                            </div>
-                            <Skeleton className="h-3 w-40" /> {/* Range text */}
-                        </div>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
+        <div className="flex items-center gap-2">
+            <Skeleton className="h-9 max-w-sm flex-1" /> {/* Search input */}
+            <Skeleton className="h-9 w-28" /> {/* Search type dropdown */}
+            <Skeleton className="h-9 w-28" /> {/* Convergence dropdown */}
+            <Skeleton className="h-9 w-24" /> {/* Min length */}
+            <Skeleton className="h-9 w-24" /> {/* Max length */}
+        </div>
     )
 }
 
