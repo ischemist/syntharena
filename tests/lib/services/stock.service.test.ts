@@ -14,7 +14,6 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { MoleculeWithStocks } from '@/types'
 import prisma from '@/lib/db'
 import {
     checkMoleculesInStock,
@@ -59,49 +58,6 @@ const createTempCsvFile = async (content: string): Promise<string> => {
     return filepath
 }
 
-/**
- * Cleanup helper - cleans up only test stocks created during our tests
- */
-const cleanupDatabase = async () => {
-    // Delete stock items for test stocks (they all start with 'test-', 'search-', 'stock-', etc.)
-    const testStockNames = [
-        'test-%',
-        'search-%',
-        'stock-%',
-        'alpha-%',
-        'beta-%',
-        'zebra-%',
-        'empty-%',
-        'concurrent-%',
-        'large-%',
-        'idempotent-%',
-        'drug-like-%',
-        'commercial-%',
-        'organic-%',
-        'duplicate-%',
-        'batch-%',
-    ]
-
-    // Get test stocks and delete their items
-    const testStocks = await prisma.stock.findMany({
-        where: {
-            OR: testStockNames.map((name) => ({
-                name: { contains: name.replace(/-?%$/, '') },
-            })),
-        },
-    })
-
-    if (testStocks.length > 0) {
-        const testStockIds = testStocks.map((s) => s.id)
-        await prisma.stockItem.deleteMany({
-            where: { stockId: { in: testStockIds } },
-        })
-        await prisma.stock.deleteMany({
-            where: { id: { in: testStockIds } },
-        })
-    }
-}
-
 const cleanupTempFiles = async () => {
     try {
         const files = await fs.readdir(tmpDir)
@@ -140,12 +96,6 @@ describe('StockService', () => {
         }
         await cleanupTempFiles()
     })
-
-    // Helper to track created stocks
-    const trackStock = (stockId: string) => {
-        createdStockIds.push(stockId)
-        return stockId
-    }
 
     // ========================================================================
     // loadStockFromFile Tests
@@ -323,12 +273,8 @@ describe('StockService', () => {
             const csvPath = await createTempCsvFile(validCsvContent)
 
             // Create two stocks
-            const result1 = await loadStockFromFile(csvPath, testStocks.druglike.name, testStocks.druglike.description)
-            const result2 = await loadStockFromFile(
-                csvPath,
-                testStocks.commercial.name,
-                testStocks.commercial.description
-            )
+            await loadStockFromFile(csvPath, testStocks.druglike.name, testStocks.druglike.description)
+            await loadStockFromFile(csvPath, testStocks.commercial.name, testStocks.commercial.description)
 
             const stocks = await getStocks()
 
@@ -511,14 +457,12 @@ describe('StockService', () => {
 
     describe('searchStockMoleculesWithStocks', () => {
         let stockId1: string
-        let stockId2: string
 
         beforeEach(async () => {
             const csvPath = await createTempCsvFile(validCsvContent)
             const result1 = await loadStockFromFile(csvPath, 'stock-with-stocks-1')
-            const result2 = await loadStockFromFile(csvPath, 'stock-with-stocks-2')
+            await loadStockFromFile(csvPath, 'stock-with-stocks-2')
             stockId1 = result1.stockId
-            stockId2 = result2.stockId
         })
 
         it('should return molecules with cross-stock information', async () => {
@@ -563,12 +507,10 @@ describe('StockService', () => {
 
     describe('getMoleculeWithStocks', () => {
         let moleculeId: string
-        let stockId: string
 
         beforeEach(async () => {
             const csvPath = await createTempCsvFile(minimalCsvContent)
-            const result = await loadStockFromFile(csvPath, 'test-stock')
-            stockId = result.stockId
+            await loadStockFromFile(csvPath, 'test-stock')
 
             // Get the molecule ID
             const molecules = await prisma.molecule.findMany({ take: 1 })
@@ -770,11 +712,7 @@ describe('StockService', () => {
             // 1. Load multiple stocks
             const csvPath = await createTempCsvFile(validCsvContent)
             const stock1 = await loadStockFromFile(csvPath, testStocks.druglike.name, testStocks.druglike.description)
-            const stock2 = await loadStockFromFile(
-                csvPath,
-                testStocks.commercial.name,
-                testStocks.commercial.description
-            )
+            await loadStockFromFile(csvPath, testStocks.commercial.name, testStocks.commercial.description)
 
             // 2. List all stocks
             let stocks = await getStocks()
