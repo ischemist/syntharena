@@ -12,9 +12,9 @@ export const HORIZONTAL_SPACING = 30
 export const VERTICAL_SPACING = 80
 
 // Export as config object for flexibility
-export const LAYOUT_CONFIG = {
+export const LAYOUT_CONFIG = Object.freeze({
     nodeWidth: NODE_WIDTH,
     nodeHeight: NODE_HEIGHT,
     horizontalSpacing: HORIZONTAL_SPACING,
     verticalSpacing: VERTICAL_SPACING,
-} as const
+}) satisfies Record<string, number>

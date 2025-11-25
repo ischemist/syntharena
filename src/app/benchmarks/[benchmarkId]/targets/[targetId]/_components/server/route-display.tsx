@@ -1,6 +1,5 @@
 import { Suspense } from 'react'
 
-import type { RouteVisualizationNode } from '@/types'
 import { getAllRouteSmilesSet } from '@/lib/route-visualization'
 import * as benchmarkService from '@/lib/services/benchmark.service'
 import * as routeService from '@/lib/services/route.service'
