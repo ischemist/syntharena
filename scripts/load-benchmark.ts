@@ -48,6 +48,7 @@ import { config } from 'dotenv'
 import { createBenchmark } from '../src/lib/services/benchmark.service'
 import { loadBenchmarkFromFile } from '../src/lib/services/route.service'
 
+// Load environment variables FIRST before importing anything that uses the database
 config({ path: '.env' })
 
 interface BenchmarkMetadata {

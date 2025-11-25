@@ -421,14 +421,25 @@ export async function loadBenchmarkFromFile(
                     moleculesReused++
                 }
 
-                // Create benchmark target
-                let groundTruthRouteId: string | null = null
+                // Create benchmark target first
+                const benchmarkTarget = await tx.benchmarkTarget.create({
+                    data: {
+                        benchmarkSetId: benchmarkId,
+                        targetId: externalId,
+                        moleculeId: targetMol.id,
+                        routeLength: targetData.route_length || null,
+                        isConvergent: targetData.is_convergent || null,
+                        metadata: targetData.metadata ? JSON.stringify(targetData.metadata) : null,
+                        groundTruthRouteId: null, // Will be set if ground truth exists
+                    },
+                })
 
+                // Create ground truth route if it exists
                 if (targetData.ground_truth) {
                     // Create ground truth route
                     const route = await tx.route.create({
                         data: {
-                            targetId: '', // Will be set after BenchmarkTarget creation
+                            targetId: benchmarkTarget.id, // Now we have the target ID
                             rank: 1,
                             contentHash: '', // Will be set after route storage
                             length: 0, // Will be computed
@@ -455,31 +466,15 @@ export async function loadBenchmarkFromFile(
                         },
                     })
 
-                    groundTruthRouteId = route.id
-                    routesCreated++
-                }
-
-                // Create benchmark target
-                const benchmarkTarget = await tx.benchmarkTarget.create({
-                    data: {
-                        benchmarkSetId: benchmarkId,
-                        targetId: externalId,
-                        moleculeId: targetMol.id,
-                        routeLength: targetData.route_length || null,
-                        isConvergent: targetData.is_convergent || null,
-                        metadata: targetData.metadata ? JSON.stringify(targetData.metadata) : null,
-                        groundTruthRouteId,
-                    },
-                })
-
-                // Update route to link to benchmark target
-                if (groundTruthRouteId) {
-                    await tx.route.update({
-                        where: { id: groundTruthRouteId },
+                    // Update benchmark target to link to ground truth route
+                    await tx.benchmarkTarget.update({
+                        where: { id: benchmarkTarget.id },
                         data: {
-                            targetId: benchmarkTarget.id,
+                            groundTruthRouteId: route.id,
                         },
                     })
+
+                    routesCreated++
                 }
             }
         })
