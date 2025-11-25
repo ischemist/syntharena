@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 
+import type { RouteVisualizationNode } from '@/types'
 import * as benchmarkService from '@/lib/services/benchmark.service'
 import * as routeService from '@/lib/services/route.service'
 import { findMatchingStock } from '@/lib/services/stock-mapping'
@@ -30,27 +31,43 @@ function RouteVisualizationSkeleton() {
  * Async component that fetches route visualization data.
  * Handles data loading and passes to client wrapper.
  */
+function RouteVisualizationError() {
+    return (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            Failed to load route visualization. Please try again.
+        </div>
+    )
+}
+
+function NoGroundTruthRoute() {
+    return (
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
+            No ground truth route available for this target
+        </div>
+    )
+}
+
 async function RouteVisualizationContent({ routeId, benchmarkId }: { routeId: string; benchmarkId: string }) {
-    try {
-        // Fetch visualization tree
-        const routeTree = await routeService.getRouteTreeForVisualization(routeId)
+    // Fetch visualization tree
+    const routeTree = await routeService.getRouteTreeForVisualization(routeId)
 
-        // Get benchmark to find stock ID if available
-        const benchmark = await benchmarkService.getBenchmarkById(benchmarkId)
+    // Get benchmark to find stock ID if available
+    const benchmark = await benchmarkService.getBenchmarkById(benchmarkId)
 
-        // Collect all SMILES from route for stock checking
-        const allSmiles: string[] = []
-        function collectSmiles(node: any) {
-            allSmiles.push(node.smiles)
-            if (node.children) {
-                node.children.forEach(collectSmiles)
-            }
+    // Collect all SMILES from route for stock checking
+    const allSmiles: string[] = []
+    function collectSmiles(node: RouteVisualizationNode) {
+        allSmiles.push(node.smiles)
+        if (node.children) {
+            node.children.forEach(collectSmiles)
         }
-        collectSmiles(routeTree)
+    }
+    collectSmiles(routeTree)
 
-        // Check stock availability if benchmark has a stock
-        let inStockSmiles = new Set<string>()
-        if (benchmark.stockName) {
+    // Check stock availability if benchmark has a stock
+    let inStockSmiles = new Set<string>()
+    if (benchmark.stockName) {
+        try {
             // Get all available stocks
             const stocks = await stockService.getStocks()
 
@@ -67,17 +84,12 @@ async function RouteVisualizationContent({ routeId, benchmarkId }: { routeId: st
                     `[Route Visualization] Could not find matching stock for benchmark "${benchmark.stockName}". Available: ${stocks.map((s) => s.name).join(', ')}`
                 )
             }
+        } catch (error) {
+            console.warn('Failed to check stock availability:', error)
         }
-
-        return <RouteVisualizationWrapper routeTree={routeTree} inStockSmiles={inStockSmiles} />
-    } catch (error) {
-        console.error('Failed to load route visualization:', error)
-        return (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-                Failed to load route visualization. Please try again.
-            </div>
-        )
     }
+
+    return <RouteVisualizationWrapper routeTree={routeTree} inStockSmiles={inStockSmiles} />
 }
 
 /**
@@ -85,35 +97,44 @@ async function RouteVisualizationContent({ routeId, benchmarkId }: { routeId: st
  * Renders visualization with streaming and Suspense boundaries.
  */
 export async function RouteDisplay({ targetId }: RouteDisplayProps) {
-    const target = await benchmarkService.getTargetById(targetId)
+    let target
+    let routeData
+    let hasError = false
 
-    // Check if target has ground truth route
-    if (!target.groundTruthRouteId) {
-        return (
-            <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
-                No ground truth route available for this target
-            </div>
-        )
+    // Fetch data outside of JSX construction
+    try {
+        target = await benchmarkService.getTargetById(targetId)
+
+        // Fetch complete route data for JSON viewer
+        if (target.groundTruthRouteId) {
+            routeData = await routeService.getRouteTreeData(target.groundTruthRouteId)
+        }
+    } catch (error) {
+        console.error('Failed to load route display:', error)
+        hasError = true
     }
 
-    // Get benchmark ID from URL context - fetch target with benchmark info
-    const benchmarkSetId = target.benchmarkSetId
+    // Render JSX after data is fetched
+    if (hasError) {
+        return <RouteVisualizationError />
+    }
 
-    // Fetch complete route data for JSON viewer
-    const routeData = await routeService.getRouteTreeData(target.groundTruthRouteId)
+    if (!target?.groundTruthRouteId) {
+        return <NoGroundTruthRoute />
+    }
 
     return (
         <div className="space-y-4">
             <div>
                 <h2 className="text-lg font-semibold text-gray-900">Ground Truth Route</h2>
                 <p className="mt-1 text-sm text-gray-600">
-                    Synthesis route with {routeData.route.length} steps
-                    {routeData.route.isConvergent && ' (convergent)'}
+                    Synthesis route with {routeData!.route.length} steps
+                    {routeData!.route.isConvergent && ' (convergent)'}
                 </p>
             </div>
 
             <Suspense fallback={<RouteVisualizationSkeleton />}>
-                <RouteVisualizationContent routeId={target.groundTruthRouteId} benchmarkId={benchmarkSetId} />
+                <RouteVisualizationContent routeId={target.groundTruthRouteId} benchmarkId={target.benchmarkSetId} />
             </Suspense>
 
             {/* Keep JSON viewer as fallback/debugging */}
@@ -122,7 +143,7 @@ export async function RouteDisplay({ targetId }: RouteDisplayProps) {
                     View JSON (debug)
                 </summary>
                 <div className="mt-4">
-                    <RouteJsonViewer routeData={routeData} />
+                    <RouteJsonViewer routeData={routeData!} />
                 </div>
             </details>
         </div>

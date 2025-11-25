@@ -7,7 +7,7 @@ import { RouteLengthBadge, RouteTypeBadge } from '@/components/route-badges'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 
 interface TargetHeaderProps {
     benchmarkId: string

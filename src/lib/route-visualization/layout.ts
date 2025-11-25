@@ -3,6 +3,8 @@
  * Calculates positions for nodes to create a readable tree layout.
  */
 
+import type { RouteVisualizationNode } from '@/types'
+
 import { HORIZONTAL_SPACING, NODE_HEIGHT, NODE_WIDTH, VERTICAL_SPACING } from './constants'
 
 /**
@@ -23,7 +25,7 @@ interface LayoutNode {
  */
 export function buildLayoutTree(
     smiles: string,
-    children: Array<{ smiles: string; children?: any[] }> | undefined,
+    children: RouteVisualizationNode[] | undefined,
     idPrefix: string
 ): LayoutNode {
     const nodeId = `${idPrefix}${smiles}`
@@ -99,7 +101,7 @@ export function flattenLayoutTree(
  * Takes a visualization tree and returns positioned nodes and edges.
  */
 export function layoutTree(
-    root: { smiles: string; children?: any[] },
+    root: RouteVisualizationNode,
     idPrefix: string
 ): {
     nodes: Array<{ id: string; smiles: string; x: number; y: number }>
@@ -120,7 +122,7 @@ export function layoutTree(
  * Collects all SMILES from a tree into a Set.
  * Useful for stock availability checking.
  */
-export function collectSmiles(node: { smiles: string; children?: any[] }, set: Set<string>): void {
+export function collectSmiles(node: RouteVisualizationNode, set: Set<string>): void {
     set.add(node.smiles)
     if (node.children) {
         node.children.forEach((child) => collectSmiles(child, set))

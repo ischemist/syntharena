@@ -5,7 +5,7 @@
 
 import type { Edge, Node } from '@xyflow/react'
 
-import type { RouteGraphNode } from '@/types'
+import type { RouteGraphNode, RouteVisualizationNode } from '@/types'
 
 import { collectSmiles, layoutTree } from './layout'
 
@@ -14,7 +14,7 @@ import { collectSmiles, layoutTree } from './layout'
  * Integrates layout positioning and stock availability.
  */
 export function buildRouteGraph(
-    route: { smiles: string; children?: any[] },
+    route: RouteVisualizationNode,
     inStockSmiles: Set<string>,
     idPrefix: string
 ): { nodes: Node<RouteGraphNode>[]; edges: Edge[] } {
@@ -51,7 +51,7 @@ export function buildRouteGraph(
 /**
  * Collects all SMILES from a route for batch stock checking.
  */
-export function getAllRouteSmilesSet(route: { smiles: string; children?: any[] }): Set<string> {
+export function getAllRouteSmilesSet(route: RouteVisualizationNode): Set<string> {
     const set = new Set<string>()
     collectSmiles(route, set)
     return set
