@@ -1,23 +1,31 @@
 /**
  * Tests for route.service.ts
  *
- * Focus: Complex algorithms and business logic
- * - Tree building from flat database queries (N+1 prevention)
- * - Graph algorithms (route length, convergence detection)
- * - Recursive tree transformations
- * - Bulk database operations with transactions
- * - Error handling and edge cases
+ * Focus: Testing the actual exported service functions
+ * - getRouteById: Retrieve route by ID
+ * - getRouteTreeData: Complete route tree for visualization
+ * - getRoutesByTarget: All routes for a target
+ * - getRouteTreeForVisualization: Simplified tree structure
+ * - loadBenchmarkFromFile: Loading benchmarks from files
  */
 
+import * as fs from 'fs'
+import * as path from 'path'
+import * as zlib from 'zlib'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { RouteNodeWithDetails } from '@/types'
 import prisma from '@/lib/db'
+import {
+    getRouteById,
+    getRoutesByTarget,
+    getRouteTreeData,
+    getRouteTreeForVisualization,
+    loadBenchmarkFromFile,
+} from '@/lib/services/route.service'
 
 import {
     complexRoutePython,
     convergentRoutePython,
-    createTreeStructure,
     linearChainPython,
     singleMoleculePython,
 } from './route.service.fixtures'
@@ -42,17 +50,115 @@ interface PythonMolecule {
 }
 
 /**
- * Helper to create test data in database
+ * Helper to store a Python route tree in the database
+ * This simulates what the service does internally
  */
-const createTestRoute = async (pythonRoute: PythonMolecule) => {
+const storeRouteInDatabase = async (pythonRoute: PythonMolecule, routeId: string) => {
+    const moleculesMap = new Map<string, { smiles: string; inchikey: string }>()
+    const nodesData: Array<{
+        tempId: string
+        moleculeInchikey: string
+        parentTempId: string | null
+        isLeaf: boolean
+        template: string | null
+    }> = []
+    let tempIdCounter = 0
+
+    // Collect all molecules and nodes
+    const collectData = (mol: PythonMolecule, parentTempId: string | null): string => {
+        if (!moleculesMap.has(mol.inchikey)) {
+            moleculesMap.set(mol.inchikey, {
+                smiles: mol.smiles,
+                inchikey: mol.inchikey,
+            })
+        }
+
+        const tempId = `temp-${tempIdCounter++}`
+        const isLeaf = !mol.synthesis_step
+
+        nodesData.push({
+            tempId,
+            moleculeInchikey: mol.inchikey,
+            parentTempId,
+            isLeaf,
+            template: mol.synthesis_step?.template || null,
+        })
+
+        if (mol.synthesis_step?.reactants) {
+            for (const reactant of mol.synthesis_step.reactants) {
+                collectData(reactant, tempId)
+            }
+        }
+
+        return tempId
+    }
+
+    collectData(pythonRoute, null)
+
+    // Create molecules
+    const inchikeyToId = new Map<string, string>()
+    for (const [inchikey, molData] of moleculesMap) {
+        const mol = await prisma.molecule.upsert({
+            where: { inchikey },
+            update: {},
+            create: molData,
+        })
+        inchikeyToId.set(inchikey, mol.id)
+    }
+
+    // Create nodes in order (parent before children)
+    const tempIdToRealId = new Map<string, string>()
+    const nodesByParent = new Map<string | null, typeof nodesData>()
+
+    for (const node of nodesData) {
+        if (!nodesByParent.has(node.parentTempId)) {
+            nodesByParent.set(node.parentTempId, [])
+        }
+        nodesByParent.get(node.parentTempId)!.push(node)
+    }
+
+    const queue = nodesByParent.get(null) || []
+    while (queue.length > 0) {
+        const currentBatch = [...queue]
+        queue.length = 0
+
+        for (const nodeData of currentBatch) {
+            const moleculeId = inchikeyToId.get(nodeData.moleculeInchikey)!
+            const parentId = nodeData.parentTempId ? tempIdToRealId.get(nodeData.parentTempId) || null : null
+
+            const createdNode = await prisma.routeNode.create({
+                data: {
+                    routeId,
+                    moleculeId,
+                    parentId,
+                    isLeaf: nodeData.isLeaf,
+                    template: nodeData.template,
+                    metadata: null,
+                },
+            })
+
+            tempIdToRealId.set(nodeData.tempId, createdNode.id)
+
+            const children = nodesByParent.get(nodeData.tempId) || []
+            queue.push(...children)
+        }
+    }
+}
+
+/**
+ * Helper to create a complete route setup
+ */
+const createCompleteRoute = async (pythonRoute: PythonMolecule) => {
     const benchmark = await prisma.benchmarkSet.create({
         data: {
-            name: `test-benchmark-${Date.now()}`,
+            name: `test-benchmark-${Date.now()}-${Math.random()}`,
         },
     })
 
-    const targetMol = await prisma.molecule.create({
-        data: {
+    const targetMol = await prisma.molecule.upsert({
+        where: { inchikey: pythonRoute.inchikey },
+        update: {},
+        create: {
             smiles: pythonRoute.smiles,
             inchikey: pythonRoute.inchikey,
         },
@@ -61,7 +167,7 @@ const createTestRoute = async (pythonRoute: PythonMolecule) => {
     const benchmarkTarget = await prisma.benchmarkTarget.create({
         data: {
             benchmarkSetId: benchmark.id,
-            targetId: `test-target-${Date.now()}`,
+            targetId: `test-target-${Date.now()}-${Math.random()}`,
             moleculeId: targetMol.id,
         },
     })
@@ -76,52 +182,12 @@ const createTestRoute = async (pythonRoute: PythonMolecule) => {
         },
     })
 
-    return { benchmark, targetMol, benchmarkTarget, route, pythonRoute }
+    await storeRouteInDatabase(pythonRoute, route.id)
+
+    return { benchmark, targetMol, benchmarkTarget, route }
 }
 
-/**
- * Helper to build tree nodes in database
- */
-const storeTreeInDatabase = async (routeId: string, pythonRoute: PythonMolecule) => {
-    const { molecules, nodes } = createTreeStructure(routeId, pythonRoute)
-
-    // Insert molecules
-    for (const moleculeData of molecules.values()) {
-        await prisma.molecule.upsert({
-            where: { inchikey: moleculeData.inchikey },
-            update: {},
-            create: moleculeData,
-        })
-    }
-
-    // Insert nodes
-    for (const node of nodes) {
-        const moleculeData = molecules.get(
-            [...molecules.entries()].find(([, m]) => m.id === node.moleculeId)?.[0] || ''
-        )
-        if (!moleculeData) throw new Error('Molecule not found')
-
-        const molecule = await prisma.molecule.findUnique({
-            where: { inchikey: moleculeData.inchikey },
-        })
-        if (!molecule) throw new Error('Could not find created molecule')
-
-        await prisma.routeNode.create({
-            data: {
-                id: node.id,
-                routeId: node.routeId,
-                moleculeId: molecule.id,
-                parentId: node.parentId,
-                isLeaf: node.isLeaf,
-                template: node.template,
-            },
-        })
-    }
-
-    return { molecules, nodes }
-}
-
-describe('route.service - Complex Algorithm Tests', () => {
+describe('route.service - Service Function Tests', () => {
     beforeEach(async () => {
         await prisma.$transaction([
             prisma.routeNode.deleteMany({}),
@@ -144,560 +210,482 @@ describe('route.service - Complex Algorithm Tests', () => {
         ])
     })
 
-    describe('computeRouteProperties - Route Length and Convergence', () => {
-        it('should compute correct length for single leaf node', async () => {
-            const { route, pythonRoute } = await createTestRoute(singleMoleculePython)
-            await storeTreeInDatabase(route.id, pythonRoute)
+    describe('getRouteById', () => {
+        it('should retrieve a route by ID', async () => {
+            const { route } = await createCompleteRoute(singleMoleculePython)
 
-            const nodes = await prisma.routeNode.findMany({
-                where: { routeId: route.id },
-                select: { id: true, parentId: true, isLeaf: true },
-            })
+            const result = await getRouteById(route.id)
 
-            const nodeMap = new Map<string, { id: string; isLeaf: boolean; childIds: string[] }>()
-            let rootId: string | null = null
-
-            for (const node of nodes) {
-                nodeMap.set(node.id, {
-                    id: node.id,
-                    isLeaf: node.isLeaf,
-                    childIds: [],
-                })
-
-                if (node.parentId === null) {
-                    rootId = node.id
-                }
-            }
-
-            for (const node of nodes) {
-                if (node.parentId) {
-                    const parent = nodeMap.get(node.parentId)
-                    if (parent) {
-                        parent.childIds.push(node.id)
-                    }
-                }
-            }
-
-            if (!rootId) throw new Error('No root found')
-
-            function getDepth(nodeId: string): number {
-                const node = nodeMap.get(nodeId)
-                if (!node || node.childIds.length === 0) return 0
-                const childDepths = node.childIds.map((childId) => getDepth(childId))
-                return 1 + Math.max(...childDepths)
-            }
-
-            const length = getDepth(rootId)
-            expect(length).toBe(0)
+            expect(result).toBeDefined()
+            expect(result.id).toBe(route.id)
+            expect(result.rank).toBe(1)
+            expect(result.contentHash).toBe('test')
         })
 
-        it('should compute correct length for linear chain', async () => {
-            const { route, pythonRoute } = await createTestRoute(linearChainPython)
-            await storeTreeInDatabase(route.id, pythonRoute)
-
-            const nodes = await prisma.routeNode.findMany({
-                where: { routeId: route.id },
-                select: { id: true, parentId: true, isLeaf: true },
-            })
-
-            expect(nodes.length).toBe(3)
-
-            const nodeMap = new Map<string, { id: string; isLeaf: boolean; childIds: string[] }>()
-            let rootId: string | null = null
-
-            for (const node of nodes) {
-                nodeMap.set(node.id, {
-                    id: node.id,
-                    isLeaf: node.isLeaf,
-                    childIds: [],
-                })
-
-                if (node.parentId === null) {
-                    rootId = node.id
-                }
-            }
-
-            for (const node of nodes) {
-                if (node.parentId) {
-                    const parent = nodeMap.get(node.parentId)
-                    if (parent) {
-                        parent.childIds.push(node.id)
-                    }
-                }
-            }
-
-            if (!rootId) throw new Error('No root found')
-
-            function getDepth(nodeId: string): number {
-                const node = nodeMap.get(nodeId)
-                if (!node || node.childIds.length === 0) return 0
-                const childDepths = node.childIds.map((childId) => getDepth(childId))
-                return 1 + Math.max(...childDepths)
-            }
-
-            const length = getDepth(rootId)
-            expect(length).toBe(2)
+        it('should throw error when route not found', async () => {
+            await expect(getRouteById('non-existent-id')).rejects.toThrow('Route not found')
         })
 
-        it('should detect convergence for complex routes with multiple branches', async () => {
-            const { route, pythonRoute } = await createTestRoute(complexRoutePython)
-            await storeTreeInDatabase(route.id, pythonRoute)
+        it('should return all route properties', async () => {
+            const { route, benchmarkTarget } = await createCompleteRoute(linearChainPython)
 
-            const nodes = await prisma.routeNode.findMany({
-                where: { routeId: route.id },
-                select: { id: true, parentId: true, isLeaf: true },
+            const result = await getRouteById(route.id)
+
+            expect(result).toMatchObject({
+                id: route.id,
+                predictionRunId: null,
+                targetId: benchmarkTarget.id,
+                rank: 1,
+                contentHash: 'test',
+                signature: null,
+                length: 0,
+                isConvergent: false,
+                metadata: null,
             })
-
-            // Complex route should have multiple nodes
-            expect(nodes.length).toBeGreaterThan(3)
-
-            const nodeMap = new Map<string, { id: string; isLeaf: boolean; childIds: string[] }>()
-
-            for (const node of nodes) {
-                nodeMap.set(node.id, {
-                    id: node.id,
-                    isLeaf: node.isLeaf,
-                    childIds: [],
-                })
-            }
-
-            for (const node of nodes) {
-                if (node.parentId) {
-                    const parent = nodeMap.get(node.parentId)
-                    if (parent) {
-                        parent.childIds.push(node.id)
-                    }
-                }
-            }
-
-            // Check for convergence: find any node with 2+ non-leaf children
-            let isConvergent = false
-            for (const node of nodeMap.values()) {
-                const nonLeafChildren = node.childIds.filter((childId) => {
-                    const child = nodeMap.get(childId)
-                    return child && !child.isLeaf
-                })
-
-                if (nonLeafChildren.length >= 2) {
-                    isConvergent = true
-                    break
-                }
-            }
-
-            // Complex route with multiple synthesis steps should be convergent
-            expect(isConvergent).toBe(true)
-        })
-
-        it('should not detect convergence for linear (non-convergent) route', async () => {
-            const { route, pythonRoute } = await createTestRoute(linearChainPython)
-            await storeTreeInDatabase(route.id, pythonRoute)
-
-            const nodes = await prisma.routeNode.findMany({
-                where: { routeId: route.id },
-                select: { id: true, parentId: true, isLeaf: true },
-            })
-
-            const nodeMap = new Map<string, { id: string; isLeaf: boolean; childIds: string[] }>()
-
-            for (const node of nodes) {
-                nodeMap.set(node.id, {
-                    id: node.id,
-                    isLeaf: node.isLeaf,
-                    childIds: [],
-                })
-            }
-
-            for (const node of nodes) {
-                if (node.parentId) {
-                    const parent = nodeMap.get(node.parentId)
-                    if (parent) {
-                        parent.childIds.push(node.id)
-                    }
-                }
-            }
-
-            let isConvergent = false
-            for (const node of nodeMap.values()) {
-                const nonLeafChildren = node.childIds.filter((childId) => {
-                    const child = nodeMap.get(childId)
-                    return child && !child.isLeaf
-                })
-
-                if (nonLeafChildren.length >= 2) {
-                    isConvergent = true
-                    break
-                }
-            }
-
-            expect(isConvergent).toBe(false)
         })
     })
 
-    describe('buildRouteNodeTree - Tree Building from Database', () => {
-        it('should correctly build tree structure for single node', async () => {
-            const { route, pythonRoute } = await createTestRoute(singleMoleculePython)
-            await storeTreeInDatabase(route.id, pythonRoute)
+    describe('getRouteTreeData', () => {
+        it('should retrieve complete route tree with target and root node', async () => {
+            const { route } = await createCompleteRoute(singleMoleculePython)
 
-            const rootNode = await prisma.routeNode.findFirst({
-                where: { routeId: route.id, parentId: null },
-                include: { molecule: true },
-            })
+            const result = await getRouteTreeData(route.id)
 
-            expect(rootNode).toBeDefined()
-            expect(rootNode!.isLeaf).toBe(true)
-
-            const nodes = await prisma.routeNode.findMany({
-                where: { routeId: route.id },
-                include: { molecule: true },
-            })
-
-            expect(nodes.length).toBe(1)
+            expect(result).toBeDefined()
+            expect(result.route).toBeDefined()
+            expect(result.target).toBeDefined()
+            expect(result.rootNode).toBeDefined()
         })
 
-        it('should correctly establish parent-child relationships', async () => {
-            const { route, pythonRoute } = await createTestRoute(linearChainPython)
-            await storeTreeInDatabase(route.id, pythonRoute)
+        it('should include molecule data in tree nodes', async () => {
+            const { route } = await createCompleteRoute(singleMoleculePython)
 
-            const nodes = await prisma.routeNode.findMany({
-                where: { routeId: route.id },
-                include: { molecule: true },
-            })
+            const result = await getRouteTreeData(route.id)
 
-            expect(nodes.length).toBe(3)
-
-            const nodeMap = new Map<string, (typeof nodes)[0]>()
-            for (const node of nodes) {
-                nodeMap.set(node.id, node)
-            }
-
-            const root = nodes.find((n) => n.parentId === null)
-            expect(root).toBeDefined()
-
-            let current = root!
-            let chainLength = 1
-
-            while (true) {
-                const children = nodes.filter((n) => n.parentId === current.id)
-                if (children.length === 0) break
-
-                expect(children.length).toBe(1)
-                current = children[0]
-                chainLength++
-            }
-
-            expect(chainLength).toBe(3)
+            expect(result.rootNode.molecule).toBeDefined()
+            expect(result.rootNode.molecule.smiles).toBe(singleMoleculePython.smiles)
+            expect(result.rootNode.molecule.inchikey).toBe(singleMoleculePython.inchikey)
         })
 
-        it('should handle convergent route with multiple reactants', async () => {
-            const { route, pythonRoute } = await createTestRoute(convergentRoutePython)
-            await storeTreeInDatabase(route.id, pythonRoute)
+        it('should build complete tree structure for linear chain', async () => {
+            const { route } = await createCompleteRoute(linearChainPython)
 
-            const nodes = await prisma.routeNode.findMany({
-                where: { routeId: route.id },
-                include: { molecule: true },
-            })
+            const result = await getRouteTreeData(route.id)
 
-            const root = nodes.find((n) => n.parentId === null)
-            expect(root).toBeDefined()
-
-            const directChildren = nodes.filter((n) => n.parentId === root!.id)
-            expect(directChildren.length).toBe(2)
+            expect(result.rootNode.children.length).toBe(1)
+            expect(result.rootNode.children[0].children.length).toBe(1)
+            expect(result.rootNode.children[0].children[0].isLeaf).toBe(true)
         })
 
-        it('should build tree with all molecules correctly included', async () => {
-            const { route, pythonRoute } = await createTestRoute(linearChainPython)
-            const { molecules: expectedMolecules } = await storeTreeInDatabase(route.id, pythonRoute)
+        it('should build convergent tree structure', async () => {
+            const { route } = await createCompleteRoute(convergentRoutePython)
 
-            const nodes = await prisma.routeNode.findMany({
-                where: { routeId: route.id },
-                include: { molecule: true },
+            const result = await getRouteTreeData(route.id)
+
+            expect(result.rootNode.children.length).toBe(2)
+            expect(result.rootNode.isLeaf).toBe(false)
+        })
+
+        it('should include target with ground truth flag', async () => {
+            const { route, benchmarkTarget } = await createCompleteRoute(singleMoleculePython)
+
+            await prisma.benchmarkTarget.update({
+                where: { id: benchmarkTarget.id },
+                data: { groundTruthRouteId: route.id },
             })
 
-            const moleculesInTree = new Set(nodes.map((n) => n.molecule.inchikey))
+            const result = await getRouteTreeData(route.id)
 
-            expect(moleculesInTree.size).toBe(expectedMolecules.size)
+            expect(result.target.hasGroundTruth).toBe(true)
+            expect(result.target.groundTruthRouteId).toBe(route.id)
+        })
 
-            for (const [inchikey] of expectedMolecules) {
-                expect(moleculesInTree.has(inchikey)).toBe(true)
+        it('should throw error when route not found', async () => {
+            await expect(getRouteTreeData('non-existent-id')).rejects.toThrow('Route not found')
+        })
+
+        it('should handle complex multi-level routes', async () => {
+            const { route } = await createCompleteRoute(complexRoutePython)
+
+            const result = await getRouteTreeData(route.id)
+
+            expect(result.rootNode).toBeDefined()
+            expect(result.rootNode.children.length).toBeGreaterThan(0)
+
+            // Verify the tree has multiple levels
+            const countNodes = (node: typeof result.rootNode): number => {
+                return 1 + node.children.reduce((sum, child) => sum + countNodes(child), 0)
             }
+
+            const totalNodes = countNodes(result.rootNode)
+            expect(totalNodes).toBeGreaterThan(5)
         })
     })
 
-    describe('transformToVisualizationTree - Recursive Transformation', () => {
-        it('should transform single node to visualization format', async () => {
-            const { route, pythonRoute } = await createTestRoute(singleMoleculePython)
-            await storeTreeInDatabase(route.id, pythonRoute)
-
-            const node = await prisma.routeNode.findFirst({
-                where: { routeId: route.id },
-                include: { molecule: true },
+    describe('getRoutesByTarget', () => {
+        it('should return empty array when no routes exist', async () => {
+            const benchmark = await prisma.benchmarkSet.create({
+                data: { name: 'test-benchmark' },
             })
 
-            expect(node).toBeDefined()
+            const mol = await prisma.molecule.create({
+                data: {
+                    smiles: 'C',
+                    inchikey: 'TEST-INCHIKEY',
+                },
+            })
 
-            const nodeWithDetails: RouteNodeWithDetails = {
-                id: node!.id,
-                routeId: node!.routeId,
-                moleculeId: node!.moleculeId,
-                parentId: node!.parentId,
-                isLeaf: node!.isLeaf,
-                reactionHash: node!.reactionHash,
-                template: node!.template,
-                metadata: node!.metadata,
-                molecule: node!.molecule,
-                children: [],
-            }
+            const target = await prisma.benchmarkTarget.create({
+                data: {
+                    benchmarkSetId: benchmark.id,
+                    targetId: 'test-target',
+                    moleculeId: mol.id,
+                },
+            })
 
-            const transformed = {
-                smiles: nodeWithDetails.molecule.smiles,
-                children: nodeWithDetails.children.length > 0 ? nodeWithDetails.children : undefined,
-            }
+            const routes = await getRoutesByTarget(target.id)
 
-            expect(transformed.smiles).toBe(pythonRoute.smiles)
-            expect(transformed.children).toBeUndefined()
+            expect(routes).toEqual([])
         })
 
-        it('should recursively transform tree with children', async () => {
-            const { route, pythonRoute } = await createTestRoute(linearChainPython)
-            await storeTreeInDatabase(route.id, pythonRoute)
+        it('should return all routes for a target', async () => {
+            const { benchmarkTarget } = await createCompleteRoute(singleMoleculePython)
 
-            const nodes = await prisma.routeNode.findMany({
-                where: { routeId: route.id },
-                include: { molecule: true },
+            await prisma.route.create({
+                data: {
+                    targetId: benchmarkTarget.id,
+                    rank: 2,
+                    contentHash: 'test2',
+                    length: 0,
+                    isConvergent: false,
+                },
             })
 
-            const nodeMap = new Map<string, RouteNodeWithDetails>()
+            const routes = await getRoutesByTarget(benchmarkTarget.id)
 
-            for (const node of nodes) {
-                nodeMap.set(node.id, {
-                    id: node.id,
-                    routeId: node.routeId,
-                    moleculeId: node.moleculeId,
-                    parentId: node.parentId,
-                    isLeaf: node.isLeaf,
-                    reactionHash: node.reactionHash,
-                    template: node.template,
-                    metadata: node.metadata,
-                    molecule: node.molecule,
-                    children: [],
-                })
-            }
-
-            for (const node of nodes) {
-                if (node.parentId && nodeMap.has(node.parentId)) {
-                    nodeMap.get(node.parentId)!.children.push(nodeMap.get(node.id)!)
-                }
-            }
-
-            const rootNode = nodes.find((n) => n.parentId === null)!
-            const root = nodeMap.get(rootNode.id)!
-
-            const transformToVisualization = (node: RouteNodeWithDetails): { smiles: string; children?: unknown } => {
-                return {
-                    smiles: node.molecule.smiles,
-                    children:
-                        node.children.length > 0
-                            ? node.children.map((child) => transformToVisualization(child))
-                            : undefined,
-                }
-            }
-
-            const transformed = transformToVisualization(root)
-
-            expect(transformed.smiles).toBe(linearChainPython.smiles)
-            expect(transformed.children).toBeDefined()
-            expect(transformed.children).toHaveLength(1)
+            expect(routes).toHaveLength(2)
         })
 
-        it('should handle convergent routes with multiple children', async () => {
-            const { route, pythonRoute } = await createTestRoute(convergentRoutePython)
-            await storeTreeInDatabase(route.id, pythonRoute)
+        it('should return routes ordered by rank', async () => {
+            const { benchmarkTarget } = await createCompleteRoute(singleMoleculePython)
 
-            const nodes = await prisma.routeNode.findMany({
-                where: { routeId: route.id },
-                include: { molecule: true },
+            await prisma.route.create({
+                data: {
+                    targetId: benchmarkTarget.id,
+                    rank: 3,
+                    contentHash: 'test3',
+                    length: 0,
+                    isConvergent: false,
+                },
             })
 
-            const nodeMap = new Map<string, RouteNodeWithDetails>()
+            await prisma.route.create({
+                data: {
+                    targetId: benchmarkTarget.id,
+                    rank: 2,
+                    contentHash: 'test2',
+                    length: 0,
+                    isConvergent: false,
+                },
+            })
 
-            for (const node of nodes) {
-                nodeMap.set(node.id, {
-                    id: node.id,
-                    routeId: node.routeId,
-                    moleculeId: node.moleculeId,
-                    parentId: node.parentId,
-                    isLeaf: node.isLeaf,
-                    reactionHash: node.reactionHash,
-                    template: node.template,
-                    metadata: node.metadata,
-                    molecule: node.molecule,
-                    children: [],
-                })
-            }
+            const routes = await getRoutesByTarget(benchmarkTarget.id)
 
-            for (const node of nodes) {
-                if (node.parentId && nodeMap.has(node.parentId)) {
-                    nodeMap.get(node.parentId)!.children.push(nodeMap.get(node.id)!)
-                }
-            }
-
-            const rootNode = nodes.find((n) => n.parentId === null)!
-            const root = nodeMap.get(rootNode.id)!
-
-            expect(root.children.length).toBe(2)
+            expect(routes).toHaveLength(3)
+            expect(routes[0].rank).toBe(1)
+            expect(routes[1].rank).toBe(2)
+            expect(routes[2].rank).toBe(3)
         })
     })
 
-    describe('Error Handling and Edge Cases', () => {
-        it('should handle route with empty tree', async () => {
-            const { route } = await createTestRoute(singleMoleculePython)
+    describe('getRouteTreeForVisualization', () => {
+        it('should return simplified tree with just SMILES', async () => {
+            const { route } = await createCompleteRoute(singleMoleculePython)
 
-            const nodes = await prisma.routeNode.findMany({
-                where: { routeId: route.id },
-            })
+            const result = await getRouteTreeForVisualization(route.id)
 
-            expect(nodes.length).toBe(0)
+            expect(result).toBeDefined()
+            expect(result.smiles).toBe(singleMoleculePython.smiles)
+            expect(result.children).toBeUndefined()
         })
 
-        it('should handle molecules with special characters in SMILES', async () => {
-            const specialMolecule = {
-                smiles: 'C[C@H](O)C(=O)O',
-                inchikey: 'IKHGUXGNQABSHF-JGWJSMIESA-N',
-                synthesis_step: null,
-                is_leaf: true,
-            }
+        it('should include children for non-leaf nodes', async () => {
+            const { route } = await createCompleteRoute(linearChainPython)
 
-            const { route } = await createTestRoute(specialMolecule)
-            const { molecules } = await storeTreeInDatabase(route.id, specialMolecule)
+            const result = await getRouteTreeForVisualization(route.id)
 
-            const node = await prisma.routeNode.findFirst({
-                where: { routeId: route.id },
-                include: { molecule: true },
-            })
-
-            expect(node!.molecule.smiles).toBe(specialMolecule.smiles)
-            expect(molecules.has(specialMolecule.inchikey)).toBe(true)
+            expect(result.smiles).toBe(linearChainPython.smiles)
+            expect(result.children).toBeDefined()
+            expect(result.children).toHaveLength(1)
         })
 
-        it('should preserve template information through tree', async () => {
-            const { route, pythonRoute } = await createTestRoute(linearChainPython)
-            await storeTreeInDatabase(route.id, pythonRoute)
+        it('should recursively transform entire tree', async () => {
+            const { route } = await createCompleteRoute(convergentRoutePython)
 
-            const nodes = await prisma.routeNode.findMany({
-                where: { routeId: route.id },
-                include: { molecule: true },
-            })
+            const result = await getRouteTreeForVisualization(route.id)
 
-            const nonLeafNodes = nodes.filter((n) => !n.isLeaf)
-            expect(nonLeafNodes.length).toBeGreaterThan(0)
+            expect(result.children).toBeDefined()
+            expect(result.children).toHaveLength(2)
 
-            for (const node of nonLeafNodes) {
-                expect(node.template).toBeDefined()
+            // Check that children have SMILES
+            for (const child of result.children!) {
+                expect(child.smiles).toBeDefined()
+                expect(typeof child.smiles).toBe('string')
             }
         })
 
-        it('should handle deep synthesis routes', async () => {
-            const deepRoute = {
-                smiles: 'C5',
-                inchikey: 'LEVEL5-UHFFFAOYSA-N',
-                synthesis_step: {
-                    reactants: [
-                        {
-                            smiles: 'C4',
-                            inchikey: 'LEVEL4-UHFFFAOYSA-N',
-                            synthesis_step: {
-                                reactants: [
-                                    {
-                                        smiles: 'C3',
-                                        inchikey: 'LEVEL3-UHFFFAOYSA-N',
-                                        synthesis_step: {
-                                            reactants: [
-                                                {
-                                                    smiles: 'C2',
-                                                    inchikey: 'LEVEL2-UHFFFAOYSA-N',
-                                                    synthesis_step: {
-                                                        reactants: [
-                                                            {
-                                                                smiles: 'C1',
-                                                                inchikey: 'LEVEL1-UHFFFAOYSA-N',
-                                                                synthesis_step: null,
-                                                                is_leaf: true,
-                                                            },
-                                                        ],
-                                                        template: 'C1>>C2',
-                                                    },
-                                                },
-                                            ],
-                                            template: 'C2>>C3',
-                                        },
-                                    },
-                                ],
-                                template: 'C3>>C4',
-                            },
+        it('should throw error when route not found', async () => {
+            await expect(getRouteTreeForVisualization('non-existent-id')).rejects.toThrow('Route not found')
+        })
+
+        it('should handle complex multi-level trees', async () => {
+            const { route } = await createCompleteRoute(complexRoutePython)
+
+            const result = await getRouteTreeForVisualization(route.id)
+
+            expect(result.smiles).toBe(complexRoutePython.smiles)
+            expect(result.children).toBeDefined()
+
+            // Count all nodes in the visualization tree
+            const countNodes = (node: typeof result): number => {
+                return 1 + (node.children?.reduce((sum, child) => sum + countNodes(child), 0) || 0)
+            }
+
+            const totalNodes = countNodes(result)
+            expect(totalNodes).toBeGreaterThan(5)
+        })
+    })
+
+    describe('loadBenchmarkFromFile', () => {
+        const createTestBenchmarkFile = async (
+            filename: string,
+            data: {
+                name: string
+                targets: Record<
+                    string,
+                    {
+                        smiles: string
+                        ground_truth?: {
+                            target: PythonMolecule
+                            rank: number
+                        } | null
+                        route_length?: number | null
+                        is_convergent?: boolean | null
+                    }
+                >
+            }
+        ): Promise<string> => {
+            const tmpDir = path.join(__dirname, '..', '..', 'tmp')
+            if (!fs.existsSync(tmpDir)) {
+                fs.mkdirSync(tmpDir, { recursive: true })
+            }
+
+            const filePath = path.join(tmpDir, filename)
+            const jsonString = JSON.stringify(data)
+            const compressed = zlib.gzipSync(Buffer.from(jsonString))
+            fs.writeFileSync(filePath, compressed)
+
+            return filePath
+        }
+
+        const cleanupTestFile = (filePath: string) => {
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath)
+            }
+        }
+
+        it('should load benchmark from file with single target', async () => {
+            const benchmark = await prisma.benchmarkSet.create({
+                data: { name: 'test-load-benchmark' },
+            })
+
+            const benchmarkData = {
+                name: 'Test Benchmark',
+                targets: {
+                    'target-1': {
+                        smiles: singleMoleculePython.smiles,
+                        ground_truth: {
+                            target: singleMoleculePython,
+                            rank: 1,
                         },
-                    ],
-                    template: 'C4>>C5',
+                        route_length: 0,
+                        is_convergent: false,
+                    },
                 },
             }
 
-            const { route } = await createTestRoute(deepRoute)
-            const { molecules } = await storeTreeInDatabase(route.id, deepRoute)
+            const filePath = await createTestBenchmarkFile('test-benchmark.json.gz', benchmarkData)
 
-            const nodes = await prisma.routeNode.findMany({
-                where: { routeId: route.id },
-                include: { molecule: true },
-            })
+            try {
+                const result = await loadBenchmarkFromFile(filePath, benchmark.id, 'Test Benchmark')
 
-            // 5 levels deep: C5 -> C4 -> C3 -> C2 -> C1
-            expect(nodes.length).toBe(5)
-            expect(molecules.size).toBe(5)
+                expect(result.benchmarkId).toBe(benchmark.id)
+                expect(result.benchmarkName).toBe('Test Benchmark')
+                expect(result.targetsLoaded).toBe(1)
+                expect(result.routesCreated).toBe(1)
+                expect(result.moleculesCreated).toBeGreaterThan(0)
+            } finally {
+                cleanupTestFile(filePath)
+            }
         })
-    })
 
-    describe('Database Query Efficiency', () => {
-        it('should fetch all nodes in single query for tree building', async () => {
-            const { route, pythonRoute } = await createTestRoute(complexRoutePython)
-            await storeTreeInDatabase(route.id, pythonRoute)
-
-            const nodes = await prisma.routeNode.findMany({
-                where: { routeId: route.id },
-                include: { molecule: true },
+        it('should throw error when file does not exist', async () => {
+            const benchmark = await prisma.benchmarkSet.create({
+                data: { name: 'test-benchmark' },
             })
 
-            const nodeMap = new Map<string, RouteNodeWithDetails>()
+            await expect(loadBenchmarkFromFile('/non/existent/file.json.gz', benchmark.id, 'Test')).rejects.toThrow(
+                'File not found'
+            )
+        })
 
-            for (const node of nodes) {
-                nodeMap.set(node.id, {
-                    id: node.id,
-                    routeId: node.routeId,
-                    moleculeId: node.moleculeId,
-                    parentId: node.parentId,
-                    isLeaf: node.isLeaf,
-                    reactionHash: node.reactionHash,
-                    template: node.template,
-                    metadata: node.metadata,
-                    molecule: node.molecule,
-                    children: [],
+        it('should load multiple targets from file', async () => {
+            const benchmark = await prisma.benchmarkSet.create({
+                data: { name: 'test-multi-benchmark' },
+            })
+
+            const benchmarkData = {
+                name: 'Multi Target Benchmark',
+                targets: {
+                    'target-1': {
+                        smiles: singleMoleculePython.smiles,
+                        ground_truth: {
+                            target: singleMoleculePython,
+                            rank: 1,
+                        },
+                    },
+                    'target-2': {
+                        smiles: linearChainPython.smiles,
+                        ground_truth: {
+                            target: linearChainPython,
+                            rank: 1,
+                        },
+                    },
+                },
+            }
+
+            const filePath = await createTestBenchmarkFile('test-multi.json.gz', benchmarkData)
+
+            try {
+                const result = await loadBenchmarkFromFile(filePath, benchmark.id, 'Multi Target Benchmark')
+
+                expect(result.targetsLoaded).toBe(2)
+                expect(result.routesCreated).toBe(2)
+            } finally {
+                cleanupTestFile(filePath)
+            }
+        })
+
+        it('should compute route properties correctly', async () => {
+            const benchmark = await prisma.benchmarkSet.create({
+                data: { name: 'test-properties' },
+            })
+
+            const benchmarkData = {
+                name: 'Properties Test',
+                targets: {
+                    'target-1': {
+                        smiles: linearChainPython.smiles,
+                        ground_truth: {
+                            target: linearChainPython,
+                            rank: 1,
+                        },
+                    },
+                },
+            }
+
+            const filePath = await createTestBenchmarkFile('test-properties.json.gz', benchmarkData)
+
+            try {
+                await loadBenchmarkFromFile(filePath, benchmark.id, 'Properties Test')
+
+                const target = await prisma.benchmarkTarget.findFirst({
+                    where: { benchmarkSetId: benchmark.id },
                 })
-            }
 
-            for (const node of nodes) {
-                if (node.parentId && nodeMap.has(node.parentId)) {
-                    nodeMap.get(node.parentId)!.children.push(nodeMap.get(node.id)!)
-                }
-            }
+                expect(target).toBeDefined()
+                expect(target!.routeLength).toBe(2) // Linear chain has length 2
+                expect(target!.isConvergent).toBe(false)
 
-            expect(nodeMap.size).toBe(nodes.length)
+                const route = await prisma.route.findUnique({
+                    where: { id: target!.groundTruthRouteId! },
+                })
+                expect(route).toBeDefined()
+                expect(route!.length).toBe(2)
+                expect(route!.isConvergent).toBe(false)
+            } finally {
+                cleanupTestFile(filePath)
+            }
         })
 
-        it('should deduplicate molecules during collection', async () => {
-            const { route, pythonRoute } = await createTestRoute(linearChainPython)
-            const { molecules } = await storeTreeInDatabase(route.id, pythonRoute)
+        it('should handle targets without ground truth', async () => {
+            const benchmark = await prisma.benchmarkSet.create({
+                data: { name: 'test-no-ground-truth' },
+            })
 
-            const moleculeIds = [...molecules.values()].map((m) => m.id)
-            const uniqueIds = new Set(moleculeIds)
+            const benchmarkData = {
+                name: 'No Ground Truth Test',
+                targets: {
+                    'target-1': {
+                        smiles: singleMoleculePython.smiles,
+                    },
+                },
+            }
 
-            expect(uniqueIds.size).toBe(moleculeIds.length)
+            const filePath = await createTestBenchmarkFile('test-no-gt.json.gz', benchmarkData)
+
+            try {
+                const result = await loadBenchmarkFromFile(filePath, benchmark.id, 'No Ground Truth Test')
+
+                expect(result.targetsLoaded).toBe(1)
+                expect(result.routesCreated).toBe(0)
+
+                const target = await prisma.benchmarkTarget.findFirst({
+                    where: { benchmarkSetId: benchmark.id },
+                })
+
+                expect(target).toBeDefined()
+                expect(target!.groundTruthRouteId).toBeNull()
+            } finally {
+                cleanupTestFile(filePath)
+            }
+        })
+
+        it('should reuse existing molecules', async () => {
+            // Pre-create a molecule
+            await prisma.molecule.create({
+                data: {
+                    smiles: singleMoleculePython.smiles,
+                    inchikey: singleMoleculePython.inchikey,
+                },
+            })
+
+            const benchmark = await prisma.benchmarkSet.create({
+                data: { name: 'test-reuse' },
+            })
+
+            const benchmarkData = {
+                name: 'Reuse Test',
+                targets: {
+                    'target-1': {
+                        smiles: singleMoleculePython.smiles,
+                        ground_truth: {
+                            target: singleMoleculePython,
+                            rank: 1,
+                        },
+                    },
+                },
+            }
+
+            const filePath = await createTestBenchmarkFile('test-reuse.json.gz', benchmarkData)
+
+            try {
+                const result = await loadBenchmarkFromFile(filePath, benchmark.id, 'Reuse Test')
+
+                expect(result.moleculesReused).toBeGreaterThan(0)
+            } finally {
+                cleanupTestFile(filePath)
+            }
         })
     })
 })

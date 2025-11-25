@@ -76,24 +76,9 @@ const cleanupTempFiles = async () => {
 // ============================================================================
 
 describe('StockService', () => {
-    const createdStockIds: string[] = []
-
-    beforeEach(async () => {
-        // Just cleanup temp files at start
-        await cleanupTempFiles()
-    })
-
     afterEach(async () => {
-        // Only delete stocks and items we explicitly created
-        if (createdStockIds.length > 0) {
-            await prisma.stockItem.deleteMany({
-                where: { stockId: { in: createdStockIds } },
-            })
-            await prisma.stock.deleteMany({
-                where: { id: { in: createdStockIds } },
-            })
-            createdStockIds.length = 0
-        }
+        // Database cleanup is handled globally by `tests/setup.ts`.
+        // Only clean up temporary files created during tests.
         await cleanupTempFiles()
     })
 

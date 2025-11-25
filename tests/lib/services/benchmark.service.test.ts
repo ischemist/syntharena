@@ -11,7 +11,7 @@
  * Skip trivial operations: simple CRUD without logic
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import prisma from '@/lib/db'
 import {
@@ -95,29 +95,8 @@ const createTestBenchmark = async (
 // ============================================================================
 
 describe('benchmark.service', () => {
-    beforeEach(async () => {
-        // Clean database in correct dependency order
-        await prisma.$transaction([
-            prisma.routeNode.deleteMany({}),
-            prisma.route.deleteMany({}),
-            prisma.benchmarkTarget.deleteMany({}),
-            prisma.benchmarkSet.deleteMany({}),
-            prisma.stockItem.deleteMany({}),
-            prisma.molecule.deleteMany({}),
-        ])
-    })
-
-    afterEach(async () => {
-        // Clean database after each test
-        await prisma.$transaction([
-            prisma.routeNode.deleteMany({}),
-            prisma.route.deleteMany({}),
-            prisma.benchmarkTarget.deleteMany({}),
-            prisma.benchmarkSet.deleteMany({}),
-            prisma.stockItem.deleteMany({}),
-            prisma.molecule.deleteMany({}),
-        ])
-    })
+    // Database cleanup is handled globally by `tests/setup.ts` in the afterEach hook,
+    // ensuring consistent cleanup across all tests without duplication.
 
     describe('createBenchmark', () => {
         it('should create a benchmark with all fields', async () => {
