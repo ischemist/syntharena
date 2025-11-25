@@ -104,8 +104,8 @@ export async function loadStockFromFile(
         throw error
     }
 
-    // Process molecules in batches
-    const BATCH_SIZE = 500
+    // Process molecules in batches using transactions for consistency
+    const BATCH_SIZE = 100
     let moleculesCreated = 0
     let moleculesSkipped = 0
     let itemsCreated = 0
@@ -113,50 +113,55 @@ export async function loadStockFromFile(
     for (let i = 0; i < moleculeData.length; i += BATCH_SIZE) {
         const batch = moleculeData.slice(i, i + BATCH_SIZE)
 
-        await prisma.$transaction(async (tx) => {
-            for (const { smiles, inchikey } of batch) {
-                // Check if molecule exists before creating
-                let molecule: Molecule
-                try {
-                    const existingMolecule = await tx.molecule.findUnique({
-                        where: { inchikey },
-                    })
-
-                    if (existingMolecule) {
-                        moleculesSkipped++
-                        molecule = existingMolecule
-                    } else {
-                        molecule = await tx.molecule.create({
-                            data: { smiles, inchikey },
+        await prisma.$transaction(
+            async (tx) => {
+                for (const { smiles, inchikey } of batch) {
+                    // Check if molecule exists before creating
+                    let molecule: Molecule
+                    try {
+                        const existingMolecule = await tx.molecule.findUnique({
+                            where: { inchikey },
                         })
-                        moleculesCreated++
-                    }
-                } catch (error) {
-                    // If molecule creation fails, skip it
-                    console.warn(`Failed to process molecule ${inchikey}: ${error}`)
-                    moleculesSkipped++
-                    continue
-                }
 
-                // Create stock item if it doesn't exist
-                try {
-                    await tx.stockItem.create({
-                        data: {
-                            stockId: stock.id,
-                            moleculeId: molecule.id,
-                        },
-                    })
-                    itemsCreated++
-                } catch (error) {
-                    // If stock item already exists (duplicate), skip silently
-                    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-                        // Unique constraint violation - item already exists
+                        if (existingMolecule) {
+                            moleculesSkipped++
+                            molecule = existingMolecule
+                        } else {
+                            molecule = await tx.molecule.create({
+                                data: { smiles, inchikey },
+                            })
+                            moleculesCreated++
+                        }
+                    } catch (error) {
+                        // If molecule creation fails, skip it
+                        console.warn(`Failed to process molecule ${inchikey}: ${error}`)
+                        moleculesSkipped++
                         continue
                     }
-                    throw error
+
+                    // Create stock item if it doesn't exist
+                    try {
+                        await tx.stockItem.create({
+                            data: {
+                                stockId: stock.id,
+                                moleculeId: molecule.id,
+                            },
+                        })
+                        itemsCreated++
+                    } catch (error) {
+                        // If stock item already exists (duplicate), skip silently
+                        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+                            // Unique constraint violation - item already exists
+                            continue
+                        }
+                        throw error
+                    }
                 }
+            },
+            {
+                timeout: 30000, // 30 second timeout for large batches
             }
-        })
+        )
 
         // Log progress
         const processed = Math.min(i + BATCH_SIZE, moleculeData.length)
