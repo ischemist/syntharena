@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Search, X } from 'lucide-react'
+import { ChevronsUpDown, X } from 'lucide-react'
 
 import type { BenchmarkTargetWithMolecule } from '@/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 type TargetSearchProps = {
     onSearch: (query: string) => Promise<BenchmarkTargetWithMolecule[]>
@@ -19,10 +19,10 @@ export function TargetSearch({ onSearch }: TargetSearchProps) {
     const pathname = usePathname()
     const searchParams = useSearchParams()
 
+    const [open, setOpen] = useState(false)
     const [query, setQuery] = useState(searchParams.get('search') || '')
     const [results, setResults] = useState<BenchmarkTargetWithMolecule[]>([])
     const [isSearching, setIsSearching] = useState(false)
-    const [showResults, setShowResults] = useState(false)
 
     // Debounced search effect
     useEffect(() => {
@@ -32,7 +32,6 @@ export function TargetSearch({ onSearch }: TargetSearchProps) {
                 try {
                     const searchResults = await onSearch(query)
                     setResults(searchResults)
-                    setShowResults(true)
                 } catch (error) {
                     console.error('Search failed:', error)
                     setResults([])
@@ -41,7 +40,6 @@ export function TargetSearch({ onSearch }: TargetSearchProps) {
                 }
             } else {
                 setResults([])
-                setShowResults(false)
             }
         }, 300)
 
@@ -57,7 +55,7 @@ export function TargetSearch({ onSearch }: TargetSearchProps) {
         } else {
             params.delete('search')
         }
-        router.replace(`${pathname}?${params.toString()}`)
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false })
     }
 
     const handleSelectTarget = (targetId: string) => {
@@ -65,61 +63,65 @@ export function TargetSearch({ onSearch }: TargetSearchProps) {
         params.set('target', targetId)
         params.set('rank', '1') // Default to first prediction
         router.push(`${pathname}?${params.toString()}`, { scroll: false })
-        setShowResults(false)
+        setOpen(false) // Close the popover
     }
 
     const handleClear = () => {
         setQuery('')
         setResults([])
-        setShowResults(false)
         const params = new URLSearchParams(searchParams.toString())
         params.delete('search')
-        router.replace(`${pathname}?${params.toString()}`)
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false })
     }
 
     return (
-        <div className="relative">
-            <Card>
-                <CardContent className="pt-6">
-                    <div className="flex items-center gap-2">
-                        <div className="relative flex-1">
-                            <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-                            <Input
-                                type="text"
-                                placeholder="Search by target ID or SMILES..."
-                                value={query}
-                                onChange={(e) => handleInputChange(e.target.value)}
-                                className="pr-9 pl-9"
-                            />
-                            {query && (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={handleClear}
-                                    className="absolute top-1/2 right-1 h-7 w-7 -translate-y-1/2 p-0"
-                                >
-                                    <X className="h-4 w-4" />
-                                </Button>
-                            )}
-                        </div>
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
+                    <span className="text-muted-foreground truncate">
+                        {query || 'Search by target ID or SMILES...'}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command shouldFilter={false}>
+                    <div className="relative">
+                        <CommandInput
+                            placeholder="Search by target ID or SMILES..."
+                            value={query}
+                            onValueChange={handleInputChange}
+                        />
+                        {query && (
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={handleClear}
+                                className="absolute top-1/2 right-1 -translate-y-1/2"
+                            >
+                                <X className="h-4 w-4" />
+                            </Button>
+                        )}
                     </div>
-                    {isSearching && <p className="text-muted-foreground mt-2 text-sm">Searching...</p>}
-                </CardContent>
-            </Card>
-
-            {/* Search results dropdown */}
-            {showResults && results.length > 0 && (
-                <Card className="absolute top-full right-0 left-0 z-50 mt-2 max-h-96 overflow-y-auto">
-                    <CardContent className="p-2">
-                        <div className="space-y-1">
-                            {results.map((target) => (
-                                <button
-                                    key={target.id}
-                                    onClick={() => handleSelectTarget(target.id)}
-                                    className="hover:bg-muted w-full rounded-md p-3 text-left transition-colors"
-                                >
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="min-w-0 flex-1">
+                    <CommandList>
+                        {isSearching && (
+                            <div className="py-6 text-center text-sm">
+                                <p className="text-muted-foreground">Searching...</p>
+                            </div>
+                        )}
+                        {!isSearching && query.trim().length >= 2 && results.length === 0 && (
+                            <CommandEmpty>No targets found matching &ldquo;{query}&rdquo;</CommandEmpty>
+                        )}
+                        {!isSearching && results.length > 0 && (
+                            <CommandGroup>
+                                {results.map((target) => (
+                                    <CommandItem
+                                        key={target.id}
+                                        value={target.id}
+                                        onSelect={() => handleSelectTarget(target.id)}
+                                        className="flex-col items-start gap-1 py-3"
+                                    >
+                                        <div className="flex w-full items-center justify-between gap-2">
                                             <div className="flex items-center gap-2">
                                                 <span className="font-mono text-sm font-medium">{target.targetId}</span>
                                                 {target.routeCount && target.routeCount > 0 ? (
@@ -132,30 +134,22 @@ export function TargetSearch({ onSearch }: TargetSearchProps) {
                                                     </Badge>
                                                 )}
                                             </div>
-                                            <div className="text-muted-foreground mt-1 truncate font-mono text-xs">
-                                                {target.molecule.smiles}
-                                            </div>
+                                            {target.routeLength && (
+                                                <div className="text-muted-foreground text-xs">
+                                                    Length: {target.routeLength}
+                                                </div>
+                                            )}
                                         </div>
-                                        {target.routeLength && (
-                                            <div className="text-muted-foreground text-xs">
-                                                Length: {target.routeLength}
-                                            </div>
-                                        )}
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {showResults && results.length === 0 && !isSearching && query.trim().length >= 2 && (
-                <Card className="absolute top-full right-0 left-0 z-50 mt-2">
-                    <CardContent className="p-4">
-                        <p className="text-muted-foreground text-sm">No targets found matching &ldquo;{query}&rdquo;</p>
-                    </CardContent>
-                </Card>
-            )}
-        </div>
+                                        <div className="text-muted-foreground w-full truncate font-mono text-xs">
+                                            {target.molecule.smiles}
+                                        </div>
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        )}
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
     )
 }
