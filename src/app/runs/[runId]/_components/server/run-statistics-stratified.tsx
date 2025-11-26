@@ -82,15 +82,16 @@ export async function RunStatisticsStratified({ runId, searchParams }: RunStatis
     const topKMetrics: Array<{ key: string; name: string; metric: StratifiedMetric }> = []
     if (parsedStats.topKAccuracy) {
         const topKKeys = Object.keys(parsedStats.topKAccuracy).sort((a, b) => {
-            const aNum = parseInt(a.replace('Top-', ''))
-            const bNum = parseInt(b.replace('Top-', ''))
+            const aNum = parseInt(a.replace(/^\D+/, ''))
+            const bNum = parseInt(b.replace(/^\D+/, ''))
             return aNum - bNum
         })
 
         for (const key of topKKeys) {
+            const displayName = key.startsWith('Top-') ? key : `Top-${key}`
             topKMetrics.push({
                 key,
-                name: key,
+                name: displayName,
                 metric: parsedStats.topKAccuracy[key],
             })
         }

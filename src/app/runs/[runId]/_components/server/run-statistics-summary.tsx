@@ -73,14 +73,15 @@ export async function RunStatisticsSummary({ runId, searchParams }: RunStatistic
     if (hasTopK && parsedStats.topKAccuracy) {
         // Add Top-K metrics in order
         const topKKeys = Object.keys(parsedStats.topKAccuracy).sort((a, b) => {
-            const aNum = parseInt(a.replace('Top-', ''))
-            const bNum = parseInt(b.replace('Top-', ''))
+            const aNum = parseInt(a.replace(/^\D+/, ''))
+            const bNum = parseInt(b.replace(/^\D+/, ''))
             return aNum - bNum
         })
 
         for (const key of topKKeys) {
+            const displayName = key.startsWith('Top-') ? key : `Top-${key}`
             metricsRows.push({
-                name: `${key} Accuracy`,
+                name: displayName,
                 metric: parsedStats.topKAccuracy[key].overall,
             })
         }
