@@ -31,6 +31,8 @@ export interface PythonRoute {
     rank: number
     solvability?: Record<string, boolean>
     metadata?: Record<string, unknown>
+    content_hash: string
+    signature: string
 }
 
 // Types for Python statistics data (snake_case)
@@ -64,34 +66,6 @@ export interface PythonModelStatistics {
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-/**
- * Computes content hash for route deduplication.
- * Based on retrocast get_content_hash() - SHA256 of route structure.
- *
- * @param route - Python route object
- * @returns SHA256 hash string
- */
-function computeContentHash(route: PythonRoute): string {
-    // Simplified hash - in production, match Python implementation exactly
-    const content = JSON.stringify({
-        target: route.target.smiles,
-        structure: serializeMoleculeTree(route.target),
-    })
-    return crypto.createHash('sha256').update(content).digest('hex')
-}
-
-/**
- * Recursively serialize molecule tree for hashing.
- */
-function serializeMoleculeTree(mol: PythonMolecule): unknown {
-    if (!mol.synthesis_step) return mol.smiles
-    return {
-        smiles: mol.smiles,
-        reactants: mol.synthesis_step.reactants.map(serializeMoleculeTree),
-        template: mol.synthesis_step.template,
-    }
-}
 
 /**
  * Computes route length (number of reaction steps).
@@ -363,8 +337,10 @@ export async function createRouteFromPython(
         throw new Error(`Target not found: ${targetId}`)
     }
 
-    // Compute route properties
-    const contentHash = computeContentHash(pythonRoute)
+    // Read route properties from Python JSON
+    // Use content_hash and signature computed by Python, don't recompute
+    const contentHash = pythonRoute.content_hash
+    const signature = pythonRoute.signature
     const length = computeRouteLength(pythonRoute.target)
     const isConvergent = isRouteConvergent(pythonRoute.target)
 
@@ -392,7 +368,7 @@ export async function createRouteFromPython(
             targetId,
             rank: pythonRoute.rank,
             contentHash,
-            signature: null, // Can be computed separately if needed
+            signature, // Read from Python JSON
             length,
             isConvergent,
             metadata,
