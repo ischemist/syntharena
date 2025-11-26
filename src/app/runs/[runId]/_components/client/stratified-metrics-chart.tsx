@@ -67,9 +67,9 @@ export function StratifiedMetricsChart({ metrics, minSamples = 5 }: StratifiedMe
                 row[`${metricKey}_ci_lower`] = ciLower
                 row[`${metricKey}_ci_upper`] = ciUpper
                 // Compute deviations for error bars (recharts expects deviation from value)
-                // Include unique key suffix to prevent duplicate key issues
-                row[`${metricKey}_error`] = [value - ciLower, ciUpper - value]
-                row[`${metricKey}_error_key`] = `${metricKey}-${length}-${metricIndex}`
+                // Add small unique offset to prevent duplicate coordinate issues
+                const errorOffset = metricIndex * 0.001 // Tiny offset per metric
+                row[`${metricKey}_error`] = [value - ciLower + errorOffset, ciUpper - value + errorOffset]
                 row[`${metricKey}_n`] = metric.nSamples
                 row[`${metricKey}_reliability`] = metric.reliability
             }
@@ -103,7 +103,7 @@ export function StratifiedMetricsChart({ metrics, minSamples = 5 }: StratifiedMe
     }
 
     return (
-        <ChartContainer config={chartConfig} className="h-[400px] w-full">
+        <ChartContainer config={chartConfig} className="h-[400px] w-full" suppressHydrationWarning={true}>
             <BarChart
                 data={chartData}
                 margin={{
@@ -215,12 +215,17 @@ export function StratifiedMetricsChart({ metrics, minSamples = 5 }: StratifiedMe
                             onMouseLeave={() => setHoveredBar(null)}
                         >
                             {/* ErrorBar using pre-computed array for asymmetric error bars */}
-                            <ErrorBar
-                                dataKey={`${metricKey}_error`}
-                                width={6}
-                                strokeWidth={2.5}
-                                stroke={errorBarColor}
-                            />
+                            {chartData.some((row) => {
+                                const errorData = row[`${metricKey}_error`] as [number, number] | undefined
+                                return errorData && (errorData[0] > 0.01 || errorData[1] > 0.01)
+                            }) && (
+                                <ErrorBar
+                                    dataKey={(entry) => entry[`${metricKey}_error`]}
+                                    width={6}
+                                    strokeWidth={2.5}
+                                    stroke={errorBarColor}
+                                />
+                            )}
                         </Bar>
                     )
                 })}

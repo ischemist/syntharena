@@ -131,7 +131,7 @@ export function StratifiedMetricsViewToggle({ metrics }: StratifiedMetricsViewTo
                 <>
                     <StratifiedMetricsChart metrics={metrics} minSamples={5} />
                     <div className="text-muted-foreground mt-4 text-center text-sm">
-                        <p>Error bars show 95% confidence intervals. Groups with fewer than 5 samples are excluded.</p>
+                        <p>Error bars show 95% confidence intervals.</p>
                     </div>
                 </>
             )}

@@ -55,9 +55,6 @@ export async function RunStatisticsStratified({ runId, searchParams }: RunStatis
         )
     }
 
-    // Sort lengths
-    const sortedLengths = Array.from(lengthsWithData).sort((a, b) => a - b)
-
     // Build stratified metrics array
     const stratifiedMetrics: Array<{
         name: string
@@ -85,10 +82,7 @@ export async function RunStatisticsStratified({ runId, searchParams }: RunStatis
         <Card>
             <CardHeader>
                 <CardTitle>Metrics by Route Length</CardTitle>
-                <CardDescription>
-                    Performance breakdown by ground truth route length. Groups with fewer than 5 samples may be excluded
-                    for reliability.
-                </CardDescription>
+                <CardDescription>Performance breakdown by ground truth route length.</CardDescription>
             </CardHeader>
             <CardContent>
                 <StratifiedMetricsViewToggle metrics={stratifiedMetrics} />
