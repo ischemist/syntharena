@@ -13,6 +13,7 @@ import { HORIZONTAL_SPACING, NODE_HEIGHT, NODE_WIDTH, VERTICAL_SPACING } from '.
 interface LayoutNode {
     id: string
     smiles: string
+    inchikey: string
     children: LayoutNode[]
     width?: number
     x?: number
@@ -23,18 +24,13 @@ interface LayoutNode {
  * Builds a layout tree from visualization tree.
  * Assigns IDs and initializes structure.
  */
-export function buildLayoutTree(
-    smiles: string,
-    children: RouteVisualizationNode[] | undefined,
-    idPrefix: string
-): LayoutNode {
-    const nodeId = `${idPrefix}${smiles}`
+export function buildLayoutTree(node: RouteVisualizationNode, idPrefix: string): LayoutNode {
+    const nodeId = `${idPrefix}${node.smiles}`
     return {
         id: nodeId,
-        smiles,
-        children: (children || []).map((child, index) =>
-            buildLayoutTree(child.smiles, child.children, `${nodeId}-${index}-`)
-        ),
+        smiles: node.smiles,
+        inchikey: node.inchikey,
+        children: (node.children || []).map((child, index) => buildLayoutTree(child, `${nodeId}-${index}-`)),
     }
 }
 
@@ -81,11 +77,11 @@ export function assignPositions(node: LayoutNode, x: number, y: number): void {
  */
 export function flattenLayoutTree(
     node: LayoutNode,
-    nodes: Array<{ id: string; smiles: string; x: number; y: number }>,
+    nodes: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }>,
     edges: Array<{ source: string; target: string }>,
     parentId: string | null
 ): void {
-    nodes.push({ id: node.id, smiles: node.smiles, x: node.x!, y: node.y! })
+    nodes.push({ id: node.id, smiles: node.smiles, inchikey: node.inchikey, x: node.x!, y: node.y! })
 
     if (parentId) {
         edges.push({ source: parentId, target: node.id })
@@ -104,14 +100,14 @@ export function layoutTree(
     root: RouteVisualizationNode,
     idPrefix: string
 ): {
-    nodes: Array<{ id: string; smiles: string; x: number; y: number }>
+    nodes: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }>
     edges: Array<{ source: string; target: string }>
 } {
-    const layoutRoot = buildLayoutTree(root.smiles, root.children, idPrefix)
+    const layoutRoot = buildLayoutTree(root, idPrefix)
     calculateSubtreeWidth(layoutRoot)
     assignPositions(layoutRoot, 0, 0)
 
-    const nodes: Array<{ id: string; smiles: string; x: number; y: number }> = []
+    const nodes: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }> = []
     const edges: Array<{ source: string; target: string }> = []
     flattenLayoutTree(layoutRoot, nodes, edges, null)
 
@@ -121,10 +117,22 @@ export function layoutTree(
 /**
  * Collects all SMILES from a tree into a Set.
  * Useful for stock availability checking.
+ * @deprecated Use collectInchiKeys instead for reliable molecule comparison
  */
 export function collectSmiles(node: RouteVisualizationNode, set: Set<string>): void {
     set.add(node.smiles)
     if (node.children) {
         node.children.forEach((child) => collectSmiles(child, set))
+    }
+}
+
+/**
+ * Collects all InChiKeys from a tree into a Set.
+ * InChiKeys are canonical identifiers for reliable molecule comparison.
+ */
+export function collectInchiKeys(node: RouteVisualizationNode, set: Set<string>): void {
+    set.add(node.inchikey)
+    if (node.children) {
+        node.children.forEach((child) => collectInchiKeys(child, set))
     }
 }

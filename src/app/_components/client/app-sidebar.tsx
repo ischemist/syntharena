@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Beaker, FlaskConical, LayoutDashboard, LifeBuoy, Send, Settings2, Trophy } from 'lucide-react'
+import { Beaker, FlaskConical, LayoutDashboard, LifeBuoy, Send, Settings2, Trophy, Zap } from 'lucide-react'
 
 import { ModeToggle } from '@/components/mode-toggle'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar'
@@ -32,6 +32,11 @@ const data = {
             title: 'Benchmarks',
             url: '/benchmarks',
             icon: FlaskConical,
+        },
+        {
+            title: 'Runs',
+            url: '/runs',
+            icon: Zap,
         },
     ],
     navDropdowns: [

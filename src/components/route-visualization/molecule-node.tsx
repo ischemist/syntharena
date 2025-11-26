@@ -20,15 +20,15 @@ export function MoleculeNode({ data }: NodeProps<Node<RouteGraphNode>>) {
     }
 
     return (
-        <div className={`rounded-lg bg-white shadow-md ${borderStyles[status]}`}>
-            <Handle type="target" position={Position.Top} className="!bg-gray-400" />
+        <div className={`rounded-lg bg-white shadow-md dark:bg-gray-900 ${borderStyles[status]}`}>
+            <Handle type="target" position={Position.Top} className="!bg-gray-400 dark:!bg-gray-600" />
 
             {/* Molecule visualization */}
             <div className="flex justify-center">
                 <SmileDrawerSvg smilesStr={smiles} width={160} height={120} compactDrawing={false} />
             </div>
 
-            <Handle type="source" position={Position.Bottom} className="!bg-gray-400" />
+            <Handle type="source" position={Position.Bottom} className="!bg-gray-400 dark:!bg-gray-600" />
         </div>
     )
 }

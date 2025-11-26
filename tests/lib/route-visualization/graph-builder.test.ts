@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildRouteGraph, getAllRouteSmilesSet } from '@/lib/route-visualization/graph-builder'
-import { collectSmiles } from '@/lib/route-visualization/layout'
+import { buildRouteGraph, getAllRouteInchiKeysSet } from '@/lib/route-visualization/graph-builder'
+import { collectInchiKeys, collectSmiles } from '@/lib/route-visualization/layout'
 
 import { balancedTree, complexTree, simpleTree, singleNode } from './fixtures'
 
 describe('buildRouteGraph', () => {
     it('should build graph for single node with no stock items', () => {
-        const inStockSmiles = new Set<string>()
-        const result = buildRouteGraph(singleNode, inStockSmiles, 'test-')
+        const inStockInchiKeys = new Set<string>()
+        const result = buildRouteGraph(singleNode, inStockInchiKeys, 'test-')
 
         expect(result.nodes).toHaveLength(1)
         expect(result.edges).toHaveLength(0)
@@ -25,8 +25,8 @@ describe('buildRouteGraph', () => {
     })
 
     it('should build graph for single node with stock item', () => {
-        const inStockSmiles = new Set(['C'])
-        const result = buildRouteGraph(singleNode, inStockSmiles, 'test-')
+        const inStockInchiKeys = new Set([singleNode.inchikey])
+        const result = buildRouteGraph(singleNode, inStockInchiKeys, 'test-')
 
         const node = result.nodes[0]
         expect(node.data.status).toBe('in-stock')
@@ -34,9 +34,9 @@ describe('buildRouteGraph', () => {
     })
 
     it('should build graph for simple tree with mixed stock status', () => {
-        // Only CCO is in stock
-        const inStockSmiles = new Set(['CCO'])
-        const result = buildRouteGraph(simpleTree, inStockSmiles, 'test-')
+        // Only CCO is in stock (using its inchikey)
+        const inStockInchiKeys = new Set([simpleTree.children![0].inchikey])
+        const result = buildRouteGraph(simpleTree, inStockInchiKeys, 'test-')
 
         expect(result.nodes).toHaveLength(3)
         expect(result.edges).toHaveLength(2)
@@ -119,10 +119,10 @@ describe('buildRouteGraph', () => {
     })
 
     it('should handle all nodes in stock', () => {
-        const smilesSet = new Set<string>()
-        collectSmiles(simpleTree, smilesSet)
+        const inchiKeySet = new Set<string>()
+        collectInchiKeys(simpleTree, inchiKeySet)
 
-        const result = buildRouteGraph(simpleTree, smilesSet, 'test-')
+        const result = buildRouteGraph(simpleTree, inchiKeySet, 'test-')
 
         result.nodes.forEach((node) => {
             expect(node.data.status).toBe('in-stock')
@@ -153,9 +153,14 @@ describe('buildRouteGraph', () => {
     })
 
     it('should handle complex tree structure', () => {
-        const inStockSmiles = new Set(['CC(C)Cc1ccc(cc1)C(C)C(=O)O', 'CC(C)Cc1ccc(cc1)CHO', 'NaCN'])
+        // Use InChiKeys from the complex tree fixture
+        const inStockInchiKeys = new Set([
+            complexTree.inchikey, // Target molecule
+            complexTree.children![0].children![0].children![0].inchikey, // Aldehyde
+            complexTree.children![1].inchikey, // NaCN
+        ])
 
-        const result = buildRouteGraph(complexTree, inStockSmiles, 'test-')
+        const result = buildRouteGraph(complexTree, inStockInchiKeys, 'test-')
 
         // Verify stock statuses
         const nodes = result.nodes.reduce(
@@ -177,86 +182,89 @@ describe('buildRouteGraph', () => {
     })
 })
 
-describe('getAllRouteSmilesSet', () => {
-    it('should extract single SMILES from leaf node', () => {
-        const result = getAllRouteSmilesSet(singleNode)
+describe('getAllRouteInchiKeysSet', () => {
+    it('should extract single InChiKey from leaf node', () => {
+        const result = getAllRouteInchiKeysSet(singleNode)
 
         expect(result).toBeInstanceOf(Set)
         expect(result.size).toBe(1)
-        expect(result.has('C')).toBe(true)
+        expect(result.has(singleNode.inchikey)).toBe(true)
     })
 
-    it('should extract all SMILES from simple tree', () => {
-        const result = getAllRouteSmilesSet(simpleTree)
+    it('should extract all InChiKeys from simple tree', () => {
+        const result = getAllRouteInchiKeysSet(simpleTree)
 
         expect(result.size).toBe(3)
-        expect(result.has('CCCO')).toBe(true)
-        expect(result.has('CCO')).toBe(true)
-        expect(result.has('C')).toBe(true)
+        expect(result.has(simpleTree.inchikey)).toBe(true)
+        expect(result.has(simpleTree.children![0].inchikey)).toBe(true)
+        expect(result.has(simpleTree.children![1].inchikey)).toBe(true)
     })
 
-    it('should extract all SMILES from balanced tree', () => {
-        const result = getAllRouteSmilesSet(balancedTree)
+    it('should extract all InChiKeys from balanced tree', () => {
+        const result = getAllRouteInchiKeysSet(balancedTree)
 
         expect(result.size).toBe(7)
-        expect(result.has('A')).toBe(true)
-        expect(result.has('B')).toBe(true)
-        expect(result.has('C')).toBe(true)
-        expect(result.has('D')).toBe(true)
-        expect(result.has('E')).toBe(true)
-        expect(result.has('F')).toBe(true)
-        expect(result.has('G')).toBe(true)
+        const expectedInchiKeys = new Set<string>()
+        collectInchiKeys(balancedTree, expectedInchiKeys)
+
+        expectedInchiKeys.forEach((inchikey) => {
+            expect(result.has(inchikey)).toBe(true)
+        })
     })
 
-    it('should extract all SMILES from complex tree', () => {
-        const result = getAllRouteSmilesSet(complexTree)
+    it('should extract all InChiKeys from complex tree', () => {
+        const result = getAllRouteInchiKeysSet(complexTree)
 
-        // Count expected SMILES
-        const expectedSmiles = new Set<string>()
-        collectSmiles(complexTree, expectedSmiles)
+        // Count expected InChiKeys
+        const expectedInchiKeys = new Set<string>()
+        collectInchiKeys(complexTree, expectedInchiKeys)
 
-        expect(result.size).toBe(expectedSmiles.size)
-        expectedSmiles.forEach((smiles) => {
-            expect(result.has(smiles)).toBe(true)
+        expect(result.size).toBe(expectedInchiKeys.size)
+        expectedInchiKeys.forEach((inchikey) => {
+            expect(result.has(inchikey)).toBe(true)
         })
     })
 
     it('should be a Set (not array)', () => {
-        const result = getAllRouteSmilesSet(simpleTree)
+        const result = getAllRouteInchiKeysSet(simpleTree)
         expect(result).toBeInstanceOf(Set)
     })
 
     it('should return new Set instance (not mutate input)', () => {
-        const result1 = getAllRouteSmilesSet(simpleTree)
-        const result2 = getAllRouteSmilesSet(simpleTree)
+        const result1 = getAllRouteInchiKeysSet(simpleTree)
+        const result2 = getAllRouteInchiKeysSet(simpleTree)
 
         // Should have same content but different instances
         expect(result1).not.toBe(result2)
         expect(result1.size).toBe(result2.size)
     })
 
-    it('should deduplicate if tree has duplicate SMILES', () => {
-        // Create a tree with duplicate SMILES
-        const treeWithDuplicates = {
+    it('should deduplicate if tree has duplicate InChiKeys', () => {
+        // Create a tree with duplicate InChiKeys
+        const treeWithDuplicates: import('@/types').RouteVisualizationNode = {
             smiles: 'A',
-            children: [{ smiles: 'B' }, { smiles: 'B' }],
+            inchikey: 'INCHIKEY-A',
+            children: [
+                { smiles: 'B', inchikey: 'INCHIKEY-B' },
+                { smiles: 'B', inchikey: 'INCHIKEY-B' },
+            ],
         }
 
-        const result = getAllRouteSmilesSet(treeWithDuplicates)
+        const result = getAllRouteInchiKeysSet(treeWithDuplicates)
 
         expect(result.size).toBe(2)
-        expect(result.has('A')).toBe(true)
-        expect(result.has('B')).toBe(true)
+        expect(result.has('INCHIKEY-A')).toBe(true)
+        expect(result.has('INCHIKEY-B')).toBe(true)
     })
 })
 
-describe('Integration: buildRouteGraph + getAllRouteSmilesSet', () => {
-    it('should use getAllRouteSmilesSet result as inStockSmiles parameter', () => {
-        // Get all SMILES from tree
-        const allSmiles = getAllRouteSmilesSet(complexTree)
+describe('Integration: buildRouteGraph + getAllRouteInchiKeysSet', () => {
+    it('should use getAllRouteInchiKeysSet result as inStockInchiKeys parameter', () => {
+        // Get all InChiKeys from tree
+        const allInchiKeys = getAllRouteInchiKeysSet(complexTree)
 
         // Use them as in-stock items
-        const result = buildRouteGraph(complexTree, allSmiles, 'test-')
+        const result = buildRouteGraph(complexTree, allInchiKeys, 'test-')
 
         // All nodes should be in stock
         result.nodes.forEach((node) => {
@@ -266,29 +274,36 @@ describe('Integration: buildRouteGraph + getAllRouteSmilesSet', () => {
     })
 
     it('should correctly handle partial stock matching', () => {
-        const allSmiles = getAllRouteSmilesSet(complexTree)
+        const allInchiKeys = getAllRouteInchiKeysSet(complexTree)
         // Keep only first 3 items in stock
-        const partialStock = new Set([...allSmiles].slice(0, 3))
+        const partialStock = new Set([...allInchiKeys].slice(0, 3))
 
         const result = buildRouteGraph(complexTree, partialStock, 'test-')
 
-        // Check that partial stock is respected
+        // Check that partial stock is respected - count in-stock items
         let inStockCount = 0
+        let defaultCount = 0
         result.nodes.forEach((node) => {
             if (node.data.inStock) {
                 inStockCount++
-                expect(partialStock.has(node.data.smiles)).toBe(true)
+                expect(node.data.status).toBe('in-stock')
+            } else {
+                defaultCount++
+                expect(node.data.status).toBe('default')
             }
         })
 
+        // Partial stock should have exactly 3 in stock
         expect(inStockCount).toBe(3)
+        // And the rest should be default
+        expect(defaultCount).toBe(result.nodes.length - 3)
     })
 
     it('should work with different ID prefixes', () => {
-        const smiles = getAllRouteSmilesSet(simpleTree)
+        const inchiKeys = getAllRouteInchiKeysSet(simpleTree)
 
-        const result1 = buildRouteGraph(simpleTree, smiles, 'prefix1-')
-        const result2 = buildRouteGraph(simpleTree, smiles, 'prefix2-')
+        const result1 = buildRouteGraph(simpleTree, inchiKeys, 'prefix1-')
+        const result2 = buildRouteGraph(simpleTree, inchiKeys, 'prefix2-')
 
         // Both should have same number of nodes
         expect(result1.nodes).toHaveLength(result2.nodes.length)
@@ -371,7 +386,7 @@ describe('Mutation & Side Effects', () => {
     })
 
     it('should not mutate input stock set in buildRouteGraph', () => {
-        const stockSet = new Set(['C', 'CC', 'CCC'])
+        const stockSet = new Set(['INCHIKEY-A', 'INCHIKEY-B', 'INCHIKEY-C'])
         const stockClone = new Set(stockSet)
 
         buildRouteGraph(simpleTree, stockSet, 'test-')
@@ -379,17 +394,17 @@ describe('Mutation & Side Effects', () => {
         expect(stockSet).toEqual(stockClone)
     })
 
-    it('should not mutate input tree in getAllRouteSmilesSet', () => {
+    it('should not mutate input tree in getAllRouteInchiKeysSet', () => {
         const treeClone = JSON.parse(JSON.stringify(complexTree))
 
-        getAllRouteSmilesSet(complexTree)
+        getAllRouteInchiKeysSet(complexTree)
 
         expect(complexTree).toEqual(treeClone)
     })
 
     it('should return independent Set instances', () => {
-        const set1 = getAllRouteSmilesSet(simpleTree)
-        const set2 = getAllRouteSmilesSet(simpleTree)
+        const set1 = getAllRouteInchiKeysSet(simpleTree)
+        const set2 = getAllRouteInchiKeysSet(simpleTree)
 
         // Same content but different instances
         expect(set1).not.toBe(set2)
@@ -440,7 +455,7 @@ describe('Edge Cases & Robustness', () => {
     })
 
     it('should handle stock set with molecules not in tree', () => {
-        const stockSet = new Set(['NOT_IN_TREE', 'ALSO_NOT_HERE', 'C'])
+        const stockSet = new Set(['NOT_IN_TREE', 'ALSO_NOT_HERE', singleNode.inchikey])
         const result = buildRouteGraph(singleNode, stockSet, 'test-')
 
         // Should not crash and properly identify in-stock items
@@ -476,7 +491,7 @@ describe('Edge Cases & Robustness', () => {
     })
 
     it('should maintain stock status consistency across multiple calls', () => {
-        const stockSet = getAllRouteSmilesSet(simpleTree)
+        const stockSet = getAllRouteInchiKeysSet(simpleTree)
 
         const result1 = buildRouteGraph(simpleTree, stockSet, 'test1-')
         const result2 = buildRouteGraph(simpleTree, stockSet, 'test2-')

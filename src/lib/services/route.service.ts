@@ -36,6 +36,10 @@ interface PythonReactionStep {
 interface PythonRoute {
     target: PythonMolecule
     rank: number
+    content_hash?: string
+    signature?: string
+    length?: number
+    has_convergent_reaction?: boolean
     solvability?: Record<string, boolean>
     metadata?: Record<string, unknown>
 }
@@ -233,14 +237,15 @@ export async function getRoutesByTarget(targetId: string): Promise<Route[]> {
 
 /**
  * Transforms a RouteNodeWithDetails tree into a visualization tree.
- * Extracts SMILES from molecules and flattens the structure.
+ * Extracts SMILES and InChiKey from molecules and flattens the structure.
  *
  * @param node - The route node tree with molecule details
- * @returns Simplified tree structure with just SMILES and children
+ * @returns Simplified tree structure with SMILES, InChiKey, and children
  */
 function transformToVisualizationTree(node: RouteNodeWithDetails): RouteVisualizationNode {
     return {
         smiles: node.molecule.smiles,
+        inchikey: node.molecule.inchikey,
         children:
             node.children.length > 0 ? node.children.map((child) => transformToVisualizationTree(child)) : undefined,
     }
@@ -248,10 +253,10 @@ function transformToVisualizationTree(node: RouteNodeWithDetails): RouteVisualiz
 
 /**
  * Retrieves a route tree optimized for visualization.
- * Returns simplified tree structure with just SMILES for each node.
+ * Returns simplified tree structure with SMILES and InChiKey for each node.
  *
  * @param routeId - The route ID
- * @returns Route tree with SMILES hierarchy
+ * @returns Route tree with SMILES and InChiKey hierarchy
  * @throws Error if route not found
  */
 export async function getRouteTreeForVisualization(routeId: string): Promise<RouteVisualizationNode> {
@@ -672,47 +677,86 @@ export async function loadBenchmarkFromFile(
 
                 // Create ground truth route if it exists
                 if (targetData.ground_truth) {
-                    // Create ground truth route
-                    const route = await tx.route.create({
-                        data: {
-                            targetId: benchmarkTarget.id, // Now we have the target ID
-                            rank: 1,
-                            contentHash: '', // Will be set after route storage
-                            length: 0, // Will be computed
-                            isConvergent: targetData.is_convergent ?? false,
-                            metadata: targetData.metadata ? JSON.stringify(targetData.metadata) : null,
-                        },
-                        select: { id: true },
-                    })
+                    // Extract route properties from file (prefer file data over computed)
+                    const contentHash = targetData.ground_truth.content_hash || ''
+                    const signature = targetData.ground_truth.signature || null
+                    const fileLength = targetData.ground_truth.length
+                    const fileIsConvergent = targetData.ground_truth.has_convergent_reaction
 
-                    // Store route tree
-                    const newMoleculesCreated = await storeRouteTree(route.id, targetData.ground_truth.target, tx)
-                    moleculesCreated += newMoleculesCreated
+                    // Check if a route with this content hash already exists for this target
+                    const existingRoute = contentHash
+                        ? await tx.route.findFirst({
+                              where: {
+                                  targetId: benchmarkTarget.id,
+                                  contentHash: contentHash,
+                              },
+                              select: { id: true, length: true, isConvergent: true },
+                          })
+                        : null
 
-                    // Compute route properties (in-memory using single query)
-                    const { length, isConvergent } = await computeRouteProperties(route.id, tx)
+                    let routeId: string
+                    let routeLength: number
+                    let routeIsConvergent: boolean
 
-                    // Update route with computed properties
-                    await tx.route.update({
-                        where: { id: route.id },
-                        data: {
-                            length,
-                            isConvergent,
-                            contentHash: 'computed', // Simplified for now
-                        },
-                    })
+                    if (existingRoute) {
+                        // Route already exists, reuse it
+                        routeId = existingRoute.id
+                        routeLength = existingRoute.length
+                        routeIsConvergent = existingRoute.isConvergent
+                    } else {
+                        // Create ground truth route
+                        const route = await tx.route.create({
+                            data: {
+                                targetId: benchmarkTarget.id,
+                                rank: targetData.ground_truth.rank || 1,
+                                contentHash: contentHash,
+                                signature: signature,
+                                length: 0, // Will be set below
+                                isConvergent: false, // Will be set below
+                                metadata: targetData.ground_truth.metadata
+                                    ? JSON.stringify(targetData.ground_truth.metadata)
+                                    : null,
+                            },
+                            select: { id: true },
+                        })
+                        routeId = route.id
 
-                    // Update benchmark target to link to ground truth route and use computed properties
+                        // Store route tree
+                        const newMoleculesCreated = await storeRouteTree(route.id, targetData.ground_truth.target, tx)
+                        moleculesCreated += newMoleculesCreated
+
+                        // Use file data if available, otherwise compute
+                        if (fileLength !== undefined && fileIsConvergent !== undefined) {
+                            routeLength = fileLength
+                            routeIsConvergent = fileIsConvergent
+                        } else {
+                            // Compute route properties (in-memory using single query)
+                            const computed = await computeRouteProperties(route.id, tx)
+                            routeLength = computed.length
+                            routeIsConvergent = computed.isConvergent
+                        }
+
+                        // Update route with final properties
+                        await tx.route.update({
+                            where: { id: route.id },
+                            data: {
+                                length: routeLength,
+                                isConvergent: routeIsConvergent,
+                            },
+                        })
+
+                        routesCreated++
+                    }
+
+                    // Update benchmark target to link to ground truth route and use properties
                     await tx.benchmarkTarget.update({
                         where: { id: benchmarkTarget.id },
                         data: {
-                            groundTruthRouteId: route.id,
-                            routeLength: length,
-                            isConvergent: isConvergent,
+                            groundTruthRouteId: routeId,
+                            routeLength: routeLength,
+                            isConvergent: routeIsConvergent,
                         },
                     })
-
-                    routesCreated++
                 }
             }
         })

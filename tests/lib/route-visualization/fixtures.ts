@@ -10,6 +10,7 @@ import type { RouteVisualizationNode } from '@/types'
  */
 export const singleNode: RouteVisualizationNode = {
     smiles: 'C',
+    inchikey: 'VNWKTOKETHGBQD-UHFFFAOYSA-N',
 }
 
 /**
@@ -17,12 +18,15 @@ export const singleNode: RouteVisualizationNode = {
  */
 export const linearChain: RouteVisualizationNode = {
     smiles: 'C',
+    inchikey: 'VNWKTOKETHGBQD-UHFFFAOYSA-N',
     children: [
         {
             smiles: 'CC',
+            inchikey: 'OTMSDBZUPAUEDD-UHFFFAOYSA-N',
             children: [
                 {
                     smiles: 'CCC',
+                    inchikey: 'ATUOYWHBWRKTHZ-UHFFFAOYSA-N',
                 },
             ],
         },
@@ -37,12 +41,15 @@ export const linearChain: RouteVisualizationNode = {
  */
 export const simpleTree: RouteVisualizationNode = {
     smiles: 'CCCO',
+    inchikey: 'BDERNNFJNOPAEC-UHFFFAOYSA-N',
     children: [
         {
             smiles: 'CCO',
+            inchikey: 'LFQSCWFLJHTTHZ-UHFFFAOYSA-N',
         },
         {
             smiles: 'C',
+            inchikey: 'VNWKTOKETHGBQD-UHFFFAOYSA-N',
         },
     ],
 }
@@ -57,14 +64,23 @@ export const simpleTree: RouteVisualizationNode = {
  */
 export const balancedTree: RouteVisualizationNode = {
     smiles: 'A',
+    inchikey: 'INCHIKEY-A',
     children: [
         {
             smiles: 'B',
-            children: [{ smiles: 'D' }, { smiles: 'E' }],
+            inchikey: 'INCHIKEY-B',
+            children: [
+                { smiles: 'D', inchikey: 'INCHIKEY-D' },
+                { smiles: 'E', inchikey: 'INCHIKEY-E' },
+            ],
         },
         {
             smiles: 'C',
-            children: [{ smiles: 'F' }, { smiles: 'G' }],
+            inchikey: 'INCHIKEY-C',
+            children: [
+                { smiles: 'F', inchikey: 'INCHIKEY-F' },
+                { smiles: 'G', inchikey: 'INCHIKEY-G' },
+            ],
         },
     ],
 }
@@ -81,20 +97,28 @@ export const balancedTree: RouteVisualizationNode = {
  */
 export const asymmetricTree: RouteVisualizationNode = {
     smiles: 'A',
+    inchikey: 'INCHIKEY-A',
     children: [
         {
             smiles: 'B',
-            children: [{ smiles: 'E' }, { smiles: 'F' }],
+            inchikey: 'INCHIKEY-B',
+            children: [
+                { smiles: 'E', inchikey: 'INCHIKEY-E' },
+                { smiles: 'F', inchikey: 'INCHIKEY-F' },
+            ],
         },
         {
             smiles: 'C',
+            inchikey: 'INCHIKEY-C',
         },
         {
             smiles: 'D',
+            inchikey: 'INCHIKEY-D',
             children: [
                 {
                     smiles: 'G',
-                    children: [{ smiles: 'H' }],
+                    inchikey: 'INCHIKEY-G',
+                    children: [{ smiles: 'H', inchikey: 'INCHIKEY-H' }],
                 },
             ],
         },
@@ -109,7 +133,15 @@ export const asymmetricTree: RouteVisualizationNode = {
  */
 export const wideTree: RouteVisualizationNode = {
     smiles: 'A',
-    children: [{ smiles: 'B' }, { smiles: 'C' }, { smiles: 'D' }, { smiles: 'E' }, { smiles: 'F' }, { smiles: 'G' }],
+    inchikey: 'INCHIKEY-A',
+    children: [
+        { smiles: 'B', inchikey: 'INCHIKEY-B' },
+        { smiles: 'C', inchikey: 'INCHIKEY-C' },
+        { smiles: 'D', inchikey: 'INCHIKEY-D' },
+        { smiles: 'E', inchikey: 'INCHIKEY-E' },
+        { smiles: 'F', inchikey: 'INCHIKEY-F' },
+        { smiles: 'G', inchikey: 'INCHIKEY-G' },
+    ],
 }
 
 /**
@@ -117,19 +149,24 @@ export const wideTree: RouteVisualizationNode = {
  */
 export const deepTree: RouteVisualizationNode = {
     smiles: 'A',
+    inchikey: 'INCHIKEY-A',
     children: [
         {
             smiles: 'B',
+            inchikey: 'INCHIKEY-B',
             children: [
                 {
                     smiles: 'C',
+                    inchikey: 'INCHIKEY-C',
                     children: [
                         {
                             smiles: 'D',
+                            inchikey: 'INCHIKEY-D',
                             children: [
                                 {
                                     smiles: 'E',
-                                    children: [{ smiles: 'F' }],
+                                    inchikey: 'INCHIKEY-E',
+                                    children: [{ smiles: 'F', inchikey: 'INCHIKEY-F' }],
                                 },
                             ],
                         },
@@ -145,20 +182,30 @@ export const deepTree: RouteVisualizationNode = {
  */
 export const complexTree: RouteVisualizationNode = {
     smiles: 'CC(C)Cc1ccc(cc1)C(C)C(=O)O', // Target molecule
+    inchikey: 'INCHIKEY-TARGET',
     children: [
         {
             smiles: 'CC(C)Cc1ccc(cc1)C(C)Cl',
+            inchikey: 'INCHIKEY-CHLORO',
             children: [
                 {
                     smiles: 'CC(C)Cc1ccc(cc1)C(C)=O',
-                    children: [{ smiles: 'CC(C)Cc1ccc(cc1)CHO' }, { smiles: 'CH3Li' }],
+                    inchikey: 'INCHIKEY-KETONE',
+                    children: [
+                        { smiles: 'CC(C)Cc1ccc(cc1)CHO', inchikey: 'INCHIKEY-ALDEHYDE' },
+                        { smiles: 'CH3Li', inchikey: 'INCHIKEY-MELI' },
+                    ],
                 },
-                { smiles: 'HCl' },
+                { smiles: 'HCl', inchikey: 'INCHIKEY-HCL' },
             ],
         },
         {
             smiles: 'NaCN',
-            children: [{ smiles: 'NaCl' }, { smiles: 'HCN' }],
+            inchikey: 'INCHIKEY-NACN',
+            children: [
+                { smiles: 'NaCl', inchikey: 'INCHIKEY-NACL' },
+                { smiles: 'HCN', inchikey: 'INCHIKEY-HCN' },
+            ],
         },
     ],
 }

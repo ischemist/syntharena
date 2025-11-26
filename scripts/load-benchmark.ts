@@ -8,9 +8,9 @@
  *   tsx scripts/load-benchmark.ts <file-path> <benchmark-name> [description]
  *
  * Examples:
- *   pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/ref-lng-84.json.gz "ref-lng-84" "84 targets with extra long ground truth routes"
- *   pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/uspto-190.json.gz "uspto-190" "190 targets from the test set of the original Retro*"
- *   pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/mkt-cnv-160.json.gz "mkt-cnv-160" "160 targets with convergent ground truth routes of variable length with all leaves in buyables. Part of the Procrustes suite."
+ *   pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/ref-lng-84.json.gz "ref-lng-84" "84 targets with extra long ground truth routes"
+ *   pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/uspto-190.json.gz "uspto-190" "190 targets from the test set of the original Retro*"
+ *   pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/mkt-cnv-160.json.gz "mkt-cnv-160" "160 targets with convergent ground truth routes of variable length with all leaves in buyables. Part of the Procrustes suite."
  *   pnpm tsx scripts/load-benchmark.ts /path/to/mkt-lin-500.json.gz "mkt-lin-500" "500 targets from market data with linear routes"
  *
  * File Format:

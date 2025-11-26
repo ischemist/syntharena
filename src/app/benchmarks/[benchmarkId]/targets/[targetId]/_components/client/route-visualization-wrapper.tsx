@@ -5,7 +5,7 @@ import { RouteGraph, RouteLegend } from '@/components/route-visualization'
 
 interface RouteVisualizationWrapperProps {
     routeTree: RouteVisualizationNode
-    inStockSmiles: Set<string>
+    inStockInchiKeys: Set<string>
 }
 
 /**
@@ -15,10 +15,10 @@ interface RouteVisualizationWrapperProps {
  *
  * Phase 1 features:
  * - Single route display
- * - Stock availability indicators
+ * - Stock availability indicators (using InChiKeys for reliable comparison)
  * - Interactive pan/zoom
  */
-export function RouteVisualizationWrapper({ routeTree, inStockSmiles }: RouteVisualizationWrapperProps) {
+export function RouteVisualizationWrapper({ routeTree, inStockInchiKeys }: RouteVisualizationWrapperProps) {
     return (
         <div className="space-y-4">
             {/* Legend */}
@@ -27,12 +27,14 @@ export function RouteVisualizationWrapper({ routeTree, inStockSmiles }: RouteVis
             </div>
 
             {/* Visualization - tall for better tree exploration */}
-            <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white">
-                <RouteGraph route={routeTree} inStockSmiles={inStockSmiles} idPrefix="target-route-" />
+            <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+                <RouteGraph route={routeTree} inStockInchiKeys={inStockInchiKeys} idPrefix="target-route-" />
             </div>
 
             {/* Info */}
-            <p className="text-xs text-gray-500">Scroll to zoom. Drag to pan. Nodes marked in green are in stock.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+                Scroll to zoom. Drag to pan. Nodes marked in green are in stock.
+            </p>
         </div>
     )
 }

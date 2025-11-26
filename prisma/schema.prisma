@@ -42,14 +42,17 @@ model Molecule {
 // =================================================================================
 
 model BenchmarkSet {
-  id          String  @id @default(cuid())
-  name        String  @unique // e.g. "mkt-lin-500"
-  description String?
-  stockName   String? // The "stock_name" required by the benchmark contract
+  id             String  @id @default(cuid())
+  name           String  @unique // e.g. "mkt-lin-500"
+  description    String?
+  stockName      String? // The "stock_name" required by the benchmark contract
+  hasGroundTruth Boolean @default(false) // All-or-nothing: targets either all have GT routes or none do
 
   createdAt DateTime @default(now())
 
-  targets BenchmarkTarget[]
+  targets    BenchmarkTarget[]
+  runs       PredictionRun[]
+  statistics ModelRunStatistics[]
 }
 
 model BenchmarkTarget {
@@ -82,6 +85,50 @@ model BenchmarkTarget {
 // Matches data/3-processed/
 // =================================================================================
 
+model Algorithm {
+  id    String  @id @default(cuid())
+  name  String  @unique // "DirectMultiStep"
+  paper String?
+
+  instances ModelInstance[]
+}
+
+model ModelInstance {
+  id          String  @id @default(cuid())
+  algorithmId String
+  name        String  @unique // "dms-explorer-xl"
+  version     String?
+  metadata    String? // JSON: training set info, hyperparams
+
+  algorithm Algorithm       @relation(fields: [algorithmId], references: [id])
+  runs      PredictionRun[]
+}
+
+// Represents one "folder" in your data/3-processed structure
+// e.g., data/3-processed/mkt-lin-500/dms-explorer-xl
+model PredictionRun {
+  id              String @id @default(cuid())
+  modelInstanceId String
+  benchmarkSetId  String
+
+  // Provenance from Manifest
+  retrocastVersion String?
+  commandParams    String? // JSON of args
+  executedAt       DateTime @default(now())
+
+  // Stats from RunStatistics
+  totalTimeMs     Float? // Wall time
+  totalRoutes     Int // final_unique_routes_saved
+  avgRouteLength  Float? // Average route length across all routes
+
+  modelInstance ModelInstance        @relation(fields: [modelInstanceId], references: [id])
+  benchmarkSet  BenchmarkSet         @relation(fields: [benchmarkSetId], references: [id])
+  routes        Route[]
+  statistics    ModelRunStatistics[]
+
+  @@unique([modelInstanceId, benchmarkSetId]) // Assuming one run per version per set
+}
+
 model Route {
   id              String  @id @default(cuid())
   predictionRunId String? // Optional: GT routes don't belong to a run
@@ -99,12 +146,14 @@ model Route {
   metadata String? // JSON: scores, confidence, etc.
 
   // Relations
-  target BenchmarkTarget @relation("TargetPredictions", fields: [targetId], references: [id])
+  predictionRun PredictionRun?  @relation(fields: [predictionRunId], references: [id])
+  target        BenchmarkTarget @relation("TargetPredictions", fields: [targetId], references: [id])
 
   // This reverse relation allows us to access the GT route from the target
   asGroundTruthFor BenchmarkTarget? @relation("GroundTruth")
 
-  nodes RouteNode[]
+  nodes             RouteNode[]
+  solvabilityStatus RouteSolvability[]
 
   @@index([targetId, rank])
   @@index([contentHash])
@@ -133,7 +182,62 @@ model RouteNode {
 }
 
 // =================================================================================
-// 4. SCORING & EVALUATION (The "Stock" Layer)
+// 4. STATISTICS & METRICS (Pre-computed results from Python pipeline)
+// Matches data/5-results/ and Python ModelStatistics Pydantic model
+// =================================================================================
+
+enum ReliabilityCode {
+  OK // Reliable estimate
+  LOW_N // Sample size too small (n < threshold)
+  EXTREME_P // Probability near boundary (p very close to 0 or 1)
+}
+
+model ModelRunStatistics {
+  id              String   @id @default(cuid())
+  predictionRunId String
+  benchmarkSetId  String
+  stockId         String
+  statisticsJson  String // Full ModelStatistics JSON blob for flexibility
+  computedAt      DateTime @default(now())
+
+  // Relations
+  predictionRun PredictionRun           @relation(fields: [predictionRunId], references: [id])
+  benchmarkSet  BenchmarkSet            @relation(fields: [benchmarkSetId], references: [id])
+  stock         Stock                   @relation(fields: [stockId], references: [id])
+  metrics       StratifiedMetricGroup[]
+
+  @@unique([predictionRunId, stockId]) // Multiple stocks per run
+  @@index([predictionRunId])
+  @@index([stockId])
+}
+
+model StratifiedMetricGroup {
+  id           String @id @default(cuid())
+  statisticsId String
+
+  // Metric identification
+  metricName String // "Solvability", "Top-1", "Top-5", "Top-10", etc.
+  groupKey   Int? // NULL for overall, route_length (2,3,4,5,6...) for stratified
+
+  // Metric values (stored as 0-1, convert to percentage in UI)
+  value    Float
+  ciLower  Float
+  ciUpper  Float
+  nSamples Int
+
+  // Reliability assessment
+  reliabilityCode    ReliabilityCode
+  reliabilityMessage String
+
+  // Relations
+  statistics ModelRunStatistics @relation(fields: [statisticsId], references: [id], onDelete: Cascade)
+
+  @@index([statisticsId, metricName]) // Fast filtering by metric
+  @@index([metricName, groupKey]) // Fast stratified queries
+}
+
+// =================================================================================
+// 5. SCORING & EVALUATION (The "Stock" Layer)
 // Matches retrocast.models.evaluation and data/4-scored/
 // =================================================================================
 
@@ -142,7 +246,9 @@ model Stock {
   name        String  @unique // "buyables-stock" (matches directory name)
   description String?
 
-  items StockItem[]
+  items       StockItem[]
+  evaluations RouteSolvability[]
+  statistics  ModelRunStatistics[]
 }
 
 model StockItem {
@@ -154,4 +260,23 @@ model StockItem {
   molecule Molecule @relation(fields: [moleculeId], references: [id])
 
   @@unique([stockId, moleculeId])
+}
+
+// The result of `TargetEvaluation`
+// effectively "ScoredRoute" but normalized
+model RouteSolvability {
+  id      String @id @default(cuid())
+  routeId String
+  stockId String
+
+  isSolvable Boolean
+  isGtMatch  Boolean // "Does this route match the ground truth?"
+
+  // You might want to store specific metric data here if needed
+  // e.g. "number of unavailable leaves"
+
+  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  stock Stock @relation(fields: [stockId], references: [id])
+
+  @@unique([routeId, stockId])
 }
