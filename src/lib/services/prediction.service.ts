@@ -5,20 +5,21 @@
  * Used by UI components to display prediction data.
  */
 
+import { Prisma } from '@prisma/client'
+
 import type {
     BenchmarkTargetSearchResult,
     BenchmarkTargetWithMolecule,
     MetricResult,
-    ModelInstance,
     ModelStatistics,
     PredictionRunWithStats,
-    Route,
+    ReliabilityCode,
     RouteNodeWithDetails,
     RunStatistics,
     StratifiedMetric,
     TargetPredictionDetail,
 } from '@/types'
-import { prisma } from '@/lib/db'
+import prisma from '@/lib/db'
 
 // ============================================================================
 // Core Read Functions
@@ -238,10 +239,10 @@ export async function getTargetPredictions(
     const groundTruthRank = routesWithTrees.find((r) => r.solvability.some((s) => s.isGtMatch))?.route.rank
 
     return {
-        target: {
-            ...target,
-            hasGroundTruth: !!target.groundTruthRouteId,
-        },
+        targetId: target.targetId,
+        molecule: target.molecule,
+        routeLength: target.routeLength,
+        isConvergent: target.isConvergent,
         hasGroundTruth: !!target.groundTruthRouteId,
         groundTruthRoute: target.groundTruthRoute || undefined,
         groundTruthRank,
@@ -292,7 +293,7 @@ export async function getTargetsByRun(
     }
 
     // Build where clause
-    const where: any = {
+    const where: Prisma.BenchmarkTargetWhereInput = {
         benchmarkSetId: run.benchmarkSetId,
         // Filter by ground truth availability
         ...(hasGroundTruth !== undefined && {
@@ -371,6 +372,7 @@ export async function getTargetsByRun(
     const targetsWithMolecule: BenchmarkTargetWithMolecule[] = targets.map((t) => ({
         ...t,
         hasGroundTruth: !!t.groundTruthRouteId,
+        routeCount: t.predictedRoutes.length,
     }))
 
     return {
@@ -425,7 +427,11 @@ export async function getRunStatistics(runId: string, stockId: string): Promise<
         id: stats.id,
         predictionRunId: stats.predictionRunId,
         stockId: stats.stockId,
-        stock: stats.stock,
+        stock: {
+            id: stats.stock.id,
+            name: stats.stock.name,
+            description: stats.stock.description ?? undefined,
+        },
         statisticsJson: stats.statisticsJson,
         statistics: parsedStats,
         computedAt: stats.computedAt,
@@ -466,7 +472,7 @@ function reconstructStatisticsFromMetrics(
             ciUpper: metric.ciUpper,
             nSamples: metric.nSamples,
             reliability: {
-                code: metric.reliabilityCode as any,
+                code: metric.reliabilityCode as ReliabilityCode,
                 message: metric.reliabilityMessage,
             },
         }
@@ -481,7 +487,7 @@ function reconstructStatisticsFromMetrics(
                   ciUpper: solvabilityOverall.ciUpper,
                   nSamples: solvabilityOverall.nSamples,
                   reliability: {
-                      code: solvabilityOverall.reliabilityCode as any,
+                      code: solvabilityOverall.reliabilityCode as ReliabilityCode,
                       message: solvabilityOverall.reliabilityMessage,
                   },
               }
@@ -511,7 +517,7 @@ function reconstructStatisticsFromMetrics(
                 ciUpper: metric.ciUpper,
                 nSamples: metric.nSamples,
                 reliability: {
-                    code: metric.reliabilityCode as any,
+                    code: metric.reliabilityCode as ReliabilityCode,
                     message: metric.reliabilityMessage,
                 },
             }
@@ -526,7 +532,7 @@ function reconstructStatisticsFromMetrics(
                     ciUpper: overall.ciUpper,
                     nSamples: overall.nSamples,
                     reliability: {
-                        code: overall.reliabilityCode as any,
+                        code: overall.reliabilityCode as ReliabilityCode,
                         message: overall.reliabilityMessage,
                     },
                 },

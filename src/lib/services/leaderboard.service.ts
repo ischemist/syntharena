@@ -5,8 +5,8 @@
  * Used by leaderboard UI to show statistical comparisons and stratified metrics.
  */
 
-import type { LeaderboardEntry, MetricResult, StratifiedMetric } from '@/types'
-import { prisma } from '@/lib/db'
+import type { LeaderboardEntry, MetricResult, ReliabilityCode, StratifiedMetric } from '@/types'
+import prisma from '@/lib/db'
 
 // ============================================================================
 // Core Read Functions
@@ -65,7 +65,9 @@ export async function getLeaderboard(benchmarkId?: string, stockId?: string): Pr
     // Transform to leaderboard entries
     const entries: LeaderboardEntry[] = statistics.map((stat) => {
         // Get overall solvability metric
-        const solvabilityMetric = stat.metrics.find((m) => m.metricName === 'Solvability' && m.groupKey === null)
+        const solvabilityMetric = stat.metrics.find(
+            (m: (typeof stat.metrics)[0]) => m.metricName === 'Solvability' && m.groupKey === null
+        )
 
         const solvability: MetricResult = solvabilityMetric
             ? {
@@ -92,13 +94,15 @@ export async function getLeaderboard(benchmarkId?: string, stockId?: string): Pr
             const topKMetricNames = [
                 ...new Set(
                     stat.metrics
-                        .filter((m) => m.metricName.startsWith('Top-') && m.groupKey === null)
-                        .map((m) => m.metricName)
+                        .filter((m: (typeof stat.metrics)[0]) => m.metricName.startsWith('Top-') && m.groupKey === null)
+                        .map((m: (typeof stat.metrics)[0]) => m.metricName)
                 ),
             ]
 
             for (const metricName of topKMetricNames) {
-                const metric = stat.metrics.find((m) => m.metricName === metricName && m.groupKey === null)
+                const metric = stat.metrics.find(
+                    (m: (typeof stat.metrics)[0]) => m.metricName === metricName && m.groupKey === null
+                )
 
                 if (metric) {
                     topKAccuracy[metricName] = {
@@ -225,16 +229,16 @@ export async function getModelRankDistribution(
     }
 
     // Parse JSON to get rank distribution
-    let parsedStats: any
+    let parsedStats: Record<string, unknown>
     try {
-        parsedStats = JSON.parse(stats.statisticsJson)
-    } catch (error) {
+        parsedStats = JSON.parse(stats.statisticsJson) as Record<string, unknown>
+    } catch {
         throw new Error('Failed to parse statistics JSON.')
     }
 
     return {
-        rankDistribution: parsedStats.rankDistribution || [],
-        expectedRank: parsedStats.expectedRank,
+        rankDistribution: (parsedStats.rankDistribution as Array<{ rank: number; probability: number }>) || [],
+        expectedRank: parsedStats.expectedRank as number | undefined,
     }
 }
 
@@ -289,18 +293,20 @@ export async function getMetricsByBenchmarkAndStock(
         const modelName = stat.predictionRun.modelInstance.name
 
         // Build solvability metric
-        const solvabilityOverall = stat.metrics.find((m) => m.metricName === 'Solvability' && m.groupKey === null)
+        const solvabilityOverall = stat.metrics.find(
+            (m: (typeof stat.metrics)[0]) => m.metricName === 'Solvability' && m.groupKey === null
+        )
         const solvabilityByGroup = stat.metrics
-            .filter((m) => m.metricName === 'Solvability' && m.groupKey !== null)
+            .filter((m: (typeof stat.metrics)[0]) => m.metricName === 'Solvability' && m.groupKey !== null)
             .reduce(
-                (acc, m) => {
+                (acc: Record<number, MetricResult>, m: (typeof stat.metrics)[0]) => {
                     acc[m.groupKey!] = {
                         value: m.value,
                         ciLower: m.ciLower,
                         ciUpper: m.ciUpper,
                         nSamples: m.nSamples,
                         reliability: {
-                            code: m.reliabilityCode,
+                            code: m.reliabilityCode as ReliabilityCode,
                             message: m.reliabilityMessage,
                         },
                     }
@@ -336,23 +342,29 @@ export async function getMetricsByBenchmarkAndStock(
         let topKAccuracy: Record<string, StratifiedMetric> | undefined
         if (stat.predictionRun.benchmarkSet.hasGroundTruth) {
             const topKNames = [
-                ...new Set(stat.metrics.filter((m) => m.metricName.startsWith('Top-')).map((m) => m.metricName)),
+                ...new Set(
+                    stat.metrics
+                        .filter((m: (typeof stat.metrics)[0]) => m.metricName.startsWith('Top-'))
+                        .map((m: (typeof stat.metrics)[0]) => m.metricName)
+                ),
             ]
 
             topKAccuracy = {}
             for (const metricName of topKNames) {
-                const overall = stat.metrics.find((m) => m.metricName === metricName && m.groupKey === null)
+                const overall = stat.metrics.find(
+                    (m: (typeof stat.metrics)[0]) => m.metricName === metricName && m.groupKey === null
+                )
                 const byGroup = stat.metrics
-                    .filter((m) => m.metricName === metricName && m.groupKey !== null)
+                    .filter((m: (typeof stat.metrics)[0]) => m.metricName === metricName && m.groupKey !== null)
                     .reduce(
-                        (acc, m) => {
+                        (acc: Record<number, MetricResult>, m: (typeof stat.metrics)[0]) => {
                             acc[m.groupKey!] = {
                                 value: m.value,
                                 ciLower: m.ciLower,
                                 ciUpper: m.ciUpper,
                                 nSamples: m.nSamples,
                                 reliability: {
-                                    code: m.reliabilityCode,
+                                    code: m.reliabilityCode as ReliabilityCode,
                                     message: m.reliabilityMessage,
                                 },
                             }

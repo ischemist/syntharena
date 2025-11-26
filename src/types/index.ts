@@ -135,6 +135,7 @@ export interface BenchmarkTarget {
 export interface BenchmarkTargetWithMolecule extends BenchmarkTarget {
     molecule: Molecule
     hasGroundTruth: boolean
+    routeCount?: number // Number of predicted routes (for list views)
 }
 
 /**
@@ -420,6 +421,7 @@ export interface PredictionRunWithStats {
     modelInstance: ModelInstance
     benchmarkSet: BenchmarkSet & { hasGroundTruth: boolean }
     totalRoutes: number
+    totalTimeMs?: number | null // Total execution time in milliseconds
     avgRouteLength?: number
     solvabilitySummary?: Record<string, number> // stockId -> solvability percentage
     executedAt: Date
@@ -443,7 +445,10 @@ export interface ScoredRouteWithSolvability extends Route {
  * Includes all routes and ground truth comparison.
  */
 export interface TargetPredictionDetail {
-    target: BenchmarkTargetWithMolecule
+    targetId: string
+    molecule: Molecule
+    routeLength: number | null
+    isConvergent: boolean | null
     hasGroundTruth: boolean
     groundTruthRoute?: Route // Optional: the ground truth route for comparison
     groundTruthRank?: number // Optional: rank at which GT was found in predictions
