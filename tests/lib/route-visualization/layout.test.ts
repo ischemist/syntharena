@@ -24,25 +24,27 @@ import {
 
 describe('buildLayoutTree', () => {
     it('should build a single node tree', () => {
-        const result = buildLayoutTree(singleNode.smiles, singleNode.children, 'test-')
+        const result = buildLayoutTree(singleNode, 'test-')
 
         expect(result.id).toBe('test-C')
         expect(result.smiles).toBe('C')
+        expect(result.inchikey).toBe(singleNode.inchikey)
         expect(result.children).toHaveLength(0)
     })
 
     it('should build a simple tree with children', () => {
-        const result = buildLayoutTree(simpleTree.smiles, simpleTree.children, 'test-')
+        const result = buildLayoutTree(simpleTree, 'test-')
 
         expect(result.id).toBe('test-CCCO')
         expect(result.smiles).toBe('CCCO')
+        expect(result.inchikey).toBe(simpleTree.inchikey)
         expect(result.children).toHaveLength(2)
         expect(result.children[0].id).toBe('test-CCCO-0-CCO')
         expect(result.children[1].id).toBe('test-CCCO-1-C')
     })
 
     it('should create unique hierarchical IDs for nested nodes', () => {
-        const result = buildLayoutTree(linearChain.smiles, linearChain.children, 'prefix-')
+        const result = buildLayoutTree(linearChain, 'prefix-')
 
         expect(result.id).toBe('prefix-C')
         expect(result.children[0].id).toBe('prefix-C-0-CC')
@@ -50,13 +52,15 @@ describe('buildLayoutTree', () => {
     })
 
     it('should handle empty children array', () => {
-        const result = buildLayoutTree('TEST', [], 'test-')
+        const testNode: RouteVisualizationNode = { smiles: 'TEST', inchikey: 'TEST-KEY', children: [] }
+        const result = buildLayoutTree(testNode, 'test-')
 
         expect(result.children).toHaveLength(0)
     })
 
     it('should handle undefined children', () => {
-        const result = buildLayoutTree('TEST', undefined, 'test-')
+        const testNode: RouteVisualizationNode = { smiles: 'TEST', inchikey: 'TEST-KEY' }
+        const result = buildLayoutTree(testNode, 'test-')
 
         expect(result.children).toHaveLength(0)
     })
@@ -64,7 +68,7 @@ describe('buildLayoutTree', () => {
 
 describe('calculateSubtreeWidth', () => {
     it('should return NODE_WIDTH for a leaf node', () => {
-        const node = buildLayoutTree(singleNode.smiles, singleNode.children, 'test-')
+        const node = buildLayoutTree(singleNode, 'test-')
         const width = calculateSubtreeWidth(node)
 
         expect(width).toBe(NODE_WIDTH)
@@ -72,7 +76,7 @@ describe('calculateSubtreeWidth', () => {
     })
 
     it('should calculate correct width for simple tree with 2 children', () => {
-        const node = buildLayoutTree(simpleTree.smiles, simpleTree.children, 'test-')
+        const node = buildLayoutTree(simpleTree, 'test-')
         const width = calculateSubtreeWidth(node)
 
         // Two children: each NODE_WIDTH + one HORIZONTAL_SPACING between them
@@ -82,7 +86,7 @@ describe('calculateSubtreeWidth', () => {
     })
 
     it('should calculate correct width for wide tree', () => {
-        const node = buildLayoutTree(wideTree.smiles, wideTree.children, 'test-')
+        const node = buildLayoutTree(wideTree, 'test-')
         const width = calculateSubtreeWidth(node)
 
         // 6 children: 6 * NODE_WIDTH + 5 * HORIZONTAL_SPACING
@@ -91,7 +95,7 @@ describe('calculateSubtreeWidth', () => {
     })
 
     it('should calculate correct width for balanced tree', () => {
-        const node = buildLayoutTree(balancedTree.smiles, balancedTree.children, 'test-')
+        const node = buildLayoutTree(balancedTree, 'test-')
         const width = calculateSubtreeWidth(node)
 
         // Each second-level node has 2 children: 2*NODE_WIDTH + HORIZONTAL_SPACING
@@ -102,14 +106,14 @@ describe('calculateSubtreeWidth', () => {
     })
 
     it('should return NODE_WIDTH for linear chain (single child at each level)', () => {
-        const node = buildLayoutTree(linearChain.smiles, linearChain.children, 'test-')
+        const node = buildLayoutTree(linearChain, 'test-')
         const width = calculateSubtreeWidth(node)
 
         expect(width).toBe(NODE_WIDTH)
     })
 
     it('should set width property on all nodes recursively', () => {
-        const node = buildLayoutTree(balancedTree.smiles, balancedTree.children, 'test-')
+        const node = buildLayoutTree(balancedTree, 'test-')
         calculateSubtreeWidth(node)
 
         // Check all nodes have width set
@@ -125,7 +129,7 @@ describe('calculateSubtreeWidth', () => {
 
 describe('assignPositions', () => {
     it('should assign (0, 0) to root of single node', () => {
-        const node = buildLayoutTree(singleNode.smiles, singleNode.children, 'test-')
+        const node = buildLayoutTree(singleNode, 'test-')
         calculateSubtreeWidth(node)
         assignPositions(node, 0, 0)
 
@@ -134,7 +138,7 @@ describe('assignPositions', () => {
     })
 
     it('should center node within its allocated width', () => {
-        const node = buildLayoutTree(simpleTree.smiles, simpleTree.children, 'test-')
+        const node = buildLayoutTree(simpleTree, 'test-')
         calculateSubtreeWidth(node)
         assignPositions(node, 0, 0)
 
@@ -145,7 +149,7 @@ describe('assignPositions', () => {
     })
 
     it('should position children in left-to-right order', () => {
-        const node = buildLayoutTree(simpleTree.smiles, simpleTree.children, 'test-')
+        const node = buildLayoutTree(simpleTree, 'test-')
         calculateSubtreeWidth(node)
         assignPositions(node, 0, 0)
 
@@ -163,7 +167,7 @@ describe('assignPositions', () => {
     })
 
     it('should maintain correct spacing between siblings', () => {
-        const node = buildLayoutTree(wideTree.smiles, wideTree.children, 'test-')
+        const node = buildLayoutTree(wideTree, 'test-')
         calculateSubtreeWidth(node)
         assignPositions(node, 0, 0)
 
@@ -178,7 +182,7 @@ describe('assignPositions', () => {
     })
 
     it('should position nodes at correct depth levels', () => {
-        const node = buildLayoutTree(deepTree.smiles, deepTree.children, 'test-')
+        const node = buildLayoutTree(deepTree, 'test-')
         calculateSubtreeWidth(node)
         assignPositions(node, 0, 0)
 
@@ -196,7 +200,7 @@ describe('assignPositions', () => {
     })
 
     it('should handle offset starting positions', () => {
-        const node = buildLayoutTree(singleNode.smiles, singleNode.children, 'test-')
+        const node = buildLayoutTree(singleNode, 'test-')
         calculateSubtreeWidth(node)
         assignPositions(node, 100, 200)
 
@@ -207,11 +211,11 @@ describe('assignPositions', () => {
 
 describe('flattenLayoutTree', () => {
     it('should flatten single node with no edges', () => {
-        const node = buildLayoutTree(singleNode.smiles, singleNode.children, 'test-')
+        const node = buildLayoutTree(singleNode, 'test-')
         calculateSubtreeWidth(node)
         assignPositions(node, 0, 0)
 
-        const nodes: Array<{ id: string; smiles: string; x: number; y: number }> = []
+        const nodes: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }> = []
         const edges: Array<{ source: string; target: string }> = []
 
         flattenLayoutTree(node, nodes, edges, null)
@@ -221,17 +225,18 @@ describe('flattenLayoutTree', () => {
         expect(nodes[0]).toEqual({
             id: 'test-C',
             smiles: 'C',
+            inchikey: singleNode.inchikey,
             x: 0,
             y: 0,
         })
     })
 
     it('should create edges from parent to children', () => {
-        const node = buildLayoutTree(simpleTree.smiles, simpleTree.children, 'test-')
+        const node = buildLayoutTree(simpleTree, 'test-')
         calculateSubtreeWidth(node)
         assignPositions(node, 0, 0)
 
-        const nodes: Array<{ id: string; smiles: string; x: number; y: number }> = []
+        const nodes: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }> = []
         const edges: Array<{ source: string; target: string }> = []
 
         flattenLayoutTree(node, nodes, edges, null)
@@ -245,11 +250,11 @@ describe('flattenLayoutTree', () => {
     })
 
     it('should flatten complete tree structure', () => {
-        const node = buildLayoutTree(balancedTree.smiles, balancedTree.children, 'test-')
+        const node = buildLayoutTree(balancedTree, 'test-')
         calculateSubtreeWidth(node)
         assignPositions(node, 0, 0)
 
-        const nodes: Array<{ id: string; smiles: string; x: number; y: number }> = []
+        const nodes: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }> = []
         const edges: Array<{ source: string; target: string }> = []
 
         flattenLayoutTree(node, nodes, edges, null)
@@ -267,11 +272,11 @@ describe('flattenLayoutTree', () => {
     })
 
     it('should preserve all SMILES strings', () => {
-        const node = buildLayoutTree(complexTree.smiles, complexTree.children, 'test-')
+        const node = buildLayoutTree(complexTree, 'test-')
         calculateSubtreeWidth(node)
         assignPositions(node, 0, 0)
 
-        const nodes: Array<{ id: string; smiles: string; x: number; y: number }> = []
+        const nodes: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }> = []
         const edges: Array<{ source: string; target: string }> = []
 
         flattenLayoutTree(node, nodes, edges, null)
@@ -439,9 +444,13 @@ describe('collectSmiles', () => {
 
     it('should handle duplicate SMILES in tree (if they exist)', () => {
         // Create a tree with duplicate SMILES
-        const treeWithDuplicates = {
+        const treeWithDuplicates: RouteVisualizationNode = {
             smiles: 'A',
-            children: [{ smiles: 'B' }, { smiles: 'B' }],
+            inchikey: 'INCHIKEY-A',
+            children: [
+                { smiles: 'B', inchikey: 'INCHIKEY-B' },
+                { smiles: 'B', inchikey: 'INCHIKEY-B' },
+            ],
         }
 
         const set = new Set<string>()
@@ -548,7 +557,7 @@ describe('Layout Functions - Input Immutability', () => {
     it('should not mutate input tree in buildLayoutTree', () => {
         const treeClone = JSON.parse(JSON.stringify(simpleTree))
 
-        buildLayoutTree(simpleTree.smiles, simpleTree.children, 'test-')
+        buildLayoutTree(simpleTree, 'test-')
 
         expect(simpleTree).toEqual(treeClone)
     })
@@ -613,14 +622,14 @@ describe('Large Tree Stress Tests', () => {
         // Create a tree with 100 nodes in a balanced structure
         const createLargeTree = (depth: number, branchFactor: number = 3): RouteVisualizationNode => {
             if (depth === 0) {
-                return { smiles: `node-${Math.random()}` }
+                return { smiles: `node-${Math.random()}`, inchikey: `INCHIKEY-${Math.random()}` }
             }
 
             const children: RouteVisualizationNode[] = []
             for (let i = 0; i < branchFactor; i++) {
                 children.push(createLargeTree(depth - 1, branchFactor))
             }
-            return { smiles: `node-${Math.random()}`, children }
+            return { smiles: `node-${Math.random()}`, inchikey: `INCHIKEY-${Math.random()}`, children }
         }
 
         const largeTree = createLargeTree(4, 3) // 3^4 = 81 nodes
@@ -632,9 +641,9 @@ describe('Large Tree Stress Tests', () => {
     it('should handle very deep tree without stack overflow', () => {
         const createDeepTree = (depth: number): RouteVisualizationNode => {
             if (depth === 0) {
-                return { smiles: 'leaf' }
+                return { smiles: 'leaf', inchikey: 'INCHIKEY-LEAF' }
             }
-            return { smiles: `node-${depth}`, children: [createDeepTree(depth - 1)] }
+            return { smiles: `node-${depth}`, inchikey: `INCHIKEY-${depth}`, children: [createDeepTree(depth - 1)] }
         }
 
         const deepTree = createDeepTree(50) // 50 levels deep
@@ -647,9 +656,9 @@ describe('Large Tree Stress Tests', () => {
         const createLargeTree = (nodeCount: number): RouteVisualizationNode => {
             const children: RouteVisualizationNode[] = []
             for (let i = 0; i < nodeCount; i++) {
-                children.push({ smiles: `child-${i}` })
+                children.push({ smiles: `child-${i}`, inchikey: `INCHIKEY-CHILD-${i}` })
             }
-            return { smiles: 'root', children }
+            return { smiles: 'root', inchikey: 'INCHIKEY-ROOT', children }
         }
 
         const largeTree = createLargeTree(50)
@@ -671,9 +680,9 @@ describe('Large Tree Stress Tests', () => {
         const createWideTree = (childCount: number): RouteVisualizationNode => {
             const children: RouteVisualizationNode[] = []
             for (let i = 0; i < childCount; i++) {
-                children.push({ smiles: `child-${i}` })
+                children.push({ smiles: `child-${i}`, inchikey: `INCHIKEY-CHILD-${i}` })
             }
-            return { smiles: 'root', children }
+            return { smiles: 'root', inchikey: 'INCHIKEY-ROOT', children }
         }
 
         const wideTree = createWideTree(20)
