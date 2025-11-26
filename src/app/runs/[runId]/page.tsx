@@ -6,10 +6,11 @@ import { getStocks } from '@/lib/services/stock.service'
 
 import { StockSelector } from './_components/client/stock-selector'
 import { RunDetailHeader } from './_components/server/run-detail-header'
+import { RunStatisticsStratified } from './_components/server/run-statistics-stratified'
 import { RunStatisticsSummary } from './_components/server/run-statistics-summary'
 import { TargetFilterBar } from './_components/server/target-filter-bar'
 import { TargetGrid } from './_components/server/target-grid'
-import { RunStatisticsSkeleton, TargetGridSkeleton } from './_components/skeletons'
+import { RunStatisticsSkeleton, StratifiedStatisticsSkeleton, TargetGridSkeleton } from './_components/skeletons'
 
 type PageProps = {
     params: Promise<{ runId: string }>
@@ -38,6 +39,10 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
 
             <Suspense fallback={<RunStatisticsSkeleton />}>
                 <RunStatisticsSummary runId={runId} searchParams={searchParams} />
+            </Suspense>
+
+            <Suspense fallback={<StratifiedStatisticsSkeleton />}>
+                <RunStatisticsStratified runId={runId} searchParams={searchParams} />
             </Suspense>
 
             <TargetFilterBar benchmarkSet={run.benchmarkSet} />

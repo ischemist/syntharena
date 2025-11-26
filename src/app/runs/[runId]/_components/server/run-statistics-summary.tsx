@@ -1,14 +1,27 @@
-import Link from 'next/link'
 import { AlertCircle } from 'lucide-react'
 
+import type { MetricResult } from '@/types'
 import { getRunStatistics } from '@/lib/services/prediction.service'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 type RunStatisticsSummaryProps = {
     runId: string
     searchParams: Promise<{ stock?: string }>
+}
+
+/**
+ * Format a metric value with confidence interval.
+ * Converts 0-1 values to percentages and shows CI as [lower, upper].
+ * Example: "45.2% [42.1, 48.3]"
+ */
+function formatMetricWithCI(metric: MetricResult): string {
+    const valuePercent = (metric.value * 100).toFixed(1)
+    const lowerPercent = (metric.ciLower * 100).toFixed(1)
+    const upperPercent = (metric.ciUpper * 100).toFixed(1)
+    return `${valuePercent}% [${lowerPercent}, ${upperPercent}]`
 }
 
 export async function RunStatisticsSummary({ runId, searchParams }: RunStatisticsSummaryProps) {
@@ -51,117 +64,68 @@ export async function RunStatisticsSummary({ runId, searchParams }: RunStatistic
     const solvability = parsedStats.solvability.overall
     const hasTopK = parsedStats.topKAccuracy && Object.keys(parsedStats.topKAccuracy).length > 0
 
+    // Build metrics table data
+    const metricsRows: Array<{
+        name: string
+        metric: MetricResult
+    }> = [{ name: 'Solvability', metric: solvability }]
+
+    if (hasTopK && parsedStats.topKAccuracy) {
+        // Add Top-K metrics in order
+        const topKKeys = Object.keys(parsedStats.topKAccuracy).sort((a, b) => {
+            const aNum = parseInt(a.replace('Top-', ''))
+            const bNum = parseInt(b.replace('Top-', ''))
+            return aNum - bNum
+        })
+
+        for (const key of topKKeys) {
+            metricsRows.push({
+                name: `${key} Accuracy`,
+                metric: parsedStats.topKAccuracy[key].overall,
+            })
+        }
+    }
+
     return (
-        <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {/* Solvability */}
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-muted-foreground text-sm font-medium">Solvability</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{(solvability.value * 100).toFixed(1)}%</div>
-                        <p className="text-muted-foreground text-xs">
-                            ±{((solvability.ciUpper - solvability.ciLower) * 50).toFixed(1)}%
-                        </p>
-                        {solvability.reliability.code !== 'OK' && (
-                            <Badge variant="outline" className="mt-2">
-                                {solvability.reliability.code}
-                            </Badge>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* Top-1 */}
-                {hasTopK && parsedStats.topKAccuracy?.['Top-1'] && (
-                    <Card>
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-muted-foreground text-sm font-medium">Top-1 Accuracy</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">
-                                {(parsedStats.topKAccuracy['Top-1'].overall.value * 100).toFixed(1)}%
-                            </div>
-                            <p className="text-muted-foreground text-xs">
-                                ±
-                                {(
-                                    (parsedStats.topKAccuracy['Top-1'].overall.ciUpper -
-                                        parsedStats.topKAccuracy['Top-1'].overall.ciLower) *
-                                    50
-                                ).toFixed(1)}
-                                %
-                            </p>
-                            {parsedStats.topKAccuracy['Top-1'].overall.reliability.code !== 'OK' && (
-                                <Badge variant="outline" className="mt-2">
-                                    {parsedStats.topKAccuracy['Top-1'].overall.reliability.code}
-                                </Badge>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* Top-5 */}
-                {hasTopK && parsedStats.topKAccuracy?.['Top-5'] && (
-                    <Card>
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-muted-foreground text-sm font-medium">Top-5 Accuracy</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">
-                                {(parsedStats.topKAccuracy['Top-5'].overall.value * 100).toFixed(1)}%
-                            </div>
-                            <p className="text-muted-foreground text-xs">
-                                ±
-                                {(
-                                    (parsedStats.topKAccuracy['Top-5'].overall.ciUpper -
-                                        parsedStats.topKAccuracy['Top-5'].overall.ciLower) *
-                                    50
-                                ).toFixed(1)}
-                                %
-                            </p>
-                            {parsedStats.topKAccuracy['Top-5'].overall.reliability.code !== 'OK' && (
-                                <Badge variant="outline" className="mt-2">
-                                    {parsedStats.topKAccuracy['Top-5'].overall.reliability.code}
-                                </Badge>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* Top-10 */}
-                {hasTopK && parsedStats.topKAccuracy?.['Top-10'] && (
-                    <Card>
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-muted-foreground text-sm font-medium">Top-10 Accuracy</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">
-                                {(parsedStats.topKAccuracy['Top-10'].overall.value * 100).toFixed(1)}%
-                            </div>
-                            <p className="text-muted-foreground text-xs">
-                                ±
-                                {(
-                                    (parsedStats.topKAccuracy['Top-10'].overall.ciUpper -
-                                        parsedStats.topKAccuracy['Top-10'].overall.ciLower) *
-                                    50
-                                ).toFixed(1)}
-                                %
-                            </p>
-                            {parsedStats.topKAccuracy['Top-10'].overall.reliability.code !== 'OK' && (
-                                <Badge variant="outline" className="mt-2">
-                                    {parsedStats.topKAccuracy['Top-10'].overall.reliability.code}
-                                </Badge>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
-            </div>
-
-            <div className="text-muted-foreground text-sm">
-                <Link href="#" className="hover:underline">
-                    View Full Statistics →
-                </Link>
-            </div>
-        </div>
+        <Card>
+            <CardHeader>
+                <CardTitle>Overall Metrics</CardTitle>
+                <CardDescription>
+                    Performance metrics across all targets in the benchmark. Confidence intervals shown at 95% level.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Metric</TableHead>
+                            <TableHead>Value [95% CI]</TableHead>
+                            <TableHead className="text-right">n</TableHead>
+                            <TableHead className="text-right">Reliability</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {metricsRows.map((row) => (
+                            <TableRow key={row.name}>
+                                <TableCell className="font-medium">{row.name}</TableCell>
+                                <TableCell className="font-mono">{formatMetricWithCI(row.metric)}</TableCell>
+                                <TableCell className="text-muted-foreground text-right">
+                                    {row.metric.nSamples}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    {row.metric.reliability.code !== 'OK' ? (
+                                        <Badge variant="outline" title={row.metric.reliability.message}>
+                                            {row.metric.reliability.code}
+                                        </Badge>
+                                    ) : (
+                                        <span className="text-muted-foreground text-sm">OK</span>
+                                    )}
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
     )
 }
