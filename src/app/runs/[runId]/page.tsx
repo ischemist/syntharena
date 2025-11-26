@@ -1,8 +1,7 @@
 import { Suspense } from 'react'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 
-import { getPredictionRunById } from '@/lib/services/prediction.service'
-import { getStocks } from '@/lib/services/stock.service'
+import { getPredictionRunById, getStocksForRun } from '@/lib/services/prediction.service'
 
 import { StockSelector } from './_components/client/stock-selector'
 import { RunDetailHeader } from './_components/server/run-detail-header'
@@ -25,10 +24,17 @@ type PageProps = {
 export default async function RunDetailPage({ params, searchParams }: PageProps) {
     const { runId } = await params
     const searchParamsResolved = await searchParams
-    const [run, stocks] = await Promise.all([getPredictionRunById(runId), getStocks()])
+    const [run, stocks] = await Promise.all([getPredictionRunById(runId), getStocksForRun(runId)])
 
     if (!run) {
         notFound()
+    }
+
+    // If no stock is selected and we have stocks, redirect to first stock
+    if (!searchParamsResolved.stock && stocks.length > 0) {
+        const params = new URLSearchParams(searchParamsResolved as Record<string, string>)
+        params.set('stock', stocks[0].id)
+        redirect(`?${params.toString()}`)
     }
 
     const stockId = searchParamsResolved.stock

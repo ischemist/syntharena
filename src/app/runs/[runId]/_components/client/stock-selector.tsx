@@ -13,18 +13,18 @@ interface StockSelectorProps {
 export function StockSelector({ stocks }: StockSelectorProps) {
     const router = useRouter()
     const searchParams = useSearchParams()
-    const currentStock = searchParams.get('stock') || 'all'
+    const currentStock = searchParams.get('stock') || stocks[0]?.id
 
     const handleStockChange = (value: string) => {
         const params = new URLSearchParams(searchParams)
-        if (value === 'all') {
-            params.delete('stock')
-        } else {
-            params.set('stock', value)
-        }
+        params.set('stock', value)
         // Reset to first page when changing stock
         params.delete('page')
         router.replace(`?${params.toString()}`)
+    }
+
+    if (stocks.length === 0) {
+        return null
     }
 
     return (
@@ -35,7 +35,6 @@ export function StockSelector({ stocks }: StockSelectorProps) {
                     <SelectValue placeholder="Select stock" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="all">All Stocks</SelectItem>
                     {stocks.map((stock) => (
                         <SelectItem key={stock.id} value={stock.id}>
                             {stock.name}

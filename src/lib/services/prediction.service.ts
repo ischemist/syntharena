@@ -16,6 +16,7 @@ import type {
     ReliabilityCode,
     RouteNodeWithDetails,
     RunStatistics,
+    StockListItem,
     StratifiedMetric,
     TargetPredictionDetail,
 } from '@/types'
@@ -464,6 +465,42 @@ export async function getTargetsByRun(
         page,
         limit,
     }
+}
+
+/**
+ * Get all stocks that have been evaluated for a specific prediction run.
+ * Returns only stocks with computed statistics.
+ *
+ * @param runId - The prediction run ID
+ * @returns Array of stocks with evaluation data for this run
+ */
+export async function getStocksForRun(runId: string): Promise<StockListItem[]> {
+    const statistics = await prisma.modelRunStatistics.findMany({
+        where: {
+            predictionRunId: runId,
+        },
+        include: {
+            stock: {
+                include: {
+                    _count: {
+                        select: { items: true },
+                    },
+                },
+            },
+        },
+        orderBy: {
+            stock: {
+                name: 'asc',
+            },
+        },
+    })
+
+    return statistics.map((stat) => ({
+        id: stat.stock.id,
+        name: stat.stock.name,
+        description: stat.stock.description || undefined,
+        itemCount: stat.stock._count.items,
+    }))
 }
 
 /**
