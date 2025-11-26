@@ -65,3 +65,66 @@ export function MetricsChartSkeleton() {
         </div>
     )
 }
+
+export function TargetSearchSkeleton() {
+    return (
+        <Card>
+            <CardContent className="pt-6">
+                <div className="flex items-center gap-2">
+                    <Skeleton className="h-10 flex-1" />
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
+
+export function RouteDisplaySkeleton() {
+    return (
+        <div className="space-y-4">
+            {/* Target metadata card */}
+            <Card>
+                <CardHeader>
+                    <Skeleton className="h-6 w-32" />
+                    <Skeleton className="mt-2 h-4 w-64" />
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div>
+                        <Skeleton className="mb-2 h-4 w-32" />
+                        <div className="flex items-center gap-4">
+                            <Skeleton className="h-[200px] w-[200px]" />
+                            <Skeleton className="h-4 flex-1" />
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Navigator skeleton */}
+            <Card>
+                <CardContent className="pt-6">
+                    <div className="flex items-center justify-between gap-4">
+                        <Skeleton className="h-9 w-24" />
+                        <Skeleton className="h-12 w-48" />
+                        <Skeleton className="h-9 w-24" />
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Route visualization skeleton */}
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <Skeleton className="h-6 w-24" />
+                            <Skeleton className="mt-2 h-4 w-48" />
+                        </div>
+                        <Skeleton className="h-6 w-20" />
+                    </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <Skeleton className="h-[600px] w-full rounded-md" />
+                    <Skeleton className="h-16 w-full" />
+                </CardContent>
+            </Card>
+        </div>
+    )
+}

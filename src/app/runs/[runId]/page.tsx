@@ -8,28 +8,32 @@ import { StockSelector } from './_components/client/stock-selector'
 import { RunDetailHeader } from './_components/server/run-detail-header'
 import { RunStatisticsStratified } from './_components/server/run-statistics-stratified'
 import { RunStatisticsSummary } from './_components/server/run-statistics-summary'
-import { TargetFilterBar } from './_components/server/target-filter-bar'
-import { TargetGrid } from './_components/server/target-grid'
-import { RunStatisticsSkeleton, StratifiedStatisticsSkeleton, TargetGridSkeleton } from './_components/skeletons'
+import { TargetRouteDisplay } from './_components/server/target-route-display'
+import { TargetSearchWrapper } from './_components/server/target-search-wrapper'
+import { RouteDisplaySkeleton, RunStatisticsSkeleton, StratifiedStatisticsSkeleton } from './_components/skeletons'
 
 type PageProps = {
     params: Promise<{ runId: string }>
     searchParams: Promise<{
         stock?: string
-        gtStatus?: string
-        length?: string
-        solvable?: string
-        page?: string
+        search?: string
+        target?: string
+        rank?: string
     }>
 }
 
 export default async function RunDetailPage({ params, searchParams }: PageProps) {
     const { runId } = await params
+    const searchParamsResolved = await searchParams
     const [run, stocks] = await Promise.all([getPredictionRunById(runId), getStocks()])
 
     if (!run) {
         notFound()
     }
+
+    const stockId = searchParamsResolved.stock
+    const targetId = searchParamsResolved.target
+    const rank = parseInt(searchParamsResolved.rank || '1', 10)
 
     return (
         <div className="flex flex-col gap-6">
@@ -38,18 +42,22 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
             <StockSelector stocks={stocks} />
 
             <Suspense fallback={<RunStatisticsSkeleton />}>
-                <RunStatisticsSummary runId={runId} searchParams={searchParams} />
+                <RunStatisticsSummary runId={runId} searchParams={Promise.resolve(searchParamsResolved)} />
             </Suspense>
 
             <Suspense fallback={<StratifiedStatisticsSkeleton />}>
-                <RunStatisticsStratified runId={runId} searchParams={searchParams} />
+                <RunStatisticsStratified runId={runId} searchParams={Promise.resolve(searchParamsResolved)} />
             </Suspense>
 
-            <TargetFilterBar benchmarkSet={run.benchmarkSet} />
+            {/* Target search */}
+            <TargetSearchWrapper runId={runId} stockId={stockId} />
 
-            <Suspense fallback={<TargetGridSkeleton />}>
-                <TargetGrid runId={runId} searchParams={searchParams} />
-            </Suspense>
+            {/* Conditional route display */}
+            {targetId && (
+                <Suspense fallback={<RouteDisplaySkeleton />}>
+                    <TargetRouteDisplay runId={runId} targetId={targetId} rank={rank} stockId={stockId} />
+                </Suspense>
+            )}
         </div>
     )
 }

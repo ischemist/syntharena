@@ -251,6 +251,88 @@ export async function getTargetPredictions(
 }
 
 /**
+ * Search targets for a prediction run by targetId or SMILES.
+ *
+ * @param runId - The prediction run ID
+ * @param query - Search query (matches targetId or SMILES substring)
+ * @param stockId - Optional: Stock ID to include in route data
+ * @param limit - Maximum number of results (default: 20)
+ * @returns Array of matching targets with molecule data
+ * @throws Error if run not found
+ */
+export async function searchTargets(
+    runId: string,
+    query: string,
+    stockId?: string,
+    limit = 20
+): Promise<BenchmarkTargetWithMolecule[]> {
+    // Verify run exists and get benchmark ID
+    const run = await prisma.predictionRun.findUnique({
+        where: { id: runId },
+        select: { benchmarkSetId: true },
+    })
+
+    if (!run) {
+        throw new Error('Prediction run not found.')
+    }
+
+    // Trim and lowercase query for case-insensitive matching
+    const searchQuery = query.trim().toLowerCase()
+
+    if (!searchQuery) {
+        return []
+    }
+
+    // Search by targetId or SMILES substring
+    const targets = await prisma.benchmarkTarget.findMany({
+        where: {
+            benchmarkSetId: run.benchmarkSetId,
+            OR: [
+                {
+                    targetId: {
+                        contains: searchQuery,
+                    },
+                },
+                {
+                    molecule: {
+                        smiles: {
+                            contains: searchQuery,
+                        },
+                    },
+                },
+            ],
+        },
+        include: {
+            molecule: true,
+            predictedRoutes: {
+                where: {
+                    predictionRunId: runId,
+                },
+                include: {
+                    solvabilityStatus: {
+                        ...(stockId && { where: { stockId } }),
+                    },
+                },
+                orderBy: {
+                    rank: 'asc',
+                },
+            },
+        },
+        take: limit,
+        orderBy: {
+            targetId: 'asc',
+        },
+    })
+
+    return targets.map((t) => ({
+        ...t,
+        molecule: t.molecule,
+        hasGroundTruth: !!t.groundTruthRouteId,
+        routeCount: t.predictedRoutes.length,
+    }))
+}
+
+/**
  * Get paginated targets for a prediction run with filters.
  *
  * @param runId - The prediction run ID
