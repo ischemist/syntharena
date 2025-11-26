@@ -2,10 +2,15 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 
+import type { StockListItem } from '@/types'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-export function StockSelector() {
+interface StockSelectorProps {
+    stocks: StockListItem[]
+}
+
+export function StockSelector({ stocks }: StockSelectorProps) {
     const router = useRouter()
     const searchParams = useSearchParams()
     const currentStock = searchParams.get('stock') || 'all'
@@ -31,8 +36,11 @@ export function StockSelector() {
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">All Stocks</SelectItem>
-                    <SelectItem value="buyables-stock">Buyables Stock</SelectItem>
-                    <SelectItem value="n5-stock">N5 Stock</SelectItem>
+                    {stocks.map((stock) => (
+                        <SelectItem key={stock.id} value={stock.id}>
+                            {stock.name}
+                        </SelectItem>
+                    ))}
                 </SelectContent>
             </Select>
         </div>

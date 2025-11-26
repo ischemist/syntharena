@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 
 import { getPredictionRunById } from '@/lib/services/prediction.service'
+import { getStocks } from '@/lib/services/stock.service'
 
 import { StockSelector } from './_components/client/stock-selector'
 import { RunDetailHeader } from './_components/server/run-detail-header'
@@ -23,7 +24,7 @@ type PageProps = {
 
 export default async function RunDetailPage({ params, searchParams }: PageProps) {
     const { runId } = await params
-    const run = await getPredictionRunById(runId)
+    const [run, stocks] = await Promise.all([getPredictionRunById(runId), getStocks()])
 
     if (!run) {
         notFound()
@@ -33,7 +34,7 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
         <div className="flex flex-col gap-6">
             <RunDetailHeader run={run} />
 
-            <StockSelector />
+            <StockSelector stocks={stocks} />
 
             <Suspense fallback={<RunStatisticsSkeleton />}>
                 <RunStatisticsSummary runId={runId} searchParams={searchParams} />

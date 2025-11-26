@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 
 import { getTargetPredictions } from '@/lib/services/prediction.service'
+import { getStocks } from '@/lib/services/stock.service'
 
 import { StockSelector } from '../../_components/client/stock-selector'
 import { RouteList } from './_components/server/route-list'
@@ -15,7 +16,7 @@ type PageProps = {
 
 export default async function TargetDetailPage({ params, searchParams }: PageProps) {
     const { runId, targetId } = await params
-    const target = await getTargetPredictions(targetId, runId)
+    const [target, stocks] = await Promise.all([getTargetPredictions(targetId, runId), getStocks()])
 
     if (!target) {
         notFound()
@@ -25,7 +26,7 @@ export default async function TargetDetailPage({ params, searchParams }: PagePro
         <div className="flex flex-col gap-6">
             <TargetDetailHeader target={target} runId={runId} />
 
-            <StockSelector />
+            <StockSelector stocks={stocks} />
 
             <Suspense fallback={<RouteListSkeleton />}>
                 <RouteList targetId={targetId} runId={runId} searchParams={searchParams} />
