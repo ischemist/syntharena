@@ -27,12 +27,14 @@ export function RouteVisualizationWrapper({ routeTree, inStockSmiles }: RouteVis
             </div>
 
             {/* Visualization - tall for better tree exploration */}
-            <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white">
+            <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
                 <RouteGraph route={routeTree} inStockSmiles={inStockSmiles} idPrefix="target-route-" />
             </div>
 
             {/* Info */}
-            <p className="text-xs text-gray-500">Scroll to zoom. Drag to pan. Nodes marked in green are in stock.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+                Scroll to zoom. Drag to pan. Nodes marked in green are in stock.
+            </p>
         </div>
     )
 }

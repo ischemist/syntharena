@@ -119,8 +119,8 @@ export async function RouteDisplay({ targetId }: RouteDisplayProps) {
     return (
         <div className="space-y-4">
             <div>
-                <h2 className="text-lg font-semibold text-gray-900">Ground Truth Route</h2>
-                <p className="mt-1 text-sm text-gray-600">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Ground Truth Route</h2>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                     Synthesis route with {routeData!.route.length} steps
                     {routeData!.route.isConvergent && ' (convergent)'}
                 </p>
@@ -132,7 +132,7 @@ export async function RouteDisplay({ targetId }: RouteDisplayProps) {
 
             {/* Keep JSON viewer as fallback/debugging */}
             <details className="text-sm">
-                <summary className="cursor-pointer font-medium text-gray-600 hover:text-gray-900">
+                <summary className="cursor-pointer font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
                     View JSON (debug)
                 </summary>
                 <div className="mt-4">

@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { Background, Controls, ReactFlow, useEdgesState, useNodesState } from '@xyflow/react'
 import type { Edge, Node } from '@xyflow/react'
+import { useTheme } from 'next-themes'
 
 import type { RouteGraphNode, RouteVisualizationNode } from '@/types'
 import { buildRouteGraph } from '@/lib/route-visualization'
@@ -32,6 +33,8 @@ interface RouteGraphProps {
  * - Responsive layout
  */
 export function RouteGraph({ route, inStockSmiles, idPrefix = 'route-' }: RouteGraphProps) {
+    const { theme } = useTheme()
+
     // Memoize graph building to avoid unnecessary recalculations
     const { initialNodes, initialEdges } = useMemo(() => {
         const { nodes, edges } = buildRouteGraph(route, inStockSmiles, idPrefix)
@@ -43,6 +46,9 @@ export function RouteGraph({ route, inStockSmiles, idPrefix = 'route-' }: RouteG
 
     const [nodes, , onNodesChange] = useNodesState(initialNodes)
     const [edges, , onEdgesChange] = useEdgesState(initialEdges)
+
+    // Dynamic background color based on theme
+    const backgroundColor = theme === 'dark' ? '#374151' : '#e5e7eb'
 
     return (
         <div className="h-full w-full">
@@ -58,7 +64,7 @@ export function RouteGraph({ route, inStockSmiles, idPrefix = 'route-' }: RouteG
                 nodesConnectable={false}
                 elementsSelectable={false}
             >
-                <Background color="#e5e7eb" gap={16} />
+                <Background color={backgroundColor} gap={16} />
                 <Controls showInteractive={false} />
             </ReactFlow>
         </div>
