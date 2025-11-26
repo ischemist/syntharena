@@ -7,21 +7,11 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
+import { MetricCell } from '../client/metric-cell'
+
 type RunStatisticsSummaryProps = {
     runId: string
     searchParams: Promise<{ stock?: string }>
-}
-
-/**
- * Format a metric value with confidence interval.
- * Converts 0-1 values to percentages and shows CI as [lower, upper].
- * Example: "45.2% [42.1, 48.3]"
- */
-function formatMetricWithCI(metric: MetricResult): string {
-    const valuePercent = (metric.value * 100).toFixed(1)
-    const lowerPercent = (metric.ciLower * 100).toFixed(1)
-    const upperPercent = (metric.ciUpper * 100).toFixed(1)
-    return `${valuePercent}% [${lowerPercent}, ${upperPercent}]`
 }
 
 export async function RunStatisticsSummary({ runId, searchParams }: RunStatisticsSummaryProps) {
@@ -92,7 +82,8 @@ export async function RunStatisticsSummary({ runId, searchParams }: RunStatistic
             <CardHeader>
                 <CardTitle>Overall Metrics</CardTitle>
                 <CardDescription>
-                    Performance metrics across all targets in the benchmark. Confidence intervals shown at 95% level.
+                    Performance metrics across all targets in the benchmark. Hover over values to see 95% confidence
+                    intervals.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -100,7 +91,7 @@ export async function RunStatisticsSummary({ runId, searchParams }: RunStatistic
                     <TableHeader>
                         <TableRow>
                             <TableHead>Metric</TableHead>
-                            <TableHead>Value [95% CI]</TableHead>
+                            <TableHead>Value</TableHead>
                             <TableHead className="text-right">n</TableHead>
                             <TableHead className="text-right">Reliability</TableHead>
                         </TableRow>
@@ -109,7 +100,9 @@ export async function RunStatisticsSummary({ runId, searchParams }: RunStatistic
                         {metricsRows.map((row) => (
                             <TableRow key={row.name}>
                                 <TableCell className="font-medium">{row.name}</TableCell>
-                                <TableCell className="font-mono">{formatMetricWithCI(row.metric)}</TableCell>
+                                <TableCell>
+                                    <MetricCell metric={row.metric} />
+                                </TableCell>
                                 <TableCell className="text-muted-foreground text-right">
                                     {row.metric.nSamples}
                                 </TableCell>

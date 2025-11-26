@@ -1,35 +1,17 @@
 import { AlertCircle } from 'lucide-react'
 
-import type { MetricResult, StratifiedMetric } from '@/types'
+import type { StratifiedMetric } from '@/types'
 import { getRunStatistics } from '@/lib/services/prediction.service'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
+import { MetricCell } from '../client/metric-cell'
+
 type RunStatisticsStratifiedProps = {
     runId: string
     searchParams: Promise<{ stock?: string }>
-}
-
-/**
- * Format a metric value with confidence interval.
- * Converts 0-1 values to percentages and shows CI as [lower, upper].
- * Example: "45.2% [42.1, 48.3]"
- */
-function formatMetricWithCI(metric: MetricResult): string {
-    const valuePercent = (metric.value * 100).toFixed(1)
-    const lowerPercent = (metric.ciLower * 100).toFixed(1)
-    const upperPercent = (metric.ciUpper * 100).toFixed(1)
-    return `${valuePercent}% [${lowerPercent}, ${upperPercent}]`
-}
-
-/**
- * Compact format showing just the value for table cells.
- * Example: "45.2%"
- */
-function formatMetricCompact(metric: MetricResult): string {
-    return `${(metric.value * 100).toFixed(1)}%`
 }
 
 export async function RunStatisticsStratified({ runId, searchParams }: RunStatisticsStratifiedProps) {
@@ -124,20 +106,12 @@ export async function RunStatisticsStratified({ runId, searchParams }: RunStatis
                                 const solvMetric = parsedStats.solvability.byGroup[length]
                                 if (!solvMetric) return null // Skip if no solvability data
 
-                                // Determine if any metric has reliability issues
-                                const hasReliabilityIssue =
-                                    solvMetric.reliability.code !== 'OK' ||
-                                    topKMetrics.some(
-                                        ({ metric }) =>
-                                            metric.byGroup[length] && metric.byGroup[length].reliability.code !== 'OK'
-                                    )
-
                                 return (
                                     <TableRow key={length}>
                                         <TableCell className="font-medium">{length}</TableCell>
-                                        <TableCell className="font-mono">
+                                        <TableCell>
                                             <div className="flex items-center gap-2">
-                                                {formatMetricCompact(solvMetric)}
+                                                <MetricCell metric={solvMetric} />
                                                 {solvMetric.reliability.code !== 'OK' && (
                                                     <Badge
                                                         variant="outline"
@@ -160,9 +134,9 @@ export async function RunStatisticsStratified({ runId, searchParams }: RunStatis
                                             }
 
                                             return (
-                                                <TableCell key={key} className="font-mono">
+                                                <TableCell key={key}>
                                                     <div className="flex items-center gap-2">
-                                                        {formatMetricCompact(topKMetric)}
+                                                        <MetricCell metric={topKMetric} />
                                                         {topKMetric.reliability.code !== 'OK' && (
                                                             <Badge
                                                                 variant="outline"
