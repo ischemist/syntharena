@@ -11,7 +11,7 @@ type TargetSearchWrapperProps = {
 
 export async function TargetSearchWrapper({ runId, stockId, currentTargetId }: TargetSearchWrapperProps) {
     // Get all target IDs for this run (ordered)
-    const targetIds = await getTargetIdsByRun(runId, stockId)
+    const targetIds = await getTargetIdsByRun(runId)
 
     // Find current position
     let currentIndex = -1

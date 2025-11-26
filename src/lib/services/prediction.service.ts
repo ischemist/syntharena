@@ -478,7 +478,7 @@ export async function getTargetsByRun(
  * @returns Array of target IDs in alphabetical order
  * @throws Error if run not found
  */
-export async function getTargetIdsByRun(runId: string, stockId?: string): Promise<string[]> {
+export async function getTargetIdsByRun(runId: string): Promise<string[]> {
     // Verify run exists and get benchmark ID
     const run = await prisma.predictionRun.findUnique({
         where: { id: runId },
