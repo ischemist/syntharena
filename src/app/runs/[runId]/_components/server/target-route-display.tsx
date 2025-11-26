@@ -20,47 +20,40 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId }: Tar
     // Fetch target predictions
     const targetDetail = await getTargetPredictions(targetId, runId, stockId)
 
-    if (!targetDetail || targetDetail.routes.length === 0) {
+    if (!targetDetail) {
         return (
             <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>No predictions found for this target.</AlertDescription>
+                <AlertDescription>Target not found.</AlertDescription>
             </Alert>
         )
     }
 
-    // Validate rank
-    const requestedRank = Math.max(1, Math.min(rank, targetDetail.routes.length))
-    const routeDetail = targetDetail.routes.find((r) => r.route.rank === requestedRank)
+    // Render target card regardless of whether routes exist
+    const hasRoutes = targetDetail.routes.length > 0
 
-    if (!routeDetail) {
-        return (
-            <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>Prediction rank {requestedRank} not found.</AlertDescription>
-            </Alert>
-        )
-    }
-
-    // Get stock items if stockId provided
+    // Get stock items if stockId provided (for route visualization)
     let inStockSmiles = new Set<string>()
     let stockName: string | undefined
 
-    if (stockId && stockId !== 'all') {
+    if (hasRoutes && stockId && stockId !== 'all') {
         try {
             const stockMoleculesResult = await searchStockMolecules('', stockId, 10000)
             inStockSmiles = new Set(stockMoleculesResult.molecules.map((mol) => mol.smiles))
 
-            // Get stock name from solvability data
-            const solvabilityForStock = routeDetail.solvability.find((s) => s.stockId === stockId)
-            stockName = solvabilityForStock?.stockName
+            // Validate rank
+            const requestedRank = Math.max(1, Math.min(rank, targetDetail.routes.length))
+            const routeDetail = targetDetail.routes.find((r) => r.route.rank === requestedRank)
+
+            if (routeDetail) {
+                // Get stock name from solvability data
+                const solvabilityForStock = routeDetail.solvability.find((s) => s.stockId === stockId)
+                stockName = solvabilityForStock?.stockName
+            }
         } catch (error) {
             console.error('Failed to fetch stock items:', error)
         }
     }
-
-    // Get solvability status for the selected stock
-    const solvability = stockId ? routeDetail.solvability.find((s) => s.stockId === stockId) : undefined
 
     return (
         <div className="space-y-4">
@@ -70,7 +63,11 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId }: Tar
                     <CardTitle className="font-mono">{targetDetail.targetId}</CardTitle>
                     <CardDescription>
                         {targetDetail.routeLength && `Route length: ${targetDetail.routeLength} • `}
-                        {targetDetail.isConvergent ? 'Convergent' : 'Linear'}
+                        {targetDetail.isConvergent !== null
+                            ? targetDetail.isConvergent
+                                ? 'Convergent'
+                                : 'Linear'
+                            : 'Unknown structure'}
                         {targetDetail.hasGroundTruth && ' • Has ground truth'}
                     </CardDescription>
                 </CardHeader>
@@ -97,25 +94,61 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId }: Tar
                             </AlertDescription>
                         </Alert>
                     )}
+
+                    {/* No predictions warning */}
+                    {!hasRoutes && (
+                        <Alert>
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>
+                                No predictions found for this target. The model did not generate any routes.
+                            </AlertDescription>
+                        </Alert>
+                    )}
                 </CardContent>
             </Card>
 
-            {/* Prediction navigator */}
-            <PredictionNavigator
-                currentRank={requestedRank}
-                totalPredictions={targetDetail.routes.length}
-                targetId={targetId}
-            />
+            {/* Only show navigator and route if we have predictions */}
+            {hasRoutes && (
+                <>
+                    {/* Prediction navigator */}
+                    <PredictionNavigator
+                        currentRank={Math.max(1, Math.min(rank, targetDetail.routes.length))}
+                        totalPredictions={targetDetail.routes.length}
+                        targetId={targetId}
+                    />
 
-            {/* Route visualization */}
-            <RouteDisplayCard
-                route={routeDetail.route}
-                routeNode={routeDetail.routeNode}
-                isSolvable={solvability?.isSolvable}
-                isGtMatch={solvability?.isGtMatch}
-                inStockSmiles={inStockSmiles}
-                stockName={stockName}
-            />
+                    {/* Route visualization */}
+                    {(() => {
+                        const requestedRank = Math.max(1, Math.min(rank, targetDetail.routes.length))
+                        const routeDetail = targetDetail.routes.find((r) => r.route.rank === requestedRank)
+
+                        if (!routeDetail) {
+                            return (
+                                <Alert>
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertDescription>Prediction rank {requestedRank} not found.</AlertDescription>
+                                </Alert>
+                            )
+                        }
+
+                        // Get solvability status for the selected stock
+                        const solvability = stockId
+                            ? routeDetail.solvability.find((s) => s.stockId === stockId)
+                            : undefined
+
+                        return (
+                            <RouteDisplayCard
+                                route={routeDetail.route}
+                                routeNode={routeDetail.routeNode}
+                                isSolvable={solvability?.isSolvable}
+                                isGtMatch={solvability?.isGtMatch}
+                                inStockSmiles={inStockSmiles}
+                                stockName={stockName}
+                            />
+                        )
+                    })()}
+                </>
+            )}
         </div>
     )
 }

@@ -56,7 +56,7 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
             </Suspense>
 
             {/* Target search */}
-            <TargetSearchWrapper runId={runId} stockId={stockId} />
+            <TargetSearchWrapper runId={runId} stockId={stockId} currentTargetId={targetId} />
 
             {/* Conditional route display */}
             {targetId && (

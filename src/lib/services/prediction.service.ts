@@ -468,6 +468,45 @@ export async function getTargetsByRun(
 }
 
 /**
+ * Get ordered list of target IDs for a prediction run.
+ * Used for navigation through targets in sequence.
+ * Returns ALL targets from the benchmark set, regardless of whether
+ * the model found routes for them or not.
+ *
+ * @param runId - The prediction run ID
+ * @param stockId - Optional: Not used, kept for API compatibility
+ * @returns Array of target IDs in alphabetical order
+ * @throws Error if run not found
+ */
+export async function getTargetIdsByRun(runId: string, stockId?: string): Promise<string[]> {
+    // Verify run exists and get benchmark ID
+    const run = await prisma.predictionRun.findUnique({
+        where: { id: runId },
+        select: { benchmarkSetId: true },
+    })
+
+    if (!run) {
+        throw new Error('Prediction run not found.')
+    }
+
+    // Get ALL target IDs for this benchmark set, ordered alphabetically
+    // This includes targets for which the model found no routes
+    const targets = await prisma.benchmarkTarget.findMany({
+        where: {
+            benchmarkSetId: run.benchmarkSetId,
+        },
+        select: {
+            id: true,
+        },
+        orderBy: {
+            targetId: 'asc',
+        },
+    })
+
+    return targets.map((t) => t.id)
+}
+
+/**
  * Get all stocks that have been evaluated for a specific prediction run.
  * Returns only stocks with computed statistics.
  *
