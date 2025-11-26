@@ -23,7 +23,7 @@
  *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 dms-explorer-xl --algorithm DirectMultiStep --routes-only
  *
  *   # Load routes + evaluations + statistics for buyables-stock
- *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 dms-explorer-xl --algorithm DirectMultiStep --stock buyables-stock
+ *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 dms-explorer-xl --algorithm DirectMultiStep --stock-path buyables-stock --stock-db "ASKCOS Buyables Stock"
  *
  *   # With version and paper
  *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 dms-explorer-xl --algorithm DirectMultiStep --model-version "v1.0" --algorithm-paper "https://arxiv.org/abs/2405.13983" --stock-path buyables-stock --stock-db "ASKCOS Buyables Stock"

@@ -251,21 +251,49 @@ export async function createMoleculeFromPython(pythonMolecule: PythonMolecule): 
 }
 
 /**
- * Recursively traverses Python route tree and creates RouteNode records.
- * Builds the tree structure with parent-child relationships.
- *
- * @param pythonMol - Python molecule node (may have synthesis_step)
- * @param routeId - Route ID these nodes belong to
- * @param parentNodeId - Parent node ID (null for root)
- * @returns Created RouteNode with ID
+ * Internal structure for building route nodes in memory before bulk insert.
  */
-async function traverseRouteTree(
+interface RouteNodeToCreate {
+    tempId: string // Temporary ID for tracking parent-child relationships
+    routeId: string
+    moleculeInchikey: string
+    parentTempId: string | null
+    isLeaf: boolean
+    reactionHash: string | null
+    template: string | null
+    metadata: string | null
+}
+
+/**
+ * Recursively collects all molecules and nodes from a route tree in memory.
+ * Avoids N+1 query problem by gathering data before database operations.
+ *
+ * @param pythonMol - Current molecule in the tree
+ * @param routeId - The route ID
+ * @param parentTempId - Parent's temporary ID
+ * @param molecules - Map to collect unique molecules
+ * @param nodes - Array to collect all nodes
+ * @param tempIdCounter - Counter for generating temporary IDs
+ * @returns Temporary ID of the created node
+ */
+function collectRouteTreeData(
     pythonMol: PythonMolecule,
     routeId: string,
-    parentNodeId: string | null = null
-): Promise<{ id: string; moleculeId: string }> {
-    // Create or reuse molecule
-    const molecule = await createMoleculeFromPython(pythonMol)
+    parentTempId: string | null,
+    molecules: Map<string, { smiles: string; inchikey: string }>,
+    nodes: RouteNodeToCreate[],
+    tempIdCounter: { value: number }
+): string {
+    // Add molecule to collection if not already present
+    if (!molecules.has(pythonMol.inchikey)) {
+        molecules.set(pythonMol.inchikey, {
+            smiles: pythonMol.smiles,
+            inchikey: pythonMol.inchikey,
+        })
+    }
+
+    // Generate temporary ID for this node
+    const tempId = `temp-${tempIdCounter.value++}`
 
     // Determine if this is a leaf node
     const isLeaf = !pythonMol.synthesis_step || pythonMol.is_leaf === true
@@ -289,33 +317,143 @@ async function traverseRouteTree(
         }
     }
 
-    // Create the RouteNode
-    const node = await prisma.routeNode.create({
-        data: {
-            routeId,
-            moleculeId: molecule.id,
-            parentId: parentNodeId,
-            isLeaf,
-            reactionHash,
-            template: pythonMol.synthesis_step?.template ?? null,
-            metadata,
-        },
-        select: { id: true, moleculeId: true },
-    })
+    // Create node data structure
+    const node: RouteNodeToCreate = {
+        tempId,
+        routeId,
+        moleculeInchikey: pythonMol.inchikey,
+        parentTempId,
+        isLeaf,
+        reactionHash,
+        template: pythonMol.synthesis_step?.template ?? null,
+        metadata,
+    }
+    nodes.push(node)
 
-    // Recursively create child nodes (reactants)
-    if (pythonMol.synthesis_step) {
+    // Recursively process reactants
+    if (pythonMol.synthesis_step?.reactants) {
         for (const reactant of pythonMol.synthesis_step.reactants) {
-            await traverseRouteTree(reactant, routeId, node.id)
+            collectRouteTreeData(reactant, routeId, tempId, molecules, nodes, tempIdCounter)
         }
     }
 
-    return node
+    return tempId
+}
+
+/**
+ * Stores route tree using bulk operations to avoid N+1 query problem.
+ * Collects all molecules and nodes in memory first, then performs bulk inserts.
+ *
+ * @param pythonMol - Root molecule (target)
+ * @param routeId - Route ID these nodes belong to
+ * @returns Created root node
+ */
+async function storeRouteTree(pythonMol: PythonMolecule, routeId: string): Promise<{ id: string; moleculeId: string }> {
+    // Step 1: Collect all unique molecules and nodes in memory
+    const moleculesMap = new Map<string, { smiles: string; inchikey: string }>()
+    const nodesData: RouteNodeToCreate[] = []
+    const tempIdCounter = { value: 0 }
+
+    collectRouteTreeData(pythonMol, routeId, null, moleculesMap, nodesData, tempIdCounter)
+
+    // Step 2: Bulk handle molecules
+    const uniqueInchikeys = Array.from(moleculesMap.keys())
+
+    // Find existing molecules
+    const existingMolecules = await prisma.molecule.findMany({
+        where: { inchikey: { in: uniqueInchikeys } },
+        select: { id: true, inchikey: true },
+    })
+
+    const existingInchikeyToId = new Map(existingMolecules.map((m) => [m.inchikey, m.id]))
+
+    // Create new molecules (molecules not in database yet)
+    const newMolecules = Array.from(moleculesMap.values()).filter((m) => !existingInchikeyToId.has(m.inchikey))
+
+    if (newMolecules.length > 0) {
+        // Create molecules individually (SQLite doesn't support skipDuplicates in createMany)
+        const createdMolecules = await Promise.all(
+            newMolecules.map((m) =>
+                prisma.molecule.create({
+                    data: m,
+                    select: { id: true, inchikey: true },
+                })
+            )
+        )
+
+        for (const mol of createdMolecules) {
+            existingInchikeyToId.set(mol.inchikey, mol.id)
+        }
+    }
+
+    // Step 3: Create all nodes with proper parent-child relationships
+    // Build node map by parent to enable breadth-first creation
+    const tempIdToRealId = new Map<string, string>()
+    const nodesByParent = new Map<string | null, RouteNodeToCreate[]>()
+
+    for (const node of nodesData) {
+        const parentKey = node.parentTempId
+        if (!nodesByParent.has(parentKey)) {
+            nodesByParent.set(parentKey, [])
+        }
+        nodesByParent.get(parentKey)!.push(node)
+    }
+
+    // Breadth-first creation to ensure parents are created before children
+    const queue: RouteNodeToCreate[] = nodesByParent.get(null) || []
+    let rootNodeId: string | null = null
+    let rootMoleculeId: string | null = null
+
+    while (queue.length > 0) {
+        const currentBatch = [...queue]
+        queue.length = 0
+
+        // Create current batch
+        for (const nodeData of currentBatch) {
+            const moleculeId = existingInchikeyToId.get(nodeData.moleculeInchikey)
+            if (!moleculeId) {
+                throw new Error(`Molecule not found for inchikey: ${nodeData.moleculeInchikey}`)
+            }
+
+            const parentId = nodeData.parentTempId ? tempIdToRealId.get(nodeData.parentTempId) || null : null
+
+            const createdNode = await prisma.routeNode.create({
+                data: {
+                    routeId: nodeData.routeId,
+                    moleculeId,
+                    parentId,
+                    isLeaf: nodeData.isLeaf,
+                    reactionHash: nodeData.reactionHash,
+                    template: nodeData.template,
+                    metadata: nodeData.metadata,
+                },
+                select: { id: true },
+            })
+
+            tempIdToRealId.set(nodeData.tempId, createdNode.id)
+
+            // Track root node
+            if (nodeData.parentTempId === null) {
+                rootNodeId = createdNode.id
+                rootMoleculeId = moleculeId
+            }
+
+            // Add children to queue
+            const children = nodesByParent.get(nodeData.tempId) || []
+            queue.push(...children)
+        }
+    }
+
+    if (!rootNodeId || !rootMoleculeId) {
+        throw new Error('Failed to create root node')
+    }
+
+    return { id: rootNodeId, moleculeId: rootMoleculeId }
 }
 
 /**
  * Creates a Route record from Python route object.
- * Recursively creates the full RouteNode tree.
+ * Creates the full RouteNode tree using bulk operations to avoid N+1 queries.
  *
  * @param pythonRoute - Python route object
  * @param predictionRunId - PredictionRun ID
@@ -376,8 +514,8 @@ export async function createRouteFromPython(
         select: { id: true, rank: true, contentHash: true },
     })
 
-    // Recursively create RouteNode tree
-    await traverseRouteTree(pythonRoute.target, route.id, null)
+    // Create RouteNode tree using bulk operations
+    await storeRouteTree(pythonRoute.target, route.id)
 
     return route
 }

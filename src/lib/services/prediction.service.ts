@@ -203,23 +203,33 @@ export async function getTargetPredictions(
             throw new Error(`Route ${route.id} has no root node.`)
         }
 
-        // Recursively build tree
-        const buildTree = (nodeId: string): RouteNodeWithDetails => {
-            const node = route.nodes.find((n) => n.id === nodeId)
-            if (!node) {
-                throw new Error(`Node ${nodeId} not found in route ${route.id}.`)
-            }
+        // Build a map of nodes by ID for O(1) lookups
+        const nodeMap = new Map<string, RouteNodeWithDetails>()
 
-            const children = route.nodes.filter((n) => n.parentId === nodeId).map((child) => buildTree(child.id))
-
-            return {
+        // First pass: create all nodes with empty children arrays
+        route.nodes.forEach((node) => {
+            nodeMap.set(node.id, {
                 ...node,
                 molecule: node.molecule,
-                children,
-            }
-        }
+                children: [],
+            })
+        })
 
-        const routeTree = buildTree(rootNode.id)
+        // Second pass: build parent-child relationships
+        route.nodes.forEach((node) => {
+            if (node.parentId) {
+                const parent = nodeMap.get(node.parentId)
+                const child = nodeMap.get(node.id)
+                if (parent && child) {
+                    parent.children.push(child)
+                }
+            }
+        })
+
+        const routeTree = nodeMap.get(rootNode.id)
+        if (!routeTree) {
+            throw new Error(`Failed to build tree for route ${route.id}.`)
+        }
 
         // Map solvability status
         const solvability = route.solvabilityStatus.map((s) => ({
