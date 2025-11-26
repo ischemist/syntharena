@@ -33,7 +33,8 @@ export const metadata: Metadata = {
         template: '%s | SynthArena by isChemist Group',
         default: 'Evaluating MultiStep Retrosynthetic Solutions | SynthArena by isChemist Group',
     },
-    description: 'Project Argus is an open source AI CoScientist for theoretical and computational chemistry.',
+    description:
+        'SynthArena is an open source platform for comparing different end-to-end multistep retrosynthetic solutions.',
     authors: [{ name: 'isChemist Group' }],
 }
 
