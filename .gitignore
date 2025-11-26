@@ -46,3 +46,4 @@ prompts/
 .ignore
 
 prisma/dev.db*
+AGENTS.md

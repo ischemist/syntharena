@@ -2,6 +2,7 @@ import { AlertCircle } from 'lucide-react'
 
 import type { RouteNodeWithDetails } from '@/types'
 import { getTargetPredictions } from '@/lib/services/prediction.service'
+import { buildRouteTree } from '@/lib/services/route-tree-builder'
 import { checkMoleculesInStockByInchiKey } from '@/lib/services/stock.service'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -51,52 +52,22 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId }: Tar
     let groundTruthRouteNode: RouteNodeWithDetails | undefined
     if (targetDetail.groundTruthRoute) {
         try {
-            // Fetch ground truth route nodes
-            const gtRoute = await getTargetPredictions(targetId, runId, stockId)
-            if (gtRoute?.groundTruthRoute) {
-                // Find the ground truth in the routes array
-                // The groundTruthRoute is already a Route object, we need to fetch its nodes
-                const prisma = (await import('@/lib/db')).default
-                const gtRouteWithNodes = await prisma.route.findUnique({
-                    where: { id: targetDetail.groundTruthRoute.id },
-                    include: {
-                        nodes: {
-                            include: {
-                                molecule: true,
-                            },
+            // Fetch ground truth route nodes (we already have the route from targetDetail)
+            const prisma = (await import('@/lib/db')).default
+            const gtRouteWithNodes = await prisma.route.findUnique({
+                where: { id: targetDetail.groundTruthRoute.id },
+                include: {
+                    nodes: {
+                        include: {
+                            molecule: true,
                         },
                     },
-                })
+                },
+            })
 
-                if (gtRouteWithNodes) {
-                    // Build route node tree for ground truth
-                    const rootNode = gtRouteWithNodes.nodes.find((n) => n.parentId === null)
-                    if (rootNode) {
-                        const nodeMap = new Map<string, RouteNodeWithDetails>()
-
-                        // First pass: create all nodes with empty children arrays
-                        gtRouteWithNodes.nodes.forEach((node) => {
-                            nodeMap.set(node.id, {
-                                ...node,
-                                molecule: node.molecule,
-                                children: [],
-                            })
-                        })
-
-                        // Second pass: build parent-child relationships
-                        gtRouteWithNodes.nodes.forEach((node) => {
-                            if (node.parentId) {
-                                const parent = nodeMap.get(node.parentId)
-                                const child = nodeMap.get(node.id)
-                                if (parent && child) {
-                                    parent.children.push(child)
-                                }
-                            }
-                        })
-
-                        groundTruthRouteNode = nodeMap.get(rootNode.id)
-                    }
-                }
+            if (gtRouteWithNodes && gtRouteWithNodes.nodes.length > 0) {
+                // Build hierarchical tree from flat node array using shared helper
+                groundTruthRouteNode = buildRouteTree(gtRouteWithNodes.nodes)
             }
         } catch (error) {
             console.error('Failed to fetch ground truth route:', error)
