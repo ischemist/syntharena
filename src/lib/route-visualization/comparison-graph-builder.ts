@@ -149,7 +149,7 @@ function mergeTreesForDiff(
         status = 'ghost'
     }
 
-    // Merge children by SMILES
+    // Merge children by InChiKey
     const gtChildren = gtNode?.children || []
     const predChildren = predNode?.children || []
     const mergedChildrenMap = new Map<string, MergedRouteNode>()
