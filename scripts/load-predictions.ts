@@ -56,6 +56,7 @@ import {
     createRouteSolvability,
     transformPythonStatistics,
     updatePredictionRunStats,
+    type PythonModelStatistics,
     type PythonRoute,
 } from '../src/lib/services/prediction-writer.service'
 
@@ -347,7 +348,7 @@ async function main() {
         let manifest: ManifestFile | null = null
         if (fileExists(manifestFile)) {
             manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf-8'))
-            console.log(`  Manifest:    Found (retrocast ${manifest.retrocast_version})`)
+            console.log(`  Manifest:    Found (retrocast ${manifest?.retrocast_version})`)
         } else {
             console.log(`  Manifest:    Not found (will use defaults)`)
         }
@@ -548,7 +549,7 @@ async function main() {
             console.log('Loading statistics...')
 
             // Read raw Python JSON (with snake_case keys)
-            const rawStatisticsData = await readGzipJson<any>(statisticsFile!)
+            const rawStatisticsData = await readGzipJson<PythonModelStatistics>(statisticsFile!)
 
             // Transform snake_case to camelCase
             const statisticsData = transformPythonStatistics(rawStatisticsData)

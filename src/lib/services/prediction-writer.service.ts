@@ -33,6 +33,34 @@ export interface PythonRoute {
     metadata?: Record<string, unknown>
 }
 
+// Types for Python statistics data (snake_case)
+export interface PythonMetricResult {
+    value: number
+    ci_lower: number
+    ci_upper: number
+    n_samples: number
+    reliability: {
+        code: string
+        message: string
+    }
+}
+
+export interface PythonStratifiedMetric {
+    metric_name: string
+    overall: PythonMetricResult
+    by_group?: Record<string, PythonMetricResult>
+}
+
+export interface PythonModelStatistics {
+    solvability: PythonStratifiedMetric
+    top_k_accuracy?: Record<string, PythonStratifiedMetric>
+    rank_distribution?: {
+        rank: number
+        probability: number
+    }[]
+    expected_rank?: number
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -101,9 +129,9 @@ function computeReactionHash(step: PythonReactionStep, productSmiles: string): s
  * @param pythonStats - Raw Python statistics object with snake_case keys
  * @returns ModelStatistics object with camelCase keys
  */
-export function transformPythonStatistics(pythonStats: any): ModelStatistics {
+export function transformPythonStatistics(pythonStats: PythonModelStatistics): ModelStatistics {
     // Helper to transform a single metric result
-    const transformMetricResult = (pythonResult: any): MetricResult => ({
+    const transformMetricResult = (pythonResult: PythonMetricResult): MetricResult => ({
         value: pythonResult.value,
         ciLower: pythonResult.ci_lower,
         ciUpper: pythonResult.ci_upper,
@@ -115,11 +143,11 @@ export function transformPythonStatistics(pythonStats: any): ModelStatistics {
     })
 
     // Helper to transform a stratified metric
-    const transformStratifiedMetric = (pythonMetric: any): StratifiedMetric => ({
+    const transformStratifiedMetric = (pythonMetric: PythonStratifiedMetric): StratifiedMetric => ({
         metricName: pythonMetric.metric_name,
         overall: transformMetricResult(pythonMetric.overall),
         byGroup: Object.fromEntries(
-            Object.entries(pythonMetric.by_group || {}).map(([key, value]: [string, any]) => [
+            Object.entries(pythonMetric.by_group || {}).map(([key, value]: [string, PythonMetricResult]) => [
                 parseInt(key, 10),
                 transformMetricResult(value),
             ])
@@ -134,7 +162,7 @@ export function transformPythonStatistics(pythonStats: any): ModelStatistics {
     // Transform top_k_accuracy if present
     if (pythonStats.top_k_accuracy) {
         result.topKAccuracy = Object.fromEntries(
-            Object.entries(pythonStats.top_k_accuracy).map(([k, metric]: [string, any]) => [
+            Object.entries(pythonStats.top_k_accuracy).map(([k, metric]: [string, PythonStratifiedMetric]) => [
                 k,
                 transformStratifiedMetric(metric),
             ])
