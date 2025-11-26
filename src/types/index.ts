@@ -272,21 +272,25 @@ export interface RouteVisualizationNode {
 
 /**
  * React Flow node data with visualization metadata.
- * Includes position, status, and stock availability.
+ * Includes position, status, stock availability, and leaf status.
  */
 export interface RouteGraphNode {
     smiles: string
     status: NodeStatus
     inStock?: boolean
+    isLeaf?: boolean
     [key: string]: unknown
 }
 
 /**
  * Union type for node visual states.
  * - "in-stock" | "default": Used for single route visualization with stock highlighting
- * - "match" | "hallucination" | "ghost": Used for route comparison modes
+ * - "match" | "extension" | "ghost": Used for route comparison modes
+ *   - "match": Node present in both ground truth and prediction
+ *   - "extension": Node present in prediction but not ground truth (potential alternative route)
+ *   - "ghost": Node present in ground truth but missing from prediction
  */
-export type NodeStatus = 'in-stock' | 'default' | 'match' | 'hallucination' | 'ghost'
+export type NodeStatus = 'in-stock' | 'default' | 'match' | 'extension' | 'ghost'
 
 /**
  * View mode for route visualization.

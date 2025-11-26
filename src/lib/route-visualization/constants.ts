@@ -9,7 +9,7 @@ export const NODE_HEIGHT = 60
 
 // Spacing between nodes (in pixels)
 export const HORIZONTAL_SPACING = 30
-export const VERTICAL_SPACING = 200
+export const VERTICAL_SPACING = 160
 
 // Export as config object for flexibility
 export const LAYOUT_CONFIG = Object.freeze({

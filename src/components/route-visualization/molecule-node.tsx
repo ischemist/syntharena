@@ -2,7 +2,7 @@
 
 import { Handle, Position } from '@xyflow/react'
 import type { Node, NodeProps } from '@xyflow/react'
-import { CheckCircle2, Ghost, XCircle } from 'lucide-react'
+import { Package } from 'lucide-react'
 
 import type { NodeStatus, RouteGraphNode } from '@/types'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
@@ -15,37 +15,25 @@ import { SmileDrawerSvg } from '@/components/smile-drawer'
  * - "in-stock": Molecule is available in the selected stock (green border)
  * - "default": Normal molecule node (gray border)
  * - "match": Both GT and prediction have this molecule (green border, solid)
- * - "hallucination": Only in prediction, not in GT (red border, solid)
+ * - "extension": Only in prediction, not in GT (amber/yellow border, solid) - potential alternative route
  * - "ghost": Only in GT, missing from prediction (gray border, dashed)
  */
 export function MoleculeNode({ data }: NodeProps<Node<RouteGraphNode>>) {
-    const { smiles, status } = data
+    const { smiles, status, isLeaf, inStock } = data
 
-    // Status-based styling
+    // Status-based styling - borders only, no background fills
     const statusClasses: Record<NodeStatus, string> = {
-        'in-stock': 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950',
+        'in-stock': 'border-emerald-500 bg-white dark:bg-gray-900',
         default: 'border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-900',
-        match: 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950',
-        hallucination: 'border-red-500 bg-red-50 dark:bg-red-950',
-        ghost: 'border-gray-400 border-dashed bg-gray-100 dark:bg-gray-800 opacity-60',
-    }
-
-    // Status icons for comparison modes
-    const statusIcons: Partial<Record<NodeStatus, React.ReactNode>> = {
-        match: <CheckCircle2 className="h-3 w-3 text-emerald-500" />,
-        hallucination: <XCircle className="h-3 w-3 text-red-500" />,
-        ghost: <Ghost className="h-3 w-3 text-gray-400" />,
-    }
-
-    // Status labels for comparison modes
-    const statusLabels: Partial<Record<NodeStatus, string>> = {
-        match: 'Match',
-        hallucination: 'Hallucination',
-        ghost: 'Missing',
+        match: 'border-emerald-500 bg-white dark:bg-gray-900',
+        extension: 'border-amber-500 bg-white dark:bg-gray-900',
+        ghost: 'border-gray-400 border-dashed bg-white dark:bg-gray-900 opacity-60',
     }
 
     const nodeClass = statusClasses[status] || statusClasses.default
-    const showStatusBadge = status === 'match' || status === 'hallucination' || status === 'ghost'
+
+    // Show stock badge for leaf nodes in comparison mode (extension or match status)
+    const showStockBadge = isLeaf && (status === 'extension' || status === 'match')
 
     return (
         <div className={`relative rounded-lg border-2 shadow-sm ${nodeClass}`}>
@@ -55,12 +43,18 @@ export function MoleculeNode({ data }: NodeProps<Node<RouteGraphNode>>) {
             <div className="flex flex-col items-center p-2">
                 <SmileDrawerSvg smilesStr={smiles} width={160} height={120} compactDrawing={false} />
 
-                {/* Status badge for comparison modes */}
-                {showStatusBadge && (
-                    <div className="bg-background mt-1 flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
-                        {statusIcons[status]}
-                        <span>{statusLabels[status]}</span>
-                    </div>
+                {/* Stock availability badge for leaf nodes in comparison mode */}
+                {showStockBadge && (
+                    <span
+                        className={
+                            inStock
+                                ? 'mt-1 inline-flex items-center gap-1 rounded-md border-transparent bg-emerald-500/15 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300'
+                                : 'mt-1 inline-flex items-center gap-1 rounded-md border-transparent bg-gray-500/15 px-1.5 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-300'
+                        }
+                    >
+                        <Package className="h-3 w-3" />
+                        {inStock ? 'In Stock' : 'Not in Stock'}
+                    </span>
                 )}
             </div>
 

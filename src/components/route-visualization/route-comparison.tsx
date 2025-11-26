@@ -20,6 +20,7 @@ interface RouteComparisonProps {
     groundTruthRoute: RouteVisualizationNode
     predictionRoute: RouteVisualizationNode
     mode: 'side-by-side' | 'diff-overlay'
+    inStockInchiKeys: Set<string>
 }
 
 /**
@@ -111,7 +112,7 @@ function DiffOverlayPanel({
  * Route comparison component supporting side-by-side and diff overlay views.
  * Shows the difference between ground truth and predicted routes.
  */
-export function RouteComparison({ groundTruthRoute, predictionRoute, mode }: RouteComparisonProps) {
+export function RouteComparison({ groundTruthRoute, predictionRoute, mode, inStockInchiKeys }: RouteComparisonProps) {
     // Collect InChiKeys from both routes for comparison
     const gtInchiKeys = useMemo(() => {
         const set = new Set<string>()
@@ -135,7 +136,8 @@ export function RouteComparison({ groundTruthRoute, predictionRoute, mode }: Rou
                     gtInchiKeys,
                     predInchiKeys,
                     true,
-                    'gt_'
+                    'gt_',
+                    inStockInchiKeys
                 ),
                 predGraph: buildSideBySideGraph(
                     predictionRoute,
@@ -143,7 +145,8 @@ export function RouteComparison({ groundTruthRoute, predictionRoute, mode }: Rou
                     gtInchiKeys,
                     predInchiKeys,
                     false,
-                    'pred_'
+                    'pred_',
+                    inStockInchiKeys
                 ),
                 diffGraph: null,
             }
@@ -151,10 +154,10 @@ export function RouteComparison({ groundTruthRoute, predictionRoute, mode }: Rou
             return {
                 gtGraph: null,
                 predGraph: null,
-                diffGraph: buildDiffOverlayGraph(groundTruthRoute, predictionRoute),
+                diffGraph: buildDiffOverlayGraph(groundTruthRoute, predictionRoute, inStockInchiKeys),
             }
         }
-    }, [groundTruthRoute, predictionRoute, gtInchiKeys, predInchiKeys, mode])
+    }, [groundTruthRoute, predictionRoute, gtInchiKeys, predInchiKeys, mode, inStockInchiKeys])
 
     if (mode === 'side-by-side' && gtGraph && predGraph) {
         return (

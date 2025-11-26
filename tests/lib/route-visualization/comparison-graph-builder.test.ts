@@ -67,7 +67,7 @@ describe('Route Comparison Graph Builders', () => {
             })
         })
 
-        it('should mark prediction nodes as match or hallucination', () => {
+        it('should mark prediction nodes as match or extension', () => {
             const gtInchiKeys = new Set([
                 'LFQSCWFLJHTTHZ-UHFFFAOYSA-N',
                 'OTMSDBZUPAUEDD-UHFFFAOYSA-N',
@@ -97,9 +97,9 @@ describe('Route Comparison Graph Builders', () => {
             const matchChild = result.nodes.find((n) => n.data.smiles === 'CC')
             expect(matchChild?.data.status).toBe('match')
 
-            // Check second child is hallucination
-            const hallucinatedChild = result.nodes.find((n) => n.data.smiles === 'CO')
-            expect(hallucinatedChild?.data.status).toBe('hallucination')
+            // Check second child is extension
+            const extensionChild = result.nodes.find((n) => n.data.smiles === 'CO')
+            expect(extensionChild?.data.status).toBe('extension')
 
             // Check ghost node from GT
             const ghostNode = result.nodes.find((n) => n.data.smiles === 'O')
@@ -162,12 +162,12 @@ describe('Route Comparison Graph Builders', () => {
             expect(ghostNode?.data.status).toBe('ghost')
         })
 
-        it('should mark hallucinated nodes correctly', () => {
+        it('should mark extension nodes correctly', () => {
             const result = buildDiffOverlayGraph(groundTruthRoute, predictionRoute)
 
-            // CO should be hallucination (in prediction but not GT)
-            const hallucinatedNode = result.nodes.find((n) => n.data.smiles === 'CO')
-            expect(hallucinatedNode?.data.status).toBe('hallucination')
+            // CO should be extension (in prediction but not GT)
+            const extensionNode = result.nodes.find((n) => n.data.smiles === 'CO')
+            expect(extensionNode?.data.status).toBe('extension')
         })
 
         it('should create dashed edges for ghost nodes', () => {

@@ -28,7 +28,7 @@ interface LayoutNodeWithStatus {
  * Used for both ground truth and prediction in side-by-side view.
  *
  * For ground truth: shows all GT nodes as "match"
- * For prediction: shows predicted nodes (match/hallucination) + ghost nodes from GT
+ * For prediction: shows predicted nodes (match/extension) + ghost nodes from GT
  *
  * @param route - Route to visualize
  * @param otherRoute - The other route for comparison (GT when building pred, pred when building GT)
@@ -36,6 +36,7 @@ interface LayoutNodeWithStatus {
  * @param predInchiKeys - Set of InChiKeys from prediction
  * @param isGT - Whether this is the ground truth route (true) or prediction (false)
  * @param idPrefix - Prefix for node IDs
+ * @param inStockInchiKeys - Set of InChiKeys that are in stock (optional)
  * @returns React Flow nodes and edges with comparison status
  */
 export function buildSideBySideGraph(
@@ -44,7 +45,8 @@ export function buildSideBySideGraph(
     gtInchiKeys: Set<string>,
     predInchiKeys: Set<string>,
     isGT: boolean,
-    idPrefix: string
+    idPrefix: string,
+    inStockInchiKeys?: Set<string>
 ): { nodes: Node<RouteGraphNode>[]; edges: Edge[] } {
     if (isGT) {
         // Ground truth side: just show the GT route with all nodes as "match"
@@ -85,6 +87,7 @@ export function buildSideBySideGraph(
             x: number
             y: number
             status: NodeStatus
+            isLeaf: boolean
         }> = []
         const layoutEdges: Array<{ source: string; target: string; isGhost: boolean }> = []
         flattenMergedLayoutTree(layoutRoot, layoutNodes, layoutEdges, null, false)
@@ -96,6 +99,8 @@ export function buildSideBySideGraph(
             data: {
                 smiles: n.smiles,
                 status: n.status,
+                isLeaf: n.isLeaf,
+                inStock: inStockInchiKeys?.has(n.inchikey),
             },
         }))
 
@@ -139,7 +144,7 @@ function mergeTreesForDiff(
     if (predInchiKeys.has(inchikey) && gtInchiKeys.has(inchikey)) {
         status = 'match'
     } else if (predInchiKeys.has(inchikey) && !gtInchiKeys.has(inchikey)) {
-        status = 'hallucination'
+        status = 'extension'
     } else {
         status = 'ghost'
     }
@@ -195,12 +200,21 @@ function buildMergedLayoutTree(node: MergedRouteNode, idPrefix: string): LayoutN
  */
 function flattenMergedLayoutTree(
     node: LayoutNodeWithStatus,
-    nodes: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number; status: NodeStatus }>,
+    nodes: Array<{
+        id: string
+        smiles: string
+        inchikey: string
+        x: number
+        y: number
+        status: NodeStatus
+        isLeaf: boolean
+    }>,
     edges: Array<{ source: string; target: string; isGhost: boolean }>,
     parentId: string | null,
     parentIsGhost: boolean
 ): void {
     const isGhost = node.status === 'ghost'
+    const isLeaf = node.children.length === 0
     nodes.push({
         id: node.id,
         smiles: node.smiles,
@@ -208,6 +222,7 @@ function flattenMergedLayoutTree(
         x: node.x!,
         y: node.y!,
         status: node.status,
+        isLeaf,
     })
 
     if (parentId) {
@@ -221,15 +236,17 @@ function flattenMergedLayoutTree(
 
 /**
  * Builds diff overlay graph showing merged prediction and ground truth.
- * Highlights matches, hallucinations, and missing nodes.
+ * Highlights matches, extensions, and missing nodes.
  *
  * @param gtRoute - Ground truth route
  * @param predRoute - Predicted route
+ * @param inStockInchiKeys - Set of InChiKeys that are in stock (optional)
  * @returns React Flow nodes and edges with diff highlighting
  */
 export function buildDiffOverlayGraph(
     gtRoute: RouteVisualizationNode,
-    predRoute: RouteVisualizationNode
+    predRoute: RouteVisualizationNode,
+    inStockInchiKeys?: Set<string>
 ): { nodes: Node<RouteGraphNode>[]; edges: Edge[] } {
     // Collect all InChiKeys from both trees
     const gtInchiKeys = new Set<string>()
@@ -254,6 +271,7 @@ export function buildDiffOverlayGraph(
         x: number
         y: number
         status: NodeStatus
+        isLeaf: boolean
     }> = []
     const layoutEdges: Array<{ source: string; target: string; isGhost: boolean }> = []
     flattenMergedLayoutTree(layoutRoot, layoutNodes, layoutEdges, null, false)
@@ -266,6 +284,8 @@ export function buildDiffOverlayGraph(
         data: {
             smiles: n.smiles,
             status: n.status,
+            isLeaf: n.isLeaf,
+            inStock: inStockInchiKeys?.has(n.inchikey),
         },
     }))
 

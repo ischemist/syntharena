@@ -104,6 +104,7 @@ export function RouteDisplayCard({
                             groundTruthRoute={groundTruthVisualizationRoute}
                             predictionRoute={visualizationRoute}
                             mode={viewMode}
+                            inStockInchiKeys={inStockInchiKeys}
                         />
                     )}
                 </div>
@@ -116,8 +117,8 @@ export function RouteDisplayCard({
                     {viewMode === 'prediction-only'
                         ? 'Scroll to zoom. Drag to pan. Nodes marked in green are in stock.'
                         : viewMode === 'side-by-side'
-                          ? 'Scroll to zoom. Drag to pan. Green nodes match ground truth, red nodes are hallucinations.'
-                          : 'Scroll to zoom. Drag to pan. Green = match, red = hallucination, dashed gray = missing from prediction.'}
+                          ? 'Scroll to zoom. Drag to pan. Green = match with ground truth, amber = extension (not in ground truth).'
+                          : 'Scroll to zoom. Drag to pan. Green = match, amber = extension, dashed gray = missing from prediction.'}
                 </p>
 
                 {/* Route metadata */}

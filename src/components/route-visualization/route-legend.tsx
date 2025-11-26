@@ -37,8 +37,8 @@ export function RouteLegend({ viewMode = 'prediction-only' }: RouteLegendProps) 
                         <span className="text-muted-foreground text-sm">Match</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        <div className="h-4 w-4 rounded border-2 border-red-500 bg-red-50 dark:bg-red-950" />
-                        <span className="text-muted-foreground text-sm">Hallucination</span>
+                        <div className="h-4 w-4 rounded border-2 border-amber-500 bg-amber-50 dark:bg-amber-950" />
+                        <span className="text-muted-foreground text-sm">Extension</span>
                     </div>
                     {viewMode === 'diff-overlay' && (
                         <div className="flex items-center gap-1.5">
