@@ -4,9 +4,8 @@ import type { MetricResult } from '@/types'
 import { getRunStatistics } from '@/lib/services/prediction.service'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-import { MetricCell } from '../client/metric-cell'
+import { MetricsViewToggle } from '../client/metrics-view-toggle'
 
 type RunStatisticsSummaryProps = {
     runId: string
@@ -89,41 +88,7 @@ export async function RunStatisticsSummary({ runId, searchParams }: RunStatistic
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                {metricsColumns.map((col, idx) => (
-                                    <TableHead key={col.name} className="min-w-[160px] text-center">
-                                        {col.name}
-                                    </TableHead>
-                                ))}
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            <TableRow>
-                                {metricsColumns.map((col, idx) => (
-                                    <TableCell
-                                        key={col.name}
-                                        className={
-                                            idx === metricsColumns.length - 1
-                                                ? 'pr-12 text-center' // Extra padding right for last column upper CI
-                                                : 'text-center'
-                                        }
-                                    >
-                                        <MetricCell metric={col.metric} showBadge />
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-                        </TableBody>
-                    </Table>
-                </div>
-
-                <div className="text-muted-foreground mt-4 text-sm">
-                    <p>
-                        n = {nSamples} target{nSamples !== 1 ? 's' : ''}
-                    </p>
-                </div>
+                <MetricsViewToggle metrics={metricsColumns} nSamples={nSamples} />
             </CardContent>
         </Card>
     )
