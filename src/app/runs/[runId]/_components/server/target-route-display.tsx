@@ -2,6 +2,7 @@ import { AlertCircle } from 'lucide-react'
 
 import type { RouteNodeWithDetails } from '@/types'
 import { getTargetPredictions } from '@/lib/services/prediction.service'
+import { buildRouteTree } from '@/lib/services/route-tree-builder'
 import { checkMoleculesInStockByInchiKey } from '@/lib/services/stock.service'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -46,6 +47,32 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId }: Tar
     // Get stock items if stockId provided (for route visualization)
     let inStockInchiKeys = new Set<string>()
     let stockName: string | undefined
+
+    // Build ground truth route tree if available
+    let groundTruthRouteNode: RouteNodeWithDetails | undefined
+    if (targetDetail.groundTruthRoute) {
+        try {
+            // Fetch ground truth route nodes (we already have the route from targetDetail)
+            const prisma = (await import('@/lib/db')).default
+            const gtRouteWithNodes = await prisma.route.findUnique({
+                where: { id: targetDetail.groundTruthRoute.id },
+                include: {
+                    nodes: {
+                        include: {
+                            molecule: true,
+                        },
+                    },
+                },
+            })
+
+            if (gtRouteWithNodes && gtRouteWithNodes.nodes.length > 0) {
+                // Build hierarchical tree from flat node array using shared helper
+                groundTruthRouteNode = buildRouteTree(gtRouteWithNodes.nodes)
+            }
+        } catch (error) {
+            console.error('Failed to fetch ground truth route:', error)
+        }
+    }
 
     if (hasRoutes && stockId && stockId !== 'all') {
         try {
@@ -155,6 +182,7 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId }: Tar
                             <RouteDisplayCard
                                 route={routeDetail.route}
                                 routeNode={routeDetail.routeNode}
+                                groundTruthRouteNode={groundTruthRouteNode}
                                 isSolvable={solvability?.isSolvable}
                                 isGtMatch={solvability?.isGtMatch}
                                 inStockInchiKeys={inStockInchiKeys}

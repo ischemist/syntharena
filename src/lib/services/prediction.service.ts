@@ -22,6 +22,8 @@ import type {
 } from '@/types'
 import prisma from '@/lib/db'
 
+import { buildRouteTree } from './route-tree-builder'
+
 // ============================================================================
 // Core Read Functions
 // ============================================================================
@@ -195,39 +197,8 @@ export async function getTargetPredictions(
 
     // Build route node tree for each route
     const routesWithTrees = routes.map((route) => {
-        // Find root node (node with no parent)
-        const rootNode = route.nodes.find((n) => n.parentId === null)
-        if (!rootNode) {
-            throw new Error(`Route ${route.id} has no root node.`)
-        }
-
-        // Build a map of nodes by ID for O(1) lookups
-        const nodeMap = new Map<string, RouteNodeWithDetails>()
-
-        // First pass: create all nodes with empty children arrays
-        route.nodes.forEach((node) => {
-            nodeMap.set(node.id, {
-                ...node,
-                molecule: node.molecule,
-                children: [],
-            })
-        })
-
-        // Second pass: build parent-child relationships
-        route.nodes.forEach((node) => {
-            if (node.parentId) {
-                const parent = nodeMap.get(node.parentId)
-                const child = nodeMap.get(node.id)
-                if (parent && child) {
-                    parent.children.push(child)
-                }
-            }
-        })
-
-        const routeTree = nodeMap.get(rootNode.id)
-        if (!routeTree) {
-            throw new Error(`Failed to build tree for route ${route.id}.`)
-        }
+        // Build hierarchical tree from flat node array
+        const routeTree = buildRouteTree(route.nodes)
 
         // Map solvability status
         const solvability = route.solvabilityStatus.map((s) => ({
