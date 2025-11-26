@@ -42,11 +42,11 @@ model Molecule {
 // =================================================================================
 
 model BenchmarkSet {
-  id               String  @id @default(cuid())
-  name             String  @unique // e.g. "mkt-lin-500"
-  description      String?
-  stockName        String? // The "stock_name" required by the benchmark contract
-  hasGroundTruth   Boolean @default(false) // All-or-nothing: targets either all have GT routes or none do
+  id             String  @id @default(cuid())
+  name           String  @unique // e.g. "mkt-lin-500"
+  description    String?
+  stockName      String? // The "stock_name" required by the benchmark contract
+  hasGroundTruth Boolean @default(false) // All-or-nothing: targets either all have GT routes or none do
 
   createdAt DateTime @default(now())
 
@@ -120,8 +120,8 @@ model PredictionRun {
   totalTimeMs Float? // Wall time
   totalRoutes Int // final_unique_routes_saved
 
-  modelInstance ModelInstance         @relation(fields: [modelInstanceId], references: [id])
-  benchmarkSet  BenchmarkSet          @relation(fields: [benchmarkSetId], references: [id])
+  modelInstance ModelInstance        @relation(fields: [modelInstanceId], references: [id])
+  benchmarkSet  BenchmarkSet         @relation(fields: [benchmarkSetId], references: [id])
   routes        Route[]
   statistics    ModelRunStatistics[]
 
@@ -186,9 +186,9 @@ model RouteNode {
 // =================================================================================
 
 enum ReliabilityCode {
-  OK         // Reliable estimate
-  LOW_N      // Sample size too small (n < threshold)
-  EXTREME_P  // Probability near boundary (p very close to 0 or 1)
+  OK // Reliable estimate
+  LOW_N // Sample size too small (n < threshold)
+  EXTREME_P // Probability near boundary (p very close to 0 or 1)
 }
 
 model ModelRunStatistics {
@@ -196,13 +196,13 @@ model ModelRunStatistics {
   predictionRunId String
   benchmarkSetId  String
   stockId         String
-  statisticsJson  String   // Full ModelStatistics JSON blob for flexibility
+  statisticsJson  String // Full ModelStatistics JSON blob for flexibility
   computedAt      DateTime @default(now())
 
   // Relations
-  predictionRun PredictionRun            @relation(fields: [predictionRunId], references: [id])
-  benchmarkSet  BenchmarkSet             @relation(fields: [benchmarkSetId], references: [id])
-  stock         Stock                    @relation(fields: [stockId], references: [id])
+  predictionRun PredictionRun           @relation(fields: [predictionRunId], references: [id])
+  benchmarkSet  BenchmarkSet            @relation(fields: [benchmarkSetId], references: [id])
+  stock         Stock                   @relation(fields: [stockId], references: [id])
   metrics       StratifiedMetricGroup[]
 
   @@unique([predictionRunId, stockId]) // Multiple stocks per run
@@ -211,28 +211,28 @@ model ModelRunStatistics {
 }
 
 model StratifiedMetricGroup {
-  id             String           @id @default(cuid())
-  statisticsId   String
-  
+  id           String @id @default(cuid())
+  statisticsId String
+
   // Metric identification
-  metricName     String           // "Solvability", "Top-1", "Top-5", "Top-10", etc.
-  groupKey       Int?             // NULL for overall, route_length (2,3,4,5,6...) for stratified
-  
+  metricName String // "Solvability", "Top-1", "Top-5", "Top-10", etc.
+  groupKey   Int? // NULL for overall, route_length (2,3,4,5,6...) for stratified
+
   // Metric values (stored as 0-1, convert to percentage in UI)
-  value          Float
-  ciLower        Float
-  ciUpper        Float
-  nSamples       Int
-  
+  value    Float
+  ciLower  Float
+  ciUpper  Float
+  nSamples Int
+
   // Reliability assessment
   reliabilityCode    ReliabilityCode
   reliabilityMessage String
-  
+
   // Relations
   statistics ModelRunStatistics @relation(fields: [statisticsId], references: [id], onDelete: Cascade)
-  
+
   @@index([statisticsId, metricName]) // Fast filtering by metric
-  @@index([metricName, groupKey])      // Fast stratified queries
+  @@index([metricName, groupKey]) // Fast stratified queries
 }
 
 // =================================================================================

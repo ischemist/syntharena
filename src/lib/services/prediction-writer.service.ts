@@ -94,6 +94,64 @@ function computeReactionHash(step: PythonReactionStep, productSmiles: string): s
     return crypto.createHash('sha256').update(content).digest('hex')
 }
 
+/**
+ * Transforms Python snake_case statistics JSON to TypeScript camelCase.
+ * Converts field names to match TypeScript ModelStatistics interface.
+ *
+ * @param pythonStats - Raw Python statistics object with snake_case keys
+ * @returns ModelStatistics object with camelCase keys
+ */
+export function transformPythonStatistics(pythonStats: any): ModelStatistics {
+    // Helper to transform a single metric result
+    const transformMetricResult = (pythonResult: any): MetricResult => ({
+        value: pythonResult.value,
+        ciLower: pythonResult.ci_lower,
+        ciUpper: pythonResult.ci_upper,
+        nSamples: pythonResult.n_samples,
+        reliability: {
+            code: pythonResult.reliability.code as ReliabilityFlag['code'],
+            message: pythonResult.reliability.message,
+        },
+    })
+
+    // Helper to transform a stratified metric
+    const transformStratifiedMetric = (pythonMetric: any): StratifiedMetric => ({
+        metricName: pythonMetric.metric_name,
+        overall: transformMetricResult(pythonMetric.overall),
+        byGroup: Object.fromEntries(
+            Object.entries(pythonMetric.by_group || {}).map(([key, value]: [string, any]) => [
+                parseInt(key, 10),
+                transformMetricResult(value),
+            ])
+        ),
+    })
+
+    // Transform the full statistics object
+    const result: ModelStatistics = {
+        solvability: transformStratifiedMetric(pythonStats.solvability),
+    }
+
+    // Transform top_k_accuracy if present
+    if (pythonStats.top_k_accuracy) {
+        result.topKAccuracy = Object.fromEntries(
+            Object.entries(pythonStats.top_k_accuracy).map(([k, metric]: [string, any]) => [
+                k,
+                transformStratifiedMetric(metric),
+            ])
+        )
+    }
+
+    // Transform optional fields if present
+    if (pythonStats.rank_distribution) {
+        result.rankDistribution = pythonStats.rank_distribution
+    }
+    if (pythonStats.expected_rank !== undefined) {
+        result.expectedRank = pythonStats.expected_rank
+    }
+
+    return result
+}
+
 // ============================================================================
 // Core Write Functions
 // ============================================================================
