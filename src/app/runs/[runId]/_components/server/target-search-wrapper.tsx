@@ -25,7 +25,11 @@ export async function TargetSearchWrapper({ runId, stockId, currentTargetId }: T
         currentIndex: currentIndex >= 0 ? currentIndex : undefined,
         previousTargetId: currentIndex > 0 ? targetIds[currentIndex - 1] : undefined,
         nextTargetId:
-            currentIndex >= 0 && currentIndex < targetIds.length - 1 ? targetIds[currentIndex + 1] : undefined,
+            currentIndex >= 0 && currentIndex < targetIds.length - 1
+                ? targetIds[currentIndex + 1]
+                : currentIndex < 0 && targetIds.length > 0
+                  ? targetIds[0] // When no target is selected, next goes to first target
+                  : undefined,
     }
 
     // Create a server action to pass to the client component

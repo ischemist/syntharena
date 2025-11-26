@@ -283,10 +283,18 @@ export interface RouteGraphNode {
 
 /**
  * Union type for node visual states.
- * Phase 1: "in-stock" | "default"
- * Future: Can expand to include "match" | "hallucination" | "ghost"
+ * - "in-stock" | "default": Used for single route visualization with stock highlighting
+ * - "match" | "hallucination" | "ghost": Used for route comparison modes
  */
-export type NodeStatus = 'in-stock' | 'default'
+export type NodeStatus = 'in-stock' | 'default' | 'match' | 'hallucination' | 'ghost'
+
+/**
+ * View mode for route visualization.
+ * - "prediction-only": Show only the predicted route
+ * - "side-by-side": Show prediction and ground truth side by side
+ * - "diff-overlay": Show merged view with diff highlighting
+ */
+export type RouteViewMode = 'prediction-only' | 'side-by-side' | 'diff-overlay'
 
 /**
  * Configuration for tree layout algorithm.
@@ -297,6 +305,17 @@ export interface RouteLayoutConfig {
     nodeHeight: number
     horizontalSpacing: number
     verticalSpacing: number
+}
+
+/**
+ * Merged node structure for diff overlay visualization.
+ * Combines ground truth and prediction routes into a single tree.
+ */
+export interface MergedRouteNode {
+    smiles: string
+    inchikey: string
+    status: NodeStatus
+    children: MergedRouteNode[]
 }
 
 // ============================================================================

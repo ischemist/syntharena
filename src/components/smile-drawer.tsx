@@ -24,7 +24,8 @@ export const SmileDrawerSvg = ({
             height,
             compactDrawing,
             bondThickness: 2.0,
-            padding: 2,
+            padding: 4,
+            aromaticRingStyle: 'kekule',
         }),
         [width, height, compactDrawing]
     )

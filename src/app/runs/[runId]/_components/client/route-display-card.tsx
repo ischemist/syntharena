@@ -1,15 +1,19 @@
 'use client'
 
+import { useState } from 'react'
 import { CheckCircle, XCircle } from 'lucide-react'
 
-import type { Route, RouteNodeWithDetails, RouteVisualizationNode } from '@/types'
-import { RouteGraph, RouteLegend } from '@/components/route-visualization'
+import type { Route, RouteNodeWithDetails, RouteViewMode, RouteVisualizationNode } from '@/types'
+import { RouteComparison, RouteGraph, RouteLegend } from '@/components/route-visualization'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+
+import { RouteViewToggle } from './route-view-toggle'
 
 type RouteDisplayCardProps = {
     route: Route
     routeNode: RouteNodeWithDetails
+    groundTruthRouteNode?: RouteNodeWithDetails
     isSolvable?: boolean
     isGtMatch?: boolean
     inStockInchiKeys: Set<string>
@@ -19,11 +23,15 @@ type RouteDisplayCardProps = {
 export function RouteDisplayCard({
     route,
     routeNode,
+    groundTruthRouteNode,
     isSolvable,
     isGtMatch,
     inStockInchiKeys,
     stockName,
 }: RouteDisplayCardProps) {
+    const [viewMode, setViewMode] = useState<RouteViewMode>('prediction-only')
+    const hasGroundTruth = !!groundTruthRouteNode
+
     // Convert RouteNodeWithDetails to RouteVisualizationNode format
     const convertToVisualizationNode = (node: RouteNodeWithDetails): RouteVisualizationNode => {
         return {
@@ -34,6 +42,9 @@ export function RouteDisplayCard({
     }
 
     const visualizationRoute = convertToVisualizationNode(routeNode)
+    const groundTruthVisualizationRoute = groundTruthRouteNode
+        ? convertToVisualizationNode(groundTruthRouteNode)
+        : undefined
 
     return (
         <Card>
@@ -76,17 +87,37 @@ export function RouteDisplayCard({
                     </div>
                 )}
 
+                {/* View mode toggle */}
+                <RouteViewToggle viewMode={viewMode} onViewModeChange={setViewMode} hasGroundTruth={hasGroundTruth} />
+
                 {/* Route visualization */}
                 <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-                    <RouteGraph route={visualizationRoute} inStockInchiKeys={inStockInchiKeys} idPrefix="run-route-" />
+                    {viewMode === 'prediction-only' && (
+                        <RouteGraph
+                            route={visualizationRoute}
+                            inStockInchiKeys={inStockInchiKeys}
+                            idPrefix="run-route-"
+                        />
+                    )}
+                    {(viewMode === 'side-by-side' || viewMode === 'diff-overlay') && groundTruthVisualizationRoute && (
+                        <RouteComparison
+                            groundTruthRoute={groundTruthVisualizationRoute}
+                            predictionRoute={visualizationRoute}
+                            mode={viewMode}
+                        />
+                    )}
                 </div>
 
                 {/* Legend */}
-                <RouteLegend />
+                <RouteLegend viewMode={viewMode} />
 
                 {/* Info */}
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Scroll to zoom. Drag to pan. Nodes marked in green are in stock.
+                    {viewMode === 'prediction-only'
+                        ? 'Scroll to zoom. Drag to pan. Nodes marked in green are in stock.'
+                        : viewMode === 'side-by-side'
+                          ? 'Scroll to zoom. Drag to pan. Green nodes match ground truth, red nodes are hallucinations.'
+                          : 'Scroll to zoom. Drag to pan. Green = match, red = hallucination, dashed gray = missing from prediction.'}
                 </p>
 
                 {/* Route metadata */}

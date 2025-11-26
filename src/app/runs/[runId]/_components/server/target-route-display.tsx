@@ -47,6 +47,62 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId }: Tar
     let inStockInchiKeys = new Set<string>()
     let stockName: string | undefined
 
+    // Build ground truth route tree if available
+    let groundTruthRouteNode: RouteNodeWithDetails | undefined
+    if (targetDetail.groundTruthRoute) {
+        try {
+            // Fetch ground truth route nodes
+            const gtRoute = await getTargetPredictions(targetId, runId, stockId)
+            if (gtRoute?.groundTruthRoute) {
+                // Find the ground truth in the routes array
+                // The groundTruthRoute is already a Route object, we need to fetch its nodes
+                const prisma = (await import('@/lib/db')).default
+                const gtRouteWithNodes = await prisma.route.findUnique({
+                    where: { id: targetDetail.groundTruthRoute.id },
+                    include: {
+                        nodes: {
+                            include: {
+                                molecule: true,
+                            },
+                        },
+                    },
+                })
+
+                if (gtRouteWithNodes) {
+                    // Build route node tree for ground truth
+                    const rootNode = gtRouteWithNodes.nodes.find((n) => n.parentId === null)
+                    if (rootNode) {
+                        const nodeMap = new Map<string, RouteNodeWithDetails>()
+
+                        // First pass: create all nodes with empty children arrays
+                        gtRouteWithNodes.nodes.forEach((node) => {
+                            nodeMap.set(node.id, {
+                                ...node,
+                                molecule: node.molecule,
+                                children: [],
+                            })
+                        })
+
+                        // Second pass: build parent-child relationships
+                        gtRouteWithNodes.nodes.forEach((node) => {
+                            if (node.parentId) {
+                                const parent = nodeMap.get(node.parentId)
+                                const child = nodeMap.get(node.id)
+                                if (parent && child) {
+                                    parent.children.push(child)
+                                }
+                            }
+                        })
+
+                        groundTruthRouteNode = nodeMap.get(rootNode.id)
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch ground truth route:', error)
+        }
+    }
+
     if (hasRoutes && stockId && stockId !== 'all') {
         try {
             // Validate rank first to get the route
@@ -155,6 +211,7 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId }: Tar
                             <RouteDisplayCard
                                 route={routeDetail.route}
                                 routeNode={routeDetail.routeNode}
+                                groundTruthRouteNode={groundTruthRouteNode}
                                 isSolvable={solvability?.isSolvable}
                                 isGtMatch={solvability?.isGtMatch}
                                 inStockInchiKeys={inStockInchiKeys}
