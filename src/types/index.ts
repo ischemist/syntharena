@@ -266,6 +266,7 @@ export interface LoadBenchmarkResult {
  */
 export interface RouteVisualizationNode {
     smiles: string
+    inchikey: string
     children?: RouteVisualizationNode[]
 }
 

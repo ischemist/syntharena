@@ -7,15 +7,16 @@ import type { Edge, Node } from '@xyflow/react'
 
 import type { RouteGraphNode, RouteVisualizationNode } from '@/types'
 
-import { collectSmiles, layoutTree } from './layout'
+import { collectInchiKeys, layoutTree } from './layout'
 
 /**
  * Builds React Flow graph from a visualization tree.
  * Integrates layout positioning and stock availability.
+ * Uses InChiKeys for reliable stock comparison.
  */
 export function buildRouteGraph(
     route: RouteVisualizationNode,
-    inStockSmiles: Set<string>,
+    inStockInchiKeys: Set<string>,
     idPrefix: string
 ): { nodes: Node<RouteGraphNode>[]; edges: Edge[] } {
     // Get layout positions
@@ -23,7 +24,7 @@ export function buildRouteGraph(
 
     // Build React Flow nodes with status
     const nodes: Node<RouteGraphNode>[] = layoutNodes.map((n) => {
-        const inStock = inStockSmiles.has(n.smiles)
+        const inStock = inStockInchiKeys.has(n.inchikey)
         return {
             id: n.id,
             type: 'molecule',
@@ -49,10 +50,11 @@ export function buildRouteGraph(
 }
 
 /**
- * Collects all SMILES from a route for batch stock checking.
+ * Collects all InChiKeys from a route for batch stock checking.
+ * InChiKeys are the canonical identifiers for molecules.
  */
-export function getAllRouteSmilesSet(route: RouteVisualizationNode): Set<string> {
+export function getAllRouteInchiKeysSet(route: RouteVisualizationNode): Set<string> {
     const set = new Set<string>()
-    collectSmiles(route, set)
+    collectInchiKeys(route, set)
     return set
 }

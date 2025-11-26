@@ -237,14 +237,15 @@ export async function getRoutesByTarget(targetId: string): Promise<Route[]> {
 
 /**
  * Transforms a RouteNodeWithDetails tree into a visualization tree.
- * Extracts SMILES from molecules and flattens the structure.
+ * Extracts SMILES and InChiKey from molecules and flattens the structure.
  *
  * @param node - The route node tree with molecule details
- * @returns Simplified tree structure with just SMILES and children
+ * @returns Simplified tree structure with SMILES, InChiKey, and children
  */
 function transformToVisualizationTree(node: RouteNodeWithDetails): RouteVisualizationNode {
     return {
         smiles: node.molecule.smiles,
+        inchikey: node.molecule.inchikey,
         children:
             node.children.length > 0 ? node.children.map((child) => transformToVisualizationTree(child)) : undefined,
     }
@@ -252,10 +253,10 @@ function transformToVisualizationTree(node: RouteNodeWithDetails): RouteVisualiz
 
 /**
  * Retrieves a route tree optimized for visualization.
- * Returns simplified tree structure with just SMILES for each node.
+ * Returns simplified tree structure with SMILES and InChiKey for each node.
  *
  * @param routeId - The route ID
- * @returns Route tree with SMILES hierarchy
+ * @returns Route tree with SMILES and InChiKey hierarchy
  * @throws Error if route not found
  */
 export async function getRouteTreeForVisualization(routeId: string): Promise<RouteVisualizationNode> {

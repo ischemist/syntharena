@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 
-import { getAllRouteSmilesSet } from '@/lib/route-visualization'
+import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkService from '@/lib/services/benchmark.service'
 import * as routeService from '@/lib/services/route.service'
 import { findMatchingStock } from '@/lib/services/stock-mapping'
@@ -54,11 +54,11 @@ async function RouteVisualizationContent({ routeId, benchmarkId }: { routeId: st
     // Get benchmark to find stock ID if available
     const benchmark = await benchmarkService.getBenchmarkById(benchmarkId)
 
-    // Collect all SMILES from route for stock checking
-    const allSmiles = Array.from(getAllRouteSmilesSet(routeTree))
+    // Collect all InChiKeys from route for stock checking
+    const allInchiKeys = Array.from(getAllRouteInchiKeysSet(routeTree))
 
     // Check stock availability if benchmark has a stock
-    let inStockSmiles = new Set<string>()
+    let inStockInchiKeys = new Set<string>()
     if (benchmark.stockName) {
         try {
             // Get all available stocks
@@ -68,7 +68,7 @@ async function RouteVisualizationContent({ routeId, benchmarkId }: { routeId: st
             const matchingStock = findMatchingStock(benchmark.stockName, stocks)
 
             if (matchingStock) {
-                inStockSmiles = await stockService.checkMoleculesInStock(allSmiles, matchingStock.id)
+                inStockInchiKeys = await stockService.checkMoleculesInStockByInchiKey(allInchiKeys, matchingStock.id)
                 console.log(
                     `[Route Visualization] Matched benchmark stock "${benchmark.stockName}" to database stock "${matchingStock.name}"`
                 )
@@ -82,7 +82,7 @@ async function RouteVisualizationContent({ routeId, benchmarkId }: { routeId: st
         }
     }
 
-    return <RouteVisualizationWrapper routeTree={routeTree} inStockSmiles={inStockSmiles} />
+    return <RouteVisualizationWrapper routeTree={routeTree} inStockInchiKeys={inStockInchiKeys} />
 }
 
 /**

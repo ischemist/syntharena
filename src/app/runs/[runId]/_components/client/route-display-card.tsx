@@ -12,7 +12,7 @@ type RouteDisplayCardProps = {
     routeNode: RouteNodeWithDetails
     isSolvable?: boolean
     isGtMatch?: boolean
-    inStockSmiles: Set<string>
+    inStockInchiKeys: Set<string>
     stockName?: string
 }
 
@@ -21,13 +21,14 @@ export function RouteDisplayCard({
     routeNode,
     isSolvable,
     isGtMatch,
-    inStockSmiles,
+    inStockInchiKeys,
     stockName,
 }: RouteDisplayCardProps) {
     // Convert RouteNodeWithDetails to RouteVisualizationNode format
     const convertToVisualizationNode = (node: RouteNodeWithDetails): RouteVisualizationNode => {
         return {
             smiles: node.molecule.smiles,
+            inchikey: node.molecule.inchikey,
             children: node.children.length > 0 ? node.children.map(convertToVisualizationNode) : undefined,
         }
     }
@@ -77,7 +78,7 @@ export function RouteDisplayCard({
 
                 {/* Route visualization */}
                 <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-                    <RouteGraph route={visualizationRoute} inStockSmiles={inStockSmiles} idPrefix="run-route-" />
+                    <RouteGraph route={visualizationRoute} inStockInchiKeys={inStockInchiKeys} idPrefix="run-route-" />
                 </div>
 
                 {/* Legend */}

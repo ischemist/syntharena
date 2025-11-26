@@ -1,13 +1,24 @@
 import { AlertCircle } from 'lucide-react'
 
+import type { RouteNodeWithDetails } from '@/types'
 import { getTargetPredictions } from '@/lib/services/prediction.service'
-import { searchStockMolecules } from '@/lib/services/stock.service'
+import { checkMoleculesInStockByInchiKey } from '@/lib/services/stock.service'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 import { PredictionNavigator } from '../client/prediction-navigator'
 import { RouteDisplayCard } from '../client/route-display-card'
+
+/**
+ * Recursively collects all InChiKeys from a route tree.
+ */
+function collectInchiKeysFromRouteNode(node: RouteNodeWithDetails, set: Set<string>): void {
+    set.add(node.molecule.inchikey)
+    if (node.children) {
+        node.children.forEach((child) => collectInchiKeysFromRouteNode(child, set))
+    }
+}
 
 type TargetRouteDisplayProps = {
     runId: string
@@ -33,25 +44,29 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId }: Tar
     const hasRoutes = targetDetail.routes.length > 0
 
     // Get stock items if stockId provided (for route visualization)
-    let inStockSmiles = new Set<string>()
+    let inStockInchiKeys = new Set<string>()
     let stockName: string | undefined
 
     if (hasRoutes && stockId && stockId !== 'all') {
         try {
-            const stockMoleculesResult = await searchStockMolecules('', stockId, 10000)
-            inStockSmiles = new Set(stockMoleculesResult.molecules.map((mol) => mol.smiles))
-
-            // Validate rank
+            // Validate rank first to get the route
             const requestedRank = Math.max(1, Math.min(rank, targetDetail.routes.length))
             const routeDetail = targetDetail.routes.find((r) => r.route.rank === requestedRank)
 
             if (routeDetail) {
+                // Collect all InChiKeys from the route tree
+                const allInchiKeys = new Set<string>()
+                collectInchiKeysFromRouteNode(routeDetail.routeNode, allInchiKeys)
+
+                // Check which molecules from the route are in stock
+                inStockInchiKeys = await checkMoleculesInStockByInchiKey(Array.from(allInchiKeys), stockId)
+
                 // Get stock name from solvability data
                 const solvabilityForStock = routeDetail.solvability.find((s) => s.stockId === stockId)
                 stockName = solvabilityForStock?.stockName
             }
         } catch (error) {
-            console.error('Failed to fetch stock items:', error)
+            console.error('Failed to check stock availability:', error)
         }
     }
 
@@ -142,7 +157,7 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId }: Tar
                                 routeNode={routeDetail.routeNode}
                                 isSolvable={solvability?.isSolvable}
                                 isGtMatch={solvability?.isGtMatch}
-                                inStockSmiles={inStockSmiles}
+                                inStockInchiKeys={inStockInchiKeys}
                                 stockName={stockName}
                             />
                         )

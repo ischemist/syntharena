@@ -502,6 +502,7 @@ export async function deleteStock(stockId: string): Promise<void> {
  * @param smilesArray - Array of SMILES strings to check
  * @param stockId - The stock ID to check against
  * @returns Set of SMILES strings that exist in the stock
+ * @deprecated Use checkMoleculesInStockByInchiKey for reliable molecule comparison
  */
 export async function checkMoleculesInStock(smilesArray: string[], stockId: string): Promise<Set<string>> {
     if (smilesArray.length === 0) {
@@ -521,4 +522,33 @@ export async function checkMoleculesInStock(smilesArray: string[], stockId: stri
 
     // Return as Set for O(1) lookup
     return new Set(moleculesInStock.map((mol) => mol.smiles))
+}
+
+/**
+ * Batch checks if molecules (by InChiKey) exist in a stock.
+ * Returns a Set of InChiKey strings that are in stock.
+ * InChiKeys are canonical identifiers, making this more reliable than SMILES comparison.
+ *
+ * @param inchikeyArray - Array of InChiKey strings to check
+ * @param stockId - The stock ID to check against
+ * @returns Set of InChiKey strings that exist in the stock
+ */
+export async function checkMoleculesInStockByInchiKey(inchikeyArray: string[], stockId: string): Promise<Set<string>> {
+    if (inchikeyArray.length === 0) {
+        return new Set()
+    }
+
+    // Query molecules that match the InChiKeys and exist in the stock
+    const moleculesInStock = await prisma.molecule.findMany({
+        where: {
+            inchikey: { in: inchikeyArray },
+            stockItems: {
+                some: { stockId },
+            },
+        },
+        select: { inchikey: true },
+    })
+
+    // Return as Set for O(1) lookup
+    return new Set(moleculesInStock.map((mol) => mol.inchikey))
 }
