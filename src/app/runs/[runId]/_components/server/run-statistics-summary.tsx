@@ -3,7 +3,6 @@ import { AlertCircle } from 'lucide-react'
 import type { MetricResult } from '@/types'
 import { getRunStatistics } from '@/lib/services/prediction.service'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
@@ -54,8 +53,8 @@ export async function RunStatisticsSummary({ runId, searchParams }: RunStatistic
     const solvability = parsedStats.solvability.overall
     const hasTopK = parsedStats.topKAccuracy && Object.keys(parsedStats.topKAccuracy).length > 0
 
-    // Build metrics table data
-    const metricsRows: Array<{
+    // Build metrics columns data
+    const metricsColumns: Array<{
         name: string
         metric: MetricResult
     }> = [{ name: 'Solvability', metric: solvability }]
@@ -70,12 +69,15 @@ export async function RunStatisticsSummary({ runId, searchParams }: RunStatistic
 
         for (const key of topKKeys) {
             const displayName = key.startsWith('Top-') ? key : `Top-${key}`
-            metricsRows.push({
+            metricsColumns.push({
                 name: displayName,
                 metric: parsedStats.topKAccuracy[key].overall,
             })
         }
     }
+
+    // Get n from any metric (they should all be the same)
+    const nSamples = solvability.nSamples
 
     return (
         <Card>
@@ -87,38 +89,41 @@ export async function RunStatisticsSummary({ runId, searchParams }: RunStatistic
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Metric</TableHead>
-                            <TableHead>Value</TableHead>
-                            <TableHead className="text-right">n</TableHead>
-                            <TableHead className="text-right">Reliability</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {metricsRows.map((row) => (
-                            <TableRow key={row.name}>
-                                <TableCell className="font-medium">{row.name}</TableCell>
-                                <TableCell>
-                                    <MetricCell metric={row.metric} />
-                                </TableCell>
-                                <TableCell className="text-muted-foreground text-right">
-                                    {row.metric.nSamples}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    {row.metric.reliability.code !== 'OK' ? (
-                                        <Badge variant="outline" title={row.metric.reliability.message}>
-                                            {row.metric.reliability.code}
-                                        </Badge>
-                                    ) : (
-                                        <span className="text-muted-foreground text-sm">OK</span>
-                                    )}
-                                </TableCell>
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                {metricsColumns.map((col, idx) => (
+                                    <TableHead key={col.name} className="min-w-[160px] text-center">
+                                        {col.name}
+                                    </TableHead>
+                                ))}
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow>
+                                {metricsColumns.map((col, idx) => (
+                                    <TableCell
+                                        key={col.name}
+                                        className={
+                                            idx === metricsColumns.length - 1
+                                                ? 'pr-12 text-center' // Extra padding right for last column upper CI
+                                                : 'text-center'
+                                        }
+                                    >
+                                        <MetricCell metric={col.metric} showBadge />
+                                    </TableCell>
+                                ))}
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </div>
+
+                <div className="text-muted-foreground mt-4 text-sm">
+                    <p>
+                        n = {nSamples} target{nSamples !== 1 ? 's' : ''}
+                    </p>
+                </div>
             </CardContent>
         </Card>
     )

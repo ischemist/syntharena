@@ -3,7 +3,6 @@ import { AlertCircle } from 'lucide-react'
 import type { StratifiedMetric } from '@/types'
 import { getRunStatistics } from '@/lib/services/prediction.service'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
@@ -93,12 +92,14 @@ export async function RunStatisticsStratified({ runId, searchParams }: RunStatis
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-24">Length</TableHead>
-                                <TableHead>Solvability</TableHead>
+                                <TableHead className="w-24 text-center">Length</TableHead>
+                                <TableHead className="min-w-[160px] text-center">Solvability</TableHead>
                                 {topKMetrics.map(({ key, name }) => (
-                                    <TableHead key={key}>{name}</TableHead>
+                                    <TableHead key={key} className="min-w-[160px] text-center">
+                                        {name}
+                                    </TableHead>
                                 ))}
-                                <TableHead className="text-right">n</TableHead>
+                                <TableHead className="w-20 text-center">n</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -108,49 +109,27 @@ export async function RunStatisticsStratified({ runId, searchParams }: RunStatis
 
                                 return (
                                     <TableRow key={length}>
-                                        <TableCell className="font-medium">{length}</TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2">
-                                                <MetricCell metric={solvMetric} />
-                                                {solvMetric.reliability.code !== 'OK' && (
-                                                    <Badge
-                                                        variant="outline"
-                                                        className="text-xs"
-                                                        title={solvMetric.reliability.message}
-                                                    >
-                                                        {solvMetric.reliability.code}
-                                                    </Badge>
-                                                )}
-                                            </div>
+                                        <TableCell className="text-center font-medium">{length}</TableCell>
+                                        <TableCell className="text-center">
+                                            <MetricCell metric={solvMetric} showBadge />
                                         </TableCell>
                                         {topKMetrics.map(({ key, metric }) => {
                                             const topKMetric = metric.byGroup[length]
                                             if (!topKMetric) {
                                                 return (
-                                                    <TableCell key={key} className="text-muted-foreground">
+                                                    <TableCell key={key} className="text-muted-foreground text-center">
                                                         —
                                                     </TableCell>
                                                 )
                                             }
 
                                             return (
-                                                <TableCell key={key}>
-                                                    <div className="flex items-center gap-2">
-                                                        <MetricCell metric={topKMetric} />
-                                                        {topKMetric.reliability.code !== 'OK' && (
-                                                            <Badge
-                                                                variant="outline"
-                                                                className="text-xs"
-                                                                title={topKMetric.reliability.message}
-                                                            >
-                                                                {topKMetric.reliability.code}
-                                                            </Badge>
-                                                        )}
-                                                    </div>
+                                                <TableCell key={key} className="text-center">
+                                                    <MetricCell metric={topKMetric} showBadge />
                                                 </TableCell>
                                             )
                                         })}
-                                        <TableCell className="text-muted-foreground text-right">
+                                        <TableCell className="text-muted-foreground text-center">
                                             {solvMetric.nSamples}
                                         </TableCell>
                                     </TableRow>
@@ -162,7 +141,7 @@ export async function RunStatisticsStratified({ runId, searchParams }: RunStatis
 
                 <div className="text-muted-foreground mt-4 text-sm">
                     <p>
-                        Confidence intervals available on hover. Reliability badges indicate LOW_N (insufficient
+                        Confidence intervals available on hover. Reliability indicators show LOW_N (insufficient
                         samples) or EXTREME_P (value near boundary).
                     </p>
                 </div>
