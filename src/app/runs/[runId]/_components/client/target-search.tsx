@@ -64,7 +64,7 @@ export function TargetSearch({ onSearch }: TargetSearchProps) {
         const params = new URLSearchParams(searchParams.toString())
         params.set('target', targetId)
         params.set('rank', '1') // Default to first prediction
-        router.push(`${pathname}?${params.toString()}`)
+        router.push(`${pathname}?${params.toString()}`, { scroll: false })
         setShowResults(false)
     }
 

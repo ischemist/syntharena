@@ -24,7 +24,7 @@ export function PredictionNavigator({ currentRank, totalPredictions, targetId }:
         const params = new URLSearchParams(searchParams.toString())
         params.set('target', targetId)
         params.set('rank', newRank.toString())
-        router.push(`${pathname}?${params.toString()}`)
+        router.push(`${pathname}?${params.toString()}`, { scroll: false })
     }
 
     const handlePrevious = () => {

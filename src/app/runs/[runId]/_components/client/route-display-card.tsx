@@ -1,3 +1,5 @@
+'use client'
+
 import { CheckCircle, XCircle } from 'lucide-react'
 
 import type { Route, RouteNodeWithDetails, RouteVisualizationNode } from '@/types'
@@ -74,12 +76,17 @@ export function RouteDisplayCard({
                 )}
 
                 {/* Route visualization */}
-                <div className="min-h-[600px] rounded-md border p-4">
-                    <RouteGraph route={visualizationRoute} inStockSmiles={inStockSmiles} />
+                <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+                    <RouteGraph route={visualizationRoute} inStockSmiles={inStockSmiles} idPrefix="run-route-" />
                 </div>
 
                 {/* Legend */}
                 <RouteLegend />
+
+                {/* Info */}
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Scroll to zoom. Drag to pan. Nodes marked in green are in stock.
+                </p>
 
                 {/* Route metadata */}
                 {route.contentHash && (

@@ -54,7 +54,7 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
 
             {/* Conditional route display */}
             {targetId && (
-                <Suspense fallback={<RouteDisplaySkeleton />}>
+                <Suspense key={`${targetId}-${rank}`} fallback={<RouteDisplaySkeleton />}>
                     <TargetRouteDisplay runId={runId} targetId={targetId} rank={rank} stockId={stockId} />
                 </Suspense>
             )}

@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 import { PredictionNavigator } from '../client/prediction-navigator'
-import { RouteDisplayCard } from './route-display-card'
+import { RouteDisplayCard } from '../client/route-display-card'
 
 type TargetRouteDisplayProps = {
     runId: string
