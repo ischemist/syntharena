@@ -2,10 +2,11 @@ import { AlertCircle } from 'lucide-react'
 
 import type { MetricResult } from '@/types'
 import { getRunStatistics } from '@/lib/services/prediction.service'
+import { MetricsViewToggle } from '@/components/metrics'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
-import { MetricsViewToggle } from '../client/metrics-view-toggle'
+import { MetricCell } from '../client/metric-cell'
 
 type RunStatisticsSummaryProps = {
     runId: string
@@ -88,7 +89,7 @@ export async function RunStatisticsSummary({ runId, searchParams }: RunStatistic
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <MetricsViewToggle metrics={metricsColumns} nSamples={nSamples} />
+                <MetricsViewToggle metrics={metricsColumns} nSamples={nSamples} MetricCellComponent={MetricCell} />
             </CardContent>
         </Card>
     )

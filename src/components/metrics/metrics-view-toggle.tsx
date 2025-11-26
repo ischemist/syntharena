@@ -4,11 +4,9 @@ import { useState } from 'react'
 import { BarChart3, Table2 } from 'lucide-react'
 
 import type { MetricResult } from '@/types'
+import { MetricsChart } from '@/components/metrics/metrics-chart'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-
-import { MetricCell } from './metric-cell'
-import { MetricsChart } from './metrics-chart'
 
 type MetricsViewToggleProps = {
     metrics: Array<{
@@ -16,6 +14,7 @@ type MetricsViewToggleProps = {
         metric: MetricResult
     }>
     nSamples: number
+    MetricCellComponent: React.ComponentType<{ metric: MetricResult; showBadge?: boolean }>
 }
 
 /**
@@ -26,8 +25,9 @@ type MetricsViewToggleProps = {
  * - Client component for interactive UI (useState, onClick)
  * - Receives data as props from server parent
  * - Local state only for non-canonical UI state
+ * - Accepts MetricCell component as prop to avoid circular dependencies
  */
-export function MetricsViewToggle({ metrics, nSamples }: MetricsViewToggleProps) {
+export function MetricsViewToggle({ metrics, nSamples, MetricCellComponent }: MetricsViewToggleProps) {
     const [view, setView] = useState<'table' | 'chart'>('table')
 
     return (
@@ -62,7 +62,7 @@ export function MetricsViewToggle({ metrics, nSamples }: MetricsViewToggleProps)
                             <TableHeader>
                                 <TableRow>
                                     {metrics.map((col) => (
-                                        <TableHead key={col.name} className="min-w-[160px] text-center">
+                                        <TableHead key={col.name} className="min-w-[220px] text-center">
                                             {col.name}
                                         </TableHead>
                                     ))}
@@ -79,7 +79,7 @@ export function MetricsViewToggle({ metrics, nSamples }: MetricsViewToggleProps)
                                                     : 'text-center'
                                             }
                                         >
-                                            <MetricCell metric={col.metric} showBadge />
+                                            <MetricCellComponent metric={col.metric} showBadge />
                                         </TableCell>
                                     ))}
                                 </TableRow>

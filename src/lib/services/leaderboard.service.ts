@@ -243,6 +243,67 @@ export async function getModelRankDistribution(
 }
 
 /**
+ * Get leaderboard data grouped by benchmark.
+ * Returns a map of benchmark IDs to their leaderboard entries.
+ *
+ * @param stockId - Optional: Filter by stock
+ * @returns Map of benchmark ID to array of leaderboard entries for that benchmark
+ */
+export async function getLeaderboardByBenchmark(stockId?: string): Promise<
+    Map<
+        string,
+        {
+            benchmarkId: string
+            benchmarkName: string
+            hasGroundTruth: boolean
+            entries: LeaderboardEntry[]
+        }
+    >
+> {
+    // Get all entries, optionally filtered by stock
+    const allEntries = await getLeaderboard(undefined, stockId)
+
+    // Group by benchmark
+    const grouped = new Map<
+        string,
+        {
+            benchmarkId: string
+            benchmarkName: string
+            hasGroundTruth: boolean
+            entries: LeaderboardEntry[]
+        }
+    >()
+
+    for (const entry of allEntries) {
+        // Fetch benchmark info if not already in map
+        if (!grouped.has(entry.benchmarkName)) {
+            // Get benchmark to check hasGroundTruth
+            const benchmark = await prisma.benchmarkSet.findFirst({
+                where: { name: entry.benchmarkName },
+                select: { id: true, name: true, hasGroundTruth: true },
+            })
+
+            if (benchmark) {
+                grouped.set(entry.benchmarkName, {
+                    benchmarkId: benchmark.id,
+                    benchmarkName: benchmark.name,
+                    hasGroundTruth: benchmark.hasGroundTruth,
+                    entries: [],
+                })
+            }
+        }
+
+        // Add entry to the group
+        const group = grouped.get(entry.benchmarkName)
+        if (group) {
+            group.entries.push(entry)
+        }
+    }
+
+    return grouped
+}
+
+/**
  * Get all metrics for a specific benchmark-stock combination.
  * Returns metrics grouped by model for easy table display.
  *

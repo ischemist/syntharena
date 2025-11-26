@@ -5,22 +5,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 /**
  * Skeleton for leaderboard filters section
  */
-export function LeaderboardFiltersSkeleton() {
+export function LeaderboardCardSkeleton() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Filters</CardTitle>
-                <CardDescription>Select benchmark and stock to view comparison</CardDescription>
+                <Skeleton className="h-7 w-48" />
+                <Skeleton className="mt-2 h-4 w-64" />
             </CardHeader>
-            <CardContent className="flex flex-wrap gap-4">
-                <div className="flex flex-col gap-2">
-                    <Skeleton className="h-4 w-20" />
-                    <Skeleton className="h-10 w-48" />
-                </div>
-                <div className="flex flex-col gap-2">
-                    <Skeleton className="h-4 w-20" />
-                    <Skeleton className="h-10 w-48" />
-                </div>
+            <CardContent>
+                <Skeleton className="h-64 w-full" />
             </CardContent>
         </Card>
     )

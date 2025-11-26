@@ -1,37 +1,29 @@
 import { Suspense } from 'react'
 
-import { ViewToggle } from './_components/client/view-toggle'
-import { LeaderboardFilters } from './_components/server/leaderboard-filters'
-import { OverallLeaderboardTable } from './_components/server/overall-leaderboard-table'
-import { OverallMetricsChartWrapper } from './_components/server/overall-metrics-chart-wrapper'
-import { StratifiedMetricsTable } from './_components/server/stratified-metrics-table'
-import {
-    LeaderboardChartSkeleton,
-    LeaderboardFiltersSkeleton,
-    LeaderboardTableSkeleton,
-    StratifiedMetricsSkeleton,
-} from './_components/skeletons'
+import { getLeaderboardByBenchmark } from '@/lib/services/leaderboard.service'
+import { getStocks } from '@/lib/services/stock.service'
+
+import { StockFilter } from './_components/client/stock-filter'
+import { BenchmarkLeaderboardCard } from './_components/server/benchmark-leaderboard-card'
+import { LeaderboardCardSkeleton } from './_components/skeletons'
 
 type PageProps = {
     searchParams: Promise<{
-        benchmark?: string
         stock?: string
-        view?: 'table' | 'chart'
-        stratified?: string
     }>
 }
 
 /**
  * Leaderboard page for comparing model performance across benchmarks.
- * All state is managed via URL searchParams (server-rendered).
+ * Shows one card per benchmark with integrated table/chart toggle.
+ *
+ * Following App Router Manifesto:
+ * - Page is NOT async - defines structure and Suspense boundaries only
+ * - All data fetching pushed to child server components
+ * - Each benchmark card wrapped in Suspense for independent streaming
+ * - Stock filter uses URL searchParams (canonical state)
  */
-export default async function LeaderboardPage({ searchParams }: PageProps) {
-    const params = await searchParams
-    const benchmarkId = params.benchmark
-    const stockId = params.stock
-    const view = params.view || 'table'
-    const showStratified = params.stratified === 'true'
-
+export default function LeaderboardPage({ searchParams }: PageProps) {
     return (
         <div className="flex flex-col gap-6">
             {/* Page Header */}
@@ -40,32 +32,61 @@ export default async function LeaderboardPage({ searchParams }: PageProps) {
                 <p className="text-muted-foreground">Compare model performance across benchmarks</p>
             </div>
 
-            {/* Filters */}
-            <Suspense fallback={<LeaderboardFiltersSkeleton />}>
-                <LeaderboardFilters selectedBenchmarkId={benchmarkId} selectedStockId={stockId} />
+            {/* Stock Filter */}
+            <Suspense fallback={<div className="bg-muted h-10 animate-pulse rounded" />}>
+                <StockFilterWrapper searchParams={searchParams} />
             </Suspense>
 
-            {/* View Toggle */}
-            <ViewToggle />
-
-            {/* Overall Leaderboard - Table or Chart View */}
-            <Suspense
-                key={`leaderboard-${view}-${benchmarkId || 'all'}-${stockId || 'all'}`}
-                fallback={view === 'chart' ? <LeaderboardChartSkeleton /> : <LeaderboardTableSkeleton />}
-            >
-                {view === 'chart' ? (
-                    <OverallMetricsChartWrapper benchmarkId={benchmarkId} stockId={stockId} />
-                ) : (
-                    <OverallLeaderboardTable benchmarkId={benchmarkId} stockId={stockId} />
-                )}
+            {/* Benchmark Cards */}
+            <Suspense fallback={<LeaderboardCardSkeleton />}>
+                <BenchmarkCards searchParams={searchParams} />
             </Suspense>
+        </div>
+    )
+}
 
-            {/* Stratified Metrics - Only shown when single benchmark + stock selected */}
-            {benchmarkId && stockId && (
-                <Suspense key={`stratified-${benchmarkId}-${stockId}`} fallback={<StratifiedMetricsSkeleton />}>
-                    <StratifiedMetricsTable benchmarkId={benchmarkId} stockId={stockId} />
+/**
+ * Server component that fetches stocks and renders stock filter.
+ */
+async function StockFilterWrapper({ searchParams }: PageProps) {
+    const params = await searchParams
+    const stocks = await getStocks()
+
+    return <StockFilter stocks={stocks} selectedStockId={params.stock} />
+}
+
+/**
+ * Server component that fetches leaderboard data and renders benchmark cards.
+ */
+async function BenchmarkCards({ searchParams }: PageProps) {
+    const params = await searchParams
+    const stockId = params.stock
+
+    // Get leaderboard data grouped by benchmark
+    const benchmarkGroups = await getLeaderboardByBenchmark(stockId)
+
+    if (benchmarkGroups.size === 0) {
+        return (
+            <div className="text-muted-foreground rounded-lg border border-dashed p-8 text-center">
+                <p>No leaderboard data available.</p>
+                <p className="mt-2 text-sm">Load model predictions and statistics to see comparisons.</p>
+            </div>
+        )
+    }
+
+    // Render one card per benchmark
+    return (
+        <div className="space-y-8">
+            {Array.from(benchmarkGroups.values()).map((group) => (
+                <Suspense key={group.benchmarkId} fallback={<LeaderboardCardSkeleton />}>
+                    <BenchmarkLeaderboardCard
+                        benchmarkId={group.benchmarkId}
+                        benchmarkName={group.benchmarkName}
+                        hasGroundTruth={group.hasGroundTruth}
+                        entries={group.entries}
+                    />
                 </Suspense>
-            )}
+            ))}
         </div>
     )
 }

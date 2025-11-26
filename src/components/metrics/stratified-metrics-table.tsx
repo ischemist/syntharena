@@ -1,34 +1,28 @@
-import { AlertCircle } from 'lucide-react'
-
-import { getMetricsByBenchmarkAndStock } from '@/lib/services/leaderboard.service'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import type { MetricResult, StratifiedMetric } from '@/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-import { MetricCell } from '../../../runs/[runId]/_components/client/metric-cell'
-
 type StratifiedMetricsTableProps = {
-    benchmarkId: string
-    stockId: string
+    metricsMap: Map<
+        string,
+        {
+            solvability: StratifiedMetric
+            topKAccuracy?: Record<string, StratifiedMetric>
+        }
+    >
+    MetricCellComponent: React.ComponentType<{ metric: MetricResult; showBadge?: boolean }>
 }
 
 /**
- * Server component that displays stratified metrics table.
+ * Shared component for displaying stratified metrics (broken down by route length).
+ * Used by both runs page and leaderboard.
+ *
+ * Server component that displays stratified metrics tables.
  * Shows metrics broken down by route length for easy comparison.
- * Only renders when a single benchmark is selected.
  */
-export async function StratifiedMetricsTable({ benchmarkId, stockId }: StratifiedMetricsTableProps) {
-    const metricsMap = await getMetricsByBenchmarkAndStock(benchmarkId, stockId)
-
+export function StratifiedMetricsTable({ metricsMap, MetricCellComponent }: StratifiedMetricsTableProps) {
     if (metricsMap.size === 0) {
-        return (
-            <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                    No stratified metrics available for this benchmark and stock combination.
-                </AlertDescription>
-            </Alert>
-        )
+        return null
     }
 
     // Convert map to array for rendering
@@ -52,12 +46,7 @@ export async function StratifiedMetricsTable({ benchmarkId, stockId }: Stratifie
     const sortedLengths = Array.from(routeLengths).sort((a, b) => a - b)
 
     if (sortedLengths.length === 0) {
-        return (
-            <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>No route length breakdown available for this benchmark.</AlertDescription>
-            </Alert>
-        )
+        return null
     }
 
     // Get list of available Top-K metrics
@@ -89,7 +78,7 @@ export async function StratifiedMetricsTable({ benchmarkId, stockId }: Stratifie
                             <TableRow>
                                 <TableHead>Model</TableHead>
                                 {sortedLengths.map((length) => (
-                                    <TableHead key={length} className="text-right">
+                                    <TableHead key={length} className="min-w-[220px] text-right">
                                         Length {length}
                                     </TableHead>
                                 ))}
@@ -103,7 +92,7 @@ export async function StratifiedMetricsTable({ benchmarkId, stockId }: Stratifie
                                         const metric = metrics.solvability.byGroup[length]
                                         return (
                                             <TableCell key={length} className="text-right">
-                                                {metric ? <MetricCell metric={metric} showBadge /> : '-'}
+                                                {metric ? <MetricCellComponent metric={metric} showBadge /> : '-'}
                                             </TableCell>
                                         )
                                     })}
@@ -129,7 +118,7 @@ export async function StratifiedMetricsTable({ benchmarkId, stockId }: Stratifie
                                 <TableRow>
                                     <TableHead>Model</TableHead>
                                     {sortedLengths.map((length) => (
-                                        <TableHead key={length} className="text-right">
+                                        <TableHead key={length} className="min-w-[220px] text-right">
                                             Length {length}
                                         </TableHead>
                                     ))}
@@ -147,7 +136,11 @@ export async function StratifiedMetricsTable({ benchmarkId, stockId }: Stratifie
                                                 const metric = topKMetric.byGroup[length]
                                                 return (
                                                     <TableCell key={length} className="text-right">
-                                                        {metric ? <MetricCell metric={metric} showBadge /> : '-'}
+                                                        {metric ? (
+                                                            <MetricCellComponent metric={metric} showBadge />
+                                                        ) : (
+                                                            '-'
+                                                        )}
                                                     </TableCell>
                                                 )
                                             })}
