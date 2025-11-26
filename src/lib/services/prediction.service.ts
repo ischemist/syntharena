@@ -73,9 +73,6 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
             }
         }
 
-        // Calculate average route length
-        const avgRouteLength = run.totalRoutes > 0 ? undefined : undefined // TODO: Store this in PredictionRun
-
         return {
             id: run.id,
             modelInstanceId: run.modelInstanceId,
@@ -99,7 +96,8 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
                 hasGroundTruth: run.benchmarkSet.hasGroundTruth,
             },
             totalRoutes: run.totalRoutes,
-            avgRouteLength,
+            totalTimeMs: run.totalTimeMs,
+            avgRouteLength: run.avgRouteLength,
             solvabilitySummary,
             executedAt: run.executedAt,
         }

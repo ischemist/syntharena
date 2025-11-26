@@ -423,7 +423,7 @@ export interface PredictionRunWithStats {
     benchmarkSet: BenchmarkSet & { hasGroundTruth: boolean }
     totalRoutes: number
     totalTimeMs?: number | null // Total execution time in milliseconds
-    avgRouteLength?: number
+    avgRouteLength?: number | null
     solvabilitySummary?: Record<string, number> // stockId -> solvability percentage
     executedAt: Date
 }

@@ -117,8 +117,9 @@ model PredictionRun {
   executedAt       DateTime @default(now())
 
   // Stats from RunStatistics
-  totalTimeMs Float? // Wall time
-  totalRoutes Int // final_unique_routes_saved
+  totalTimeMs     Float? // Wall time
+  totalRoutes     Int // final_unique_routes_saved
+  avgRouteLength  Float? // Average route length across all routes
 
   modelInstance ModelInstance        @relation(fields: [modelInstanceId], references: [id])
   benchmarkSet  BenchmarkSet         @relation(fields: [benchmarkSetId], references: [id])

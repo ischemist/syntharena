@@ -754,15 +754,18 @@ export async function updatePredictionRunStats(predictionRunId: string): Promise
         where: { id: predictionRunId },
         data: {
             totalRoutes,
+            avgRouteLength,
         },
         select: {
             id: true,
             totalRoutes: true,
+            avgRouteLength: true,
         },
     })
 
     return {
-        ...updatedRun,
-        avgRouteLength,
+        id: updatedRun.id,
+        totalRoutes: updatedRun.totalRoutes,
+        avgRouteLength: updatedRun.avgRouteLength ?? 0,
     }
 }
