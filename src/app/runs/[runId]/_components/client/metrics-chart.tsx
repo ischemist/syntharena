@@ -3,6 +3,7 @@
 import { Bar, BarChart, CartesianGrid, Cell, ErrorBar, XAxis, YAxis } from 'recharts'
 
 import type { MetricResult } from '@/types'
+import { filterPlateauMetrics } from '@/lib/utils'
 import { chartColors } from '@/components/theme/chart-palette'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 
@@ -20,8 +21,11 @@ type MetricsChartProps = {
  * Client component that uses recharts for interactive visualization.
  */
 export function MetricsChart({ metrics }: MetricsChartProps) {
+    // Filter out duplicate plateau values in Top-k metrics
+    const filteredMetrics = filterPlateauMetrics(metrics)
+
     // Transform metrics data for recharts
-    const chartData = metrics.map((m) => {
+    const chartData = filteredMetrics.map((m) => {
         const value = m.metric.value * 100 // Convert to percentage
         const ciLower = m.metric.ciLower * 100
         const ciUpper = m.metric.ciUpper * 100

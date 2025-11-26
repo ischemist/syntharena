@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ErrorBar, XAxis, YAxis } from 'recharts'
 
 import type { StratifiedMetric } from '@/types'
+import { filterPlateauStratifiedMetrics } from '@/lib/utils'
 import { getSeriesColors } from '@/components/theme/chart-palette'
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip } from '@/components/ui/chart'
 
@@ -31,9 +32,12 @@ export function StratifiedMetricsChart({ metrics, minSamples = 5 }: StratifiedMe
     const [hoveredBar, setHoveredBar] = useState<HoveredBar>(null)
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
 
+    // Filter out duplicate plateau values in Top-k metrics
+    const filteredMetrics = filterPlateauStratifiedMetrics(metrics)
+
     // Extract all unique route lengths across all metrics
     const allLengths = new Set<number>()
-    metrics.forEach((m) => {
+    filteredMetrics.forEach((m) => {
         Object.keys(m.stratified.byGroup).forEach((length) => {
             const len = parseInt(length)
             const metric = m.stratified.byGroup[len]
@@ -55,7 +59,7 @@ export function StratifiedMetricsChart({ metrics, minSamples = 5 }: StratifiedMe
             _id: `length-${length}-idx-${lengthIndex}`,
         }
 
-        metrics.forEach((m, metricIndex) => {
+        filteredMetrics.forEach((m, metricIndex) => {
             const metric = m.stratified.byGroup[length]
             if (metric) {
                 const metricKey = m.name.toLowerCase().replace(/[^a-z0-9]/g, '_')
@@ -79,7 +83,7 @@ export function StratifiedMetricsChart({ metrics, minSamples = 5 }: StratifiedMe
     })
 
     // Chart configuration using centralized color palette
-    const chartConfig = metrics.reduce(
+    const chartConfig = filteredMetrics.reduce(
         (config, m, idx) => {
             const metricKey = m.name.toLowerCase().replace(/[^a-z0-9]/g, '_')
             const colors = getSeriesColors(idx)
@@ -196,7 +200,7 @@ export function StratifiedMetricsChart({ metrics, minSamples = 5 }: StratifiedMe
                     }}
                 />
                 <ChartLegend content={<ChartLegendContent />} />
-                {metrics.map((m) => {
+                {filteredMetrics.map((m) => {
                     const metricKey = m.name.toLowerCase().replace(/[^a-z0-9]/g, '_')
                     const barColor = chartConfig[metricKey].color
                     const errorBarColor = chartConfig[metricKey].errorBarColor
