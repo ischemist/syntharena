@@ -139,23 +139,39 @@ export interface BenchmarkTargetWithMolecule extends BenchmarkTarget {
 }
 
 /**
- * Represents a complete synthesis route (ground truth or prediction).
- * Matches the Python Route model.
+ * Represents a complete synthesis route structure (topology-level, unique).
+ * Routes are now globally unique by signature and can be predicted multiple times.
+ * Matches the updated Prisma Route model.
  */
 export interface Route {
     id: string
-    predictionRunId: string | null
-    targetId: string
-    rank: number
-    contentHash: string
-    signature: string | null
+    signature: string // NOW REQUIRED: SHA256 of topology (unique constraint)
+    contentHash: string // SHA256 of full content (unique constraint)
     length: number
     isConvergent: boolean
-    metadata: string | null // JSON blob
+}
+
+/**
+ * Junction table: Represents one prediction of a Route by a model.
+ * Links a unique Route to a (PredictionRun, Target, Rank) tuple.
+ * This is what was previously called "Route" - now separated into structure vs prediction.
+ */
+export interface PredictionRoute {
+    id: string
+    routeId: string
+    predictionRunId: string
+    targetId: string
+    rank: number // 1-indexed rank within this target/run
+    metadata: string | null // JSON: scores, confidence, etc. (prediction-specific)
+
+    // Relations (when included)
+    route?: Route
+    target?: BenchmarkTarget
 }
 
 /**
  * Lightweight route summary for list views.
+ * Now uses PredictionRoute for rank information.
  */
 export interface RouteSummary {
     id: string
@@ -191,9 +207,11 @@ export interface RouteNodeWithDetails extends RouteNode {
 /**
  * Complete route data for visualization.
  * Includes the route metadata and full tree structure.
+ * For predictions, includes PredictionRoute for rank/metadata.
  */
 export interface RouteVisualizationData {
     route: Route
+    predictionRoute?: PredictionRoute // For predicted routes (includes rank, metadata)
     target: BenchmarkTargetWithMolecule
     rootNode: RouteNodeWithDetails
 }
@@ -466,8 +484,11 @@ export interface PredictionRunWithStats {
 /**
  * Extended route information for predictions.
  * Includes solvability status across stocks.
+ * Now combines Route (structure) with PredictionRoute (prediction metadata).
  */
-export interface ScoredRouteWithSolvability extends Route {
+export interface ScoredRouteWithSolvability {
+    route: Route
+    predictionRoute: PredictionRoute
     solvability: Array<{
         stockId: string
         stockName: string
@@ -479,6 +500,7 @@ export interface ScoredRouteWithSolvability extends Route {
 /**
  * Complete prediction detail for a target.
  * Includes all routes and ground truth comparison.
+ * Updated to use PredictionRoute for prediction metadata.
  */
 export interface TargetPredictionDetail {
     targetId: string
@@ -486,10 +508,11 @@ export interface TargetPredictionDetail {
     routeLength: number | null
     isConvergent: boolean | null
     hasGroundTruth: boolean
-    groundTruthRoute?: Route // Optional: the ground truth route for comparison
+    groundTruthRoute?: Route // Optional: the ground truth route for comparison (structure only)
     groundTruthRank?: number // Optional: rank at which GT was found in predictions
     routes: Array<{
-        route: Route
+        route: Route // The route structure
+        predictionRoute: PredictionRoute // The prediction metadata (rank, etc.)
         routeNode: RouteNodeWithDetails
         solvability: Array<{
             stockId: string

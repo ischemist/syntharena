@@ -77,7 +77,7 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId, viewM
         try {
             // Validate rank first to get the route
             const requestedRank = Math.max(1, Math.min(rank, targetDetail.routes.length))
-            const routeDetail = targetDetail.routes.find((r) => r.route.rank === requestedRank)
+            const routeDetail = targetDetail.routes.find((r) => r.predictionRoute.rank === requestedRank)
 
             if (routeDetail) {
                 // Collect all InChiKeys from the route tree
@@ -113,7 +113,7 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId, viewM
             {hasRoutes &&
                 (() => {
                     const requestedRank = Math.max(1, Math.min(rank, targetDetail.routes.length))
-                    const routeDetail = targetDetail.routes.find((r) => r.route.rank === requestedRank)
+                    const routeDetail = targetDetail.routes.find((r) => r.predictionRoute.rank === requestedRank)
 
                     if (!routeDetail) {
                         return (
@@ -130,6 +130,7 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId, viewM
                     return (
                         <RouteDisplayCard
                             route={routeDetail.route}
+                            predictionRoute={routeDetail.predictionRoute}
                             routeNode={routeDetail.routeNode}
                             groundTruthRouteNode={groundTruthRouteNode}
                             isSolvable={solvability?.isSolvable}

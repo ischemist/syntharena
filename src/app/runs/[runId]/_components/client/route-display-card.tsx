@@ -3,7 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CheckCircle, ChevronLeft, ChevronRight, XCircle } from 'lucide-react'
 
-import type { Route, RouteNodeWithDetails, RouteViewMode, RouteVisualizationNode } from '@/types'
+import type { PredictionRoute, Route, RouteNodeWithDetails, RouteViewMode, RouteVisualizationNode } from '@/types'
 import { RouteComparison, RouteGraph, RouteLegend } from '@/components/route-visualization'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { RouteViewToggle } from './route-view-toggle'
 
 type RouteDisplayCardProps = {
     route: Route
+    predictionRoute: PredictionRoute
     routeNode: RouteNodeWithDetails
     groundTruthRouteNode?: RouteNodeWithDetails
     isSolvable?: boolean
@@ -27,6 +28,7 @@ type RouteDisplayCardProps = {
 
 export function RouteDisplayCard({
     route,
+    predictionRoute,
     routeNode,
     groundTruthRouteNode,
     isSolvable,
@@ -98,7 +100,7 @@ export function RouteDisplayCard({
         <Card variant="bordered">
             <CardHeader>
                 <div>
-                    <CardTitle className="text-lg">Rank {route.rank}</CardTitle>
+                    <CardTitle className="text-lg">Rank {predictionRoute.rank}</CardTitle>
                     <CardDescription>
                         Length: {route.length} steps • {route.isConvergent ? 'Convergent' : 'Linear'}
                     </CardDescription>

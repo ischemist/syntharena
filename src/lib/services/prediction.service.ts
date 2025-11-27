@@ -165,28 +165,32 @@ export async function getTargetPredictions(
         throw new Error('Target not found.')
     }
 
-    // Fetch all routes for this target in this run
-    const routes = await prisma.route.findMany({
+    // Fetch all predictions for this target in this run
+    const predictionRoutes = await prisma.predictionRoute.findMany({
         where: {
             targetId,
             predictionRunId: runId,
         },
         include: {
+            route: {
+                include: {
+                    nodes: {
+                        include: {
+                            molecule: true,
+                            children: {
+                                include: {
+                                    molecule: true,
+                                },
+                            },
+                        },
+                    },
+                },
+            },
             solvabilityStatus: {
                 include: {
                     stock: true,
                 },
                 ...(stockId && { where: { stockId } }),
-            },
-            nodes: {
-                include: {
-                    molecule: true,
-                    children: {
-                        include: {
-                            molecule: true,
-                        },
-                    },
-                },
             },
         },
         orderBy: {
@@ -194,13 +198,13 @@ export async function getTargetPredictions(
         },
     })
 
-    // Build route node tree for each route
-    const routesWithTrees = routes.map((route) => {
+    // Build route node tree for each prediction
+    const routesWithTrees = predictionRoutes.map((predictionRoute) => {
         // Build hierarchical tree from flat node array
-        const routeTree = buildRouteTree(route.nodes)
+        const routeTree = buildRouteTree(predictionRoute.route.nodes)
 
         // Map solvability status
-        const solvability = route.solvabilityStatus.map((s) => ({
+        const solvability = predictionRoute.solvabilityStatus.map((s) => ({
             stockId: s.stockId,
             stockName: s.stock.name,
             isSolvable: s.isSolvable,
@@ -208,14 +212,22 @@ export async function getTargetPredictions(
         }))
 
         return {
-            route,
+            route: predictionRoute.route,
+            predictionRoute: {
+                id: predictionRoute.id,
+                routeId: predictionRoute.routeId,
+                predictionRunId: predictionRoute.predictionRunId,
+                targetId: predictionRoute.targetId,
+                rank: predictionRoute.rank,
+                metadata: predictionRoute.metadata,
+            },
             routeNode: routeTree,
             solvability,
         }
     })
 
     // Check for GT match
-    const groundTruthRank = routesWithTrees.find((r) => r.solvability.some((s) => s.isGtMatch))?.route.rank
+    const groundTruthRank = routesWithTrees.find((r) => r.solvability.some((s) => s.isGtMatch))?.predictionRoute.rank
 
     return {
         targetId: target.targetId,
@@ -285,7 +297,7 @@ export async function searchTargets(
         where,
         include: {
             molecule: true,
-            predictedRoutes: {
+            predictionRoutes: {
                 where: {
                     predictionRunId: runId,
                 },
@@ -309,7 +321,7 @@ export async function searchTargets(
         ...t,
         molecule: t.molecule,
         hasGroundTruth: !!t.groundTruthRouteId,
-        routeCount: t.predictedRoutes.length,
+        routeCount: t.predictionRoutes.length,
     }))
 }
 
@@ -374,7 +386,7 @@ export async function getTargetsByRun(
     // Complex filters require joins
     if (hasSolvedRoute !== undefined || gtRank !== undefined) {
         // Need to filter by routes
-        where.predictedRoutes = {
+        where.predictionRoutes = {
             some: {
                 predictionRunId: runId,
                 ...(hasSolvedRoute !== undefined &&
@@ -407,7 +419,7 @@ export async function getTargetsByRun(
         where,
         include: {
             molecule: true,
-            predictedRoutes: {
+            predictionRoutes: {
                 where: {
                     predictionRunId: runId,
                 },
@@ -434,8 +446,9 @@ export async function getTargetsByRun(
 
     const targetsWithMolecule: BenchmarkTargetWithMolecule[] = targets.map((t) => ({
         ...t,
+        molecule: t.molecule,
         hasGroundTruth: !!t.groundTruthRouteId,
-        routeCount: t.predictedRoutes.length,
+        routeCount: t.predictionRoutes.length,
     }))
 
     return {

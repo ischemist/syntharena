@@ -457,7 +457,7 @@ describe('benchmark.service', () => {
         })
     })
 
-    describe.skip('getBenchmarkTargets - Combined filters (TODO: update for new schema)', () => {
+    describe('getBenchmarkTargets - Combined filters', () => {
         it('should apply multiple filters together', async () => {
             const { benchmark } = await createTestBenchmark('combined-filters', { targetCount: 5 })
 

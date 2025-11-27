@@ -452,20 +452,22 @@ async function storeRouteTree(pythonMol: PythonMolecule, routeId: string): Promi
 }
 
 /**
- * Creates a Route record from Python route object.
- * Creates the full RouteNode tree using bulk operations to avoid N+1 queries.
+ * Creates or reuses a Route record from Python route object with GLOBAL deduplication.
+ * Routes are now unique by signature (topology hash). If a route with the same
+ * signature exists, it is reused. Otherwise, a new Route + RouteNode tree is created.
+ * Always creates a new PredictionRoute junction record linking the route to this prediction.
  *
  * @param pythonRoute - Python route object
  * @param predictionRunId - PredictionRun ID
  * @param targetId - BenchmarkTarget ID (not the external target_id string)
- * @returns Created Route with ID
- * @throws Error if target not found or duplicate contentHash exists
+ * @returns Object with routeId and predictionRouteId
+ * @throws Error if target not found or duplicate prediction exists
  */
 export async function createRouteFromPython(
     pythonRoute: PythonRoute,
     predictionRunId: string,
     targetId: string
-): Promise<{ id: string; rank: number; contentHash: string }> {
+): Promise<{ routeId: string; predictionRouteId: string; rank: number; wasReused: boolean }> {
     // Verify target exists
     const target = await prisma.benchmarkTarget.findUnique({
         where: { id: targetId },
@@ -482,68 +484,95 @@ export async function createRouteFromPython(
     const length = computeRouteLength(pythonRoute.target)
     const isConvergent = isRouteConvergent(pythonRoute.target)
 
-    // Check for duplicate contentHash (shouldn't happen in normal operation)
-    const existing = await prisma.route.findFirst({
+    // Step 1: Check if Route exists globally by signature
+    let route = await prisma.route.findFirst({
+        where: { signature },
+        select: { id: true },
+    })
+
+    let wasReused = false
+
+    if (!route) {
+        // Step 2a: Route doesn't exist - create new Route + RouteNode tree
+        route = await prisma.route.create({
+            data: {
+                signature,
+                contentHash,
+                length,
+                isConvergent,
+            },
+            select: { id: true },
+        })
+
+        // Create RouteNode tree using bulk operations
+        await storeRouteTree(pythonRoute.target, route.id)
+    } else {
+        wasReused = true
+    }
+
+    // Step 3: Check if this prediction already exists (same route, run, target)
+    const existingPrediction = await prisma.predictionRoute.findFirst({
         where: {
-            targetId,
+            routeId: route.id,
             predictionRunId,
-            contentHash,
+            targetId,
         },
         select: { id: true },
     })
 
-    if (existing) {
-        throw new Error(`Duplicate route detected: contentHash ${contentHash} already exists for this target and run`)
+    if (existingPrediction) {
+        throw new Error(
+            `Duplicate prediction detected: route ${route.id} already predicted for target ${targetId} in run ${predictionRunId}`
+        )
     }
 
-    // Prepare route metadata
+    // Step 4: Create PredictionRoute junction record
     const metadata = pythonRoute.metadata ? JSON.stringify(pythonRoute.metadata) : null
 
-    // Create Route record
-    const route = await prisma.route.create({
+    const predictionRoute = await prisma.predictionRoute.create({
         data: {
+            routeId: route.id,
             predictionRunId,
             targetId,
             rank: pythonRoute.rank,
-            contentHash,
-            signature, // Read from Python JSON
-            length,
-            isConvergent,
             metadata,
         },
-        select: { id: true, rank: true, contentHash: true },
+        select: { id: true },
     })
 
-    // Create RouteNode tree using bulk operations
-    await storeRouteTree(pythonRoute.target, route.id)
-
-    return route
+    return {
+        routeId: route.id,
+        predictionRouteId: predictionRoute.id,
+        rank: pythonRoute.rank,
+        wasReused,
+    }
 }
 
 /**
  * Creates or updates a RouteSolvability record.
- * Links a route to a stock with solvability status.
+ * Links a PREDICTION ROUTE (not a route) to a stock with solvability status.
+ * NOTE: Solvability is per-prediction, not per-route structure.
  *
- * @param routeId - Route ID
+ * @param predictionRouteId - PredictionRoute ID
  * @param stockId - Stock ID
  * @param isSolvable - Can this route be solved with the stock?
  * @param isGtMatch - Does this route match the ground truth?
  * @returns Created or updated RouteSolvability
- * @throws Error if route or stock not found
+ * @throws Error if predictionRoute or stock not found
  */
 export async function createRouteSolvability(
-    routeId: string,
+    predictionRouteId: string,
     stockId: string,
     isSolvable: boolean,
     isGtMatch: boolean
-): Promise<{ id: string; routeId: string; stockId: string }> {
-    // Verify route exists
-    const route = await prisma.route.findUnique({
-        where: { id: routeId },
+): Promise<{ id: string; predictionRouteId: string; stockId: string }> {
+    // Verify predictionRoute exists
+    const predictionRoute = await prisma.predictionRoute.findUnique({
+        where: { id: predictionRouteId },
         select: { id: true },
     })
-    if (!route) {
-        throw new Error(`Route not found: ${routeId}`)
+    if (!predictionRoute) {
+        throw new Error(`PredictionRoute not found: ${predictionRouteId}`)
     }
 
     // Verify stock exists
@@ -558,8 +587,8 @@ export async function createRouteSolvability(
     // Upsert solvability record
     const solvability = await prisma.routeSolvability.upsert({
         where: {
-            routeId_stockId: {
-                routeId,
+            predictionRouteId_stockId: {
+                predictionRouteId,
                 stockId,
             },
         },
@@ -568,12 +597,12 @@ export async function createRouteSolvability(
             isGtMatch,
         },
         create: {
-            routeId,
+            predictionRouteId,
             stockId,
             isSolvable,
             isGtMatch,
         },
-        select: { id: true, routeId: true, stockId: true },
+        select: { id: true, predictionRouteId: true, stockId: true },
     })
 
     return solvability
@@ -717,7 +746,8 @@ export async function createModelStatistics(
 
 /**
  * Updates aggregate statistics for a PredictionRun.
- * Call this after loading all routes for a run.
+ * Call this after loading all predictions for a run.
+ * NOTE: Now counts PredictionRoutes, not Routes (deduplication is enabled).
  *
  * @param predictionRunId - PredictionRun ID
  * @returns Updated PredictionRun
@@ -737,17 +767,22 @@ export async function updatePredictionRunStats(predictionRunId: string): Promise
         throw new Error(`Prediction run not found: ${predictionRunId}`)
     }
 
-    // Compute aggregate stats
-    const stats = await prisma.route.aggregate({
+    // Compute aggregate stats from PredictionRoutes
+    // Count number of predictions and average the route lengths
+    const predictionRoutes = await prisma.predictionRoute.findMany({
         where: { predictionRunId },
-        _count: true,
-        _avg: {
-            length: true,
+        select: {
+            route: {
+                select: {
+                    length: true,
+                },
+            },
         },
     })
 
-    const totalRoutes = stats._count
-    const avgRouteLength = stats._avg.length ?? 0
+    const totalRoutes = predictionRoutes.length
+    const avgRouteLength =
+        totalRoutes > 0 ? predictionRoutes.reduce((sum, pr) => sum + pr.route.length, 0) / totalRoutes : 0
 
     // Update run record
     const updatedRun = await prisma.predictionRun.update({

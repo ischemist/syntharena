@@ -112,25 +112,19 @@ export async function deleteBenchmark(benchmarkId: string): Promise<void> {
     }
 
     // Delete in transaction (cascade relations)
+    // Note: PredictionRoutes and RouteSolvability will cascade delete due to onDelete: Cascade
     await prisma.$transaction([
-        // Delete route nodes first (they reference routes)
-        prisma.routeNode.deleteMany({
-            where: {
-                route: {
-                    target: {
-                        benchmarkSetId: benchmarkId,
-                    },
-                },
-            },
-        }),
-        // Delete routes
-        prisma.route.deleteMany({
+        // Delete prediction routes for this benchmark's targets
+        prisma.predictionRoute.deleteMany({
             where: {
                 target: {
                     benchmarkSetId: benchmarkId,
                 },
             },
         }),
+        // Note: Route nodes and Routes may still be referenced by other predictions
+        // Only delete routes that are ONLY used as ground truth for this benchmark
+        // This is complex - for now, leave orphaned routes (they'll be cleaned up separately)
         // Delete benchmark targets
         prisma.benchmarkTarget.deleteMany({
             where: { benchmarkSetId: benchmarkId },
@@ -423,11 +417,10 @@ export async function getPredictionRunsForTarget(targetId: string) {
         throw new Error('Benchmark target not found')
     }
 
-    // Get all routes for this target (excluding ground truth)
-    const routes = await prisma.route.findMany({
+    // Get all prediction routes for this target
+    const predictionRoutes = await prisma.predictionRoute.findMany({
         where: {
             targetId,
-            predictionRunId: { not: null },
         },
         select: {
             predictionRunId: true,
@@ -461,25 +454,23 @@ export async function getPredictionRunsForTarget(targetId: string) {
         }
     >()
 
-    for (const route of routes) {
-        if (!route.predictionRunId || !route.predictionRun) continue
-
-        const runId = route.predictionRunId
+    for (const predictionRoute of predictionRoutes) {
+        const runId = predictionRoute.predictionRunId
         const existing = runMap.get(runId)
 
         if (!existing) {
             runMap.set(runId, {
-                id: route.predictionRun.id,
-                modelName: route.predictionRun.modelInstance.name,
-                modelVersion: route.predictionRun.modelInstance.version || undefined,
-                algorithmName: route.predictionRun.modelInstance.algorithm.name,
-                executedAt: route.predictionRun.executedAt,
+                id: predictionRoute.predictionRun.id,
+                modelName: predictionRoute.predictionRun.modelInstance.name,
+                modelVersion: predictionRoute.predictionRun.modelInstance.version || undefined,
+                algorithmName: predictionRoute.predictionRun.modelInstance.algorithm.name,
+                executedAt: predictionRoute.predictionRun.executedAt,
                 routeCount: 1,
-                maxRank: route.rank,
+                maxRank: predictionRoute.rank,
             })
         } else {
             existing.routeCount++
-            existing.maxRank = Math.max(existing.maxRank, route.rank)
+            existing.maxRank = Math.max(existing.maxRank, predictionRoute.rank)
         }
     }
 
@@ -500,30 +491,34 @@ export async function getPredictedRouteForTarget(targetId: string, runId: string
     // Import route tree builder
     const { buildRouteTree } = await import('./route-tree-builder')
 
-    // Fetch the route
-    const route = await prisma.route.findFirst({
+    // Fetch the prediction route
+    const predictionRoute = await prisma.predictionRoute.findFirst({
         where: {
             targetId,
             predictionRunId: runId,
             rank,
         },
         include: {
-            nodes: {
+            route: {
                 include: {
-                    molecule: true,
+                    nodes: {
+                        include: {
+                            molecule: true,
+                        },
+                    },
                 },
             },
         },
     })
 
-    if (!route) {
+    if (!predictionRoute) {
         return null
     }
 
     // Build route tree from nodes
-    if (route.nodes.length === 0) {
+    if (predictionRoute.route.nodes.length === 0) {
         return null
     }
 
-    return buildRouteTree(route.nodes)
+    return buildRouteTree(predictionRoute.route.nodes)
 }

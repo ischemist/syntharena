@@ -209,7 +209,7 @@ describe('route.service - Service Function Tests', () => {
         ])
     })
 
-    describe.skip('getRouteById (TODO: update for Route without rank)', () => {
+    describe('getRouteById', () => {
         it('should retrieve a route by ID', async () => {
             const { route } = await createCompleteRoute(singleMoleculePython)
 

@@ -513,8 +513,8 @@ async function main() {
                         continue
                     }
 
-                    // Find routes for this target in this prediction run
-                    const routes = await prisma.route.findMany({
+                    // Find prediction routes for this target in this prediction run
+                    const predictionRoutes = await prisma.predictionRoute.findMany({
                         where: {
                             targetId: target.id,
                             predictionRunId: predictionRun.id,
@@ -523,17 +523,22 @@ async function main() {
                         orderBy: { rank: 'asc' },
                     })
 
-                    // Match routes by rank and create solvability records
+                    // Match prediction routes by rank and create solvability records
                     for (const routeEval of targetEval.routes) {
-                        const route = routes.find((r) => r.rank === routeEval.rank)
-                        if (!route) {
+                        const predictionRoute = predictionRoutes.find((pr) => pr.rank === routeEval.rank)
+                        if (!predictionRoute) {
                             console.warn(
                                 `  Warning: Route rank ${routeEval.rank} not found for target ${externalTargetId} (skipping)`
                             )
                             continue
                         }
 
-                        await createRouteSolvability(route.id, stock.id, routeEval.is_solved, routeEval.is_gt_match)
+                        await createRouteSolvability(
+                            predictionRoute.id,
+                            stock.id,
+                            routeEval.is_solved,
+                            routeEval.is_gt_match
+                        )
                         solvabilityRecordsCreated++
                     }
                 } catch (error) {
