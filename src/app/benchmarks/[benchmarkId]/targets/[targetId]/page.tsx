@@ -22,10 +22,12 @@ interface TargetDetailPageProps {
 
 export async function generateMetadata({ params }: TargetDetailPageProps): Promise<Metadata> {
     const { benchmarkId, targetId } = await params
-    const benchmark = await getBenchmarkById(benchmarkId)
+    const [benchmark, target] = await Promise.all([
+        getBenchmarkById(benchmarkId),
+        import('@/lib/services/benchmark.service').then((m) => m.getTargetById(targetId)),
+    ])
 
-    const shortId = targetId.substring(0, 8)
-    const title = `Target ${shortId} - ${benchmark?.name || 'Benchmark'}`
+    const title = `${target?.targetId || 'Target'} - ${benchmark?.name || 'Benchmark'}`
 
     return {
         title,
@@ -48,7 +50,7 @@ export default function TargetDetailPage(props: TargetDetailPageProps) {
     const { benchmarkId, targetId } = params
 
     return (
-        <div className="space-y-6">
+        <div className="flex flex-col gap-6">
             {/* Target header with molecule structure */}
             <Suspense fallback={<TargetDetailSkeleton />}>
                 <TargetHeader benchmarkId={benchmarkId} targetId={targetId} />

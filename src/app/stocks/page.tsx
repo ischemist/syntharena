@@ -17,8 +17,8 @@ export const metadata: Metadata = {
 export default async function StocksPage() {
     await connection()
     return (
-        <div className="space-y-6">
-            <div>
+        <div className="flex flex-col gap-6">
+            <div className="space-y-2">
                 <h1 className="text-3xl font-bold tracking-tight">Stock Libraries</h1>
                 <p className="text-muted-foreground">Browse available chemical stock libraries</p>
             </div>

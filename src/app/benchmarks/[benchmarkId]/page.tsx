@@ -60,7 +60,7 @@ export default function BenchmarkDetailPage(props: BenchmarkDetailPageProps) {
     const gridKey = `grid-${page}-${q || ''}-${searchType}-${isConvergent}-${minRouteLength}-${maxRouteLength}`
 
     return (
-        <div className="space-y-6">
+        <div className="flex flex-col gap-6">
             {/* Benchmark header with lazy loading */}
             <Suspense fallback={<BenchmarkDetailHeaderSkeleton />}>
                 <BenchmarkDetailHeader benchmarkId={benchmarkId} />

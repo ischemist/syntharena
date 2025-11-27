@@ -62,9 +62,12 @@ export async function resolveSegmentNames(segments: string[]): Promise<Record<st
                     break
                 }
                 case 'target': {
-                    // For targets, we show a shortened ID (first 8 chars)
-                    // Full target details are already shown in the page header
-                    names[segment] = `Target ${segment.substring(0, 8)}...`
+                    // Fetch the target to get the external targetId (e.g., "n5-00123")
+                    const { getTargetById } = await import('@/lib/services/benchmark.service')
+                    const target = await getTargetById(segment)
+                    if (target) {
+                        names[segment] = target.targetId
+                    }
                     break
                 }
                 default: {

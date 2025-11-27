@@ -39,14 +39,14 @@ export default function StockDetailPage(props: StockDetailPageProps) {
     const page = typeof searchParams.page === 'string' ? parseInt(searchParams.page, 10) : 1
 
     return (
-        <div className="space-y-6">
+        <div className="flex flex-col gap-6">
             {/* Stock header with lazy loading */}
             <Suspense fallback={<StockDetailHeaderSkeleton />}>
                 <StockHeader stockId={stockId} />
             </Suspense>
 
             {/* Search Interface */}
-            <div className="space-y-4">
+            <div className="flex flex-col gap-4">
                 <MoleculeSearchBar />
 
                 <Suspense key={`${query}-${page}`} fallback={<MoleculeTableSkeleton />}>
