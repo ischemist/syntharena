@@ -1,29 +1,42 @@
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 /**
  * Loading skeleton for the benchmark list view.
- * Shows placeholder cards for benchmarks while data is loading.
+ * Shows placeholder table rows for benchmarks while data is loading.
  * Optimized for minimal CLS with consistent spacing.
  */
 export function BenchmarkListSkeleton() {
     return (
-        <div className="space-y-4">
-            {Array.from({ length: 3 }).map((_, i) => (
-                <Card key={i} className="hover:bg-accent my-4 transition-colors">
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <Skeleton className="h-6 w-48" />
-                            <div className="flex gap-2">
-                                <Skeleton className="h-6 w-24 rounded-full" /> {/* Targets badge */}
-                                <Skeleton className="h-6 w-32 rounded-full" /> {/* Stock badge */}
-                            </div>
-                        </div>
-                        <Skeleton className="mt-2 h-4 w-full" />
-                    </CardHeader>
-                </Card>
-            ))}
-        </div>
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="text-right">Targets</TableHead>
+                    <TableHead className="text-right">Stock</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {Array.from({ length: 3 }).map((_, i) => (
+                    <TableRow key={i}>
+                        <TableCell>
+                            <Skeleton className="h-5 w-48" />
+                        </TableCell>
+                        <TableCell>
+                            <Skeleton className="h-4 w-64" />
+                        </TableCell>
+                        <TableCell className="text-right">
+                            <Skeleton className="ml-auto h-6 w-24 rounded-full" />
+                        </TableCell>
+                        <TableCell className="text-right">
+                            <Skeleton className="ml-auto h-6 w-32 rounded-full" />
+                        </TableCell>
+                    </TableRow>
+                ))}
+            </TableBody>
+        </Table>
     )
 }
 

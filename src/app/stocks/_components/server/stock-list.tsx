@@ -2,40 +2,45 @@ import Link from 'next/link'
 
 import * as stockService from '@/lib/services/stock.service'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 /**
  * Server component that displays all available stocks with their molecule counts.
- * Each stock card is clickable and navigates to the stock detail page.
+ * Each stock row is clickable and navigates to the stock detail page.
  */
 export async function StockList() {
     const stocks = await stockService.getStocks()
 
     if (stocks.length === 0) {
         return (
-            <Card>
-                <CardContent className="text-muted-foreground py-8 text-center">
-                    No stocks available. Load a stock using the CLI script.
-                </CardContent>
-            </Card>
+            <div className="text-muted-foreground py-12 text-center">
+                <p>No stocks available. Load a stock using the CLI script.</p>
+            </div>
         )
     }
 
     return (
-        <div className="space-y-4">
-            {stocks.map((stock) => (
-                <Link key={stock.id} href={`/stocks/${stock.id}`} prefetch={true}>
-                    <Card className="hover:bg-accent my-4 transition-colors">
-                        <CardHeader>
-                            <div className="flex items-center justify-between">
-                                <CardTitle>{stock.name}</CardTitle>
-                                <Badge variant="secondary">{stock.itemCount.toLocaleString()} molecules</Badge>
-                            </div>
-                            {stock.description && <CardDescription>{stock.description}</CardDescription>}
-                        </CardHeader>
-                    </Card>
-                </Link>
-            ))}
-        </div>
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="text-right">Molecules</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {stocks.map((stock) => (
+                    <TableRow key={stock.id} className="cursor-pointer">
+                        <Link href={`/stocks/${stock.id}`} prefetch={true} className="contents">
+                            <TableCell className="font-semibold">{stock.name}</TableCell>
+                            <TableCell className="text-muted-foreground">{stock.description || '—'}</TableCell>
+                            <TableCell className="text-right">
+                                <Badge variant="secondary">{stock.itemCount.toLocaleString()}</Badge>
+                            </TableCell>
+                        </Link>
+                    </TableRow>
+                ))}
+            </TableBody>
+        </Table>
     )
 }
