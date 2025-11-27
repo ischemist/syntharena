@@ -1,7 +1,7 @@
 import { Suspense, use } from 'react'
 import type { Metadata } from 'next'
 
-import { getBenchmarkById } from '@/lib/services/benchmark.service'
+import { getBenchmarkById, getTargetById } from '@/lib/services/benchmark.service'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { RouteDisplayWithComparison } from './_components/server/route-display-with-comparison'
@@ -22,10 +22,7 @@ interface TargetDetailPageProps {
 
 export async function generateMetadata({ params }: TargetDetailPageProps): Promise<Metadata> {
     const { benchmarkId, targetId } = await params
-    const [benchmark, target] = await Promise.all([
-        getBenchmarkById(benchmarkId),
-        import('@/lib/services/benchmark.service').then((m) => m.getTargetById(targetId)),
-    ])
+    const [benchmark, target] = await Promise.all([getBenchmarkById(benchmarkId), getTargetById(targetId)])
 
     const title = `${target?.targetId || 'Target'} - ${benchmark?.name || 'Benchmark'}`
 

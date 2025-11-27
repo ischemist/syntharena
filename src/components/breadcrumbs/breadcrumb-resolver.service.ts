@@ -70,10 +70,6 @@ export async function resolveSegmentNames(segments: string[]): Promise<Record<st
                     }
                     break
                 }
-                default: {
-                    // Fallback: use the segment ID itself
-                    names[segment] = segment
-                }
             }
         } catch (error) {
             // If fetch fails, fall back to showing the ID

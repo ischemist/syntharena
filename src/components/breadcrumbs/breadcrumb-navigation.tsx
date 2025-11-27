@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useSelectedLayoutSegments } from 'next/navigation'
 
 import {
@@ -27,10 +27,7 @@ export function BreadcrumbNavigation() {
     const [displayNames, setDisplayNames] = useState<Record<string, string>>({})
 
     // Filter out route groups like (auth), (dashboard) - they start with parentheses
-    const cleanSegments = segments.filter((s) => !s.startsWith('('))
-
-    // Create a stable key for the current path
-    const pathKey = cleanSegments.join('/')
+    const cleanSegments = useMemo(() => segments.filter((s) => !s.startsWith('(')), [segments])
 
     // Fetch display names for dynamic segments (IDs)
     useEffect(() => {
@@ -47,8 +44,7 @@ export function BreadcrumbNavigation() {
         }
 
         fetchNames()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [pathKey]) // Re-fetch when path changes
+    }, [cleanSegments]) // Re-fetch when path changes
 
     // Build breadcrumb structure from segments
     const breadcrumbs = buildBreadcrumbs(cleanSegments, displayNames)
