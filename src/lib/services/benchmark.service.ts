@@ -356,3 +356,174 @@ export async function getBenchmarkStats(benchmarkId: string): Promise<BenchmarkS
         maxRouteLength: routeLengths.length > 0 ? Math.max(...routeLengths) : 0,
     }
 }
+
+// ============================================================================
+// Prediction Run Functions
+// ============================================================================
+
+/**
+ * Get all prediction runs for a benchmark set.
+ * Used to populate model selector dropdowns.
+ *
+ * @param benchmarkId - The benchmark ID
+ * @returns Array of prediction runs with model info
+ * @throws Error if benchmark not found
+ */
+export async function getPredictionRunsForBenchmark(benchmarkId: string) {
+    // Verify benchmark exists
+    const benchmark = await prisma.benchmarkSet.findUnique({
+        where: { id: benchmarkId },
+        select: { id: true },
+    })
+
+    if (!benchmark) {
+        throw new Error('Benchmark not found')
+    }
+
+    const runs = await prisma.predictionRun.findMany({
+        where: { benchmarkSetId: benchmarkId },
+        include: {
+            modelInstance: {
+                include: {
+                    algorithm: true,
+                },
+            },
+        },
+        orderBy: {
+            executedAt: 'desc',
+        },
+    })
+
+    return runs.map((run) => ({
+        id: run.id,
+        modelName: run.modelInstance.name,
+        modelVersion: run.modelInstance.version || undefined,
+        algorithmName: run.modelInstance.algorithm.name,
+        executedAt: run.executedAt,
+        totalRoutes: run.totalRoutes,
+        avgRouteLength: run.avgRouteLength || undefined,
+    }))
+}
+
+/**
+ * Get all prediction runs that have predictions for a specific target.
+ * Returns runs with route counts and max ranks specific to this target.
+ *
+ * @param targetId - The benchmark target ID
+ * @returns Array of prediction runs with target-specific route info
+ */
+export async function getPredictionRunsForTarget(targetId: string) {
+    // Verify target exists
+    const target = await prisma.benchmarkTarget.findUnique({
+        where: { id: targetId },
+        select: { id: true },
+    })
+
+    if (!target) {
+        throw new Error('Benchmark target not found')
+    }
+
+    // Get all routes for this target (excluding ground truth)
+    const routes = await prisma.route.findMany({
+        where: {
+            targetId,
+            predictionRunId: { not: null },
+        },
+        select: {
+            predictionRunId: true,
+            rank: true,
+            predictionRun: {
+                include: {
+                    modelInstance: {
+                        include: {
+                            algorithm: true,
+                        },
+                    },
+                },
+            },
+        },
+        orderBy: {
+            rank: 'asc',
+        },
+    })
+
+    // Group by run and compute max rank + route count
+    const runMap = new Map<
+        string,
+        {
+            id: string
+            modelName: string
+            modelVersion?: string
+            algorithmName: string
+            executedAt: Date
+            routeCount: number
+            maxRank: number
+        }
+    >()
+
+    for (const route of routes) {
+        if (!route.predictionRunId || !route.predictionRun) continue
+
+        const runId = route.predictionRunId
+        const existing = runMap.get(runId)
+
+        if (!existing) {
+            runMap.set(runId, {
+                id: route.predictionRun.id,
+                modelName: route.predictionRun.modelInstance.name,
+                modelVersion: route.predictionRun.modelInstance.version || undefined,
+                algorithmName: route.predictionRun.modelInstance.algorithm.name,
+                executedAt: route.predictionRun.executedAt,
+                routeCount: 1,
+                maxRank: route.rank,
+            })
+        } else {
+            existing.routeCount++
+            existing.maxRank = Math.max(existing.maxRank, route.rank)
+        }
+    }
+
+    // Convert to array and sort by execution date (most recent first)
+    return Array.from(runMap.values()).sort((a, b) => b.executedAt.getTime() - a.executedAt.getTime())
+}
+
+/**
+ * Get a specific predicted route for a target from a prediction run.
+ * Returns the route tree structure for visualization.
+ *
+ * @param targetId - The benchmark target ID (internal ID, not targetId string)
+ * @param runId - The prediction run ID
+ * @param rank - The route rank (1-indexed)
+ * @returns Route tree with molecule details, or null if not found
+ */
+export async function getPredictedRouteForTarget(targetId: string, runId: string, rank: number) {
+    // Import route tree builder
+    const { buildRouteTree } = await import('./route-tree-builder')
+
+    // Fetch the route
+    const route = await prisma.route.findFirst({
+        where: {
+            targetId,
+            predictionRunId: runId,
+            rank,
+        },
+        include: {
+            nodes: {
+                include: {
+                    molecule: true,
+                },
+            },
+        },
+    })
+
+    if (!route) {
+        return null
+    }
+
+    // Build route tree from nodes
+    if (route.nodes.length === 0) {
+        return null
+    }
+
+    return buildRouteTree(route.nodes)
+}

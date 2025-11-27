@@ -1,18 +1,26 @@
 import { Suspense, use } from 'react'
 
-import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
-import { RouteDisplay } from './_components/server/route-display'
+import { RouteDisplayWithComparison } from './_components/server/route-display-with-comparison'
 import { TargetHeader } from './_components/server/target-header'
 import { TargetDetailSkeleton } from './_components/skeletons'
 
 interface TargetDetailPageProps {
     params: Promise<{ benchmarkId: string; targetId: string }>
+    searchParams: Promise<{
+        mode?: string
+        model1?: string
+        model2?: string
+        rank1?: string
+        rank2?: string
+        view?: string
+    }>
 }
 
 /**
  * Target detail page showing target molecule and ground truth route.
+ * Now supports comparison with model predictions via URL search params.
  * Remains synchronous per the app router manifesto, unwrapping promises with use().
  * Delegates data fetching to async server components wrapped in Suspense boundaries.
  * Target header and route display load independently via streaming.
@@ -20,6 +28,7 @@ interface TargetDetailPageProps {
 export default function TargetDetailPage(props: TargetDetailPageProps) {
     // ORTHODOXY: Unwrap promises in sync component (Next.js 15 pattern)
     const params = use(props.params)
+    const searchParams = use(props.searchParams)
 
     const { benchmarkId, targetId } = params
 
@@ -30,17 +39,25 @@ export default function TargetDetailPage(props: TargetDetailPageProps) {
                 <TargetHeader benchmarkId={benchmarkId} targetId={targetId} />
             </Suspense>
 
-            {/* Route visualization */}
+            {/* Route visualization with comparison support */}
             <Suspense
+                key={`${searchParams.mode}-${searchParams.model1}-${searchParams.model2}-${searchParams.rank1}-${searchParams.rank2}-${searchParams.view}`}
                 fallback={
-                    <Card>
-                        <CardContent className="p-6">
-                            <Skeleton className="h-[600px] w-full" />
-                        </CardContent>
-                    </Card>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-6 dark:border-gray-800 dark:bg-gray-900/50">
+                        <Skeleton className="h-[600px] w-full" />
+                    </div>
                 }
             >
-                <RouteDisplay targetId={targetId} />
+                <RouteDisplayWithComparison
+                    targetId={targetId}
+                    benchmarkId={benchmarkId}
+                    mode={searchParams.mode}
+                    model1Id={searchParams.model1}
+                    model2Id={searchParams.model2}
+                    rank1={searchParams.rank1 ? parseInt(searchParams.rank1, 10) : 1}
+                    rank2={searchParams.rank2 ? parseInt(searchParams.rank2, 10) : 1}
+                    viewMode={searchParams.view}
+                />
             </Suspense>
         </div>
     )
