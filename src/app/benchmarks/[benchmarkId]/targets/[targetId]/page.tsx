@@ -1,5 +1,7 @@
 import { Suspense, use } from 'react'
+import type { Metadata } from 'next'
 
+import { getBenchmarkById, getTargetById } from '@/lib/services/benchmark.service'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { RouteDisplayWithComparison } from './_components/server/route-display-with-comparison'
@@ -18,6 +20,18 @@ interface TargetDetailPageProps {
     }>
 }
 
+export async function generateMetadata({ params }: TargetDetailPageProps): Promise<Metadata> {
+    const { benchmarkId, targetId } = await params
+    const [benchmark, target] = await Promise.all([getBenchmarkById(benchmarkId), getTargetById(targetId)])
+
+    const title = `${target?.targetId || 'Target'} - ${benchmark?.name || 'Benchmark'}`
+
+    return {
+        title,
+        description: 'View ground truth route and compare with model predictions.',
+    }
+}
+
 /**
  * Target detail page showing target molecule and ground truth route.
  * Now supports comparison with model predictions via URL search params.
@@ -33,7 +47,7 @@ export default function TargetDetailPage(props: TargetDetailPageProps) {
     const { benchmarkId, targetId } = params
 
     return (
-        <div className="space-y-6">
+        <div className="flex flex-col gap-6">
             {/* Target header with molecule structure */}
             <Suspense fallback={<TargetDetailSkeleton />}>
                 <TargetHeader benchmarkId={benchmarkId} targetId={targetId} />

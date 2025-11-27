@@ -1,4 +1,7 @@
 import { Suspense, use } from 'react'
+import type { Metadata } from 'next'
+
+import { getBenchmarkById } from '@/lib/services/benchmark.service'
 
 import { BenchmarkDetailHeader } from './_components/server/benchmark-detail-header'
 import { TargetFilterBar } from './_components/server/target-filter-bar'
@@ -8,6 +11,16 @@ import { BenchmarkDetailHeaderSkeleton, TargetFilterBarSkeleton, TargetGridSkele
 interface BenchmarkDetailPageProps {
     params: Promise<{ benchmarkId: string }>
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}
+
+export async function generateMetadata({ params }: BenchmarkDetailPageProps): Promise<Metadata> {
+    const { benchmarkId } = await params
+    const benchmark = await getBenchmarkById(benchmarkId)
+
+    return {
+        title: benchmark?.name || 'Benchmark',
+        description: benchmark?.description || 'View benchmark targets and ground truth routes.',
+    }
 }
 
 /**
@@ -47,7 +60,7 @@ export default function BenchmarkDetailPage(props: BenchmarkDetailPageProps) {
     const gridKey = `grid-${page}-${q || ''}-${searchType}-${isConvergent}-${minRouteLength}-${maxRouteLength}`
 
     return (
-        <div className="space-y-6">
+        <div className="flex flex-col gap-6">
             {/* Benchmark header with lazy loading */}
             <Suspense fallback={<BenchmarkDetailHeaderSkeleton />}>
                 <BenchmarkDetailHeader benchmarkId={benchmarkId} />
