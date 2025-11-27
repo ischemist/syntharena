@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { CheckCircle, XCircle } from 'lucide-react'
 
 import type { Route, RouteNodeWithDetails, RouteViewMode, RouteVisualizationNode } from '@/types'
@@ -18,6 +17,7 @@ type RouteDisplayCardProps = {
     isGtMatch?: boolean
     inStockInchiKeys: Set<string>
     stockName?: string
+    viewMode?: string
 }
 
 export function RouteDisplayCard({
@@ -28,9 +28,15 @@ export function RouteDisplayCard({
     isGtMatch,
     inStockInchiKeys,
     stockName,
+    viewMode: viewModeProp,
 }: RouteDisplayCardProps) {
-    const [viewMode, setViewMode] = useState<RouteViewMode>('prediction-only')
     const hasGroundTruth = !!groundTruthRouteNode
+    // Validate and default view mode
+    const validViewModes: RouteViewMode[] = ['prediction-only', 'side-by-side', 'diff-overlay']
+    const viewMode: RouteViewMode =
+        viewModeProp && validViewModes.includes(viewModeProp as RouteViewMode)
+            ? (viewModeProp as RouteViewMode)
+            : 'prediction-only'
 
     // Convert RouteNodeWithDetails to RouteVisualizationNode format
     const convertToVisualizationNode = (node: RouteNodeWithDetails): RouteVisualizationNode => {
@@ -88,7 +94,7 @@ export function RouteDisplayCard({
                 )}
 
                 {/* View mode toggle */}
-                <RouteViewToggle viewMode={viewMode} onViewModeChange={setViewMode} hasGroundTruth={hasGroundTruth} />
+                <RouteViewToggle viewMode={viewMode} hasGroundTruth={hasGroundTruth} />
 
                 {/* Route visualization */}
                 <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">

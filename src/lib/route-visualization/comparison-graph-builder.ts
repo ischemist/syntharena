@@ -72,46 +72,43 @@ export function buildSideBySideGraph(
 
         return { nodes, edges }
     } else {
-        // Prediction side: merge with GT to show ghost nodes
-        const mergedTree = mergeTreesForDiff(otherRoute, route, gtInchiKeys, predInchiKeys)
-        if (!mergedTree) return { nodes: [], edges: [] }
+        // Prediction side: show only prediction nodes (no ghost nodes from GT)
+        const { nodes: layoutNodes, edges: layoutEdges } = layoutTree(route, idPrefix)
 
-        const layoutRoot = buildMergedLayoutTree(mergedTree, idPrefix)
-        calculateSubtreeWidth(layoutRoot)
-        assignPositions(layoutRoot, 0, 0)
+        // Build a set to track which nodes are leaf nodes (no children in the tree)
+        const leafNodeIds = new Set<string>()
+        const nodeChildren = new Map<string, number>()
+        layoutEdges.forEach((edge) => {
+            nodeChildren.set(edge.source, (nodeChildren.get(edge.source) || 0) + 1)
+        })
+        layoutNodes.forEach((node) => {
+            if (!nodeChildren.has(node.id)) {
+                leafNodeIds.add(node.id)
+            }
+        })
 
-        const layoutNodes: Array<{
-            id: string
-            smiles: string
-            inchikey: string
-            x: number
-            y: number
-            status: NodeStatus
-            isLeaf: boolean
-        }> = []
-        const layoutEdges: Array<{ source: string; target: string; isGhost: boolean }> = []
-        flattenMergedLayoutTree(layoutRoot, layoutNodes, layoutEdges, null, false)
-
-        const nodes: Node<RouteGraphNode>[] = layoutNodes.map((n) => ({
-            id: n.id,
-            type: 'molecule',
-            position: { x: n.x, y: n.y },
-            data: {
-                smiles: n.smiles,
-                status: n.status,
-                isLeaf: n.isLeaf,
-                inStock: inStockInchiKeys?.has(n.inchikey),
-            },
-        }))
+        const nodes: Node<RouteGraphNode>[] = layoutNodes.map((n) => {
+            // Determine status based on whether it's in GT
+            const status: NodeStatus = gtInchiKeys.has(n.inchikey) ? 'match' : 'extension'
+            return {
+                id: n.id,
+                type: 'molecule',
+                position: { x: n.x, y: n.y },
+                data: {
+                    smiles: n.smiles,
+                    status,
+                    isLeaf: leafNodeIds.has(n.id),
+                    inStock: inStockInchiKeys?.has(n.inchikey),
+                },
+            }
+        })
 
         const edges: Edge[] = layoutEdges.map((e, idx) => ({
             id: `${idPrefix}edge-${idx}`,
             source: e.source,
             target: e.target,
             animated: false,
-            style: e.isGhost
-                ? { stroke: '#9ca3af', strokeWidth: 2, strokeDasharray: '5,5' }
-                : { stroke: '#94a3b8', strokeWidth: 2 },
+            style: { stroke: '#94a3b8', strokeWidth: 2 },
         }))
 
         return { nodes, edges }
