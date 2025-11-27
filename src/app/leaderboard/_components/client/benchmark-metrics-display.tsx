@@ -5,12 +5,11 @@ import { BarChart3, Table2 } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Cell, ErrorBar, XAxis, YAxis } from 'recharts'
 
 import type { LeaderboardEntry } from '@/types'
+import { MetricCell } from '@/components/metrics'
 import { chartColors } from '@/components/theme/chart-palette'
 import { Button } from '@/components/ui/button'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-
-import { MetricCell } from '../../../runs/[runId]/_components/client/metric-cell'
 
 type BenchmarkMetricsDisplayProps = {
     entries: LeaderboardEntry[]

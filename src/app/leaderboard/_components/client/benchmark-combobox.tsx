@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Check, ChevronsUpDown } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -30,13 +30,14 @@ type BenchmarkComboboxProps = {
 export function BenchmarkCombobox({ benchmarks, selectedId }: BenchmarkComboboxProps) {
     const router = useRouter()
     const pathname = usePathname()
+    const searchParams = useSearchParams()
     const [open, setOpen] = useState(false)
 
     const selectedBenchmark = benchmarks.find((b) => b.id === selectedId)
 
     const handleSelect = (benchmarkId: string) => {
-        // Update URL with new benchmark selection
-        const params = new URLSearchParams()
+        // Update URL with new benchmark selection, preserving existing params
+        const params = new URLSearchParams(searchParams.toString())
         params.set('benchmarkId', benchmarkId)
         router.push(`${pathname}?${params.toString()}`)
         setOpen(false)

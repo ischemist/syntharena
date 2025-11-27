@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { BarChart3, Table2 } from 'lucide-react'
 
 import type { StratifiedMetric } from '@/types'
+import { MetricCell } from '@/components/metrics'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-import { MetricCell } from './metric-cell'
 import { StratifiedMetricsChart } from './stratified-metrics-chart'
 
 type StratifiedMetricsViewToggleProps = {

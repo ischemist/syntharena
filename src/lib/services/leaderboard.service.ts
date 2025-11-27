@@ -274,23 +274,29 @@ export async function getLeaderboardByBenchmark(stockId?: string): Promise<
         }
     >()
 
-    for (const entry of allEntries) {
-        // Fetch benchmark info if not already in map
-        if (!grouped.has(entry.benchmarkName)) {
-            // Get benchmark to check hasGroundTruth
-            const benchmark = await prisma.benchmarkSet.findFirst({
-                where: { name: entry.benchmarkName },
-                select: { id: true, name: true, hasGroundTruth: true },
-            })
+    // Get all unique benchmark names
+    const benchmarkNames = [...new Set(allEntries.map((entry) => entry.benchmarkName))]
 
-            if (benchmark) {
-                grouped.set(entry.benchmarkName, {
-                    benchmarkId: benchmark.id,
-                    benchmarkName: benchmark.name,
-                    hasGroundTruth: benchmark.hasGroundTruth,
-                    entries: [],
-                })
-            }
+    // Fetch all relevant benchmarks in one query
+    const benchmarks = await prisma.benchmarkSet.findMany({
+        where: { name: { in: benchmarkNames } },
+        select: { id: true, name: true, hasGroundTruth: true },
+    })
+
+    // Create a map for easy lookup
+    const benchmarkMap = new Map(benchmarks.map((b) => [b.name, b]))
+
+    for (const entry of allEntries) {
+        const benchmark = benchmarkMap.get(entry.benchmarkName)
+        if (!benchmark) continue
+
+        if (!grouped.has(entry.benchmarkName)) {
+            grouped.set(entry.benchmarkName, {
+                benchmarkId: benchmark.id,
+                benchmarkName: benchmark.name,
+                hasGroundTruth: benchmark.hasGroundTruth,
+                entries: [],
+            })
         }
 
         // Add entry to the group

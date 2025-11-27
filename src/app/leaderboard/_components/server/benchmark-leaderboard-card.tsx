@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 import type { LeaderboardEntry } from '@/types'
 import { getMetricsByBenchmarkAndStock } from '@/lib/services/leaderboard.service'
 import { getStocks } from '@/lib/services/stock.service'
+import { MetricCell } from '@/components/metrics'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -98,9 +99,6 @@ async function StratifiedMetricsWrapper({ benchmarkId, stockId }: { benchmarkId:
     if (metricsMap.size === 0) {
         return null
     }
-
-    // Dynamically import MetricCell to avoid circular dependency
-    const { MetricCell } = await import('@/app/runs/[runId]/_components/client/metric-cell')
 
     return <StratifiedMetricsSection metricsMap={metricsMap} MetricCell={MetricCell} />
 }
