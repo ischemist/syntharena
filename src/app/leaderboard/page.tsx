@@ -3,10 +3,10 @@ import type { Metadata } from 'next'
 
 import { getBenchmarkSets } from '@/lib/services/benchmark.service'
 import { getLeaderboard } from '@/lib/services/leaderboard.service'
-import { Skeleton } from '@/components/ui/skeleton'
 
-import { BenchmarkLeaderboardCard } from './_components/server/benchmark-leaderboard-card'
-import { BenchmarkSelector } from './_components/server/benchmark-selector'
+import { BenchmarkLeaderboardHeader } from './_components/server/benchmark-leaderboard-header'
+import { BenchmarkLeaderboardOverall } from './_components/server/benchmark-leaderboard-overall'
+import { BenchmarkLeaderboardStratified } from './_components/server/benchmark-leaderboard-stratified'
 import { LeaderboardCardSkeleton } from './_components/skeletons'
 
 export const metadata: Metadata = {
@@ -31,20 +31,19 @@ type LeaderboardPageProps = {
 export default function LeaderboardPage({ searchParams }: LeaderboardPageProps) {
     return (
         <div className="flex flex-col gap-6">
-            {/* Page Header */}
-            <div>
-                <h1 className="mb-2 text-3xl font-bold">Leaderboard</h1>
-                <p className="text-muted-foreground">Compare model performance across benchmarks</p>
-            </div>
-
-            {/* Benchmark Selector */}
-            <Suspense fallback={<Skeleton className="h-10 w-[400px]" />}>
-                <BenchmarkSelectorWrapper searchParams={searchParams} />
+            {/* Benchmark Header with Selector */}
+            <Suspense fallback={<LeaderboardCardSkeleton />}>
+                <BenchmarkHeaderWrapper searchParams={searchParams} />
             </Suspense>
 
-            {/* Selected Benchmark Display */}
+            {/* Overall Metrics */}
             <Suspense fallback={<LeaderboardCardSkeleton />}>
-                <SelectedBenchmarkDisplay searchParams={searchParams} />
+                <OverallMetricsDisplay searchParams={searchParams} />
+            </Suspense>
+
+            {/* Stratified Metrics by Route Length */}
+            <Suspense fallback={<LeaderboardCardSkeleton />}>
+                <StratifiedMetricsDisplay searchParams={searchParams} />
             </Suspense>
         </div>
     )
@@ -73,27 +72,40 @@ async function getEffectiveBenchmarkId(searchParams: Promise<{ benchmarkId?: str
 }
 
 /**
- * Wrapper to await searchParams and pass to BenchmarkSelector.
+ * Wrapper to display benchmark header with selector.
  */
-async function BenchmarkSelectorWrapper({ searchParams }: { searchParams: Promise<{ benchmarkId?: string }> }) {
+async function BenchmarkHeaderWrapper({ searchParams }: { searchParams: Promise<{ benchmarkId?: string }> }) {
     const benchmarkId = await getEffectiveBenchmarkId(searchParams)
-    return <BenchmarkSelector selectedId={benchmarkId} />
+    const benchmarks = await getBenchmarkSets()
+
+    // Handle no benchmarks available
+    if (!benchmarkId || benchmarks.length === 0) {
+        return (
+            <div className="text-muted-foreground rounded-lg border border-dashed p-8 text-center">
+                <p>No benchmarks available.</p>
+                <p className="mt-2 text-sm">Create a benchmark to see leaderboard data.</p>
+            </div>
+        )
+    }
+
+    // Transform to simpler format for combobox
+    const benchmarkOptions = benchmarks.map((b) => ({
+        id: b.id,
+        name: b.name,
+    }))
+
+    return <BenchmarkLeaderboardHeader benchmarkId={benchmarkId} benchmarks={benchmarkOptions} />
 }
 
 /**
- * Server component that fetches and displays the selected benchmark's leaderboard.
+ * Server component that fetches and displays overall metrics for the selected benchmark.
  */
-async function SelectedBenchmarkDisplay({ searchParams }: { searchParams: Promise<{ benchmarkId?: string }> }) {
+async function OverallMetricsDisplay({ searchParams }: { searchParams: Promise<{ benchmarkId?: string }> }) {
     const benchmarkId = await getEffectiveBenchmarkId(searchParams)
 
     // Handle no benchmarks available
     if (!benchmarkId) {
-        return (
-            <div className="text-muted-foreground rounded-lg border border-dashed p-8 text-center">
-                <p>No leaderboard data available.</p>
-                <p className="mt-2 text-sm">Load model predictions and statistics to see comparisons.</p>
-            </div>
-        )
+        return null
     }
 
     // Get leaderboard data for the selected benchmark
@@ -108,18 +120,47 @@ async function SelectedBenchmarkDisplay({ searchParams }: { searchParams: Promis
         )
     }
 
-    // Get benchmark details from first entry (all entries share same benchmark)
-    const benchmarkName = entries[0].benchmarkName
+    // Get stock name from first entry (all entries share same stock)
+    const stockName = entries[0].stockName
 
     // Check if benchmark has ground truth (based on presence of topKAccuracy)
     const hasGroundTruth = entries.some((entry) => entry.metrics.topKAccuracy !== undefined)
 
-    return (
-        <BenchmarkLeaderboardCard
-            benchmarkId={benchmarkId}
-            benchmarkName={benchmarkName}
-            hasGroundTruth={hasGroundTruth}
-            entries={entries}
-        />
-    )
+    return <BenchmarkLeaderboardOverall entries={entries} hasGroundTruth={hasGroundTruth} stockName={stockName} />
+}
+
+/**
+ * Server component that fetches and displays stratified metrics for the selected benchmark.
+ */
+async function StratifiedMetricsDisplay({ searchParams }: { searchParams: Promise<{ benchmarkId?: string }> }) {
+    const benchmarkId = await getEffectiveBenchmarkId(searchParams)
+
+    // Handle no benchmarks available
+    if (!benchmarkId) {
+        return null
+    }
+
+    // Get leaderboard data to determine available Top-K metrics
+    const entries = await getLeaderboard(benchmarkId)
+
+    if (entries.length === 0) {
+        return null
+    }
+
+    // Determine which Top-K metrics to show (collect all unique keys)
+    const topKMetricNames = new Set<string>()
+    entries.forEach((entry) => {
+        if (entry.metrics.topKAccuracy) {
+            Object.keys(entry.metrics.topKAccuracy).forEach((k) => topKMetricNames.add(k))
+        }
+    })
+
+    // Sort Top-K metric names numerically (Top-1, Top-5, Top-10, etc.)
+    const sortedTopKNames = Array.from(topKMetricNames).sort((a, b) => {
+        const aNum = parseInt(a.replace(/^\D+/, ''))
+        const bNum = parseInt(b.replace(/^\D+/, ''))
+        return aNum - bNum
+    })
+
+    return <BenchmarkLeaderboardStratified benchmarkId={benchmarkId} topKMetricNames={sortedTopKNames} />
 }

@@ -11,10 +11,12 @@ import { Button } from '@/components/ui/button'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
+import { useSelectedTopK } from './top-k-selector'
+
 type BenchmarkMetricsDisplayProps = {
     entries: LeaderboardEntry[]
     topKMetricNames: string[]
-    selectedTopK: string[]
+    selectedTopK?: string[] // Optional - will use context if not provided
 }
 
 /**
@@ -23,10 +25,17 @@ type BenchmarkMetricsDisplayProps = {
  *
  * Following App Router Manifesto:
  * - Client component for interactive UI (useState, onClick)
- * - Receives data and selectedTopK as props from parent
+ * - Receives data and selectedTopK as props from parent or uses context
  * - Local state only for non-canonical UI state (view toggle)
  */
-export function BenchmarkMetricsDisplay({ entries, topKMetricNames, selectedTopK }: BenchmarkMetricsDisplayProps) {
+export function BenchmarkMetricsDisplay({
+    entries,
+    topKMetricNames,
+    selectedTopK: propSelectedTopK,
+}: BenchmarkMetricsDisplayProps) {
+    const contextSelectedTopK = useSelectedTopK()
+    const selectedTopK = propSelectedTopK ?? contextSelectedTopK
+
     const [view, setView] = useState<'table' | 'chart'>('table')
 
     const hasTopKMetrics = topKMetricNames.length > 0
