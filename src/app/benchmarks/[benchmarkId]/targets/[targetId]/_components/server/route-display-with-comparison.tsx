@@ -440,8 +440,8 @@ export async function RouteDisplayWithComparison({
                                 </div>
                             ) : !model1RouteTree || !model2RouteTree ? (
                                 <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">
-                                    {!model1RouteTree && `No prediction found for Model 1 rank ${rank1}`}
-                                    {!model2RouteTree && `No prediction found for Model 2 rank ${rank2}`}
+                                    {!model1RouteTree && <p>No prediction found for Model 1 rank {rank1}</p>}
+                                    {!model2RouteTree && <p>No prediction found for Model 2 rank {rank2}</p>}
                                 </div>
                             ) : (
                                 <>
