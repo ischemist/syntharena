@@ -61,8 +61,15 @@ export function MetricsViewToggle({ metrics, nSamples, MetricCellComponent }: Me
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    {metrics.map((col) => (
-                                        <TableHead key={col.name} className="min-w-[220px] text-center">
+                                    {metrics.map((col, idx) => (
+                                        <TableHead
+                                            key={col.name}
+                                            className={
+                                                idx === metrics.length - 1
+                                                    ? 'min-w-[220px] pr-24 text-center'
+                                                    : 'min-w-[220px] text-center'
+                                            }
+                                        >
                                             {col.name}
                                         </TableHead>
                                     ))}
@@ -75,7 +82,7 @@ export function MetricsViewToggle({ metrics, nSamples, MetricCellComponent }: Me
                                             key={col.name}
                                             className={
                                                 idx === metrics.length - 1
-                                                    ? 'pr-12 text-center' // Extra padding right for last column upper CI
+                                                    ? 'pr-24 text-center' // Extra padding right for last column upper CI + badge
                                                     : 'text-center'
                                             }
                                         >

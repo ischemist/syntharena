@@ -66,9 +66,24 @@ export function BenchmarkMetricsDisplay({ entries, topKMetricNames, selectedTopK
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Model</TableHead>
-                                <TableHead className="min-w-[220px] text-right">Solvability</TableHead>
-                                {displayedTopK.map((metricName) => (
-                                    <TableHead key={metricName} className="min-w-[220px] text-right">
+                                <TableHead
+                                    className={
+                                        displayedTopK.length === 0
+                                            ? 'min-w-[220px] pr-24 text-right'
+                                            : 'min-w-[220px] text-right'
+                                    }
+                                >
+                                    Solvability
+                                </TableHead>
+                                {displayedTopK.map((metricName, idx) => (
+                                    <TableHead
+                                        key={metricName}
+                                        className={
+                                            idx === displayedTopK.length - 1
+                                                ? 'min-w-[220px] pr-24 text-right'
+                                                : 'min-w-[220px] text-right'
+                                        }
+                                    >
                                         {metricName}
                                     </TableHead>
                                 ))}
@@ -77,16 +92,31 @@ export function BenchmarkMetricsDisplay({ entries, topKMetricNames, selectedTopK
                         <TableBody>
                             {entries.map((entry) => {
                                 const key = `${entry.modelName}-${entry.stockName}`
+                                const isLastColumnSolvability = displayedTopK.length === 0
                                 return (
                                     <TableRow key={key}>
                                         <TableCell className="font-medium">{entry.modelName}</TableCell>
-                                        <TableCell className="text-right">
+                                        <TableCell
+                                            className={
+                                                isLastColumnSolvability
+                                                    ? 'pr-24 text-right' // Extra padding right for last column upper CI + badge
+                                                    : 'text-right'
+                                            }
+                                        >
                                             <MetricCell metric={entry.metrics.solvability} showBadge />
                                         </TableCell>
-                                        {displayedTopK.map((metricName) => {
+                                        {displayedTopK.map((metricName, idx) => {
                                             const metric = entry.metrics.topKAccuracy?.[metricName]
+                                            const isLastColumn = idx === displayedTopK.length - 1
                                             return (
-                                                <TableCell key={metricName} className="text-right">
+                                                <TableCell
+                                                    key={metricName}
+                                                    className={
+                                                        isLastColumn
+                                                            ? 'pr-24 text-right' // Extra padding right for last column upper CI + badge
+                                                            : 'text-right'
+                                                    }
+                                                >
                                                     {metric ? <MetricCell metric={metric} showBadge /> : '-'}
                                                 </TableCell>
                                             )

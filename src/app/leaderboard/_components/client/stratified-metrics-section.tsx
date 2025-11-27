@@ -69,8 +69,15 @@ export function StratifiedMetricsSection({ metricsMap, MetricCell }: StratifiedM
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Model</TableHead>
-                                {sortedLengths.map((length) => (
-                                    <TableHead key={length} className="min-w-[220px] text-right">
+                                {sortedLengths.map((length, idx) => (
+                                    <TableHead
+                                        key={length}
+                                        className={
+                                            idx === sortedLengths.length - 1
+                                                ? 'min-w-[220px] pr-24 text-right'
+                                                : 'min-w-[220px] text-right'
+                                        }
+                                    >
                                         Length {length}
                                     </TableHead>
                                 ))}
@@ -80,10 +87,18 @@ export function StratifiedMetricsSection({ metricsMap, MetricCell }: StratifiedM
                             {modelsArray.map(([modelName, metrics]) => (
                                 <TableRow key={modelName}>
                                     <TableCell className="font-medium">{modelName}</TableCell>
-                                    {sortedLengths.map((length) => {
+                                    {sortedLengths.map((length, idx) => {
                                         const metric = metrics.solvability.byGroup[length]
+                                        const isLastColumn = idx === sortedLengths.length - 1
                                         return (
-                                            <TableCell key={length} className="text-right">
+                                            <TableCell
+                                                key={length}
+                                                className={
+                                                    isLastColumn
+                                                        ? 'pr-24 text-right' // Extra padding right for last column upper CI + badge
+                                                        : 'text-right'
+                                                }
+                                            >
                                                 {metric ? <MetricCell metric={metric} showBadge /> : '-'}
                                             </TableCell>
                                         )
@@ -106,8 +121,15 @@ export function StratifiedMetricsSection({ metricsMap, MetricCell }: StratifiedM
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Model</TableHead>
-                                    {sortedLengths.map((length) => (
-                                        <TableHead key={length} className="min-w-[220px] text-right">
+                                    {sortedLengths.map((length, idx) => (
+                                        <TableHead
+                                            key={length}
+                                            className={
+                                                idx === sortedLengths.length - 1
+                                                    ? 'min-w-[220px] pr-24 text-right'
+                                                    : 'min-w-[220px] text-right'
+                                            }
+                                        >
                                             Length {length}
                                         </TableHead>
                                     ))}
@@ -121,10 +143,18 @@ export function StratifiedMetricsSection({ metricsMap, MetricCell }: StratifiedM
                                     return (
                                         <TableRow key={modelName}>
                                             <TableCell className="font-medium">{modelName}</TableCell>
-                                            {sortedLengths.map((length) => {
+                                            {sortedLengths.map((length, idx) => {
                                                 const metric = topKMetric.byGroup[length]
+                                                const isLastColumn = idx === sortedLengths.length - 1
                                                 return (
-                                                    <TableCell key={length} className="text-right">
+                                                    <TableCell
+                                                        key={length}
+                                                        className={
+                                                            isLastColumn
+                                                                ? 'pr-24 text-right' // Extra padding right for last column upper CI + badge
+                                                                : 'text-right'
+                                                        }
+                                                    >
                                                         {metric ? <MetricCell metric={metric} showBadge /> : '-'}
                                                     </TableCell>
                                                 )
