@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { createContext, useContext, useState } from 'react'
 import { BarChart3, Table2 } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Cell, ErrorBar, XAxis, YAxis } from 'recharts'
 
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-import { useSelectedTopK } from './top-k-selector'
+import { useSelectedTopK } from './page-level-top-k-selector'
 
 type BenchmarkMetricsDisplayProps = {
     entries: LeaderboardEntry[]
@@ -19,14 +19,64 @@ type BenchmarkMetricsDisplayProps = {
     selectedTopK?: string[] // Optional - will use context if not provided
 }
 
+// Create context for view mode (to share between toggle and display)
+type ViewModeContextType = {
+    view: 'table' | 'chart'
+    setView: (view: 'table' | 'chart') => void
+}
+const ViewModeContext = createContext<ViewModeContextType>({
+    view: 'table',
+    setView: () => {},
+})
+
+/**
+ * Wrapper that manages view mode state and provides it via context.
+ * Must wrap both MetricsViewToggleButtons and BenchmarkMetricsDisplay.
+ */
+export function MetricsViewProvider({ children }: { children: React.ReactNode }) {
+    const [view, setView] = useState<'table' | 'chart'>('table')
+
+    return <ViewModeContext.Provider value={{ view, setView }}>{children}</ViewModeContext.Provider>
+}
+
+/**
+ * View toggle buttons for table/chart display.
+ * Reads/writes view mode from context.
+ */
+export function MetricsViewToggleButtons() {
+    const { view, setView } = useContext(ViewModeContext)
+
+    return (
+        <div className="flex gap-2">
+            <Button
+                variant={view === 'table' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setView('table')}
+                className="gap-2"
+            >
+                <Table2 className="h-4 w-4" />
+                Table
+            </Button>
+            <Button
+                variant={view === 'chart' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setView('chart')}
+                className="gap-2"
+            >
+                <BarChart3 className="h-4 w-4" />
+                Chart
+            </Button>
+        </div>
+    )
+}
+
 /**
  * Client component for displaying benchmark metrics with table/chart toggle.
- * Uses local state for view preference (ephemeral UI state).
+ * Uses context for view mode (managed by MetricsViewProvider wrapper).
  *
  * Following App Router Manifesto:
- * - Client component for interactive UI (useState, onClick)
- * - Receives data and selectedTopK as props from parent or uses context
- * - Local state only for non-canonical UI state (view toggle)
+ * - Client component for interactive UI
+ * - Receives data and uses context for view mode and selectedTopK
  */
 export function BenchmarkMetricsDisplay({
     entries,
@@ -35,8 +85,7 @@ export function BenchmarkMetricsDisplay({
 }: BenchmarkMetricsDisplayProps) {
     const contextSelectedTopK = useSelectedTopK()
     const selectedTopK = propSelectedTopK ?? contextSelectedTopK
-
-    const [view, setView] = useState<'table' | 'chart'>('table')
+    const { view } = useContext(ViewModeContext)
 
     const hasTopKMetrics = topKMetricNames.length > 0
 
@@ -45,28 +94,6 @@ export function BenchmarkMetricsDisplay({
 
     return (
         <div>
-            {/* View toggle buttons */}
-            <div className="mb-4 flex justify-end gap-2">
-                <Button
-                    variant={view === 'table' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setView('table')}
-                    className="gap-2"
-                >
-                    <Table2 className="h-4 w-4" />
-                    Table
-                </Button>
-                <Button
-                    variant={view === 'chart' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setView('chart')}
-                    className="gap-2"
-                >
-                    <BarChart3 className="h-4 w-4" />
-                    Chart
-                </Button>
-            </div>
-
             {/* Content area */}
             {view === 'table' ? (
                 <div className="overflow-x-auto">

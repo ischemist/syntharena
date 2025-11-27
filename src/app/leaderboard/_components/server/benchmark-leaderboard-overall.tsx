@@ -1,8 +1,11 @@
 import type { LeaderboardEntry } from '@/types'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
-import { BenchmarkMetricsDisplay } from '../client/benchmark-metrics-display'
-import { TopKSelectorWrapper } from '../client/top-k-selector'
+import {
+    BenchmarkMetricsDisplay,
+    MetricsViewProvider,
+    MetricsViewToggleButtons,
+} from '../client/benchmark-metrics-display'
 
 type BenchmarkLeaderboardOverallProps = {
     entries: LeaderboardEntry[]
@@ -13,9 +16,10 @@ type BenchmarkLeaderboardOverallProps = {
 /**
  * Server component that displays overall leaderboard metrics in a bordered card.
  * Shows solvability and Top-K accuracy metrics with table/chart toggle.
+ * Top-K selection is managed at page level, view toggle is in CardAction.
  * Following App Router Manifesto:
  * - Server component defines structure and passes data to client components
- * - Client component handles Top-K selection and view toggling (local state)
+ * - Client component handles view toggling (local state via context)
  */
 export function BenchmarkLeaderboardOverall({ entries, hasGroundTruth, stockName }: BenchmarkLeaderboardOverallProps) {
     // Determine which Top-K metrics to show (collect all unique keys)
@@ -34,23 +38,22 @@ export function BenchmarkLeaderboardOverall({ entries, hasGroundTruth, stockName
     })
 
     return (
-        <Card variant="bordered">
-            <CardHeader>
-                <CardTitle>Overall Metrics</CardTitle>
-                <CardDescription>
-                    Model performance comparison for {stockName}
-                    {!hasGroundTruth && ' (solvability only)'}
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                {sortedTopKNames.length > 0 ? (
-                    <TopKSelectorWrapper topKMetricNames={sortedTopKNames}>
-                        <BenchmarkMetricsDisplay entries={entries} topKMetricNames={sortedTopKNames} />
-                    </TopKSelectorWrapper>
-                ) : (
-                    <BenchmarkMetricsDisplay entries={entries} topKMetricNames={sortedTopKNames} selectedTopK={[]} />
-                )}
-            </CardContent>
-        </Card>
+        <MetricsViewProvider>
+            <Card variant="bordered">
+                <CardHeader>
+                    <CardTitle>Overall Metrics</CardTitle>
+                    <CardDescription>
+                        Model performance comparison for {stockName}
+                        {!hasGroundTruth && ' (solvability only)'}
+                    </CardDescription>
+                    <CardAction>
+                        <MetricsViewToggleButtons />
+                    </CardAction>
+                </CardHeader>
+                <CardContent>
+                    <BenchmarkMetricsDisplay entries={entries} topKMetricNames={sortedTopKNames} />
+                </CardContent>
+            </Card>
+        </MetricsViewProvider>
     )
 }
