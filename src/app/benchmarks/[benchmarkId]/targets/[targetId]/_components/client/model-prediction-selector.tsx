@@ -33,6 +33,7 @@ export function ModelPredictionSelector({ runs, paramName, label, selectedRunId 
     const searchParams = useSearchParams()
 
     const selectedRun = runs.find((run) => run.id === selectedRunId)
+    const rankParamName = paramName === 'model1' ? 'rank1' : 'rank2'
 
     const handleSelect = (runId: string) => {
         const params = new URLSearchParams(searchParams.toString())
@@ -41,12 +42,12 @@ export function ModelPredictionSelector({ runs, paramName, label, selectedRunId 
             // Deselect - remove the param
             params.delete(paramName)
             // Also remove corresponding rank param
-            params.delete(paramName === 'model1' ? 'rank1' : 'rank2')
+            params.delete(rankParamName)
         } else {
             // Select new run
             params.set(paramName, runId)
             // Reset rank to 1
-            params.set(paramName === 'model1' ? 'rank1' : 'rank2', '1')
+            params.set(rankParamName, '1')
         }
 
         router.replace(`${pathname}?${params.toString()}`, { scroll: false })
@@ -57,7 +58,7 @@ export function ModelPredictionSelector({ runs, paramName, label, selectedRunId 
         e.stopPropagation()
         const params = new URLSearchParams(searchParams.toString())
         params.delete(paramName)
-        params.delete(paramName === 'model1' ? 'rank1' : 'rank2')
+        params.delete(rankParamName)
         router.replace(`${pathname}?${params.toString()}`, { scroll: false })
     }
 
