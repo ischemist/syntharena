@@ -1,7 +1,6 @@
-import Link from 'next/link'
-
 import * as benchmarkService from '@/lib/services/benchmark.service'
 import { Badge } from '@/components/ui/badge'
+import { ClickableTableRow } from '@/components/ui/clickable-table-row'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 /**
@@ -31,22 +30,20 @@ export async function BenchmarkList() {
             </TableHeader>
             <TableBody>
                 {benchmarks.map((benchmark) => (
-                    <TableRow key={benchmark.id} className="cursor-pointer">
-                        <Link href={`/benchmarks/${benchmark.id}`} prefetch={true} className="contents">
-                            <TableCell className="font-semibold">{benchmark.name}</TableCell>
-                            <TableCell className="text-muted-foreground">{benchmark.description || '—'}</TableCell>
-                            <TableCell className="text-right">
-                                <Badge variant="secondary">{benchmark.targetCount.toLocaleString()}</Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                                {benchmark.stockName ? (
-                                    <Badge variant="outline">{benchmark.stockName}</Badge>
-                                ) : (
-                                    <span className="text-muted-foreground">—</span>
-                                )}
-                            </TableCell>
-                        </Link>
-                    </TableRow>
+                    <ClickableTableRow key={benchmark.id} href={`/benchmarks/${benchmark.id}`}>
+                        <TableCell className="font-semibold">{benchmark.name}</TableCell>
+                        <TableCell className="text-muted-foreground">{benchmark.description || '—'}</TableCell>
+                        <TableCell className="text-right">
+                            <Badge variant="secondary">{benchmark.targetCount.toLocaleString()}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                            {benchmark.stockName ? (
+                                <Badge variant="outline">{benchmark.stockName}</Badge>
+                            ) : (
+                                <span className="text-muted-foreground">—</span>
+                            )}
+                        </TableCell>
+                    </ClickableTableRow>
                 ))}
             </TableBody>
         </Table>

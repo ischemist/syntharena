@@ -1,8 +1,8 @@
-import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 
 import { getPredictionRuns } from '@/lib/services/prediction.service'
 import { Badge } from '@/components/ui/badge'
+import { ClickableTableRow } from '@/components/ui/clickable-table-row'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 type RunListProps = {
@@ -55,22 +55,20 @@ export async function RunList({ searchParams }: RunListProps) {
                         </TableHeader>
                         <TableBody>
                             {benchmarkRuns.map((run) => (
-                                <TableRow key={run.id} className="cursor-pointer">
-                                    <Link href={`/runs/${run.id}`} className="contents">
-                                        <TableCell className="font-semibold">{run.modelInstance.name}</TableCell>
-                                        <TableCell className="text-right">
-                                            <Badge variant="secondary">{run.totalRoutes.toLocaleString()}</Badge>
-                                        </TableCell>
-                                        <TableCell className="text-muted-foreground text-right">
-                                            {run.totalTimeMs ? `${(run.totalTimeMs / 1000 / 60).toFixed(1)} min` : '—'}
-                                        </TableCell>
-                                        <TableCell className="text-muted-foreground text-right">
-                                            {formatDistanceToNow(new Date(run.executedAt), {
-                                                addSuffix: true,
-                                            })}
-                                        </TableCell>
-                                    </Link>
-                                </TableRow>
+                                <ClickableTableRow key={run.id} href={`/runs/${run.id}`}>
+                                    <TableCell className="font-semibold">{run.modelInstance.name}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Badge variant="secondary">{run.totalRoutes.toLocaleString()}</Badge>
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground text-right">
+                                        {run.totalTimeMs ? `${(run.totalTimeMs / 1000 / 60).toFixed(1)} min` : '—'}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground text-right">
+                                        {formatDistanceToNow(new Date(run.executedAt), {
+                                            addSuffix: true,
+                                        })}
+                                    </TableCell>
+                                </ClickableTableRow>
                             ))}
                         </TableBody>
                     </Table>

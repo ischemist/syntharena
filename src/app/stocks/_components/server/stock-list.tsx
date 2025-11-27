@@ -1,7 +1,6 @@
-import Link from 'next/link'
-
 import * as stockService from '@/lib/services/stock.service'
 import { Badge } from '@/components/ui/badge'
+import { ClickableTableRow } from '@/components/ui/clickable-table-row'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 /**
@@ -30,15 +29,13 @@ export async function StockList() {
             </TableHeader>
             <TableBody>
                 {stocks.map((stock) => (
-                    <TableRow key={stock.id} className="cursor-pointer">
-                        <Link href={`/stocks/${stock.id}`} prefetch={true} className="contents">
-                            <TableCell className="font-semibold">{stock.name}</TableCell>
-                            <TableCell className="text-muted-foreground">{stock.description || '—'}</TableCell>
-                            <TableCell className="text-right">
-                                <Badge variant="secondary">{stock.itemCount.toLocaleString()}</Badge>
-                            </TableCell>
-                        </Link>
-                    </TableRow>
+                    <ClickableTableRow key={stock.id} href={`/stocks/${stock.id}`}>
+                        <TableCell className="font-semibold">{stock.name}</TableCell>
+                        <TableCell className="text-muted-foreground">{stock.description || '—'}</TableCell>
+                        <TableCell className="text-right">
+                            <Badge variant="secondary">{stock.itemCount.toLocaleString()}</Badge>
+                        </TableCell>
+                    </ClickableTableRow>
                 ))}
             </TableBody>
         </Table>
