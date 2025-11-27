@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { notFound, redirect } from 'next/navigation'
 
-import { getPredictionRunById, getStocksForRun } from '@/lib/services/prediction.service'
+import { getPredictionRunById, getStocksForRun, getTargetIdsByRun } from '@/lib/services/prediction.service'
 
 import { StockSelector } from './_components/client/stock-selector'
 import { RunDetailHeader } from './_components/server/run-detail-header'
@@ -24,7 +24,11 @@ type PageProps = {
 export default async function RunDetailPage({ params, searchParams }: PageProps) {
     const { runId } = await params
     const searchParamsResolved = await searchParams
-    const [run, stocks] = await Promise.all([getPredictionRunById(runId), getStocksForRun(runId)])
+    const [run, stocks, targetIds] = await Promise.all([
+        getPredictionRunById(runId),
+        getStocksForRun(runId),
+        getTargetIdsByRun(runId),
+    ])
 
     if (!run) {
         notFound()
@@ -34,6 +38,14 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
     if (!searchParamsResolved.stock && stocks.length > 0) {
         const params = new URLSearchParams(searchParamsResolved as Record<string, string>)
         params.set('stock', stocks[0].id)
+        redirect(`?${params.toString()}`)
+    }
+
+    // If no target is selected and we have targets, redirect to first target
+    if (!searchParamsResolved.target && targetIds.length > 0) {
+        const params = new URLSearchParams(searchParamsResolved as Record<string, string>)
+        params.set('target', targetIds[0])
+        params.set('rank', '1')
         redirect(`?${params.toString()}`)
     }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Beaker, FlaskConical, LayoutDashboard, LifeBuoy, Send, Settings2, Trophy, Zap } from 'lucide-react'
+import { BarChart3, Beaker, FlaskConical, LayoutDashboard, LifeBuoy, Send, Settings2, Trophy, Zap } from 'lucide-react'
 
 import { ModeToggle } from '@/components/mode-toggle'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar'
@@ -37,6 +37,11 @@ const data = {
             title: 'Runs',
             url: '/runs',
             icon: Zap,
+        },
+        {
+            title: 'Leaderboard',
+            url: '/leaderboard',
+            icon: BarChart3,
         },
     ],
     navDropdowns: [

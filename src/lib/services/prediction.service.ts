@@ -14,7 +14,6 @@ import type {
     ModelStatistics,
     PredictionRunWithStats,
     ReliabilityCode,
-    RouteNodeWithDetails,
     RunStatistics,
     StockListItem,
     StratifiedMetric,

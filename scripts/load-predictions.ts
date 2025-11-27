@@ -27,6 +27,9 @@
  *
  *   # With version and paper
  *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 dms-explorer-xl --algorithm DirectMultiStep --model-version "v1.0" --algorithm-paper "https://arxiv.org/abs/2405.13983" --stock-path buyables-stock --stock-db "ASKCOS Buyables Stock"
+ *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 aizynthfinder-retro-star --algorithm "AiZynthFinder Retro*" --stock-path buyables-stock --stock-db "ASKCOS Buyables Stock"
+ *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 retro-star --algorithm "Retro*" --stock-path buyables-stock --stock-db "ASKCOS Buyables Stock"
+ *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 askcos --algorithm "ASKCOS" --stock-path buyables-stock --stock-db "ASKCOS Buyables Stock"
  *
  * File Structure Expected:
  *   {data-dir}/3-processed/{benchmark}/{model}/routes.json.gz
