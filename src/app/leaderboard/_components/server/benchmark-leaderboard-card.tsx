@@ -1,7 +1,13 @@
-import type { LeaderboardEntry } from '@/types'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Suspense } from 'react'
 
-import { BenchmarkMetricsDisplay } from '../client/benchmark-metrics-display'
+import type { LeaderboardEntry } from '@/types'
+import { getMetricsByBenchmarkAndStock } from '@/lib/services/leaderboard.service'
+import { getStocks } from '@/lib/services/stock.service'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+
+import { BenchmarkMetricsWrapper } from '../client/benchmark-metrics-wrapper'
+import { StratifiedMetricsSection } from '../client/stratified-metrics-section'
 
 type BenchmarkLeaderboardCardProps = {
     benchmarkId: string
@@ -12,17 +18,22 @@ type BenchmarkLeaderboardCardProps = {
 
 /**
  * Server component that displays leaderboard for a single benchmark.
- * Shows overall metrics with table/chart toggle in a single consolidated card.
+ * Shows overall metrics and stratified metrics in a single consolidated card.
  *
  * Following App Router Manifesto:
- * - Server component fetches data
- * - Client component handles view toggle and Top-K selection (local state)
+ * - Server component fetches data and defines structure
+ * - Client wrapper component handles Top-K selection (local state)
+ * - Passes data as props to client wrapper, not render functions
  */
 export async function BenchmarkLeaderboardCard({
+    benchmarkId,
     benchmarkName,
     hasGroundTruth,
     entries,
 }: BenchmarkLeaderboardCardProps) {
+    // Get all stocks for stratified metrics
+    const stocks = await getStocks()
+
     // Determine which Top-K metrics to show (collect all unique keys)
     const topKMetricNames = new Set<string>()
     entries.forEach((entry) => {
@@ -38,18 +49,58 @@ export async function BenchmarkLeaderboardCard({
         return aNum - bNum
     })
 
+    // Get stock name for description (assuming single stock per benchmark)
+    const stockName = stocks.length > 0 ? stocks[0].name : ''
+
     return (
         <Card>
             <CardHeader>
                 <CardTitle>{benchmarkName}</CardTitle>
                 <CardDescription>
-                    Model performance comparison{!hasGroundTruth && ' (solvability only)'}
+                    Model performance comparison for {stockName}
+                    {!hasGroundTruth && ' (solvability only)'}
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                {/* Client component handles table/chart toggle and Top-K selection */}
-                <BenchmarkMetricsDisplay entries={entries} topKMetricNames={sortedTopKNames} />
+                {/* Client wrapper manages Top-K selection and passes data to children */}
+                <BenchmarkMetricsWrapper
+                    topKMetricNames={sortedTopKNames}
+                    entries={entries}
+                    stratifiedSections={
+                        <>
+                            {stocks.map((stock) => (
+                                <Suspense
+                                    key={`${benchmarkId}-${stock.id}`}
+                                    fallback={
+                                        <div>
+                                            <Skeleton className="mb-4 h-6 w-64" />
+                                            <Skeleton className="h-64 w-full" />
+                                        </div>
+                                    }
+                                >
+                                    <StratifiedMetricsWrapper benchmarkId={benchmarkId} stockId={stock.id} />
+                                </Suspense>
+                            ))}
+                        </>
+                    }
+                />
             </CardContent>
         </Card>
     )
+}
+
+/**
+ * Async wrapper that fetches stratified metrics for a benchmark-stock combination.
+ */
+async function StratifiedMetricsWrapper({ benchmarkId, stockId }: { benchmarkId: string; stockId: string }) {
+    const metricsMap = await getMetricsByBenchmarkAndStock(benchmarkId, stockId)
+
+    if (metricsMap.size === 0) {
+        return null
+    }
+
+    // Dynamically import MetricCell to avoid circular dependency
+    const { MetricCell } = await import('@/app/runs/[runId]/_components/client/metric-cell')
+
+    return <StratifiedMetricsSection metricsMap={metricsMap} MetricCell={MetricCell} />
 }

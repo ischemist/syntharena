@@ -15,10 +15,8 @@ import { MetricCell } from '../../../runs/[runId]/_components/client/metric-cell
 type BenchmarkMetricsDisplayProps = {
     entries: LeaderboardEntry[]
     topKMetricNames: string[]
+    selectedTopK: string[]
 }
-
-// Default Top-K values to show
-const DEFAULT_TOP_K = ['Top-1', 'Top-5', 'Top-10']
 
 /**
  * Client component for displaying benchmark metrics with table/chart toggle.
@@ -26,81 +24,39 @@ const DEFAULT_TOP_K = ['Top-1', 'Top-5', 'Top-10']
  *
  * Following App Router Manifesto:
  * - Client component for interactive UI (useState, onClick)
- * - Receives data as props from server parent
- * - Local state only for non-canonical UI state
+ * - Receives data and selectedTopK as props from parent
+ * - Local state only for non-canonical UI state (view toggle)
  */
-export function BenchmarkMetricsDisplay({ entries, topKMetricNames }: BenchmarkMetricsDisplayProps) {
+export function BenchmarkMetricsDisplay({ entries, topKMetricNames, selectedTopK }: BenchmarkMetricsDisplayProps) {
     const [view, setView] = useState<'table' | 'chart'>('table')
-    const [selectedTopK, setSelectedTopK] = useState<string[]>(
-        // Filter default Top-K to only include what's available
-        DEFAULT_TOP_K.filter((k) => topKMetricNames.includes(k))
-    )
 
     const hasTopKMetrics = topKMetricNames.length > 0
-
-    // Allow user to select which Top-K metrics to display
-    const handleTopKToggle = (metricName: string) => {
-        setSelectedTopK((prev) => {
-            const newSelection = prev.includes(metricName)
-                ? prev.filter((k) => k !== metricName)
-                : [...prev, metricName]
-
-            // Sort numerically by extracting the K value
-            return newSelection.sort((a, b) => {
-                const aNum = parseInt(a.replace(/^\D+/, ''))
-                const bNum = parseInt(b.replace(/^\D+/, ''))
-                return aNum - bNum
-            })
-        })
-    }
 
     // Determine which Top-K metrics to show in the table/chart
     const displayedTopK = hasTopKMetrics ? selectedTopK : []
 
     return (
         <div>
-            {/* Top controls row */}
-            <div className="mb-4 flex items-center justify-between gap-4">
-                {/* Top-K selector */}
-                {hasTopKMetrics && (
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">Show Top-K:</span>
-                        <div className="flex gap-1">
-                            {topKMetricNames.map((metricName) => (
-                                <Button
-                                    key={metricName}
-                                    variant={selectedTopK.includes(metricName) ? 'default' : 'outline'}
-                                    size="sm"
-                                    onClick={() => handleTopKToggle(metricName)}
-                                >
-                                    {metricName}
-                                </Button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* View toggle buttons */}
-                <div className="flex gap-2">
-                    <Button
-                        variant={view === 'table' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setView('table')}
-                        className="gap-2"
-                    >
-                        <Table2 className="h-4 w-4" />
-                        Table
-                    </Button>
-                    <Button
-                        variant={view === 'chart' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setView('chart')}
-                        className="gap-2"
-                    >
-                        <BarChart3 className="h-4 w-4" />
-                        Chart
-                    </Button>
-                </div>
+            {/* View toggle buttons */}
+            <div className="mb-4 flex justify-end gap-2">
+                <Button
+                    variant={view === 'table' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setView('table')}
+                    className="gap-2"
+                >
+                    <Table2 className="h-4 w-4" />
+                    Table
+                </Button>
+                <Button
+                    variant={view === 'chart' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setView('chart')}
+                    className="gap-2"
+                >
+                    <BarChart3 className="h-4 w-4" />
+                    Chart
+                </Button>
             </div>
 
             {/* Content area */}

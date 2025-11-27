@@ -1,17 +1,9 @@
 import { Suspense } from 'react'
 
 import { getLeaderboardByBenchmark } from '@/lib/services/leaderboard.service'
-import { getStocks } from '@/lib/services/stock.service'
 
-import { StockFilter } from './_components/client/stock-filter'
 import { BenchmarkLeaderboardCard } from './_components/server/benchmark-leaderboard-card'
 import { LeaderboardCardSkeleton } from './_components/skeletons'
-
-type PageProps = {
-    searchParams: Promise<{
-        stock?: string
-    }>
-}
 
 /**
  * Leaderboard page for comparing model performance across benchmarks.
@@ -21,9 +13,8 @@ type PageProps = {
  * - Page is NOT async - defines structure and Suspense boundaries only
  * - All data fetching pushed to child server components
  * - Each benchmark card wrapped in Suspense for independent streaming
- * - Stock filter uses URL searchParams (canonical state)
  */
-export default function LeaderboardPage({ searchParams }: PageProps) {
+export default function LeaderboardPage() {
     return (
         <div className="flex flex-col gap-6">
             {/* Page Header */}
@@ -32,38 +23,20 @@ export default function LeaderboardPage({ searchParams }: PageProps) {
                 <p className="text-muted-foreground">Compare model performance across benchmarks</p>
             </div>
 
-            {/* Stock Filter */}
-            <Suspense fallback={<div className="bg-muted h-10 animate-pulse rounded" />}>
-                <StockFilterWrapper searchParams={searchParams} />
-            </Suspense>
-
             {/* Benchmark Cards */}
             <Suspense fallback={<LeaderboardCardSkeleton />}>
-                <BenchmarkCards searchParams={searchParams} />
+                <BenchmarkCards />
             </Suspense>
         </div>
     )
 }
 
 /**
- * Server component that fetches stocks and renders stock filter.
- */
-async function StockFilterWrapper({ searchParams }: PageProps) {
-    const params = await searchParams
-    const stocks = await getStocks()
-
-    return <StockFilter stocks={stocks} selectedStockId={params.stock} />
-}
-
-/**
  * Server component that fetches leaderboard data and renders benchmark cards.
  */
-async function BenchmarkCards({ searchParams }: PageProps) {
-    const params = await searchParams
-    const stockId = params.stock
-
-    // Get leaderboard data grouped by benchmark
-    const benchmarkGroups = await getLeaderboardByBenchmark(stockId)
+async function BenchmarkCards() {
+    // Get leaderboard data grouped by benchmark (all stocks)
+    const benchmarkGroups = await getLeaderboardByBenchmark()
 
     if (benchmarkGroups.size === 0) {
         return (
