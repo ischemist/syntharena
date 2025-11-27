@@ -30,7 +30,7 @@ export function StratifiedMetricsTable({ metricsMap, MetricCellComponent }: Stra
 
     // Get all route lengths present in the data
     const routeLengths = new Set<number>()
-    modelsArray.forEach(([_modelName, metrics]) => {
+    modelsArray.forEach(([, metrics]) => {
         Object.keys(metrics.solvability.byGroup).forEach((length) => {
             routeLengths.add(parseInt(length))
         })
@@ -51,7 +51,7 @@ export function StratifiedMetricsTable({ metricsMap, MetricCellComponent }: Stra
 
     // Get list of available Top-K metrics
     const topKMetricNames = new Set<string>()
-    modelsArray.forEach(([_modelName, metrics]) => {
+    modelsArray.forEach(([, metrics]) => {
         if (metrics.topKAccuracy) {
             Object.keys(metrics.topKAccuracy).forEach((metricName) => {
                 topKMetricNames.add(metricName)

@@ -66,8 +66,8 @@ export function MetricsViewToggle({ metrics, nSamples, MetricCellComponent }: Me
                                             key={col.name}
                                             className={
                                                 idx === metrics.length - 1
-                                                    ? 'min-w-[220px] pr-24 text-center'
-                                                    : 'min-w-[220px] text-center'
+                                                    ? 'min-w-[160px] pr-16 text-center'
+                                                    : 'min-w-[160px] text-center'
                                             }
                                         >
                                             {col.name}
@@ -82,7 +82,7 @@ export function MetricsViewToggle({ metrics, nSamples, MetricCellComponent }: Me
                                             key={col.name}
                                             className={
                                                 idx === metrics.length - 1
-                                                    ? 'pr-24 text-center' // Extra padding right for last column upper CI + badge
+                                                    ? 'pr-16 text-center' // Extra padding right for last column upper CI + badge
                                                     : 'text-center'
                                             }
                                         >

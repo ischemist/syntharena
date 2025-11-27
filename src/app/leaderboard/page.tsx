@@ -61,6 +61,8 @@ async function getEffectiveBenchmarkId(searchParams: Promise<{ benchmarkId?: str
         return null
     }
 
+    // Sort benchmarks by name to ensure a stable default
+    benchmarks.sort((a, b) => a.name.localeCompare(b.name))
     return benchmarks[0].id
 }
 
