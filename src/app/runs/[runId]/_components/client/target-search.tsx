@@ -32,22 +32,32 @@ export function TargetSearch({ onSearch, navigation }: TargetSearchProps) {
     const [results, setResults] = useState<BenchmarkTargetWithMolecule[]>([])
     const [isSearching, setIsSearching] = useState(false)
 
+    // Load initial results when popover opens
+    useEffect(() => {
+        if (open && results.length === 0 && !query) {
+            setIsSearching(true)
+            onSearch('')
+                .then(setResults)
+                .catch((error) => {
+                    console.error('Failed to load initial targets:', error)
+                    setResults([])
+                })
+                .finally(() => setIsSearching(false))
+        }
+    }, [open, onSearch, query, results.length])
+
     // Debounced search effect
     useEffect(() => {
         const timer = setTimeout(async () => {
-            if (query.trim().length >= 2) {
-                setIsSearching(true)
-                try {
-                    const searchResults = await onSearch(query)
-                    setResults(searchResults)
-                } catch (error) {
-                    console.error('Search failed:', error)
-                    setResults([])
-                } finally {
-                    setIsSearching(false)
-                }
-            } else {
+            setIsSearching(true)
+            try {
+                const searchResults = await onSearch(query)
+                setResults(searchResults)
+            } catch (error) {
+                console.error('Search failed:', error)
                 setResults([])
+            } finally {
+                setIsSearching(false)
             }
         }, 300)
 
@@ -168,45 +178,62 @@ export function TargetSearch({ onSearch, navigation }: TargetSearchProps) {
                                     <p className="text-muted-foreground">Searching...</p>
                                 </div>
                             )}
-                            {!isSearching && query.trim().length >= 2 && results.length === 0 && (
+                            {!isSearching && query.trim() && results.length === 0 && (
                                 <CommandEmpty>No targets found matching &ldquo;{query}&rdquo;</CommandEmpty>
                             )}
+                            {!isSearching && !query.trim() && results.length === 0 && (
+                                <div className="py-6 text-center text-sm">
+                                    <p className="text-muted-foreground">No targets available</p>
+                                </div>
+                            )}
                             {!isSearching && results.length > 0 && (
-                                <CommandGroup>
-                                    {results.map((target) => (
-                                        <CommandItem
-                                            key={target.id}
-                                            value={target.id}
-                                            onSelect={() => handleSelectTarget(target.id)}
-                                            className="flex-col items-start gap-1 py-3"
-                                        >
-                                            <div className="flex w-full items-center justify-between gap-2">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-mono text-sm font-medium">
-                                                        {target.targetId}
-                                                    </span>
-                                                    {target.routeCount && target.routeCount > 0 ? (
-                                                        <Badge variant="secondary" className="text-xs">
-                                                            {target.routeCount} routes
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge variant="outline" className="text-xs">
-                                                            No routes
-                                                        </Badge>
+                                <>
+                                    <CommandGroup>
+                                        {results.map((target) => (
+                                            <CommandItem
+                                                key={target.id}
+                                                value={target.id}
+                                                onSelect={() => handleSelectTarget(target.id)}
+                                                className="flex-col items-start gap-1 py-3"
+                                            >
+                                                <div className="flex w-full items-center justify-between gap-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-mono text-sm font-medium">
+                                                            {target.targetId}
+                                                        </span>
+                                                        {target.routeCount && target.routeCount > 0 ? (
+                                                            <Badge variant="secondary" className="text-xs">
+                                                                {target.routeCount} routes
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant="outline" className="text-xs">
+                                                                No routes
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    {target.routeLength && (
+                                                        <div className="text-muted-foreground text-xs">
+                                                            Length: {target.routeLength}
+                                                        </div>
                                                     )}
                                                 </div>
-                                                {target.routeLength && (
-                                                    <div className="text-muted-foreground text-xs">
-                                                        Length: {target.routeLength}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="text-muted-foreground w-full truncate font-mono text-xs">
-                                                {target.molecule.smiles}
-                                            </div>
-                                        </CommandItem>
-                                    ))}
-                                </CommandGroup>
+                                                <div className="text-muted-foreground w-full truncate font-mono text-xs">
+                                                    {target.molecule.smiles}
+                                                </div>
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                    {results.length === 20 && !query.trim() && navigation.totalTargets > 20 && (
+                                        <div className="text-muted-foreground border-t px-3 py-2 text-center text-xs">
+                                            Showing first 20 of {navigation.totalTargets} targets. Type to search.
+                                        </div>
+                                    )}
+                                    {results.length === 20 && query.trim() && (
+                                        <div className="text-muted-foreground border-t px-3 py-2 text-center text-xs">
+                                            Showing first 20 matches. Refine search to see more.
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </CommandList>
                     </Command>
