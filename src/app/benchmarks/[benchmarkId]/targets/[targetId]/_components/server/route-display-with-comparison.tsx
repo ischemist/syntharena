@@ -143,14 +143,19 @@ export async function RouteDisplayWithComparison({
     // Fetch available prediction runs for THIS target (with max ranks)
     const availableRuns = await benchmarkService.getPredictionRunsForTarget(targetId)
 
-    // Get max ranks for selected models
+    // Get max ranks and model names for selected models
+    let model1Name = ''
+    let model2Name = ''
+
     if (model1Id) {
         const run = availableRuns.find((r) => r.id === model1Id)
         model1MaxRank = run?.maxRank || 50
+        model1Name = run ? `${run.modelName}${run.modelVersion ? ` v${run.modelVersion}` : ''}` : 'Model 1'
     }
     if (model2Id) {
         const run = availableRuns.find((r) => r.id === model2Id)
         model2MaxRank = run?.maxRank || 50
+        model2Name = run ? `${run.modelName}${run.modelVersion ? ` v${run.modelVersion}` : ''}` : 'Model 2'
     }
 
     // Determine current mode - URL is the single source of truth
@@ -229,22 +234,6 @@ export async function RouteDisplayWithComparison({
                         {/* Model selector */}
                         <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
                             <div className="space-y-3">
-                                <ModelPredictionSelector
-                                    runs={availableRuns}
-                                    paramName="model1"
-                                    label="Model Prediction"
-                                    selectedRunId={model1Id}
-                                />
-
-                                {model1Id && model1RouteTree && (
-                                    <RankPagination
-                                        paramName="rank1"
-                                        currentRank={rank1}
-                                        maxRank={model1MaxRank}
-                                        label="Route Rank"
-                                    />
-                                )}
-
                                 {model1Id && groundTruthRouteTree && model1RouteTree && (
                                     <div className="flex items-center gap-2">
                                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -277,6 +266,26 @@ export async function RouteDisplayWithComparison({
                                             </Button>
                                         </div>
                                     </div>
+                                )}
+
+                                {model1Id && groundTruthRouteTree && model1RouteTree && (
+                                    <div className="border-t border-gray-200 pt-3 dark:border-gray-700" />
+                                )}
+
+                                <ModelPredictionSelector
+                                    runs={availableRuns}
+                                    paramName="model1"
+                                    label="Model Prediction"
+                                    selectedRunId={model1Id}
+                                />
+
+                                {model1Id && model1RouteTree && (
+                                    <RankPagination
+                                        paramName="rank1"
+                                        currentRank={rank1}
+                                        maxRank={model1MaxRank}
+                                        label="Route Rank"
+                                    />
                                 )}
                             </div>
                         </div>
@@ -311,6 +320,7 @@ export async function RouteDisplayWithComparison({
                                                 predictionRoute={model1RouteTree}
                                                 mode={viewMode}
                                                 inStockInchiKeys={inStockInchiKeys}
+                                                modelName={model1Name}
                                             />
                                         )}
                                     </div>
@@ -335,40 +345,6 @@ export async function RouteDisplayWithComparison({
                         {/* Model selectors */}
                         <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
                             <div className="space-y-3">
-                                <ModelPredictionSelector
-                                    runs={availableRuns}
-                                    paramName="model1"
-                                    label="Model 1"
-                                    selectedRunId={model1Id}
-                                />
-
-                                {model1Id && model1RouteTree && (
-                                    <RankPagination
-                                        paramName="rank1"
-                                        currentRank={rank1}
-                                        maxRank={model1MaxRank}
-                                        label="Model 1 Rank"
-                                    />
-                                )}
-
-                                <div className="border-t border-gray-200 pt-3 dark:border-gray-700" />
-
-                                <ModelPredictionSelector
-                                    runs={availableRuns}
-                                    paramName="model2"
-                                    label="Model 2"
-                                    selectedRunId={model2Id}
-                                />
-
-                                {model2Id && model2RouteTree && (
-                                    <RankPagination
-                                        paramName="rank2"
-                                        currentRank={rank2}
-                                        maxRank={model2MaxRank}
-                                        label="Model 2 Rank"
-                                    />
-                                )}
-
                                 {model1Id && model2Id && model1RouteTree && model2RouteTree && (
                                     <div className="flex items-center gap-2">
                                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -402,6 +378,48 @@ export async function RouteDisplayWithComparison({
                                         </div>
                                     </div>
                                 )}
+
+                                {model1Id && model2Id && model1RouteTree && model2RouteTree && (
+                                    <div className="border-t border-gray-200 pt-3 dark:border-gray-700" />
+                                )}
+
+                                <div className="grid gap-3 md:grid-cols-2">
+                                    <div className="space-y-3">
+                                        <ModelPredictionSelector
+                                            runs={availableRuns}
+                                            paramName="model1"
+                                            label="Model 1"
+                                            selectedRunId={model1Id}
+                                        />
+
+                                        {model1Id && model1RouteTree && (
+                                            <RankPagination
+                                                paramName="rank1"
+                                                currentRank={rank1}
+                                                maxRank={model1MaxRank}
+                                                label="Model 1 Rank"
+                                            />
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <ModelPredictionSelector
+                                            runs={availableRuns}
+                                            paramName="model2"
+                                            label="Model 2"
+                                            selectedRunId={model2Id}
+                                        />
+
+                                        {model2Id && model2RouteTree && (
+                                            <RankPagination
+                                                paramName="rank2"
+                                                currentRank={rank2}
+                                                maxRank={model2MaxRank}
+                                                label="Model 2 Rank"
+                                            />
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -439,8 +457,8 @@ export async function RouteDisplayWithComparison({
                                             prediction2Route={model2RouteTree}
                                             mode={viewMode}
                                             inStockInchiKeys={inStockInchiKeys}
-                                            model1Label="Model 1 Prediction"
-                                            model2Label="Model 2 Prediction"
+                                            model1Label={model1Name}
+                                            model2Label={model2Name}
                                         />
                                     </div>
 

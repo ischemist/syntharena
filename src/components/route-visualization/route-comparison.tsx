@@ -21,6 +21,7 @@ interface RouteComparisonProps {
     predictionRoute: RouteVisualizationNode
     mode: 'side-by-side' | 'diff-overlay'
     inStockInchiKeys: Set<string>
+    modelName?: string
 }
 
 /**
@@ -112,7 +113,13 @@ function DiffOverlayPanel({
  * Route comparison component supporting side-by-side and diff overlay views.
  * Shows the difference between ground truth and predicted routes.
  */
-export function RouteComparison({ groundTruthRoute, predictionRoute, mode, inStockInchiKeys }: RouteComparisonProps) {
+export function RouteComparison({
+    groundTruthRoute,
+    predictionRoute,
+    mode,
+    inStockInchiKeys,
+    modelName,
+}: RouteComparisonProps) {
     // Collect InChiKeys from both routes for comparison
     const gtInchiKeys = useMemo(() => {
         const set = new Set<string>()
@@ -163,7 +170,7 @@ export function RouteComparison({ groundTruthRoute, predictionRoute, mode, inSto
         return (
             <div className="divide-border grid h-full grid-cols-2 divide-x">
                 <GraphPanel nodes={gtGraph.nodes} edges={gtGraph.edges} title="Ground Truth" />
-                <GraphPanel nodes={predGraph.nodes} edges={predGraph.edges} title="Prediction" />
+                <GraphPanel nodes={predGraph.nodes} edges={predGraph.edges} title={modelName || 'Prediction'} />
             </div>
         )
     }
