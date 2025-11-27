@@ -159,9 +159,14 @@ export async function RouteDisplayWithComparison({
     }
 
     // Determine current mode - URL is the single source of truth
+    // Default to pred-vs-pred when no ground truth is available
     const validModes: ComparisonMode[] = ['gt-only', 'gt-vs-pred', 'pred-vs-pred']
     const mode: ComparisonMode =
-        modeProp && validModes.includes(modeProp as ComparisonMode) ? (modeProp as ComparisonMode) : 'gt-only'
+        modeProp && validModes.includes(modeProp as ComparisonMode)
+            ? (modeProp as ComparisonMode)
+            : groundTruthRouteTree
+              ? 'gt-only'
+              : 'pred-vs-pred'
 
     // Determine view mode for comparison (only side-by-side and diff-overlay for comparisons)
     const validViewModes = ['side-by-side', 'diff-overlay'] as const
