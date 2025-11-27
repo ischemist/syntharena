@@ -18,6 +18,7 @@ type PageProps = {
         search?: string
         target?: string
         rank?: string
+        view?: string
     }>
 }
 
@@ -52,6 +53,7 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
     const stockId = searchParamsResolved.stock
     const targetId = searchParamsResolved.target
     const rank = parseInt(searchParamsResolved.rank || '1', 10)
+    const viewMode = searchParamsResolved.view
 
     return (
         <div className="flex flex-col gap-6">
@@ -72,8 +74,14 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
 
             {/* Conditional route display */}
             {targetId && (
-                <Suspense key={`${targetId}-${rank}`} fallback={<RouteDisplaySkeleton />}>
-                    <TargetRouteDisplay runId={runId} targetId={targetId} rank={rank} stockId={stockId} />
+                <Suspense key={`${targetId}-${rank}-${viewMode}`} fallback={<RouteDisplaySkeleton />}>
+                    <TargetRouteDisplay
+                        runId={runId}
+                        targetId={targetId}
+                        rank={rank}
+                        stockId={stockId}
+                        viewMode={viewMode}
+                    />
                 </Suspense>
             )}
         </div>

@@ -70,6 +70,11 @@ export function TargetSearch({ onSearch, navigation }: TargetSearchProps) {
         const params = new URLSearchParams(searchParams.toString())
         params.set('target', targetId)
         params.set('rank', '1') // Default to first prediction
+        // Preserve view mode if it exists
+        const currentView = searchParams.get('view')
+        if (currentView) {
+            params.set('view', currentView)
+        }
         router.push(`${pathname}?${params.toString()}`, { scroll: false })
         setOpen(false) // Close the popover
     }
@@ -86,6 +91,11 @@ export function TargetSearch({ onSearch, navigation }: TargetSearchProps) {
         const params = new URLSearchParams(searchParams.toString())
         params.set('target', targetId)
         params.set('rank', '1') // Reset to first prediction
+        // Preserve view mode if it exists
+        const currentView = searchParams.get('view')
+        if (currentView) {
+            params.set('view', currentView)
+        }
         router.push(`${pathname}?${params.toString()}`, { scroll: false })
     }
 

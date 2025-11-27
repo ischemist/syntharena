@@ -6,7 +6,11 @@ import type { Edge, Node } from '@xyflow/react'
 import { useTheme } from 'next-themes'
 
 import type { RouteGraphNode, RouteVisualizationNode } from '@/types'
-import { buildDiffOverlayGraph, buildSideBySideGraph, collectInchiKeys } from '@/lib/route-visualization'
+import {
+    buildPredictionDiffOverlayGraph,
+    buildPredictionSideBySideGraph,
+    collectInchiKeys,
+} from '@/lib/route-visualization'
 
 import { MoleculeNode } from './molecule-node'
 
@@ -16,17 +20,18 @@ const nodeTypes = {
     molecule: MoleculeNode,
 }
 
-interface RouteComparisonProps {
-    groundTruthRoute: RouteVisualizationNode
-    predictionRoute: RouteVisualizationNode
+interface PredictionComparisonProps {
+    prediction1Route: RouteVisualizationNode
+    prediction2Route: RouteVisualizationNode
     mode: 'side-by-side' | 'diff-overlay'
     inStockInchiKeys: Set<string>
-    modelName?: string
+    model1Label?: string
+    model2Label?: string
 }
 
 /**
- * Single graph panel for displaying one route tree.
- * Used in side-by-side comparison mode.
+ * Single graph panel for displaying one prediction route tree.
+ * Used in side-by-side comparison mode for pred-vs-pred.
  */
 function GraphPanel({
     nodes: initialNodes,
@@ -72,7 +77,7 @@ function GraphPanel({
 }
 
 /**
- * Diff overlay panel for displaying merged route comparison.
+ * Diff overlay panel for displaying merged prediction comparison.
  * Separated from main component to avoid hooks ordering issues.
  */
 function DiffOverlayPanel({
@@ -110,67 +115,69 @@ function DiffOverlayPanel({
 }
 
 /**
- * Route comparison component supporting side-by-side and diff overlay views.
- * Shows the difference between ground truth and predicted routes.
+ * Prediction-vs-prediction comparison component.
+ * Shows the difference between two model predictions with both treated equally.
+ * Both predictions show stock availability badges on leaf nodes.
  */
-export function RouteComparison({
-    groundTruthRoute,
-    predictionRoute,
+export function PredictionComparison({
+    prediction1Route,
+    prediction2Route,
     mode,
     inStockInchiKeys,
-    modelName,
-}: RouteComparisonProps) {
+    model1Label = 'Model 1 Prediction',
+    model2Label = 'Model 2 Prediction',
+}: PredictionComparisonProps) {
     // Collect InChiKeys from both routes for comparison
-    const gtInchiKeys = useMemo(() => {
+    const pred1InchiKeys = useMemo(() => {
         const set = new Set<string>()
-        collectInchiKeys(groundTruthRoute, set)
+        collectInchiKeys(prediction1Route, set)
         return set
-    }, [groundTruthRoute])
+    }, [prediction1Route])
 
-    const predInchiKeys = useMemo(() => {
+    const pred2InchiKeys = useMemo(() => {
         const set = new Set<string>()
-        collectInchiKeys(predictionRoute, set)
+        collectInchiKeys(prediction2Route, set)
         return set
-    }, [predictionRoute])
+    }, [prediction2Route])
 
     // Build graphs based on mode
-    const { gtGraph, predGraph, diffGraph } = useMemo(() => {
+    const { pred1Graph, pred2Graph, diffGraph } = useMemo(() => {
         if (mode === 'side-by-side') {
             return {
-                gtGraph: buildSideBySideGraph(
-                    groundTruthRoute,
-                    predictionRoute,
-                    gtInchiKeys,
-                    predInchiKeys,
+                pred1Graph: buildPredictionSideBySideGraph(
+                    prediction1Route,
+                    prediction2Route,
+                    pred1InchiKeys,
+                    pred2InchiKeys,
                     true,
-                    'gt_',
+                    'pred1_',
                     inStockInchiKeys
                 ),
-                predGraph: buildSideBySideGraph(
-                    predictionRoute,
-                    groundTruthRoute,
-                    gtInchiKeys,
-                    predInchiKeys,
+                pred2Graph: buildPredictionSideBySideGraph(
+                    prediction2Route,
+                    prediction1Route,
+                    pred1InchiKeys,
+                    pred2InchiKeys,
                     false,
-                    'pred_',
+                    'pred2_',
                     inStockInchiKeys
                 ),
                 diffGraph: null,
             }
         } else {
             return {
-                gtGraph: null,
-                predGraph: null,
-                diffGraph: buildDiffOverlayGraph(groundTruthRoute, predictionRoute, inStockInchiKeys),
+                pred1Graph: null,
+                pred2Graph: null,
+                diffGraph: buildPredictionDiffOverlayGraph(prediction1Route, prediction2Route, inStockInchiKeys),
             }
         }
-    }, [groundTruthRoute, predictionRoute, gtInchiKeys, predInchiKeys, mode, inStockInchiKeys])
+    }, [prediction1Route, prediction2Route, pred1InchiKeys, pred2InchiKeys, mode, inStockInchiKeys])
 
-    if (mode === 'side-by-side' && gtGraph && predGraph) {
+    if (mode === 'side-by-side' && pred1Graph && pred2Graph) {
         return (
             <div className="divide-border grid h-full grid-cols-2 divide-x">
-                <GraphPanel nodes={gtGraph.nodes} edges={gtGraph.edges} title="Ground Truth" />
-                <GraphPanel nodes={predGraph.nodes} edges={predGraph.edges} title={modelName || 'Prediction'} />
+                <GraphPanel nodes={pred1Graph.nodes} edges={pred1Graph.edges} title={model1Label} />
+                <GraphPanel nodes={pred2Graph.nodes} edges={pred2Graph.edges} title={model2Label} />
             </div>
         )
     }

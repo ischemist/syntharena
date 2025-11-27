@@ -26,9 +26,10 @@ type TargetRouteDisplayProps = {
     targetId: string
     rank: number
     stockId?: string
+    viewMode?: string
 }
 
-export async function TargetRouteDisplay({ runId, targetId, rank, stockId }: TargetRouteDisplayProps) {
+export async function TargetRouteDisplay({ runId, targetId, rank, stockId, viewMode }: TargetRouteDisplayProps) {
     // Fetch target predictions
     const targetDetail = await getTargetPredictions(targetId, runId, stockId)
 
@@ -187,6 +188,7 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId }: Tar
                                 isGtMatch={solvability?.isGtMatch}
                                 inStockInchiKeys={inStockInchiKeys}
                                 stockName={stockName}
+                                viewMode={viewMode}
                             />
                         )
                     })()}

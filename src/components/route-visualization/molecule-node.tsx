@@ -28,12 +28,23 @@ export function MoleculeNode({ data }: NodeProps<Node<RouteGraphNode>>) {
         match: 'border-emerald-500 bg-white dark:bg-gray-900',
         extension: 'border-amber-500 bg-white dark:bg-gray-900',
         ghost: 'border-gray-400 border-dashed bg-white dark:bg-gray-900 opacity-60',
+        'pred-shared': 'border-teal-500 bg-white dark:bg-gray-900',
+        'pred-1-only': 'border-sky-500 bg-white dark:bg-gray-900',
+        'pred-2-only': 'border-violet-500 bg-white dark:bg-gray-900',
     }
 
     const nodeClass = statusClasses[status] || statusClasses.default
 
-    // Show stock badge for leaf nodes in comparison mode (extension or match status)
-    const showStockBadge = isLeaf && (status === 'extension' || status === 'match')
+    // Show stock badge for leaf nodes in comparison mode
+    // GT vs pred: extension or match
+    // Pred vs pred: any pred-* status
+    const showStockBadge =
+        isLeaf &&
+        (status === 'extension' ||
+            status === 'match' ||
+            status === 'pred-shared' ||
+            status === 'pred-1-only' ||
+            status === 'pred-2-only')
 
     return (
         <div className={`relative rounded-lg border-2 shadow-sm ${nodeClass}`}>

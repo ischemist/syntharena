@@ -4,24 +4,35 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 /**
  * Loading skeleton for the stock list view.
- * Shows placeholder cards for stocks while data is loading.
+ * Shows placeholder table rows for stocks while data is loading.
  * Optimized for minimal CLS with consistent spacing.
  */
 export function StockListSkeleton() {
     return (
-        <div className="space-y-4">
-            {Array.from({ length: 3 }).map((_, i) => (
-                <Card key={i} className="hover:bg-accent my-4 transition-colors">
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <Skeleton className="h-6 w-48" />
-                            <Skeleton className="h-6 w-24 rounded-full" /> {/* Badge placeholder */}
-                        </div>
-                        <Skeleton className="mt-2 h-4 w-full" />
-                    </CardHeader>
-                </Card>
-            ))}
-        </div>
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="text-right">Molecules</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {Array.from({ length: 3 }).map((_, i) => (
+                    <TableRow key={i}>
+                        <TableCell>
+                            <Skeleton className="h-5 w-48" />
+                        </TableCell>
+                        <TableCell>
+                            <Skeleton className="h-4 w-64" />
+                        </TableCell>
+                        <TableCell className="text-right">
+                            <Skeleton className="ml-auto h-6 w-24 rounded-full" />
+                        </TableCell>
+                    </TableRow>
+                ))}
+            </TableBody>
+        </Table>
     )
 }
 
