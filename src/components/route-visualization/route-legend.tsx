@@ -63,7 +63,9 @@ export function RouteLegend({ viewMode = 'prediction-only', isPredictionComparis
                     </div>
                     <div className="flex items-center gap-1.5">
                         <div className="h-4 w-4 rounded border-2 border-violet-500 bg-violet-50 dark:bg-violet-950" />
-                        <span className="text-muted-foreground text-sm">Model 2 Only</span>
+                        <span className="text-muted-foreground text-sm">
+                            Model 2 Only{viewMode === 'diff-overlay' && ' (dashed edges)'}
+                        </span>
                     </div>
                 </>
             )}

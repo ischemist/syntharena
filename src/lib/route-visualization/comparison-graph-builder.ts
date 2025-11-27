@@ -210,9 +210,10 @@ function flattenMergedLayoutTree(
     parentId: string | null,
     parentIsGhost: boolean
 ): void {
-    // Only 'ghost' status should have dashed borders (missing from prediction in GT vs Pred mode)
-    // In pred-vs-pred, all borders are solid since there's no ground truth reference
-    const isGhost = node.status === 'ghost'
+    // Dashed edges for:
+    // - 'ghost' status (missing from prediction in GT vs Pred mode)
+    // - 'pred-2-only' status (unique to Model 2 in pred-vs-pred mode)
+    const isDashed = node.status === 'ghost' || node.status === 'pred-2-only'
     const isLeaf = node.children.length === 0
     nodes.push({
         id: node.id,
@@ -225,11 +226,11 @@ function flattenMergedLayoutTree(
     })
 
     if (parentId) {
-        edges.push({ source: parentId, target: node.id, isGhost: isGhost || parentIsGhost })
+        edges.push({ source: parentId, target: node.id, isGhost: isDashed || parentIsGhost })
     }
 
     node.children.forEach((child) => {
-        flattenMergedLayoutTree(child, nodes, edges, node.id, isGhost)
+        flattenMergedLayoutTree(child, nodes, edges, node.id, isDashed)
     })
 }
 
