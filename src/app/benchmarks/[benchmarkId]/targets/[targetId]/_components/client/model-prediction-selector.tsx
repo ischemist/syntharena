@@ -125,7 +125,7 @@ export function ModelPredictionSelector({ runs, paramName, label, selectedRunId 
                                                 </div>
                                                 <div className="text-muted-foreground text-xs">
                                                     {run.algorithmName} • {formatDate(run.executedAt)} •{' '}
-                                                    {run.routeCount} routes (max rank: {run.maxRank})
+                                                    {run.routeCount} {run.routeCount === 1 ? 'route' : 'routes'}
                                                 </div>
                                             </div>
                                             <Check

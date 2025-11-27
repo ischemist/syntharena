@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 import type { RouteNodeWithDetails, RouteVisualizationNode } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkService from '@/lib/services/benchmark.service'
@@ -254,22 +256,24 @@ export async function RouteDisplayWithComparison({
                                                 size="sm"
                                                 asChild
                                             >
-                                                <a
+                                                <Link
                                                     href={`?mode=${mode}&model1=${model1Id}&rank1=${rank1}&view=side-by-side`}
+                                                    scroll={false}
                                                 >
                                                     Side-by-Side
-                                                </a>
+                                                </Link>
                                             </Button>
                                             <Button
                                                 variant={viewMode === 'diff-overlay' ? 'default' : 'outline'}
                                                 size="sm"
                                                 asChild
                                             >
-                                                <a
+                                                <Link
                                                     href={`?mode=${mode}&model1=${model1Id}&rank1=${rank1}&view=diff-overlay`}
+                                                    scroll={false}
                                                 >
                                                     Diff Overlay
-                                                </a>
+                                                </Link>
                                             </Button>
                                         </div>
                                     </div>
@@ -376,22 +380,24 @@ export async function RouteDisplayWithComparison({
                                                 size="sm"
                                                 asChild
                                             >
-                                                <a
+                                                <Link
                                                     href={`?mode=${mode}&model1=${model1Id}&rank1=${rank1}&model2=${model2Id}&rank2=${rank2}&view=side-by-side`}
+                                                    scroll={false}
                                                 >
                                                     Side-by-Side
-                                                </a>
+                                                </Link>
                                             </Button>
                                             <Button
                                                 variant={viewMode === 'diff-overlay' ? 'default' : 'outline'}
                                                 size="sm"
                                                 asChild
                                             >
-                                                <a
+                                                <Link
                                                     href={`?mode=${mode}&model1=${model1Id}&rank1=${rank1}&model2=${model2Id}&rank2=${rank2}&view=diff-overlay`}
+                                                    scroll={false}
                                                 >
                                                     Diff Overlay
-                                                </a>
+                                                </Link>
                                             </Button>
                                         </div>
                                     </div>
