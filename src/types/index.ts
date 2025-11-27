@@ -285,12 +285,24 @@ export interface RouteGraphNode {
 /**
  * Union type for node visual states.
  * - "in-stock" | "default": Used for single route visualization with stock highlighting
- * - "match" | "extension" | "ghost": Used for route comparison modes
+ * - "match" | "extension" | "ghost": Used for GT vs prediction comparison
  *   - "match": Node present in both ground truth and prediction
  *   - "extension": Node present in prediction but not ground truth (potential alternative route)
  *   - "ghost": Node present in ground truth but missing from prediction
+ * - "pred-shared" | "pred-1-only" | "pred-2-only": Used for prediction vs prediction comparison
+ *   - "pred-shared": Node present in both predictions (teal)
+ *   - "pred-1-only": Node unique to first prediction (sky blue)
+ *   - "pred-2-only": Node unique to second prediction (violet)
  */
-export type NodeStatus = 'in-stock' | 'default' | 'match' | 'extension' | 'ghost'
+export type NodeStatus =
+    | 'in-stock'
+    | 'default'
+    | 'match'
+    | 'extension'
+    | 'ghost'
+    | 'pred-shared'
+    | 'pred-1-only'
+    | 'pred-2-only'
 
 /**
  * View mode for route visualization.

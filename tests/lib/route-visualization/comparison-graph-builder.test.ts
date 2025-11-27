@@ -87,8 +87,9 @@ describe('Route Comparison Graph Builders', () => {
                 'pred_'
             )
 
-            // Now includes ghost node from GT, so should have 4 nodes
-            expect(result.nodes).toHaveLength(4)
+            // Side-by-side only shows actual nodes in the prediction route (3 nodes)
+            // Ghost nodes are only shown in diff-overlay mode
+            expect(result.nodes).toHaveLength(3)
 
             // Check root and first child are matches
             const rootNode = result.nodes.find((n) => n.data.smiles === 'CCO')
@@ -97,13 +98,13 @@ describe('Route Comparison Graph Builders', () => {
             const matchChild = result.nodes.find((n) => n.data.smiles === 'CC')
             expect(matchChild?.data.status).toBe('match')
 
-            // Check second child is extension
+            // Check second child is extension (not in GT)
             const extensionChild = result.nodes.find((n) => n.data.smiles === 'CO')
             expect(extensionChild?.data.status).toBe('extension')
 
-            // Check ghost node from GT
+            // Verify no ghost node in side-by-side (it would only appear in diff-overlay)
             const ghostNode = result.nodes.find((n) => n.data.smiles === 'O')
-            expect(ghostNode?.data.status).toBe('ghost')
+            expect(ghostNode).toBeUndefined()
         })
 
         it('should create correct edges', () => {

@@ -5,5 +5,6 @@
 
 export { RouteGraph } from './route-graph'
 export { RouteComparison } from './route-comparison'
+export { PredictionComparison } from './prediction-comparison'
 export { MoleculeNode } from './molecule-node'
 export { RouteLegend } from './route-legend'

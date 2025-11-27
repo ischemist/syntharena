@@ -6,7 +6,7 @@ import * as benchmarkService from '@/lib/services/benchmark.service'
 import * as routeService from '@/lib/services/route.service'
 import { findMatchingStock } from '@/lib/services/stock-mapping'
 import * as stockService from '@/lib/services/stock.service'
-import { RouteComparison, RouteGraph, RouteLegend } from '@/components/route-visualization'
+import { PredictionComparison, RouteComparison, RouteGraph, RouteLegend } from '@/components/route-visualization'
 import { Button } from '@/components/ui/button'
 
 import { ComparisonModeTabs, type ComparisonMode } from '../client/comparison-mode-tabs'
@@ -434,22 +434,24 @@ export async function RouteDisplayWithComparison({
                                     </div>
 
                                     <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-                                        <RouteComparison
-                                            groundTruthRoute={model1RouteTree}
-                                            predictionRoute={model2RouteTree}
+                                        <PredictionComparison
+                                            prediction1Route={model1RouteTree}
+                                            prediction2Route={model2RouteTree}
                                             mode={viewMode}
                                             inStockInchiKeys={inStockInchiKeys}
+                                            model1Label="Model 1 Prediction"
+                                            model2Label="Model 2 Prediction"
                                         />
                                     </div>
 
                                     <div className="mt-4">
-                                        <RouteLegend viewMode={viewMode} />
+                                        <RouteLegend viewMode={viewMode} isPredictionComparison={true} />
                                     </div>
 
                                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                                         {viewMode === 'side-by-side'
-                                            ? 'Scroll to zoom. Drag to pan. Green = match, amber = extension (unique to one route).'
-                                            : 'Scroll to zoom. Drag to pan. Green = match, amber = extension, dashed gray = missing from second route.'}
+                                            ? 'Scroll to zoom. Drag to pan. Teal = both routes, sky = Model 1 only, violet = Model 2 only.'
+                                            : 'Scroll to zoom. Drag to pan. Teal = both routes, sky = Model 1 only, violet (dashed) = Model 2 only.'}
                                     </p>
                                 </>
                             )}
