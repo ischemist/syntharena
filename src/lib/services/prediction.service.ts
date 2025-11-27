@@ -231,9 +231,10 @@ export async function getTargetPredictions(
 
 /**
  * Search targets for a prediction run by targetId or SMILES.
+ * If query is empty, returns the first N targets ordered by targetId.
  *
  * @param runId - The prediction run ID
- * @param query - Search query (matches targetId or SMILES substring)
+ * @param query - Search query (matches targetId or SMILES substring). Empty string returns initial targets.
  * @param stockId - Optional: Stock ID to include in route data
  * @param limit - Maximum number of results (default: 20)
  * @returns Array of matching targets with molecule data
@@ -258,14 +259,10 @@ export async function searchTargets(
     // Trim and lowercase query for case-insensitive matching
     const searchQuery = query.trim().toLowerCase()
 
-    if (!searchQuery) {
-        return []
-    }
-
-    // Search by targetId or SMILES substring
-    const targets = await prisma.benchmarkTarget.findMany({
-        where: {
-            benchmarkSetId: run.benchmarkSetId,
+    // Build where clause - if query is empty, show all targets (limited by take)
+    const where: Prisma.BenchmarkTargetWhereInput = {
+        benchmarkSetId: run.benchmarkSetId,
+        ...(searchQuery && {
             OR: [
                 {
                     targetId: {
@@ -280,7 +277,12 @@ export async function searchTargets(
                     },
                 },
             ],
-        },
+        }),
+    }
+
+    // Search by targetId or SMILES substring
+    const targets = await prisma.benchmarkTarget.findMany({
+        where,
         include: {
             molecule: true,
             predictedRoutes: {

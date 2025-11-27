@@ -3,11 +3,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 /**
- * Skeleton for leaderboard filters section
+ * Skeleton for leaderboard card sections (bordered variant)
  */
 export function LeaderboardCardSkeleton() {
     return (
-        <Card>
+        <Card variant="bordered">
             <CardHeader>
                 <Skeleton className="h-7 w-48" />
                 <Skeleton className="mt-2 h-4 w-64" />
@@ -24,7 +24,7 @@ export function LeaderboardCardSkeleton() {
  */
 export function LeaderboardTableSkeleton() {
     return (
-        <Card>
+        <Card variant="bordered">
             <CardHeader>
                 <CardTitle>Model Leaderboard</CardTitle>
                 <CardDescription>Performance comparison across models</CardDescription>
@@ -88,7 +88,7 @@ export function LeaderboardTableSkeleton() {
  */
 export function LeaderboardChartSkeleton() {
     return (
-        <Card>
+        <Card variant="bordered">
             <CardHeader>
                 <CardTitle>Performance Metrics</CardTitle>
                 <CardDescription>Visual comparison of model performance</CardDescription>
@@ -105,7 +105,7 @@ export function LeaderboardChartSkeleton() {
  */
 export function StratifiedMetricsSkeleton() {
     return (
-        <Card>
+        <Card variant="bordered">
             <CardHeader>
                 <CardTitle>Metrics by Route Length</CardTitle>
                 <CardDescription>Performance breakdown by ground truth route length</CardDescription>

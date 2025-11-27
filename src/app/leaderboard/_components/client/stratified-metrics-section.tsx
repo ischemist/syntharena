@@ -3,7 +3,7 @@
 import type { MetricResult, StratifiedMetric } from '@/types'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-import { useSelectedTopK } from './benchmark-metrics-wrapper'
+import { useSelectedTopK } from './page-level-top-k-selector'
 
 type StratifiedMetricsSectionProps = {
     metricsMap: Map<
