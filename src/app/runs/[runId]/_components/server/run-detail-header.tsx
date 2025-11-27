@@ -11,7 +11,7 @@ type RunDetailHeaderProps = {
 
 export function RunDetailHeader({ run }: RunDetailHeaderProps) {
     return (
-        <Card>
+        <Card variant="bordered">
             <CardHeader>
                 <CardTitle className="text-2xl">{run.modelInstance.name}</CardTitle>
             </CardHeader>

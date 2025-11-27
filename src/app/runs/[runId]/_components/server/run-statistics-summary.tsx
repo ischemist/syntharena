@@ -78,7 +78,7 @@ export async function RunStatisticsSummary({ runId, searchParams }: RunStatistic
     const nSamples = solvability.nSamples
 
     return (
-        <Card>
+        <Card variant="bordered">
             <CardHeader>
                 <CardTitle>Overall Metrics</CardTitle>
                 <CardDescription>

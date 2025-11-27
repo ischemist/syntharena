@@ -79,7 +79,7 @@ export async function RunStatisticsStratified({ runId, searchParams }: RunStatis
     }
 
     return (
-        <Card>
+        <Card variant="bordered">
             <CardHeader>
                 <CardTitle>Metrics by Route Length</CardTitle>
                 <CardDescription>Performance breakdown by ground truth route length.</CardDescription>
