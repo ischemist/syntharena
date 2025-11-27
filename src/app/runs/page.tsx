@@ -1,7 +1,13 @@
 import { Suspense } from 'react'
+import type { Metadata } from 'next'
 
 import { RunList } from './_components/server/run-list'
 import { RunListSkeleton } from './_components/skeletons'
+
+export const metadata: Metadata = {
+    title: 'Model Runs',
+    description: 'Browse prediction runs from retrosynthesis models.',
+}
 
 type PageProps = {
     searchParams: Promise<{

@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 
 import { getPredictionRunById, getStocksForRun, getTargetIdsByRun } from '@/lib/services/prediction.service'
@@ -20,6 +21,26 @@ type PageProps = {
         rank?: string
         view?: string
     }>
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+    const { runId } = await params
+
+    try {
+        const run = await getPredictionRunById(runId)
+        const modelName = run.modelInstance.name || run.modelInstance.algorithm.name
+        const benchmarkName = run.benchmarkSet.name
+
+        return {
+            title: `${modelName} on ${benchmarkName}`,
+            description: `View statistics and routes for ${modelName} predictions on ${benchmarkName}.`,
+        }
+    } catch {
+        return {
+            title: 'Run Not Found',
+            description: 'The requested prediction run could not be found.',
+        }
+    }
 }
 
 export default async function RunDetailPage({ params, searchParams }: PageProps) {

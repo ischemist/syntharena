@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import type { Metadata } from 'next'
 
 import { getBenchmarkSets } from '@/lib/services/benchmark.service'
 import { getLeaderboard } from '@/lib/services/leaderboard.service'
@@ -7,6 +8,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { BenchmarkLeaderboardCard } from './_components/server/benchmark-leaderboard-card'
 import { BenchmarkSelector } from './_components/server/benchmark-selector'
 import { LeaderboardCardSkeleton } from './_components/skeletons'
+
+export const metadata: Metadata = {
+    title: 'Leaderboard',
+    description: 'Compare model performance across retrosynthesis benchmarks.',
+}
 
 type LeaderboardPageProps = {
     searchParams: Promise<{ benchmarkId?: string }>

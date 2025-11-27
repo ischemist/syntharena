@@ -1,5 +1,7 @@
 import { Suspense, use } from 'react'
+import type { Metadata } from 'next'
 
+import { getBenchmarkById } from '@/lib/services/benchmark.service'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { RouteDisplayWithComparison } from './_components/server/route-display-with-comparison'
@@ -16,6 +18,19 @@ interface TargetDetailPageProps {
         rank2?: string
         view?: string
     }>
+}
+
+export async function generateMetadata({ params }: TargetDetailPageProps): Promise<Metadata> {
+    const { benchmarkId, targetId } = await params
+    const benchmark = await getBenchmarkById(benchmarkId)
+
+    const shortId = targetId.substring(0, 8)
+    const title = `Target ${shortId} - ${benchmark?.name || 'Benchmark'}`
+
+    return {
+        title,
+        description: 'View ground truth route and compare with model predictions.',
+    }
 }
 
 /**

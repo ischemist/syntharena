@@ -1,8 +1,14 @@
 import { Suspense } from 'react'
+import type { Metadata } from 'next'
 import { connection } from 'next/server'
 
 import { StockList } from './_components/server/stock-list'
 import { StockListSkeleton } from './_components/skeletons'
+
+export const metadata: Metadata = {
+    title: 'Stock Libraries',
+    description: 'Browse available chemical stock libraries.',
+}
 
 /**
  * Main stocks page showing all available stock libraries.
