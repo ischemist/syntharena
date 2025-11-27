@@ -76,16 +76,15 @@ async function BenchmarkCards({ searchParams }: PageProps) {
 
     // Render one card per benchmark
     return (
-        <div className="space-y-8">
+        <div className="space-y-6">
             {Array.from(benchmarkGroups.values()).map((group) => (
-                <Suspense key={group.benchmarkId} fallback={<LeaderboardCardSkeleton />}>
-                    <BenchmarkLeaderboardCard
-                        benchmarkId={group.benchmarkId}
-                        benchmarkName={group.benchmarkName}
-                        hasGroundTruth={group.hasGroundTruth}
-                        entries={group.entries}
-                    />
-                </Suspense>
+                <BenchmarkLeaderboardCard
+                    key={group.benchmarkId}
+                    benchmarkId={group.benchmarkId}
+                    benchmarkName={group.benchmarkName}
+                    hasGroundTruth={group.hasGroundTruth}
+                    entries={group.entries}
+                />
             ))}
         </div>
     )

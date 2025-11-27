@@ -2,10 +2,12 @@
 
 import { useState } from 'react'
 import { BarChart3, Table2 } from 'lucide-react'
+import { Bar, BarChart, CartesianGrid, Cell, ErrorBar, XAxis, YAxis } from 'recharts'
 
 import type { LeaderboardEntry } from '@/types'
-import { MetricsChart } from '@/components/metrics'
+import { chartColors } from '@/components/theme/chart-palette'
 import { Button } from '@/components/ui/button'
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 import { MetricCell } from '../../../runs/[runId]/_components/client/metric-cell'
@@ -14,6 +16,9 @@ type BenchmarkMetricsDisplayProps = {
     entries: LeaderboardEntry[]
     topKMetricNames: string[]
 }
+
+// Default Top-K values to show
+const DEFAULT_TOP_K = ['Top-1', 'Top-5', 'Top-10']
 
 /**
  * Client component for displaying benchmark metrics with table/chart toggle.
@@ -26,35 +31,76 @@ type BenchmarkMetricsDisplayProps = {
  */
 export function BenchmarkMetricsDisplay({ entries, topKMetricNames }: BenchmarkMetricsDisplayProps) {
     const [view, setView] = useState<'table' | 'chart'>('table')
-
-    // For chart view, we need to transform data to metrics format
-    // We'll show one chart per model (or aggregate if needed)
-    // For now, let's show table by default and allow chart toggle per model row
+    const [selectedTopK, setSelectedTopK] = useState<string[]>(
+        // Filter default Top-K to only include what's available
+        DEFAULT_TOP_K.filter((k) => topKMetricNames.includes(k))
+    )
 
     const hasTopKMetrics = topKMetricNames.length > 0
 
+    // Allow user to select which Top-K metrics to display
+    const handleTopKToggle = (metricName: string) => {
+        setSelectedTopK((prev) => {
+            const newSelection = prev.includes(metricName)
+                ? prev.filter((k) => k !== metricName)
+                : [...prev, metricName]
+
+            // Sort numerically by extracting the K value
+            return newSelection.sort((a, b) => {
+                const aNum = parseInt(a.replace(/^\D+/, ''))
+                const bNum = parseInt(b.replace(/^\D+/, ''))
+                return aNum - bNum
+            })
+        })
+    }
+
+    // Determine which Top-K metrics to show in the table/chart
+    const displayedTopK = hasTopKMetrics ? selectedTopK : []
+
     return (
         <div>
-            {/* Toggle buttons */}
-            <div className="mb-4 flex justify-end gap-2">
-                <Button
-                    variant={view === 'table' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setView('table')}
-                    className="gap-2"
-                >
-                    <Table2 className="h-4 w-4" />
-                    Table
-                </Button>
-                <Button
-                    variant={view === 'chart' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setView('chart')}
-                    className="gap-2"
-                >
-                    <BarChart3 className="h-4 w-4" />
-                    Chart
-                </Button>
+            {/* Top controls row */}
+            <div className="mb-4 flex items-center justify-between gap-4">
+                {/* Top-K selector */}
+                {hasTopKMetrics && (
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">Show Top-K:</span>
+                        <div className="flex gap-1">
+                            {topKMetricNames.map((metricName) => (
+                                <Button
+                                    key={metricName}
+                                    variant={selectedTopK.includes(metricName) ? 'default' : 'outline'}
+                                    size="sm"
+                                    onClick={() => handleTopKToggle(metricName)}
+                                >
+                                    {metricName}
+                                </Button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* View toggle buttons */}
+                <div className="flex gap-2">
+                    <Button
+                        variant={view === 'table' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setView('table')}
+                        className="gap-2"
+                    >
+                        <Table2 className="h-4 w-4" />
+                        Table
+                    </Button>
+                    <Button
+                        variant={view === 'chart' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setView('chart')}
+                        className="gap-2"
+                    >
+                        <BarChart3 className="h-4 w-4" />
+                        Chart
+                    </Button>
+                </div>
             </div>
 
             {/* Content area */}
@@ -64,9 +110,8 @@ export function BenchmarkMetricsDisplay({ entries, topKMetricNames }: BenchmarkM
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Model</TableHead>
-                                <TableHead>Stock</TableHead>
                                 <TableHead className="min-w-[220px] text-right">Solvability</TableHead>
-                                {topKMetricNames.map((metricName) => (
+                                {displayedTopK.map((metricName) => (
                                     <TableHead key={metricName} className="min-w-[220px] text-right">
                                         {metricName}
                                     </TableHead>
@@ -79,11 +124,10 @@ export function BenchmarkMetricsDisplay({ entries, topKMetricNames }: BenchmarkM
                                 return (
                                     <TableRow key={key}>
                                         <TableCell className="font-medium">{entry.modelName}</TableCell>
-                                        <TableCell>{entry.stockName}</TableCell>
                                         <TableCell className="text-right">
                                             <MetricCell metric={entry.metrics.solvability} showBadge />
                                         </TableCell>
-                                        {topKMetricNames.map((metricName) => {
+                                        {displayedTopK.map((metricName) => {
                                             const metric = entry.metrics.topKAccuracy?.[metricName]
                                             return (
                                                 <TableCell key={metricName} className="text-right">
@@ -104,37 +148,141 @@ export function BenchmarkMetricsDisplay({ entries, topKMetricNames }: BenchmarkM
                     )}
                 </div>
             ) : (
-                <div className="space-y-6">
-                    {/* Chart view: Show one chart per model-stock combination */}
-                    {entries.map((entry) => {
-                        const key = `${entry.modelName}-${entry.stockName}`
+                <div className="space-y-8">
+                    {/* Chart view: Show one chart per metric comparing all models */}
+                    <ModelComparisonChart metricName="Solvability" entries={entries} />
 
-                        // Build metrics array for this entry
-                        const metricsArray: Array<{
-                            name: string
-                            metric: typeof entry.metrics.solvability
-                        }> = [{ name: 'Solvability', metric: entry.metrics.solvability }]
-
-                        if (entry.metrics.topKAccuracy) {
-                            topKMetricNames.forEach((metricName) => {
-                                const metric = entry.metrics.topKAccuracy?.[metricName]
-                                if (metric) {
-                                    metricsArray.push({ name: metricName, metric })
-                                }
-                            })
-                        }
-
-                        return (
-                            <div key={key}>
-                                <h4 className="mb-2 text-sm font-medium">
-                                    {entry.modelName} - {entry.stockName}
-                                </h4>
-                                <MetricsChart metrics={metricsArray} />
-                            </div>
-                        )
-                    })}
+                    {displayedTopK.map((metricName) => (
+                        <ModelComparisonChart key={metricName} metricName={metricName} entries={entries} />
+                    ))}
                 </div>
             )}
+        </div>
+    )
+}
+
+/**
+ * Chart component that compares all models for a single metric.
+ * X-axis shows model names, Y-axis shows metric value.
+ */
+function ModelComparisonChart({ metricName, entries }: { metricName: string; entries: LeaderboardEntry[] }) {
+    // Transform data: one data point per model
+    const chartData = entries
+        .map((entry) => {
+            const metric =
+                metricName === 'Solvability' ? entry.metrics.solvability : entry.metrics.topKAccuracy?.[metricName]
+
+            if (!metric) return null
+
+            const value = metric.value * 100
+            const ciLower = metric.ciLower * 100
+            const ciUpper = metric.ciUpper * 100
+
+            return {
+                model: entry.modelName,
+                value,
+                ciLower,
+                ciUpper,
+                errorLower: value - ciLower,
+                errorUpper: ciUpper - value,
+                nSamples: metric.nSamples,
+                reliability: metric.reliability,
+            }
+        })
+        .filter((d): d is NonNullable<typeof d> => d !== null)
+
+    if (chartData.length === 0) {
+        return null
+    }
+
+    const chartConfig = {
+        value: {
+            label: metricName,
+            color: chartColors.primary,
+        },
+    }
+
+    return (
+        <div>
+            <h4 className="mb-4 text-sm font-semibold">{metricName} Comparison</h4>
+            <ChartContainer config={chartConfig} className="h-[400px] w-full">
+                <BarChart
+                    data={chartData}
+                    margin={{
+                        top: 20,
+                        right: 30,
+                        left: 20,
+                        bottom: 80,
+                    }}
+                >
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis
+                        dataKey="model"
+                        stroke="hsl(var(--foreground))"
+                        fontSize={12}
+                        tickLine={false}
+                        axisLine={false}
+                        angle={-45}
+                        textAnchor="end"
+                        height={100}
+                    />
+                    <YAxis
+                        stroke="hsl(var(--foreground))"
+                        fontSize={12}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(value) => `${value}%`}
+                        domain={[0, 100]}
+                    />
+                    <ChartTooltip
+                        content={
+                            <ChartTooltipContent
+                                className="w-[220px]"
+                                formatter={(value, _name, item) => (
+                                    <>
+                                        <div className="flex w-full items-center justify-between gap-2">
+                                            <span className="text-muted-foreground">Value:</span>
+                                            <span className="font-mono font-medium">
+                                                {typeof value === 'number' ? value.toFixed(1) : value}%
+                                            </span>
+                                        </div>
+                                        <div className="flex w-full items-center justify-between gap-2">
+                                            <span className="text-muted-foreground">95% CI:</span>
+                                            <span className="font-mono text-xs">
+                                                [{item.payload.ciLower.toFixed(1)}, {item.payload.ciUpper.toFixed(1)}]
+                                            </span>
+                                        </div>
+                                        <div className="flex w-full items-center justify-between gap-2">
+                                            <span className="text-muted-foreground">n:</span>
+                                            <span className="font-mono">{item.payload.nSamples}</span>
+                                        </div>
+                                        {item.payload.reliability.code !== 'OK' && (
+                                            <div className="border-destructive/50 bg-destructive/10 mt-2 rounded border px-2 py-1 text-xs">
+                                                {item.payload.reliability.message}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                                labelFormatter={(label) => label}
+                            />
+                        }
+                    />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                        <ErrorBar
+                            dataKey={(entry) => [entry.errorLower, entry.errorUpper]}
+                            width={6}
+                            strokeWidth={2.5}
+                            stroke={chartColors.primaryDark}
+                        />
+                        {chartData.map((entry, index) => (
+                            <Cell
+                                key={`cell-${index}`}
+                                fill={entry.reliability.code === 'OK' ? chartColors.reliable : chartColors.unreliable}
+                            />
+                        ))}
+                    </Bar>
+                </BarChart>
+            </ChartContainer>
         </div>
     )
 }
