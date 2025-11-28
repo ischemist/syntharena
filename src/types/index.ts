@@ -518,6 +518,7 @@ export interface TargetPredictionDetail {
         route: Route // The route structure
         predictionRoute: PredictionRoute // The prediction metadata (rank, etc.)
         routeNode: RouteNodeWithDetails
+        visualizationNode: RouteVisualizationNode // Pre-computed for client (no client-side transformation needed)
         solvability: Array<{
             stockId: string
             stockName: string

@@ -13,6 +13,8 @@ import type {
 import prisma from '@/lib/db'
 import { layoutTree } from '@/lib/route-visualization/layout'
 
+import { buildRouteTree } from './route-tree-builder'
+
 // ============================================================================
 // Types for internal use (from Python retrocast models)
 // ============================================================================
@@ -91,6 +93,40 @@ export async function getRouteById(routeId: string): Promise<Route> {
         isConvergent: route.isConvergent,
     }
 }
+
+/**
+ * Fetches ground truth route with nodes and builds hierarchical tree.
+ * Used for displaying ground truth routes in comparison views.
+ *
+ * @param routeId - The ground truth route ID
+ * @returns Hierarchical route tree, or null if not found
+ */
+async function _getGroundTruthRouteWithNodes(routeId: string): Promise<RouteNodeWithDetails | null> {
+    try {
+        const route = await prisma.route.findUnique({
+            where: { id: routeId },
+            include: {
+                nodes: {
+                    include: {
+                        molecule: true,
+                    },
+                },
+            },
+        })
+
+        if (!route || route.nodes.length === 0) {
+            return null
+        }
+
+        // Build hierarchical tree from flat node array using shared helper
+        return buildRouteTree(route.nodes)
+    } catch (error) {
+        console.error('Failed to fetch ground truth route:', error)
+        return null
+    }
+}
+
+export const getGroundTruthRouteWithNodes = cache(_getGroundTruthRouteWithNodes)
 
 /**
  * Builds route node tree in memory from a single database query.

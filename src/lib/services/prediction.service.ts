@@ -5,6 +5,7 @@
  * Used by UI components to display prediction data.
  */
 
+import { cache } from 'react'
 import { Prisma } from '@prisma/client'
 
 import type {
@@ -14,6 +15,8 @@ import type {
     ModelStatistics,
     PredictionRunWithStats,
     ReliabilityCode,
+    RouteNodeWithDetails,
+    RouteVisualizationNode,
     RunStatistics,
     StockListItem,
     StratifiedMetric,
@@ -34,7 +37,7 @@ import { buildRouteTree } from './route-tree-builder'
  * @param modelId - Optional: Filter runs by model instance
  * @returns Array of prediction runs with statistics summary
  */
-export async function getPredictionRuns(benchmarkId?: string, modelId?: string): Promise<PredictionRunWithStats[]> {
+async function _getPredictionRuns(benchmarkId?: string, modelId?: string): Promise<PredictionRunWithStats[]> {
     const runs = await prisma.predictionRun.findMany({
         where: {
             ...(benchmarkId && { benchmarkSetId: benchmarkId }),
@@ -105,6 +108,8 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
     })
 }
 
+export const getPredictionRuns = cache(_getPredictionRuns)
+
 /**
  * Get full run details by ID.
  *
@@ -112,7 +117,7 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
  * @returns Prediction run with model, benchmark, and statistics
  * @throws Error if run not found
  */
-export async function getPredictionRunById(runId: string) {
+async function _getPredictionRunById(runId: string) {
     const run = await prisma.predictionRun.findUnique({
         where: { id: runId },
         include: {
@@ -138,6 +143,8 @@ export async function getPredictionRunById(runId: string) {
     return run
 }
 
+export const getPredictionRunById = cache(_getPredictionRunById)
+
 /**
  * Get all predicted routes for a target with optional stock filtering.
  *
@@ -147,7 +154,7 @@ export async function getPredictionRunById(runId: string) {
  * @returns Target prediction detail with routes and GT comparison
  * @throws Error if target or run not found
  */
-export async function getTargetPredictions(
+async function _getTargetPredictions(
     targetId: string,
     runId: string,
     stockId?: string
@@ -222,6 +229,7 @@ export async function getTargetPredictions(
                 metadata: predictionRoute.metadata,
             },
             routeNode: routeTree,
+            visualizationNode: toVisualizationNode(routeTree),
             solvability,
         }
     })
@@ -241,6 +249,8 @@ export async function getTargetPredictions(
     }
 }
 
+export const getTargetPredictions = cache(_getTargetPredictions)
+
 /**
  * Search targets for a prediction run by targetId or SMILES.
  * If query is empty, returns the first N targets ordered by targetId.
@@ -252,7 +262,7 @@ export async function getTargetPredictions(
  * @returns Array of matching targets with molecule data
  * @throws Error if run not found
  */
-export async function searchTargets(
+async function _searchTargets(
     runId: string,
     query: string,
     stockId?: string,
@@ -325,6 +335,8 @@ export async function searchTargets(
     }))
 }
 
+export const searchTargets = cache(_searchTargets)
+
 /**
  * Get paginated targets for a prediction run with filters.
  *
@@ -333,7 +345,7 @@ export async function searchTargets(
  * @returns Paginated benchmark target search results
  * @throws Error if run not found
  */
-export async function getTargetsByRun(
+async function _getTargetsByRun(
     runId: string,
     filters: {
         page?: number
@@ -459,6 +471,8 @@ export async function getTargetsByRun(
     }
 }
 
+export const getTargetsByRun = cache(_getTargetsByRun)
+
 /**
  * Get ordered list of target IDs for a prediction run.
  * Used for navigation through targets in sequence.
@@ -470,7 +484,7 @@ export async function getTargetsByRun(
  * @returns Array of target IDs in alphabetical order
  * @throws Error if run not found
  */
-export async function getTargetIdsByRun(runId: string): Promise<string[]> {
+async function _getTargetIdsByRun(runId: string): Promise<string[]> {
     // Verify run exists and get benchmark ID
     const run = await prisma.predictionRun.findUnique({
         where: { id: runId },
@@ -498,6 +512,8 @@ export async function getTargetIdsByRun(runId: string): Promise<string[]> {
     return targets.map((t) => t.id)
 }
 
+export const getTargetIdsByRun = cache(_getTargetIdsByRun)
+
 /**
  * Get all stocks that have been evaluated for a specific prediction run.
  * Returns only stocks with computed statistics.
@@ -505,7 +521,7 @@ export async function getTargetIdsByRun(runId: string): Promise<string[]> {
  * @param runId - The prediction run ID
  * @returns Array of stocks with evaluation data for this run
  */
-export async function getStocksForRun(runId: string): Promise<StockListItem[]> {
+async function _getStocksForRun(runId: string): Promise<StockListItem[]> {
     const statistics = await prisma.modelRunStatistics.findMany({
         where: {
             predictionRunId: runId,
@@ -534,6 +550,8 @@ export async function getStocksForRun(runId: string): Promise<StockListItem[]> {
     }))
 }
 
+export const getStocksForRun = cache(_getStocksForRun)
+
 /**
  * Get statistical results for a prediction run against a stock.
  *
@@ -542,7 +560,7 @@ export async function getStocksForRun(runId: string): Promise<StockListItem[]> {
  * @returns Model statistics parsed from JSON
  * @throws Error if statistics not found
  */
-export async function getRunStatistics(runId: string, stockId: string): Promise<RunStatistics> {
+async function _getRunStatistics(runId: string, stockId: string): Promise<RunStatistics> {
     const stats = await prisma.modelRunStatistics.findUnique({
         where: {
             predictionRunId_stockId: {
@@ -588,9 +606,26 @@ export async function getRunStatistics(runId: string, stockId: string): Promise<
     }
 }
 
+export const getRunStatistics = cache(_getRunStatistics)
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+/**
+ * Convert RouteNodeWithDetails to RouteVisualizationNode (client-ready format).
+ * This transformation happens on the server to minimize client-side work.
+ *
+ * @param node - Route node with full details
+ * @returns Flattened visualization node ready for client rendering
+ */
+function toVisualizationNode(node: RouteNodeWithDetails): RouteVisualizationNode {
+    return {
+        smiles: node.molecule.smiles,
+        inchikey: node.molecule.inchikey,
+        children: node.children.length > 0 ? node.children.map(toVisualizationNode) : undefined,
+    }
+}
 
 /**
  * Reconstruct ModelStatistics from StratifiedMetricGroup records.

@@ -1,15 +1,9 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import { notFound, redirect } from 'next/navigation'
 
-import { getPredictionRunById, getStocksForRun, getTargetIdsByRun } from '@/lib/services/prediction.service'
+import { getPredictionRunById } from '@/lib/services/prediction.service'
 
-import { StockSelector } from './_components/client/stock-selector'
-import { RunDetailHeader } from './_components/server/run-detail-header'
-import { RunStatisticsStratified } from './_components/server/run-statistics-stratified'
-import { RunStatisticsSummary } from './_components/server/run-statistics-summary'
-import { TargetRouteDisplay } from './_components/server/target-route-display'
-import { TargetSearchWrapper } from './_components/server/target-search-wrapper'
+import { RunDetailHeaderWrapper, StockSelectorWrapper, TargetSearchSectionWrapper } from './_components/server/wrappers'
 import { RouteDisplaySkeleton, RunStatisticsSkeleton, StratifiedStatisticsSkeleton } from './_components/skeletons'
 
 type PageProps = {
@@ -43,68 +37,60 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     }
 }
 
-export default async function RunDetailPage({ params, searchParams }: PageProps) {
-    const { runId } = await params
-    const searchParamsResolved = await searchParams
-    const [run, stocks, targetIds] = await Promise.all([
-        getPredictionRunById(runId),
-        getStocksForRun(runId),
-        getTargetIdsByRun(runId),
-    ])
-
-    if (!run) {
-        notFound()
-    }
-
-    // If no stock is selected and we have stocks, redirect to first stock
-    if (!searchParamsResolved.stock && stocks.length > 0) {
-        const params = new URLSearchParams(searchParamsResolved as Record<string, string>)
-        params.set('stock', stocks[0].id)
-        redirect(`?${params.toString()}`)
-    }
-
-    // If no target is selected and we have targets, redirect to first target
-    if (!searchParamsResolved.target && targetIds.length > 0) {
-        const params = new URLSearchParams(searchParamsResolved as Record<string, string>)
-        params.set('target', targetIds[0])
-        params.set('rank', '1')
-        redirect(`?${params.toString()}`)
-    }
-
-    const stockId = searchParamsResolved.stock
-    const targetId = searchParamsResolved.target
-    const rank = parseInt(searchParamsResolved.rank || '1', 10)
-    const viewMode = searchParamsResolved.view
-
+export default function RunDetailPage({ params, searchParams }: PageProps) {
     return (
         <div className="flex flex-col gap-6">
-            <RunDetailHeader run={run} />
+            {/* Header - fast render */}
+            <Suspense fallback={<div className="h-48 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />}>
+                <RunDetailHeaderWrapper params={params} />
+            </Suspense>
 
-            <StockSelector stocks={stocks} />
+            {/* Stock Selector - fast render */}
+            <Suspense fallback={<div className="h-12 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />}>
+                <StockSelectorWrapper params={params} searchParams={searchParams} />
+            </Suspense>
 
+            {/* Statistics - stream independently */}
             <Suspense fallback={<RunStatisticsSkeleton />}>
-                <RunStatisticsSummary runId={runId} searchParams={Promise.resolve(searchParamsResolved)} />
+                <RunStatisticsSummaryWrapper params={params} searchParams={searchParams} />
             </Suspense>
 
             <Suspense fallback={<StratifiedStatisticsSkeleton />}>
-                <RunStatisticsStratified runId={runId} searchParams={Promise.resolve(searchParamsResolved)} />
+                <RunStatisticsStratifiedWrapper params={params} searchParams={searchParams} />
             </Suspense>
 
-            {/* Target search */}
-            <TargetSearchWrapper runId={runId} stockId={stockId} currentTargetId={targetId} />
-
-            {/* Conditional route display */}
-            {targetId && (
-                <Suspense key={`${targetId}-${rank}-${viewMode}`} fallback={<RouteDisplaySkeleton />}>
-                    <TargetRouteDisplay
-                        runId={runId}
-                        targetId={targetId}
-                        rank={rank}
-                        stockId={stockId}
-                        viewMode={viewMode}
-                    />
-                </Suspense>
-            )}
+            {/* Target search and route display - stream independently */}
+            <Suspense fallback={<RouteDisplaySkeleton />}>
+                <TargetSearchSectionWrapper params={params} searchParams={searchParams} />
+            </Suspense>
         </div>
     )
+}
+
+// ============================================================================
+// Wrapper Components - Self-Fetch Their Data
+// ============================================================================
+
+async function RunStatisticsSummaryWrapper({
+    params,
+    searchParams,
+}: {
+    params: Promise<{ runId: string }>
+    searchParams: Promise<{ stock?: string }>
+}) {
+    const { runId } = await params
+    const { RunStatisticsSummary } = await import('./_components/server/run-statistics-summary')
+    return <RunStatisticsSummary runId={runId} searchParams={searchParams} />
+}
+
+async function RunStatisticsStratifiedWrapper({
+    params,
+    searchParams,
+}: {
+    params: Promise<{ runId: string }>
+    searchParams: Promise<{ stock?: string }>
+}) {
+    const { runId } = await params
+    const { RunStatisticsStratified } = await import('./_components/server/run-statistics-stratified')
+    return <RunStatisticsStratified runId={runId} searchParams={searchParams} />
 }

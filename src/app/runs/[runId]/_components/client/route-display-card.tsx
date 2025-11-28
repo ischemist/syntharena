@@ -3,7 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CheckCircle, ChevronLeft, ChevronRight, XCircle } from 'lucide-react'
 
-import type { PredictionRoute, Route, RouteNodeWithDetails, RouteViewMode, RouteVisualizationNode } from '@/types'
+import type { PredictionRoute, Route, RouteViewMode, RouteVisualizationNode } from '@/types'
 import { RouteComparison, RouteGraph, RouteLegend } from '@/components/route-visualization'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,8 +14,8 @@ import { RouteViewToggle } from './route-view-toggle'
 type RouteDisplayCardProps = {
     route: Route
     predictionRoute: PredictionRoute
-    routeNode: RouteNodeWithDetails
-    groundTruthRouteNode?: RouteNodeWithDetails
+    visualizationNode: RouteVisualizationNode
+    groundTruthVisualizationNode?: RouteVisualizationNode
     isSolvable?: boolean
     isGtMatch?: boolean
     inStockInchiKeys: Set<string>
@@ -29,8 +29,8 @@ type RouteDisplayCardProps = {
 export function RouteDisplayCard({
     route,
     predictionRoute,
-    routeNode,
-    groundTruthRouteNode,
+    visualizationNode,
+    groundTruthVisualizationNode,
     isSolvable,
     isGtMatch,
     inStockInchiKeys,
@@ -44,7 +44,7 @@ export function RouteDisplayCard({
     const pathname = usePathname()
     const searchParams = useSearchParams()
 
-    const hasGroundTruth = !!groundTruthRouteNode
+    const hasGroundTruth = !!groundTruthVisualizationNode
     const hasNavigation = currentRank !== undefined && totalPredictions !== undefined && targetId !== undefined
 
     // Validate and default view mode
@@ -81,20 +81,6 @@ export function RouteDisplayCard({
 
     const isFirstPrediction = currentRank === 1
     const isLastPrediction = currentRank === totalPredictions
-
-    // Convert RouteNodeWithDetails to RouteVisualizationNode format
-    const convertToVisualizationNode = (node: RouteNodeWithDetails): RouteVisualizationNode => {
-        return {
-            smiles: node.molecule.smiles,
-            inchikey: node.molecule.inchikey,
-            children: node.children.length > 0 ? node.children.map(convertToVisualizationNode) : undefined,
-        }
-    }
-
-    const visualizationRoute = convertToVisualizationNode(routeNode)
-    const groundTruthVisualizationRoute = groundTruthRouteNode
-        ? convertToVisualizationNode(groundTruthRouteNode)
-        : undefined
 
     return (
         <Card variant="bordered">
@@ -175,15 +161,15 @@ export function RouteDisplayCard({
                 <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
                     {viewMode === 'prediction-only' && (
                         <RouteGraph
-                            route={visualizationRoute}
+                            route={visualizationNode}
                             inStockInchiKeys={inStockInchiKeys}
                             idPrefix="run-route-"
                         />
                     )}
-                    {(viewMode === 'side-by-side' || viewMode === 'diff-overlay') && groundTruthVisualizationRoute && (
+                    {(viewMode === 'side-by-side' || viewMode === 'diff-overlay') && groundTruthVisualizationNode && (
                         <RouteComparison
-                            groundTruthRoute={groundTruthVisualizationRoute}
-                            predictionRoute={visualizationRoute}
+                            groundTruthRoute={groundTruthVisualizationNode}
+                            predictionRoute={visualizationNode}
                             mode={viewMode}
                             inStockInchiKeys={inStockInchiKeys}
                         />

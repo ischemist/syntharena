@@ -44,13 +44,6 @@ export async function TargetHeader({ benchmarkId, targetId }: TargetHeaderProps)
 
     return (
         <div className="space-y-4">
-            <Link href={`/benchmarks/${benchmarkId}`}>
-                <Button variant="ghost" size="sm" className="gap-2">
-                    <ArrowLeft className="h-4 w-4" />
-                    Back to Benchmark
-                </Button>
-            </Link>
-
             {/* Target information card with 2-column layout */}
             <Card variant="bordered">
                 <CardContent className="p-4">
