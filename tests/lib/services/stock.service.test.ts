@@ -529,7 +529,7 @@ describe('StockService', () => {
         })
 
         it('should support pagination', async () => {
-            const result = await searchMolecules('', stockId1, 3, 0)
+            const result = await searchMolecules('C', stockId1, 3, 0)
 
             expect(result.molecules).toHaveLength(3)
             expect(result.hasMore).toBe(true)
