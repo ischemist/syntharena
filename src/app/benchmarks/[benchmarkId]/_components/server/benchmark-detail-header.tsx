@@ -20,7 +20,7 @@ export async function BenchmarkDetailHeader({ benchmarkId }: { benchmarkId: stri
             <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-3xl font-bold tracking-tight">{benchmark.name}</h1>
                 <Badge variant="secondary">{benchmark.targetCount.toLocaleString()} targets</Badge>
-                {benchmark.stockName && <Badge variant="outline">Stock: {benchmark.stockName}</Badge>}
+                <Badge variant="outline">Stock: {benchmark.stock.name}</Badge>
             </div>
             {benchmark.description && <p className="text-muted-foreground">{benchmark.description}</p>}
         </div>

@@ -20,9 +20,9 @@ afterEach(async () => {
         prisma.route.deleteMany(),
         prisma.benchmarkTarget.deleteMany(),
         prisma.predictionRun.deleteMany(),
+        prisma.benchmarkSet.deleteMany(), // Must be before stock (foreign key)
         prisma.stockItem.deleteMany(),
         prisma.stock.deleteMany(),
-        prisma.benchmarkSet.deleteMany(),
         prisma.modelInstance.deleteMany(),
         prisma.algorithm.deleteMany(),
         prisma.molecule.deleteMany(),

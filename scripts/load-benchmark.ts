@@ -5,13 +5,18 @@
  * CLI Script to load retrosynthesis benchmarks from gzipped JSON files into the database.
  *
  * Usage:
- *   tsx scripts/load-benchmark.ts <file-path> <benchmark-name> [description]
+ *   tsx scripts/load-benchmark.ts <file-path> <benchmark-name> [description] [--stock <stock-db-name>]
+ *
+ * Arguments:
+ *   <file-path>          Path to the benchmark .json.gz file
+ *   <benchmark-name>     Name for the benchmark in the database
+ *   [description]        Optional description
+ *   --stock <name>       Override stock name (use database stock name, not file stock_name)
  *
  * Examples:
- *   pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/ref-lng-84.json.gz "ref-lng-84" "84 targets with extra long ground truth routes"
- *   pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/uspto-190.json.gz "uspto-190" "190 targets from the test set of the original Retro*"
- *   pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/mkt-cnv-160.json.gz "mkt-cnv-160" "160 targets with convergent ground truth routes of variable length with all leaves in buyables. Part of the Procrustes suite."
- *   pnpm tsx scripts/load-benchmark.ts /path/to/mkt-lin-500.json.gz "mkt-lin-500" "500 targets from market data with linear routes"
+ *   pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/ref-lng-84.json.gz "ref-lng-84" "84 targets with extra long ground truth routes" --stock "n1+n5 Stock"
+ *   pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/uspto-190.json.gz "uspto-190" "190 targets from the test set of the original Retro*" --stock "ASKCOS Buyables Stock"
+ *   pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/mkt-cnv-160.json.gz "mkt-cnv-160" "160 targets with convergent ground truth routes of variable length with all leaves in buyables. Part of the Procrustes suite." --stock "ASKCOS Buyables Stock"
  *
  * File Format:
  *   - Must be a gzipped JSON file (.json.gz)
@@ -19,7 +24,7 @@
  *     {
  *       "name": "benchmark-name",
  *       "description": "...",
- *       "stock_name": "optional-stock-reference",
+ *       "stock_name": "stock-reference",  // REQUIRED (or use --stock to override)
  *       "targets": {
  *         "target-id": {
  *           "id": "target-id",
@@ -33,14 +38,15 @@
  *     }
  *
  * The script will:
- *   1. Parse the gzipped JSON file
- *   2. Create a new BenchmarkSet in the database
- *   3. For each target:
+ *   1. Parse the gzipped JSON file and extract stock_name
+ *   2. Resolve stock_name to stockId in database (or use --stock override)
+ *   3. Create a new BenchmarkSet with stockId reference
+ *   4. For each target:
  *      - Create or reuse Molecule records
  *      - Create BenchmarkTarget record
  *      - Parse and store ground truth route (if present) as RouteNode tree
- *   4. Compute route properties (length, convergence)
- *   5. Report statistics on completion
+ *   5. Compute route properties (length, convergence)
+ *   6. Report statistics on completion
  */
 import * as fs from 'fs'
 import * as path from 'path'
@@ -50,6 +56,7 @@ import './env-loader'
 
 import { createBenchmark } from '../src/lib/services/benchmark.service'
 import { loadBenchmarkFromFile } from '../src/lib/services/route.service'
+import { getStockByName } from '../src/lib/services/stock.service'
 
 interface BenchmarkMetadata {
     stock_name?: string | null
@@ -59,17 +66,47 @@ async function main() {
     const args = process.argv.slice(2)
 
     if (args.length < 2) {
-        console.error('Usage: tsx scripts/load-benchmark.ts <file-path> <benchmark-name> [description]')
+        console.error(
+            'Usage: tsx scripts/load-benchmark.ts <file-path> <benchmark-name> [description] [--stock <stock-db-name>]'
+        )
+        console.error('')
+        console.error('Arguments:')
+        console.error('  <file-path>          Path to the benchmark .json.gz file')
+        console.error('  <benchmark-name>     Name for the benchmark in the database')
+        console.error('  [description]        Optional description')
+        console.error('  --stock <name>       Override stock name (use database stock name, not file stock_name)')
         console.error('')
         console.error('Examples:')
         console.error(
             '  tsx scripts/load-benchmark.ts ./data/ref-lng-84.json.gz "ref-lng-84" "84 targets with long routes"'
         )
+        console.error(
+            '  tsx scripts/load-benchmark.ts ./data/mkt-cnv-160.json.gz "mkt-cnv-160" --stock "ASKCOS Buyables Stock"'
+        )
         console.error('  tsx scripts/load-benchmark.ts ./data/mkt-lin-500.json.gz "mkt-lin-500"')
         process.exit(1)
     }
 
-    const [filePath, benchmarkName, description] = args
+    // Parse arguments
+    let filePath: string | undefined
+    let benchmarkName: string | undefined
+    let description: string | undefined
+    let stockDbNameOverride: string | undefined
+
+    // First two non-flag args are filePath and benchmarkName
+    const nonFlagArgs: string[] = []
+    for (let i = 0; i < args.length; i++) {
+        if (args[i] === '--stock' && i + 1 < args.length) {
+            stockDbNameOverride = args[i + 1]
+            i++ // Skip next arg
+        } else if (!args[i].startsWith('--')) {
+            nonFlagArgs.push(args[i])
+        }
+    }
+
+    filePath = nonFlagArgs[0]
+    benchmarkName = nonFlagArgs[1]
+    description = nonFlagArgs[2] // Optional
 
     // Resolve to absolute path
     const absolutePath = path.resolve(filePath)
@@ -80,15 +117,18 @@ async function main() {
     console.log(`File:             ${absolutePath}`)
     console.log(`Benchmark Name:   ${benchmarkName}`)
     console.log(`Description:      ${description || '(none)'}`)
+    console.log(`Stock Override:   ${stockDbNameOverride || '(none - will use file stock_name)'}`)
     console.log('='.repeat(70))
     console.log('')
 
     const startTime = Date.now()
 
     try {
-        // Parse file metadata to get stock_name
+        // Phase 9: Parse stock_name from file and resolve to stockId
         console.log('Parsing file metadata...')
         let stockName: string | undefined
+        let stockId: string
+
         try {
             const metadata = await new Promise<BenchmarkMetadata>((resolve, reject) => {
                 const chunks: Buffer[] = []
@@ -112,15 +152,41 @@ async function main() {
             })
             stockName = metadata.stock_name ?? undefined
         } catch (error) {
-            console.warn(
-                `Warning: Could not parse stock_name from file: ${error instanceof Error ? error.message : String(error)}`
+            console.error(`Error parsing file metadata: ${error instanceof Error ? error.message : String(error)}`)
+            throw new Error('Failed to parse benchmark file. Please ensure it is a valid gzipped JSON file.')
+        }
+
+        // Resolve stock_name to stockId (REQUIRED)
+        // Priority: --stock flag > file stock_name
+        const stockNameToResolve = stockDbNameOverride || stockName
+
+        if (!stockNameToResolve) {
+            throw new Error(
+                'Stock reference is required. Either:\n' +
+                    '  1. Ensure the benchmark file contains stock_name field, OR\n' +
+                    '  2. Use --stock <stock-db-name> to specify the stock'
             )
         }
 
-        // Create benchmark first
+        console.log(
+            `Resolving stock "${stockNameToResolve}"${stockDbNameOverride ? ' (from --stock flag)' : ' (from file)'}...`
+        )
+        const stock = await getStockByName(stockNameToResolve)
+        if (!stock) {
+            throw new Error(
+                `Stock "${stockNameToResolve}" not found in database. ` +
+                    `Please load the stock first using: pnpm tsx scripts/load-stock.ts <csv-file> "${stockNameToResolve}"`
+            )
+        }
+        stockId = stock.id
+        console.log(`✓ Resolved stock "${stock.name}" to ID: ${stockId}`)
+        console.log('')
+
+        // Create benchmark with resolved stockId
         console.log('Creating benchmark...')
-        const benchmark = await createBenchmark(benchmarkName, description, stockName)
+        const benchmark = await createBenchmark(benchmarkName, description, stockId)
         console.log(`Created benchmark with ID: ${benchmark.id}`)
+        console.log(`Stock: ${benchmark.stock?.name} (${benchmark.stockId})`)
         console.log('')
 
         // Load targets and routes

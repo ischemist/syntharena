@@ -130,14 +130,15 @@ export async function RouteDisplayWithComparison({
             model2Id ? benchmarkService.getPredictedRouteForTarget(targetId, model2Id, rank2) : Promise.resolve(null),
         ])
 
-        // OPTIMIZATION: Batch 4 - Stock lookup (parallel with predictions)
-        const stockPromise = benchmark.stockName
-            ? stockService.getStockByName(benchmark.stockName)
-            : Promise.resolve(null)
+        // OPTIMIZATION: Batch 4 - Stock data (already loaded in benchmark relation)
+        // Phase 9: No runtime lookup needed - stock is already included
+        const stockData = benchmark.stock
 
         // Await all parallel batches
-        const [[groundTruthData, groundTruthTree, gtLayout], [model1Result, model2Result], stockData] =
-            await Promise.all([groundTruthPromises, predictionPromises, stockPromise])
+        const [[groundTruthData, groundTruthTree, gtLayout], [model1Result, model2Result]] = await Promise.all([
+            groundTruthPromises,
+            predictionPromises,
+        ])
 
         // Assign results
         groundTruthRouteData = groundTruthData ?? undefined
