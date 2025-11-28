@@ -45,13 +45,11 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import * as zlib from 'zlib'
-import { config } from 'dotenv'
+
+import './env-loader'
 
 import { createBenchmark } from '../src/lib/services/benchmark.service'
 import { loadBenchmarkFromFile } from '../src/lib/services/route.service'
-
-// Load environment variables FIRST before importing anything that uses the database
-config({ path: '.env' })
 
 interface BenchmarkMetadata {
     stock_name?: string | null

@@ -21,6 +21,8 @@
  */
 import * as path from 'path'
 
+import './env-loader'
+
 import { loadStockFromFile } from '../src/lib/services/stock.service'
 
 async function main() {
