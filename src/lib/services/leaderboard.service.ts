@@ -102,129 +102,135 @@ export const getLeaderboard = unstable_cache(
 /**
  * Get stratified metrics for a benchmark, grouped by Stock ID.
  * Replaces the N+1 pattern of fetching per-stock.
+ * Cached to prevent re-aggregation on every request.
  *
  * @param benchmarkId - The benchmark ID
  * @param stockIds - Optional: Specific stock IDs to fetch. If null, fetches all.
- * @returns Map<StockID, Map<ModelName, StratifiedData>>
+ * @returns Array of tuples [StockID, [ModelName, StratifiedData][]]
  */
-export async function getStratifiedMetrics(
-    benchmarkId: string,
-    stockIds?: string[]
-): Promise<
-    Map<
-        string, // Stock ID
-        Map<
-            string, // Model Name
-            {
-                solvability: StratifiedMetric
-                topKAccuracy?: Record<string, StratifiedMetric>
-            }
-        >
-    >
-> {
-    // Single optimized query for all requested stocks
-    const statistics = await prisma.modelRunStatistics.findMany({
-        where: {
-            predictionRun: { benchmarkSetId: benchmarkId },
-            ...(stockIds && { stockId: { in: stockIds } }),
-        },
-        include: {
-            predictionRun: {
-                include: { modelInstance: true, benchmarkSet: true },
+export const getStratifiedMetrics = unstable_cache(
+    async (
+        benchmarkId: string,
+        stockIds?: string[]
+    ): Promise<
+        [
+            string, // Stock ID
+            [
+                string, // Model Name
+                {
+                    solvability: StratifiedMetric
+                    topKAccuracy?: Record<string, StratifiedMetric>
+                },
+            ][],
+        ][]
+    > => {
+        // Single optimized query for all requested stocks
+        const statistics = await prisma.modelRunStatistics.findMany({
+            where: {
+                predictionRun: { benchmarkSetId: benchmarkId },
+                ...(stockIds && { stockId: { in: stockIds } }),
             },
-            metrics: true,
-        },
-    })
-
-    // Nested Map Structure: StockID -> ModelName -> Data
-    const result = new Map<
-        string,
-        Map<string, { solvability: StratifiedMetric; topKAccuracy?: Record<string, StratifiedMetric> }>
-    >()
-
-    for (const stat of statistics) {
-        const stockId = stat.stockId
-        const modelName = stat.predictionRun.modelInstance.name
-
-        if (!result.has(stockId)) {
-            result.set(stockId, new Map())
-        }
-        const stockMap = result.get(stockId)!
-
-        // --- Helper: Build Stratified Metric Object ---
-        const buildStratifiedMetric = (name: string): StratifiedMetric | null => {
-            const overall = stat.metrics.find((m) => m.metricName === name && m.groupKey === null)
-            const byGroup = stat.metrics
-                .filter((m) => m.metricName === name && m.groupKey !== null)
-                .reduce(
-                    (acc, m) => {
-                        acc[m.groupKey!] = {
-                            value: m.value,
-                            ciLower: m.ciLower,
-                            ciUpper: m.ciUpper,
-                            nSamples: m.nSamples,
-                            reliability: {
-                                code: m.reliabilityCode as ReliabilityCode,
-                                message: m.reliabilityMessage,
-                            },
-                        }
-                        return acc
-                    },
-                    {} as Record<number, MetricResult>
-                )
-
-            if (!overall && Object.keys(byGroup).length === 0) return null
-
-            return {
-                metricName: name,
-                overall: overall
-                    ? {
-                          value: overall.value,
-                          ciLower: overall.ciLower,
-                          ciUpper: overall.ciUpper,
-                          nSamples: overall.nSamples,
-                          reliability: {
-                              code: overall.reliabilityCode as ReliabilityCode,
-                              message: overall.reliabilityMessage,
-                          },
-                      }
-                    : {
-                          value: 0,
-                          ciLower: 0,
-                          ciUpper: 0,
-                          nSamples: 0,
-                          reliability: { code: 'LOW_N', message: 'No data' },
-                      },
-                byGroup,
-            }
-        }
-
-        // --- Build Data ---
-        const solvability = buildStratifiedMetric('Solvability')
-        if (!solvability) continue // Should not happen if data is valid
-
-        let topKAccuracy: Record<string, StratifiedMetric> | undefined
-        if (stat.predictionRun.benchmarkSet.hasGroundTruth) {
-            const topKNames = [
-                ...new Set(stat.metrics.filter((m) => m.metricName.startsWith('Top-')).map((m) => m.metricName)),
-            ]
-
-            const acc: Record<string, StratifiedMetric> = {}
-            for (const name of topKNames) {
-                const metric = buildStratifiedMetric(name)
-                if (metric) acc[name] = metric
-            }
-            if (Object.keys(acc).length > 0) topKAccuracy = acc
-        }
-
-        stockMap.set(modelName, {
-            solvability,
-            ...(topKAccuracy && { topKAccuracy }),
+            include: {
+                predictionRun: {
+                    include: { modelInstance: true, benchmarkSet: true },
+                },
+                metrics: true,
+            },
         })
-    }
 
-    return result
-}
+        // Nested Map Structure: StockID -> ModelName -> Data
+        const result = new Map<
+            string,
+            Map<string, { solvability: StratifiedMetric; topKAccuracy?: Record<string, StratifiedMetric> }>
+        >()
+
+        for (const stat of statistics) {
+            const stockId = stat.stockId
+            const modelName = stat.predictionRun.modelInstance.name
+
+            if (!result.has(stockId)) {
+                result.set(stockId, new Map())
+            }
+            const stockMap = result.get(stockId)!
+
+            // --- Helper: Build Stratified Metric Object ---
+            const buildStratifiedMetric = (name: string): StratifiedMetric | null => {
+                const overall = stat.metrics.find((m) => m.metricName === name && m.groupKey === null)
+                const byGroup = stat.metrics
+                    .filter((m) => m.metricName === name && m.groupKey !== null)
+                    .reduce(
+                        (acc, m) => {
+                            acc[m.groupKey!] = {
+                                value: m.value,
+                                ciLower: m.ciLower,
+                                ciUpper: m.ciUpper,
+                                nSamples: m.nSamples,
+                                reliability: {
+                                    code: m.reliabilityCode as ReliabilityCode,
+                                    message: m.reliabilityMessage,
+                                },
+                            }
+                            return acc
+                        },
+                        {} as Record<number, MetricResult>
+                    )
+
+                if (!overall && Object.keys(byGroup).length === 0) return null
+
+                return {
+                    metricName: name,
+                    overall: overall
+                        ? {
+                              value: overall.value,
+                              ciLower: overall.ciLower,
+                              ciUpper: overall.ciUpper,
+                              nSamples: overall.nSamples,
+                              reliability: {
+                                  code: overall.reliabilityCode as ReliabilityCode,
+                                  message: overall.reliabilityMessage,
+                              },
+                          }
+                        : {
+                              value: 0,
+                              ciLower: 0,
+                              ciUpper: 0,
+                              nSamples: 0,
+                              reliability: { code: 'LOW_N', message: 'No data' },
+                          },
+                    byGroup,
+                }
+            }
+
+            // --- Build Data ---
+            const solvability = buildStratifiedMetric('Solvability')
+            if (!solvability) continue // Should not happen if data is valid
+
+            let topKAccuracy: Record<string, StratifiedMetric> | undefined
+            if (stat.predictionRun.benchmarkSet.hasGroundTruth) {
+                const topKNames = [
+                    ...new Set(stat.metrics.filter((m) => m.metricName.startsWith('Top-')).map((m) => m.metricName)),
+                ]
+
+                const acc: Record<string, StratifiedMetric> = {}
+                for (const name of topKNames) {
+                    const metric = buildStratifiedMetric(name)
+                    if (metric) acc[name] = metric
+                }
+                if (Object.keys(acc).length > 0) topKAccuracy = acc
+            }
+
+            stockMap.set(modelName, {
+                solvability,
+                ...(topKAccuracy && { topKAccuracy }),
+            })
+        }
+
+        // Convert the final Map to a serializable array of tuples before returning
+        return Array.from(result.entries()).map(([stockId, modelMap]) => [stockId, Array.from(modelMap.entries())])
+    },
+    ['stratified-metrics'], // Cache key
+    { tags: ['leaderboard', 'metrics'] } // Revalidation tags
+)
 
 /**
  * Get rank probability distribution for a model run.

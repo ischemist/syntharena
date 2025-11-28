@@ -190,7 +190,10 @@ async function StratifiedMetricsWrapper({
 
     // OPTIMIZATION: Single query for all stocks' stratified metrics
     const stockIds = stocks.map((s) => s.id)
-    const stratifiedMetricsMap = await getStratifiedMetrics(benchmarkId, stockIds)
+    const stratifiedMetricsArray = await getStratifiedMetrics(benchmarkId, stockIds)
+    const stratifiedMetricsMap = new Map(
+        stratifiedMetricsArray.map(([stockId, modelMapArray]) => [stockId, new Map(modelMapArray)])
+    )
 
     return (
         <>
