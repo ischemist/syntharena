@@ -1,9 +1,5 @@
 import path from 'path'
-import { config } from 'dotenv'
 import { defineConfig } from 'vitest/config'
-
-// Load test environment variables
-config({ path: '.env.test' })
 
 export default defineConfig({
     test: {
@@ -21,6 +17,7 @@ export default defineConfig({
         setupFiles: ['./tests/setup.ts'],
         env: {
             NODE_ENV: 'test',
+            DATABASE_URL: 'file:./prisma/test.db',
         },
     },
     resolve: {

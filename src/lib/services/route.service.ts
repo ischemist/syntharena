@@ -47,6 +47,7 @@ interface PythonRoute {
 interface PythonBenchmarkTarget {
     id: string
     smiles: string
+    inchikey?: string
     metadata?: Record<string, unknown>
     ground_truth?: PythonRoute | null
     is_convergent?: boolean | null
@@ -82,14 +83,10 @@ export async function getRouteById(routeId: string): Promise<Route> {
 
     return {
         id: route.id,
-        predictionRunId: route.predictionRunId,
-        targetId: route.targetId,
-        rank: route.rank,
-        contentHash: route.contentHash,
         signature: route.signature,
+        contentHash: route.contentHash,
         length: route.length,
         isConvergent: route.isConvergent,
-        metadata: route.metadata,
     }
 }
 
@@ -145,29 +142,35 @@ async function buildRouteNodeTree(rootNodeId: string, routeId: string): Promise<
 }
 
 /**
- * Retrieves complete route tree for visualization.
+ * Retrieves complete ground truth route tree for visualization.
+ * Used for benchmark ground truth routes that are directly linked to targets.
  *
  * @param routeId - The route ID
+ * @param targetId - The target ID to link the route to
  * @returns Route with full node tree and target
- * @throws Error if route not found
+ * @throws Error if route or target not found
  */
-export async function getRouteTreeData(routeId: string): Promise<RouteVisualizationData> {
+export async function getGroundTruthRouteData(routeId: string, targetId: string): Promise<RouteVisualizationData> {
     const route = await prisma.route.findUnique({
         where: { id: routeId },
-        include: {
-            target: {
-                include: {
-                    molecule: true,
-                },
-            },
-        },
     })
 
     if (!route) {
         throw new Error('Route not found')
     }
 
-    // Find root node (node with no parent)
+    const target = await prisma.benchmarkTarget.findUnique({
+        where: { id: targetId },
+        include: {
+            molecule: true,
+        },
+    })
+
+    if (!target) {
+        throw new Error('Target not found')
+    }
+
+    // Find root node
     const rootNode = await prisma.routeNode.findFirst({
         where: {
             routeId,
@@ -179,59 +182,160 @@ export async function getRouteTreeData(routeId: string): Promise<RouteVisualizat
         throw new Error('Route has no root node')
     }
 
-    // Build tree from root (fetches all nodes in single query)
+    // Build tree
     const tree = await buildRouteNodeTree(rootNode.id, routeId)
 
     return {
         route: {
             id: route.id,
-            predictionRunId: route.predictionRunId,
-            targetId: route.targetId,
-            rank: route.rank,
-            contentHash: route.contentHash,
             signature: route.signature,
+            contentHash: route.contentHash,
             length: route.length,
             isConvergent: route.isConvergent,
-            metadata: route.metadata,
         },
         target: {
-            id: route.target.id,
-            benchmarkSetId: route.target.benchmarkSetId,
-            targetId: route.target.targetId,
-            moleculeId: route.target.moleculeId,
-            routeLength: route.target.routeLength,
-            isConvergent: route.target.isConvergent,
-            metadata: route.target.metadata,
-            groundTruthRouteId: route.target.groundTruthRouteId,
-            molecule: route.target.molecule,
-            hasGroundTruth: !!route.target.groundTruthRouteId,
+            id: target.id,
+            benchmarkSetId: target.benchmarkSetId,
+            targetId: target.targetId,
+            moleculeId: target.moleculeId,
+            routeLength: target.routeLength,
+            isConvergent: target.isConvergent,
+            metadata: target.metadata,
+            groundTruthRouteId: target.groundTruthRouteId,
+            molecule: target.molecule,
+            hasGroundTruth: !!target.groundTruthRouteId,
         },
         rootNode: tree,
     }
 }
 
 /**
- * Retrieves all routes for a target (ground truth + predictions).
+ * Retrieves complete predicted route tree for visualization.
+ * Used for model predictions which are linked via PredictionRoute junction table.
+ *
+ * @param predictionRouteId - The prediction route ID (junction table)
+ * @returns Route with full node tree, target, and prediction metadata
+ * @throws Error if prediction route not found
+ */
+export async function getPredictedRouteData(predictionRouteId: string): Promise<RouteVisualizationData> {
+    const predictionRoute = await prisma.predictionRoute.findUnique({
+        where: { id: predictionRouteId },
+        include: {
+            route: true,
+            target: {
+                include: {
+                    molecule: true,
+                },
+            },
+        },
+    })
+
+    if (!predictionRoute) {
+        throw new Error('Prediction route not found')
+    }
+
+    // Find root node
+    const rootNode = await prisma.routeNode.findFirst({
+        where: {
+            routeId: predictionRoute.routeId,
+            parentId: null,
+        },
+    })
+
+    if (!rootNode) {
+        throw new Error('Route has no root node')
+    }
+
+    // Build tree
+    const tree = await buildRouteNodeTree(rootNode.id, predictionRoute.routeId)
+
+    return {
+        route: {
+            id: predictionRoute.route.id,
+            signature: predictionRoute.route.signature,
+            contentHash: predictionRoute.route.contentHash,
+            length: predictionRoute.route.length,
+            isConvergent: predictionRoute.route.isConvergent,
+        },
+        predictionRoute: {
+            id: predictionRoute.id,
+            routeId: predictionRoute.routeId,
+            predictionRunId: predictionRoute.predictionRunId,
+            targetId: predictionRoute.targetId,
+            rank: predictionRoute.rank,
+            metadata: predictionRoute.metadata,
+        },
+        target: {
+            id: predictionRoute.target.id,
+            benchmarkSetId: predictionRoute.target.benchmarkSetId,
+            targetId: predictionRoute.target.targetId,
+            moleculeId: predictionRoute.target.moleculeId,
+            routeLength: predictionRoute.target.routeLength,
+            isConvergent: predictionRoute.target.isConvergent,
+            metadata: predictionRoute.target.metadata,
+            groundTruthRouteId: predictionRoute.target.groundTruthRouteId,
+            molecule: predictionRoute.target.molecule,
+            hasGroundTruth: !!predictionRoute.target.groundTruthRouteId,
+        },
+        rootNode: tree,
+    }
+}
+
+/**
+ * @deprecated Use getGroundTruthRouteData or getPredictedRouteData instead.
+ * This function is kept for backward compatibility but will be removed in a future version.
+ */
+export async function getRouteTreeData(
+    routeId: string,
+    predictionRouteId?: string,
+    targetId?: string
+): Promise<RouteVisualizationData> {
+    if (predictionRouteId) {
+        return getPredictedRouteData(predictionRouteId)
+    }
+    if (!targetId) {
+        throw new Error('targetId is required for ground truth routes')
+    }
+    return getGroundTruthRouteData(routeId, targetId)
+}
+
+/**
+ * Retrieves all predicted routes for a target.
+ * Note: This does NOT include ground truth routes (those don't have PredictionRoute records).
+ * Ground truth routes are linked directly via BenchmarkTarget.groundTruthRouteId.
  *
  * @param targetId - The benchmark target ID
- * @returns Array of routes ordered by rank
+ * @param predictionRunId - Optional: Filter by specific prediction run
+ * @returns Array of prediction routes with route data, ordered by rank
  */
-export async function getRoutesByTarget(targetId: string): Promise<Route[]> {
-    const routes = await prisma.route.findMany({
-        where: { targetId },
+export async function getRoutesByTarget(targetId: string, predictionRunId?: string) {
+    const predictionRoutes = await prisma.predictionRoute.findMany({
+        where: {
+            targetId,
+            ...(predictionRunId && { predictionRunId }),
+        },
+        include: {
+            route: true,
+        },
         orderBy: { rank: 'asc' },
     })
 
-    return routes.map((route) => ({
-        id: route.id,
-        predictionRunId: route.predictionRunId,
-        targetId: route.targetId,
-        rank: route.rank,
-        contentHash: route.contentHash,
-        signature: route.signature,
-        length: route.length,
-        isConvergent: route.isConvergent,
-        metadata: route.metadata,
+    return predictionRoutes.map((pr) => ({
+        predictionRoute: {
+            id: pr.id,
+            routeId: pr.routeId,
+            predictionRunId: pr.predictionRunId,
+            targetId: pr.targetId,
+            rank: pr.rank,
+            metadata: pr.metadata,
+        },
+        route: {
+            id: pr.route.id,
+            signature: pr.route.signature,
+            contentHash: pr.route.contentHash,
+            length: pr.route.length,
+            isConvergent: pr.route.isConvergent,
+        },
     }))
 }
 
@@ -617,12 +721,16 @@ export async function loadBenchmarkFromFile(
     }
 
     // Parse benchmark file
-    console.log('Parsing benchmark file...')
+    if (process.env.NODE_ENV !== 'test') {
+        console.log('Parsing benchmark file...')
+    }
     const benchmarkData = await parseBenchmarkFile(filePath)
 
     // Load targets
     const targetIds = Object.keys(benchmarkData.targets)
-    console.log(`Loading ${targetIds.length} targets...`)
+    if (process.env.NODE_ENV !== 'test') {
+        console.log(`Loading ${targetIds.length} targets...`)
+    }
 
     let moleculesCreated = 0
     let moleculesReused = 0
@@ -638,10 +746,11 @@ export async function loadBenchmarkFromFile(
                 const targetData = benchmarkData.targets[externalId]
 
                 // Get or create target molecule
-                // For target molecules, we need to get the inchikey from the ground_truth data if available
-                let targetInchikey = targetData.smiles // fallback
-                if (targetData.ground_truth?.target?.inchikey) {
-                    targetInchikey = targetData.ground_truth.target.inchikey
+                // Check for inchikey in target data first, then fall back to ground_truth
+                const targetInchikey = targetData.inchikey || targetData.ground_truth?.target?.inchikey
+
+                if (!targetInchikey) {
+                    throw new Error(`Target ${externalId} is missing inchikey in both target data and ground_truth`)
                 }
 
                 let targetMol = await tx.molecule.findUnique({
@@ -683,39 +792,26 @@ export async function loadBenchmarkFromFile(
                     const fileLength = targetData.ground_truth.length
                     const fileIsConvergent = targetData.ground_truth.has_convergent_reaction
 
-                    // Check if a route with this content hash already exists for this target
-                    const existingRoute = contentHash
-                        ? await tx.route.findFirst({
-                              where: {
-                                  targetId: benchmarkTarget.id,
-                                  contentHash: contentHash,
-                              },
-                              select: { id: true, length: true, isConvergent: true },
-                          })
-                        : null
+                    // Enforce data quality: ground truth routes must have contentHash and signature for deduplication
+                    if (!contentHash || !signature) {
+                        throw new Error(
+                            `Ground truth route for target ${externalId} is missing contentHash or signature. Cannot ensure deduplication.`
+                        )
+                    }
 
+                    // Attempt to create route or reuse if exists (handles race conditions via unique constraints)
                     let routeId: string
                     let routeLength: number
                     let routeIsConvergent: boolean
 
-                    if (existingRoute) {
-                        // Route already exists, reuse it
-                        routeId = existingRoute.id
-                        routeLength = existingRoute.length
-                        routeIsConvergent = existingRoute.isConvergent
-                    } else {
-                        // Create ground truth route
+                    try {
+                        // Try creating the route - will fail if signature/contentHash already exists
                         const route = await tx.route.create({
                             data: {
-                                targetId: benchmarkTarget.id,
-                                rank: targetData.ground_truth.rank || 1,
-                                contentHash: contentHash,
-                                signature: signature,
+                                contentHash,
+                                signature,
                                 length: 0, // Will be set below
                                 isConvergent: false, // Will be set below
-                                metadata: targetData.ground_truth.metadata
-                                    ? JSON.stringify(targetData.ground_truth.metadata)
-                                    : null,
                             },
                             select: { id: true },
                         })
@@ -746,6 +842,26 @@ export async function loadBenchmarkFromFile(
                         })
 
                         routesCreated++
+                    } catch (error) {
+                        // Route already exists (unique constraint violation) - find and reuse it
+                        const existingRoute =
+                            signature && signature !== ''
+                                ? await tx.route.findUnique({
+                                      where: { signature },
+                                      select: { id: true, length: true, isConvergent: true },
+                                  })
+                                : await tx.route.findUnique({
+                                      where: { contentHash },
+                                      select: { id: true, length: true, isConvergent: true },
+                                  })
+
+                        if (!existingRoute) {
+                            throw error // Not a duplicate key error, re-throw
+                        }
+
+                        routeId = existingRoute.id
+                        routeLength = existingRoute.length
+                        routeIsConvergent = existingRoute.isConvergent
                     }
 
                     // Update benchmark target to link to ground truth route and use properties
@@ -761,11 +877,26 @@ export async function loadBenchmarkFromFile(
             }
         })
 
-        const processed = Math.min(i + BATCH_SIZE, targetIds.length)
-        console.log(`Processed ${processed}/${targetIds.length} targets...`)
+        if (process.env.NODE_ENV !== 'test') {
+            const processed = Math.min(i + BATCH_SIZE, targetIds.length)
+            console.log(`Processed ${processed}/${targetIds.length} targets...`)
+        }
     }
 
-    console.log('Benchmark load complete!')
+    // Update benchmark hasGroundTruth flag if any ground truth routes were loaded
+    if (routesCreated > 0) {
+        await prisma.benchmarkSet.update({
+            where: { id: benchmarkId },
+            data: { hasGroundTruth: true },
+        })
+        if (process.env.NODE_ENV !== 'test') {
+            console.log('Updated benchmark hasGroundTruth flag to true')
+        }
+    }
+
+    if (process.env.NODE_ENV !== 'test') {
+        console.log('Benchmark load complete!')
+    }
 
     return {
         benchmarkId,

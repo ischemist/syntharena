@@ -75,8 +75,8 @@ export async function loadStockFromFile(
         throw new Error('No valid molecule data found in file')
     }
 
-    // Log skipped lines if any
-    if (skippedLines.length > 0) {
+    // Log skipped lines if any (skip during tests)
+    if (skippedLines.length > 0 && process.env.NODE_ENV !== 'test') {
         console.warn(`Skipped ${skippedLines.length} invalid lines:`)
         skippedLines.slice(0, 10).forEach(({ line, reason }) => {
             console.warn(`  Line ${line}: ${reason}`)
@@ -134,7 +134,9 @@ export async function loadStockFromFile(
                         }
                     } catch (error) {
                         // If molecule creation fails, skip it
-                        console.warn(`Failed to process molecule ${inchikey}: ${error}`)
+                        if (process.env.NODE_ENV !== 'test') {
+                            console.warn(`Failed to process molecule ${inchikey}: ${error}`)
+                        }
                         moleculesSkipped++
                         continue
                     }
@@ -163,9 +165,11 @@ export async function loadStockFromFile(
             }
         )
 
-        // Log progress
-        const processed = Math.min(i + BATCH_SIZE, moleculeData.length)
-        console.log(`Processed ${processed}/${moleculeData.length} molecules...`)
+        // Log progress (skip during tests)
+        if (process.env.NODE_ENV !== 'test') {
+            const processed = Math.min(i + BATCH_SIZE, moleculeData.length)
+            console.log(`Processed ${processed}/${moleculeData.length} molecules...`)
+        }
     }
 
     return {

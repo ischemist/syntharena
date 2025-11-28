@@ -72,10 +72,10 @@ model BenchmarkTarget {
   groundTruthRouteId String? @unique
 
   // Relations
-  benchmarkSet     BenchmarkSet @relation(fields: [benchmarkSetId], references: [id])
-  molecule         Molecule     @relation(fields: [moleculeId], references: [id])
-  groundTruthRoute Route?       @relation("GroundTruth", fields: [groundTruthRouteId], references: [id])
-  predictedRoutes  Route[]      @relation("TargetPredictions")
+  benchmarkSet     BenchmarkSet      @relation(fields: [benchmarkSetId], references: [id])
+  molecule         Molecule          @relation(fields: [moleculeId], references: [id])
+  groundTruthRoute Route?            @relation("GroundTruth", fields: [groundTruthRouteId], references: [id])
+  predictionRoutes PredictionRoute[]
 
   @@unique([benchmarkSetId, targetId])
 }
@@ -117,46 +117,60 @@ model PredictionRun {
   executedAt       DateTime @default(now())
 
   // Stats from RunStatistics
-  totalTimeMs     Float? // Wall time
-  totalRoutes     Int // final_unique_routes_saved
-  avgRouteLength  Float? // Average route length across all routes
+  totalTimeMs    Float? // Wall time
+  totalRoutes    Int // final_unique_routes_saved (now counts PredictionRoutes)
+  avgRouteLength Float? // Average route length across all routes
 
-  modelInstance ModelInstance        @relation(fields: [modelInstanceId], references: [id])
-  benchmarkSet  BenchmarkSet         @relation(fields: [benchmarkSetId], references: [id])
-  routes        Route[]
-  statistics    ModelRunStatistics[]
+  modelInstance    ModelInstance        @relation(fields: [modelInstanceId], references: [id])
+  benchmarkSet     BenchmarkSet         @relation(fields: [benchmarkSetId], references: [id])
+  predictionRoutes PredictionRoute[]
+  statistics       ModelRunStatistics[]
 
   @@unique([modelInstanceId, benchmarkSetId]) // Assuming one run per version per set
 }
 
 model Route {
-  id              String  @id @default(cuid())
-  predictionRunId String? // Optional: GT routes don't belong to a run
-  targetId        String // The BenchmarkTarget this route attempts to solve
+  id String @id @default(cuid())
 
-  // Core Route Properties
-  rank        Int // 1-indexed rank
-  contentHash String // SHA256 from get_content_hash()
-  signature   String? // SHA256 from get_signature() (topology only)
+  // Core Route Properties (Topology-level, unique)
+  signature   String @unique // SHA256 from get_signature() (topology only) - NOW REQUIRED & UNIQUE
+  contentHash String @unique // SHA256 from get_content_hash() - NOW UNIQUE
 
   // Cached Computations (for fast filtering)
   length       Int
   isConvergent Boolean
 
-  metadata String? // JSON: scores, confidence, etc.
-
   // Relations
-  predictionRun PredictionRun?  @relation(fields: [predictionRunId], references: [id])
-  target        BenchmarkTarget @relation("TargetPredictions", fields: [targetId], references: [id])
-
   // This reverse relation allows us to access the GT route from the target
   asGroundTruthFor BenchmarkTarget? @relation("GroundTruth")
 
-  nodes             RouteNode[]
+  nodes       RouteNode[]
+  predictions PredictionRoute[] // NEW: One route can be predicted multiple times
+}
+
+// Junction table: Connects a Route to a (PredictionRun, Target, Rank)
+// This represents one "prediction" of a route by a model
+model PredictionRoute {
+  id              String @id @default(cuid())
+  routeId         String // The unique route structure
+  predictionRunId String // The model run that predicted this
+  targetId        String // The target this prediction is for
+  rank            Int // 1-indexed rank within this target/run
+
+  metadata String? // JSON: scores, confidence, etc. (prediction-specific)
+
+  // Relations
+  route             Route              @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  predictionRun     PredictionRun      @relation(fields: [predictionRunId], references: [id], onDelete: Cascade)
+  target            BenchmarkTarget    @relation(fields: [targetId], references: [id], onDelete: Cascade)
   solvabilityStatus RouteSolvability[]
 
+  // Constraints
+  @@unique([predictionRunId, targetId, rank]) // Each rank is unique per target/run
+  @@unique([routeId, predictionRunId, targetId]) // Prevents duplicate route structures per target/run (intentional)
   @@index([targetId, rank])
-  @@index([contentHash])
+  @@index([predictionRunId])
+  @@index([routeId])
 }
 
 model RouteNode {
@@ -264,10 +278,11 @@ model StockItem {
 
 // The result of `TargetEvaluation`
 // effectively "ScoredRoute" but normalized
+// NOTE: Solvability is per-PREDICTION, not per-route (same route can have different solvability in different contexts)
 model RouteSolvability {
-  id      String @id @default(cuid())
-  routeId String
-  stockId String
+  id                String @id @default(cuid())
+  predictionRouteId String // Changed from routeId - solvability is per prediction
+  stockId           String
 
   isSolvable Boolean
   isGtMatch  Boolean // "Does this route match the ground truth?"
@@ -275,8 +290,8 @@ model RouteSolvability {
   // You might want to store specific metric data here if needed
   // e.g. "number of unavailable leaves"
 
-  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  stock Stock @relation(fields: [stockId], references: [id])
+  predictionRoute PredictionRoute @relation(fields: [predictionRouteId], references: [id], onDelete: Cascade)
+  stock           Stock           @relation(fields: [stockId], references: [id])
 
-  @@unique([routeId, stockId])
+  @@unique([predictionRouteId, stockId])
 }

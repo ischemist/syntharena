@@ -1,12 +1,10 @@
 /**
- * Tests for route.service.ts
+ * route.service.test.ts
  *
- * Focus: Testing the actual exported service functions
- * - getRouteById: Retrieve route by ID
- * - getRouteTreeData: Complete route tree for visualization
- * - getRoutesByTarget: All routes for a target
- * - getRouteTreeForVisualization: Simplified tree structure
- * - loadBenchmarkFromFile: Loading benchmarks from files
+ * Tests for route service functions:
+ * - getGroundTruthRouteData: Complete ground truth route tree for visualization
+ * - getRoutesByTarget: Fetching predicted routes for a target
+ * - getRouteTreeForVisualization: Complete visualization tree
  */
 
 import * as fs from 'fs/promises'
@@ -16,9 +14,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import prisma from '@/lib/db'
 import {
+    getGroundTruthRouteData,
     getRouteById,
     getRoutesByTarget,
-    getRouteTreeData,
     getRouteTreeForVisualization,
     loadBenchmarkFromFile,
 } from '@/lib/services/route.service'
@@ -174,9 +172,8 @@ const createCompleteRoute = async (pythonRoute: PythonMolecule) => {
 
     const route = await prisma.route.create({
         data: {
-            targetId: benchmarkTarget.id,
-            rank: 1,
-            contentHash: 'test',
+            signature: 'test-signature',
+            contentHash: 'test-content-hash',
             length: 0,
             isConvergent: false,
         },
@@ -191,9 +188,13 @@ describe('route.service - Service Function Tests', () => {
     beforeEach(async () => {
         await prisma.$transaction([
             prisma.routeNode.deleteMany({}),
+            prisma.predictionRoute.deleteMany({}),
             prisma.route.deleteMany({}),
             prisma.benchmarkTarget.deleteMany({}),
+            prisma.predictionRun.deleteMany({}),
             prisma.benchmarkSet.deleteMany({}),
+            prisma.modelInstance.deleteMany({}),
+            prisma.algorithm.deleteMany({}),
             prisma.stockItem.deleteMany({}),
             prisma.molecule.deleteMany({}),
         ])
@@ -202,9 +203,13 @@ describe('route.service - Service Function Tests', () => {
     afterEach(async () => {
         await prisma.$transaction([
             prisma.routeNode.deleteMany({}),
+            prisma.predictionRoute.deleteMany({}),
             prisma.route.deleteMany({}),
             prisma.benchmarkTarget.deleteMany({}),
+            prisma.predictionRun.deleteMany({}),
             prisma.benchmarkSet.deleteMany({}),
+            prisma.modelInstance.deleteMany({}),
+            prisma.algorithm.deleteMany({}),
             prisma.stockItem.deleteMany({}),
             prisma.molecule.deleteMany({}),
         ])
@@ -218,8 +223,7 @@ describe('route.service - Service Function Tests', () => {
 
             expect(result).toBeDefined()
             expect(result.id).toBe(route.id)
-            expect(result.rank).toBe(1)
-            expect(result.contentHash).toBe('test')
+            expect(result.contentHash).toBe('test-content-hash')
         })
 
         it('should throw error when route not found', async () => {
@@ -227,29 +231,25 @@ describe('route.service - Service Function Tests', () => {
         })
 
         it('should return all route properties', async () => {
-            const { route, benchmarkTarget } = await createCompleteRoute(linearChainPython)
+            const { route } = await createCompleteRoute(linearChainPython)
 
             const result = await getRouteById(route.id)
 
             expect(result).toMatchObject({
                 id: route.id,
-                predictionRunId: null,
-                targetId: benchmarkTarget.id,
-                rank: 1,
-                contentHash: 'test',
-                signature: null,
+                contentHash: 'test-content-hash',
+                signature: 'test-signature',
                 length: 0,
                 isConvergent: false,
-                metadata: null,
             })
         })
     })
 
-    describe('getRouteTreeData', () => {
+    describe('getGroundTruthRouteData', () => {
         it('should retrieve complete route tree with target and root node', async () => {
-            const { route } = await createCompleteRoute(singleMoleculePython)
+            const { route, benchmarkTarget } = await createCompleteRoute(singleMoleculePython)
 
-            const result = await getRouteTreeData(route.id)
+            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
 
             expect(result).toBeDefined()
             expect(result.route).toBeDefined()
@@ -258,9 +258,9 @@ describe('route.service - Service Function Tests', () => {
         })
 
         it('should include molecule data in tree nodes', async () => {
-            const { route } = await createCompleteRoute(singleMoleculePython)
+            const { route, benchmarkTarget } = await createCompleteRoute(singleMoleculePython)
 
-            const result = await getRouteTreeData(route.id)
+            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
 
             expect(result.rootNode.molecule).toBeDefined()
             expect(result.rootNode.molecule.smiles).toBe(singleMoleculePython.smiles)
@@ -268,9 +268,9 @@ describe('route.service - Service Function Tests', () => {
         })
 
         it('should build complete tree structure for linear chain', async () => {
-            const { route } = await createCompleteRoute(linearChainPython)
+            const { route, benchmarkTarget } = await createCompleteRoute(linearChainPython)
 
-            const result = await getRouteTreeData(route.id)
+            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
 
             expect(result.rootNode.children.length).toBe(1)
             expect(result.rootNode.children[0].children.length).toBe(1)
@@ -278,9 +278,9 @@ describe('route.service - Service Function Tests', () => {
         })
 
         it('should build convergent tree structure', async () => {
-            const { route } = await createCompleteRoute(convergentRoutePython)
+            const { route, benchmarkTarget } = await createCompleteRoute(convergentRoutePython)
 
-            const result = await getRouteTreeData(route.id)
+            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
 
             expect(result.rootNode.children.length).toBe(2)
             expect(result.rootNode.isLeaf).toBe(false)
@@ -294,20 +294,22 @@ describe('route.service - Service Function Tests', () => {
                 data: { groundTruthRouteId: route.id },
             })
 
-            const result = await getRouteTreeData(route.id)
+            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
 
             expect(result.target.hasGroundTruth).toBe(true)
             expect(result.target.groundTruthRouteId).toBe(route.id)
         })
 
         it('should throw error when route not found', async () => {
-            await expect(getRouteTreeData('non-existent-id')).rejects.toThrow('Route not found')
+            await expect(getGroundTruthRouteData('non-existent-id', 'fake-target-id')).rejects.toThrow(
+                'Route not found'
+            )
         })
 
         it('should handle complex multi-level routes', async () => {
-            const { route } = await createCompleteRoute(complexRoutePython)
+            const { route, benchmarkTarget } = await createCompleteRoute(complexRoutePython)
 
-            const result = await getRouteTreeData(route.id)
+            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
 
             expect(result.rootNode).toBeDefined()
             expect(result.rootNode.children.length).toBeGreaterThan(0)
@@ -349,16 +351,54 @@ describe('route.service - Service Function Tests', () => {
         })
 
         it('should return all routes for a target', async () => {
-            const { benchmarkTarget } = await createCompleteRoute(singleMoleculePython)
+            const { benchmarkTarget, benchmark, route } = await createCompleteRoute(singleMoleculePython)
 
-            await prisma.route.create({
+            // Create second route
+            const route2 = await prisma.route.create({
                 data: {
-                    targetId: benchmarkTarget.id,
-                    rank: 2,
+                    signature: 'test-signature-2',
                     contentHash: 'test2',
                     length: 0,
                     isConvergent: false,
                 },
+            })
+
+            // Create test algorithm and model instance
+            const algorithm = await prisma.algorithm.create({
+                data: { name: 'test-algo' },
+            })
+
+            const modelInstance = await prisma.modelInstance.create({
+                data: {
+                    algorithmId: algorithm.id,
+                    name: 'test-model',
+                },
+            })
+
+            // Create PredictionRun
+            const predictionRun = await prisma.predictionRun.create({
+                data: {
+                    modelInstanceId: modelInstance.id,
+                    benchmarkSetId: benchmark.id,
+                    totalRoutes: 2,
+                },
+            })
+
+            await prisma.predictionRoute.createMany({
+                data: [
+                    {
+                        routeId: route.id,
+                        predictionRunId: predictionRun.id,
+                        targetId: benchmarkTarget.id,
+                        rank: 1,
+                    },
+                    {
+                        routeId: route2.id,
+                        predictionRunId: predictionRun.id,
+                        targetId: benchmarkTarget.id,
+                        rank: 2,
+                    },
+                ],
             })
 
             const routes = await getRoutesByTarget(benchmarkTarget.id)
@@ -367,34 +407,75 @@ describe('route.service - Service Function Tests', () => {
         })
 
         it('should return routes ordered by rank', async () => {
-            const { benchmarkTarget } = await createCompleteRoute(singleMoleculePython)
+            const { benchmarkTarget, benchmark, route } = await createCompleteRoute(singleMoleculePython)
 
-            await prisma.route.create({
+            const route2 = await prisma.route.create({
                 data: {
-                    targetId: benchmarkTarget.id,
-                    rank: 3,
-                    contentHash: 'test3',
-                    length: 0,
-                    isConvergent: false,
-                },
-            })
-
-            await prisma.route.create({
-                data: {
-                    targetId: benchmarkTarget.id,
-                    rank: 2,
+                    signature: 'test-signature-2',
                     contentHash: 'test2',
                     length: 0,
                     isConvergent: false,
                 },
             })
 
+            const route3 = await prisma.route.create({
+                data: {
+                    signature: 'test-signature-3',
+                    contentHash: 'test3',
+                    length: 0,
+                    isConvergent: false,
+                },
+            })
+
+            // Create test algorithm and model instance
+            const algorithm = await prisma.algorithm.create({
+                data: { name: 'test-algo-rank' },
+            })
+
+            const modelInstance = await prisma.modelInstance.create({
+                data: {
+                    algorithmId: algorithm.id,
+                    name: 'test-model-rank',
+                },
+            })
+
+            const predictionRun = await prisma.predictionRun.create({
+                data: {
+                    modelInstanceId: modelInstance.id,
+                    benchmarkSetId: benchmark.id,
+                    totalRoutes: 3,
+                },
+            })
+
+            await prisma.predictionRoute.createMany({
+                data: [
+                    {
+                        routeId: route.id,
+                        predictionRunId: predictionRun.id,
+                        targetId: benchmarkTarget.id,
+                        rank: 1,
+                    },
+                    {
+                        routeId: route3.id,
+                        predictionRunId: predictionRun.id,
+                        targetId: benchmarkTarget.id,
+                        rank: 3,
+                    },
+                    {
+                        routeId: route2.id,
+                        predictionRunId: predictionRun.id,
+                        targetId: benchmarkTarget.id,
+                        rank: 2,
+                    },
+                ],
+            })
+
             const routes = await getRoutesByTarget(benchmarkTarget.id)
 
             expect(routes).toHaveLength(3)
-            expect(routes[0].rank).toBe(1)
-            expect(routes[1].rank).toBe(2)
-            expect(routes[2].rank).toBe(3)
+            expect(routes[0].predictionRoute.rank).toBe(1)
+            expect(routes[1].predictionRoute.rank).toBe(2)
+            expect(routes[2].predictionRoute.rank).toBe(3)
         })
     })
 
@@ -507,6 +588,8 @@ describe('route.service - Service Function Tests', () => {
                         ground_truth: {
                             target: singleMoleculePython,
                             rank: 1,
+                            content_hash: `hash-single-${Date.now()}`,
+                            signature: `sig-single-${Date.now()}`,
                         },
                         route_length: 0,
                         is_convergent: false,
@@ -552,6 +635,8 @@ describe('route.service - Service Function Tests', () => {
                         ground_truth: {
                             target: singleMoleculePython,
                             rank: 1,
+                            content_hash: `hash-${Date.now()}-1`, // Unique hash
+                            signature: `sig-${Date.now()}-1`,
                         },
                     },
                     'target-2': {
@@ -559,6 +644,8 @@ describe('route.service - Service Function Tests', () => {
                         ground_truth: {
                             target: linearChainPython,
                             rank: 1,
+                            content_hash: `hash-${Date.now()}-2`, // Unique hash
+                            signature: `sig-${Date.now()}-2`,
                         },
                     },
                 },
@@ -589,6 +676,8 @@ describe('route.service - Service Function Tests', () => {
                         ground_truth: {
                             target: linearChainPython,
                             rank: 1,
+                            content_hash: `hash-properties-${Date.now()}`,
+                            signature: `sig-properties-${Date.now()}`,
                         },
                     },
                 },
@@ -628,6 +717,7 @@ describe('route.service - Service Function Tests', () => {
                 targets: {
                     'target-1': {
                         smiles: singleMoleculePython.smiles,
+                        inchikey: singleMoleculePython.inchikey,
                     },
                 },
             }
@@ -672,6 +762,8 @@ describe('route.service - Service Function Tests', () => {
                         ground_truth: {
                             target: singleMoleculePython,
                             rank: 1,
+                            content_hash: `hash-reuse-${Date.now()}`,
+                            signature: `sig-reuse-${Date.now()}`,
                         },
                     },
                 },
