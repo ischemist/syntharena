@@ -521,7 +521,7 @@ describe('StockService', () => {
 
         it('should avoid N+1 queries', async () => {
             // This is a quality check - the function should fetch all stock relations in one query
-            const result = await searchMolecules('', stockId1, 50)
+            const result = await searchMolecules('C', stockId1, 50)
 
             // If N+1 existed, we'd see many queries. This passes if it returns successfully.
             expect(result.molecules.length).toBeGreaterThan(0)
