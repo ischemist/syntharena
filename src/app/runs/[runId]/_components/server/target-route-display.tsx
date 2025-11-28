@@ -1,13 +1,24 @@
 import { AlertCircle } from 'lucide-react'
 
-import type { RouteNodeWithDetails } from '@/types'
+import type { RouteNodeWithDetails, RouteVisualizationNode } from '@/types'
 import { getTargetPredictions } from '@/lib/services/prediction.service'
-import { buildRouteTree } from '@/lib/services/route-tree-builder'
+import { getGroundTruthRouteWithNodes } from '@/lib/services/route.service'
 import { checkMoleculesInStockByInchiKey } from '@/lib/services/stock.service'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 import { RouteDisplayCard } from '../client/route-display-card'
 import { TargetInfoCard } from '../client/target-info-card'
+
+/**
+ * Convert RouteNodeWithDetails to RouteVisualizationNode (client-ready format).
+ */
+function toVisualizationNode(node: RouteNodeWithDetails): RouteVisualizationNode {
+    return {
+        smiles: node.molecule.smiles,
+        inchikey: node.molecule.inchikey,
+        children: node.children.length > 0 ? node.children.map(toVisualizationNode) : undefined,
+    }
+}
 
 /**
  * Recursively collects all InChiKeys from a route tree.
@@ -50,27 +61,7 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId, viewM
     // Build ground truth route tree if available
     let groundTruthRouteNode: RouteNodeWithDetails | undefined
     if (targetDetail.groundTruthRoute) {
-        try {
-            // Fetch ground truth route nodes (we already have the route from targetDetail)
-            const prisma = (await import('@/lib/db')).default
-            const gtRouteWithNodes = await prisma.route.findUnique({
-                where: { id: targetDetail.groundTruthRoute.id },
-                include: {
-                    nodes: {
-                        include: {
-                            molecule: true,
-                        },
-                    },
-                },
-            })
-
-            if (gtRouteWithNodes && gtRouteWithNodes.nodes.length > 0) {
-                // Build hierarchical tree from flat node array using shared helper
-                groundTruthRouteNode = buildRouteTree(gtRouteWithNodes.nodes)
-            }
-        } catch (error) {
-            console.error('Failed to fetch ground truth route:', error)
-        }
+        groundTruthRouteNode = (await getGroundTruthRouteWithNodes(targetDetail.groundTruthRoute.id)) ?? undefined
     }
 
     if (hasRoutes && stockId && stockId !== 'all') {
@@ -131,8 +122,10 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId, viewM
                         <RouteDisplayCard
                             route={routeDetail.route}
                             predictionRoute={routeDetail.predictionRoute}
-                            routeNode={routeDetail.routeNode}
-                            groundTruthRouteNode={groundTruthRouteNode}
+                            visualizationNode={routeDetail.visualizationNode}
+                            groundTruthVisualizationNode={
+                                groundTruthRouteNode ? toVisualizationNode(groundTruthRouteNode) : undefined
+                            }
                             isSolvable={solvability?.isSolvable}
                             isGtMatch={solvability?.isGtMatch}
                             inStockInchiKeys={inStockInchiKeys}

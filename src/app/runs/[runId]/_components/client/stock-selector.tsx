@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import type { StockListItem } from '@/types'
@@ -8,12 +9,38 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 interface StockSelectorProps {
     stocks: StockListItem[]
+    hasStock: boolean
+    hasTarget: boolean
+    firstTargetId?: string
 }
 
-export function StockSelector({ stocks }: StockSelectorProps) {
+export function StockSelector({ stocks, hasStock, hasTarget, firstTargetId }: StockSelectorProps) {
     const router = useRouter()
     const searchParams = useSearchParams()
     const currentStock = searchParams.get('stock') || stocks[0]?.id
+
+    // Phase 5: Client-side default selection on mount
+    useEffect(() => {
+        const params = new URLSearchParams(searchParams)
+        let needsUpdate = false
+
+        // Auto-select first stock if none selected
+        if (!hasStock && stocks.length > 0) {
+            params.set('stock', stocks[0].id)
+            needsUpdate = true
+        }
+
+        // Auto-select first target if none selected
+        if (!hasTarget && firstTargetId) {
+            params.set('target', firstTargetId)
+            params.set('rank', '1')
+            needsUpdate = true
+        }
+
+        if (needsUpdate) {
+            router.replace(`?${params.toString()}`, { scroll: false })
+        }
+    }, [hasStock, hasTarget, stocks, firstTargetId, searchParams, router])
 
     const handleStockChange = (value: string) => {
         const params = new URLSearchParams(searchParams)
