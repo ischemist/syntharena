@@ -37,21 +37,18 @@ export function StockListSkeleton() {
 }
 
 /**
- * Loading skeleton for the molecule grid view.
- * Shows placeholder molecule cards while search results are loading.
+ * Matches MoleculeCard structure EXACTLY.
+ * Card > div(p-4) > Skeleton(250x250)
  */
 export function MoleculeGridSkeleton() {
     return (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-                <Card key={i}>
-                    <CardHeader>
-                        <Skeleton className="h-[200px] w-full" />
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-3/4" />
-                    </CardContent>
+        <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-10">
+            {Array.from({ length: 50 }).map((_, i) => (
+                <Card key={i} className="aspect-square">
+                    <div className="flex h-full w-full items-center justify-center p-4">
+                        {/* Match the SmileDrawerSvg dimensions */}
+                        <Skeleton className="h-[250px] w-[250px] rounded-full opacity-10" />
+                    </div>
                 </Card>
             ))}
         </div>
