@@ -47,6 +47,7 @@ interface PythonRoute {
 interface PythonBenchmarkTarget {
     id: string
     smiles: string
+    inchikey?: string
     metadata?: Record<string, unknown>
     ground_truth?: PythonRoute | null
     is_convergent?: boolean | null
@@ -726,10 +727,11 @@ export async function loadBenchmarkFromFile(
                 const targetData = benchmarkData.targets[externalId]
 
                 // Get or create target molecule
-                // For target molecules, we need to get the inchikey from the ground_truth data if available
-                let targetInchikey = targetData.smiles // fallback
-                if (targetData.ground_truth?.target?.inchikey) {
-                    targetInchikey = targetData.ground_truth.target.inchikey
+                // Check for inchikey in target data first, then fall back to ground_truth
+                const targetInchikey = targetData.inchikey || targetData.ground_truth?.target?.inchikey
+
+                if (!targetInchikey) {
+                    throw new Error(`Target ${externalId} is missing inchikey in both target data and ground_truth`)
                 }
 
                 let targetMol = await tx.molecule.findUnique({
@@ -776,7 +778,6 @@ export async function loadBenchmarkFromFile(
                     let routeId: string
                     let routeLength: number
                     let routeIsConvergent: boolean
-                    let isNewRoute = false
 
                     try {
                         // Try creating the route - will fail if signature/contentHash already exists
@@ -791,7 +792,6 @@ export async function loadBenchmarkFromFile(
                             select: { id: true },
                         })
                         routeId = route.id
-                        isNewRoute = true
 
                         // Store route tree
                         const newMoleculesCreated = await storeRouteTree(route.id, targetData.ground_truth.target, tx)
