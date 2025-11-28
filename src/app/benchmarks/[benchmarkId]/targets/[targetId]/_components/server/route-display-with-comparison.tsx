@@ -76,10 +76,6 @@ export async function RouteDisplayWithComparison({
     let groundTruthRouteTree: RouteVisualizationNode | undefined
     let model1RouteTree: RouteVisualizationNode | undefined
     let model2RouteTree: RouteVisualizationNode | undefined
-    let model1MaxRank = 0
-    let model2MaxRank = 0
-    let model1Name = ''
-    let model2Name = ''
     let hasError = false
     let inStockInchiKeys = new Set<string>()
     let availableRuns: Array<{
@@ -91,6 +87,20 @@ export async function RouteDisplayWithComparison({
         routeCount: number
         maxRank: number
     }> = []
+
+    // Phase 3: Pre-calculated layout for server-side rendering (gt-only mode)
+    let groundTruthLayout:
+        | {
+              nodes: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }>
+              edges: Array<{ source: string; target: string }>
+          }
+        | undefined
+
+    // Model metadata extracted from availableRuns
+    let model1MaxRank = 0
+    let model2MaxRank = 0
+    let model1Name = ''
+    let model2Name = ''
 
     // OPTIMIZATION: Batch 1 - Initial parallel fetch (independent queries)
     try {
@@ -105,12 +115,14 @@ export async function RouteDisplayWithComparison({
         availableRuns = availableRunsResult
 
         // OPTIMIZATION: Batch 2 - Ground truth data (dependent on target, but parallel to each other)
+        // Phase 3: Fetch pre-calculated layout instead of just tree
         const groundTruthPromises = target.groundTruthRouteId
             ? Promise.all([
                   routeService.getGroundTruthRouteData(target.groundTruthRouteId, targetId),
                   routeService.getRouteTreeForVisualization(target.groundTruthRouteId),
+                  routeService.getRouteTreeWithLayout(target.groundTruthRouteId, 'gt-route-'),
               ])
-            : Promise.resolve([null, null] as const)
+            : Promise.resolve([null, null, null] as const)
 
         // OPTIMIZATION: Batch 3 - Model predictions (parallel)
         const predictionPromises = Promise.all([
@@ -124,15 +136,13 @@ export async function RouteDisplayWithComparison({
             : Promise.resolve(null)
 
         // Await all parallel batches
-        const [[groundTruthData, groundTruthTree], [model1Result, model2Result], stockData] = await Promise.all([
-            groundTruthPromises,
-            predictionPromises,
-            stockPromise,
-        ])
+        const [[groundTruthData, groundTruthTree, gtLayout], [model1Result, model2Result], stockData] =
+            await Promise.all([groundTruthPromises, predictionPromises, stockPromise])
 
         // Assign results
         groundTruthRouteData = groundTruthData ?? undefined
         groundTruthRouteTree = groundTruthTree ?? undefined
+        groundTruthLayout = gtLayout ?? undefined
 
         if (model1Result) {
             model1RouteTree = convertToVisualizationNode(model1Result)
@@ -140,6 +150,15 @@ export async function RouteDisplayWithComparison({
         if (model2Result) {
             model2RouteTree = convertToVisualizationNode(model2Result)
         }
+
+        // Extract model metadata from available runs
+        const model1Run = availableRuns.find((run) => run.id === model1Id)
+        const model2Run = availableRuns.find((run) => run.id === model2Id)
+
+        model1MaxRank = model1Run?.maxRank ?? 0
+        model2MaxRank = model2Run?.maxRank ?? 0
+        model1Name = model1Run ? `${model1Run.modelName} (${model1Run.algorithmName})` : ''
+        model2Name = model2Run ? `${model2Run.modelName} (${model2Run.algorithmName})` : ''
 
         // Collect InChiKeys and check stock (only if we have stock data)
         if (stockData) {
@@ -217,6 +236,8 @@ export async function RouteDisplayWithComparison({
                                             route={groundTruthRouteTree}
                                             inStockInchiKeys={inStockInchiKeys}
                                             idPrefix="gt-route-"
+                                            preCalculatedNodes={groundTruthLayout?.nodes}
+                                            preCalculatedEdges={groundTruthLayout?.edges}
                                         />
                                     </div>
 

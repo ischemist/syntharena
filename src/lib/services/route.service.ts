@@ -399,6 +399,34 @@ async function _getRouteTreeForVisualization(routeId: string): Promise<RouteVisu
 
 export const getRouteTreeForVisualization = cache(_getRouteTreeForVisualization)
 
+/**
+ * Retrieves a route tree with pre-calculated layout positions.
+ * Performs all layout calculations server-side to minimize client-side work.
+ * Returns positioned nodes and edges ready for React Flow rendering.
+ *
+ * @param routeId - The route ID
+ * @param idPrefix - Prefix for node IDs (e.g., "gt-route-", "pred1-")
+ * @returns Object with positioned nodes array and edges array
+ * @throws Error if route not found
+ */
+async function _getRouteTreeWithLayout(
+    routeId: string,
+    idPrefix: string
+): Promise<{
+    nodes: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }>
+    edges: Array<{ source: string; target: string }>
+}> {
+    // Get the visualization tree
+    const tree = await _getRouteTreeForVisualization(routeId)
+
+    // Calculate layout server-side
+    const layout = layoutTree(tree, idPrefix)
+
+    return layout
+}
+
+export const getRouteTreeWithLayout = cache(_getRouteTreeWithLayout)
+
 // ============================================================================
 // Benchmark Loading Functions
 // ============================================================================
