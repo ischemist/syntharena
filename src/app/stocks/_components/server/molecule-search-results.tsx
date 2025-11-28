@@ -63,8 +63,8 @@ export async function MoleculeSearchResults({ query = '', stockId, page = 1, lim
             </div>
 
             <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-10">
-                {moleculesWithStocks.map((molecule) => (
-                    <MoleculeCard key={molecule.id} molecule={molecule} />
+                {moleculesWithStocks.map((molecule, index) => (
+                    <MoleculeCard key={molecule.id} molecule={molecule} index={index} />
                 ))}
             </div>
 

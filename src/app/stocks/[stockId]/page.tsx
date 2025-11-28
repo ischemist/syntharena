@@ -6,7 +6,7 @@ import { getStockById } from '@/lib/services/stock.service'
 import { MoleculeSearchBar } from '../_components/client/molecule-search-bar'
 import { MoleculeSearchResults } from '../_components/server/molecule-search-results'
 import { StockHeader } from '../_components/server/stock-header'
-import { MoleculeTableSkeleton, StockDetailHeaderSkeleton } from '../_components/skeletons'
+import { MoleculeGridSkeleton, StockDetailHeaderSkeleton } from '../_components/skeletons'
 
 interface StockDetailPageProps {
     params: Promise<{ stockId: string }>
@@ -49,7 +49,7 @@ export default function StockDetailPage(props: StockDetailPageProps) {
             <div className="flex flex-col gap-4">
                 <MoleculeSearchBar />
 
-                <Suspense key={`${query}-${page}`} fallback={<MoleculeTableSkeleton />}>
+                <Suspense key={`${query}-${page}`} fallback={<MoleculeGridSkeleton />}>
                     <MoleculeSearchResults query={query} stockId={stockId} page={page} limit={50} />
                 </Suspense>
             </div>
