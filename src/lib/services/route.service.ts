@@ -872,6 +872,15 @@ export async function loadBenchmarkFromFile(
         console.log(`Processed ${processed}/${targetIds.length} targets...`)
     }
 
+    // Update benchmark hasGroundTruth flag if any ground truth routes were loaded
+    if (routesCreated > 0) {
+        await prisma.benchmarkSet.update({
+            where: { id: benchmarkId },
+            data: { hasGroundTruth: true },
+        })
+        console.log('Updated benchmark hasGroundTruth flag to true')
+    }
+
     console.log('Benchmark load complete!')
 
     return {

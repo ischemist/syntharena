@@ -7,16 +7,18 @@
  * - getRouteTreeForVisualization: Complete visualization tree
  */
 
-import { describe, expect, it } from 'vitest'
+import * as fs from 'fs/promises'
+import * as path from 'path'
+import * as zlib from 'zlib'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { PythonRouteNode } from '@/types'
-import { db } from '@/lib/db'
+import prisma from '@/lib/db'
 import {
-    createRouteFromPython,
     getGroundTruthRouteData,
     getRouteById,
     getRoutesByTarget,
     getRouteTreeForVisualization,
+    loadBenchmarkFromFile,
 } from '@/lib/services/route.service'
 
 import {
@@ -711,6 +713,7 @@ describe('route.service - Service Function Tests', () => {
                 targets: {
                     'target-1': {
                         smiles: singleMoleculePython.smiles,
+                        inchikey: singleMoleculePython.inchikey,
                     },
                 },
             }
