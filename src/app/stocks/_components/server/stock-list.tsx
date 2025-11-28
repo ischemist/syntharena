@@ -1,12 +1,9 @@
+import Link from 'next/link'
+
 import * as stockService from '@/lib/services/stock.service'
 import { Badge } from '@/components/ui/badge'
-import { ClickableTableRow } from '@/components/ui/clickable-table-row'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-/**
- * Server component that displays all available stocks with their molecule counts.
- * Each stock row is clickable and navigates to the stock detail page.
- */
 export async function StockList() {
     const stocks = await stockService.getStocks()
 
@@ -29,13 +26,23 @@ export async function StockList() {
             </TableHeader>
             <TableBody>
                 {stocks.map((stock) => (
-                    <ClickableTableRow key={stock.id} href={`/stocks/${stock.id}`}>
-                        <TableCell className="font-semibold">{stock.name}</TableCell>
+                    <TableRow key={stock.id} className="group hover:bg-muted/50 relative transition-colors">
+                        <TableCell className="font-semibold">
+                            <Link
+                                href={`/stocks/${stock.id}`}
+                                className="focus:ring-primary rounded-sm outline-none after:absolute after:inset-0 focus:ring-2"
+                                prefetch={true}
+                            >
+                                {stock.name}
+                            </Link>
+                        </TableCell>
+
                         <TableCell className="text-muted-foreground">{stock.description || '—'}</TableCell>
+
                         <TableCell className="text-right">
                             <Badge variant="secondary">{stock.itemCount.toLocaleString()}</Badge>
                         </TableCell>
-                    </ClickableTableRow>
+                    </TableRow>
                 ))}
             </TableBody>
         </Table>
