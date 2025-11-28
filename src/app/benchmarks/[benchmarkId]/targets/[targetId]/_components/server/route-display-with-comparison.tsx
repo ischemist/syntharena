@@ -4,7 +4,6 @@ import type { RouteNodeWithDetails, RouteVisualizationNode } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkService from '@/lib/services/benchmark.service'
 import * as routeService from '@/lib/services/route.service'
-import { findMatchingStock } from '@/lib/services/stock-mapping'
 import * as stockService from '@/lib/services/stock.service'
 import { PredictionComparison, RouteComparison, RouteGraph, RouteLegend } from '@/components/route-visualization'
 import { Button } from '@/components/ui/button'
@@ -79,58 +78,87 @@ export async function RouteDisplayWithComparison({
     let model2RouteTree: RouteVisualizationNode | undefined
     let model1MaxRank = 0
     let model2MaxRank = 0
+    let model1Name = ''
+    let model2Name = ''
     let hasError = false
     let inStockInchiKeys = new Set<string>()
+    let availableRuns: Array<{
+        id: string
+        modelName: string
+        modelVersion?: string
+        algorithmName: string
+        executedAt: Date
+        routeCount: number
+        maxRank: number
+    }> = []
 
-    // Fetch target and ground truth
+    // OPTIMIZATION: Batch 1 - Initial parallel fetch (independent queries)
     try {
-        target = await benchmarkService.getTargetById(targetId)
+        const [targetResult, benchmarkResult, availableRunsResult] = await Promise.all([
+            benchmarkService.getTargetById(targetId),
+            benchmarkService.getBenchmarkById(benchmarkId),
+            benchmarkService.getPredictionRunsForTarget(targetId),
+        ])
 
-        if (target.groundTruthRouteId) {
-            groundTruthRouteData = await routeService.getGroundTruthRouteData(target.groundTruthRouteId, targetId)
-            groundTruthRouteTree = await routeService.getRouteTreeForVisualization(target.groundTruthRouteId)
+        target = targetResult
+        const benchmark = benchmarkResult
+        availableRuns = availableRunsResult
+
+        // OPTIMIZATION: Batch 2 - Ground truth data (dependent on target, but parallel to each other)
+        const groundTruthPromises = target.groundTruthRouteId
+            ? Promise.all([
+                  routeService.getGroundTruthRouteData(target.groundTruthRouteId, targetId),
+                  routeService.getRouteTreeForVisualization(target.groundTruthRouteId),
+              ])
+            : Promise.resolve([null, null] as const)
+
+        // OPTIMIZATION: Batch 3 - Model predictions (parallel)
+        const predictionPromises = Promise.all([
+            model1Id ? benchmarkService.getPredictedRouteForTarget(targetId, model1Id, rank1) : Promise.resolve(null),
+            model2Id ? benchmarkService.getPredictedRouteForTarget(targetId, model2Id, rank2) : Promise.resolve(null),
+        ])
+
+        // OPTIMIZATION: Batch 4 - Stock lookup (parallel with predictions)
+        const stockPromise = benchmark.stockName
+            ? stockService.getStockByName(benchmark.stockName)
+            : Promise.resolve(null)
+
+        // Await all parallel batches
+        const [[groundTruthData, groundTruthTree], [model1Result, model2Result], stockData] = await Promise.all([
+            groundTruthPromises,
+            predictionPromises,
+            stockPromise,
+        ])
+
+        // Assign results
+        groundTruthRouteData = groundTruthData ?? undefined
+        groundTruthRouteTree = groundTruthTree ?? undefined
+
+        if (model1Result) {
+            model1RouteTree = convertToVisualizationNode(model1Result)
+        }
+        if (model2Result) {
+            model2RouteTree = convertToVisualizationNode(model2Result)
         }
 
-        // Fetch model predictions if selected
-        if (model1Id) {
-            const result = await benchmarkService.getPredictedRouteForTarget(targetId, model1Id, rank1)
-            if (result) {
-                model1RouteTree = convertToVisualizationNode(result)
+        // Collect InChiKeys and check stock (only if we have stock data)
+        if (stockData) {
+            const allInchiKeys = new Set<string>()
+            if (groundTruthRouteTree) {
+                getAllRouteInchiKeysSet(groundTruthRouteTree).forEach((key) => allInchiKeys.add(key))
             }
-        }
-
-        if (model2Id) {
-            const result = await benchmarkService.getPredictedRouteForTarget(targetId, model2Id, rank2)
-            if (result) {
-                model2RouteTree = convertToVisualizationNode(result)
+            if (model1RouteTree) {
+                getAllRouteInchiKeysSet(model1RouteTree).forEach((key) => allInchiKeys.add(key))
             }
-        }
+            if (model2RouteTree) {
+                getAllRouteInchiKeysSet(model2RouteTree).forEach((key) => allInchiKeys.add(key))
+            }
 
-        // Get stock info for all routes
-        const benchmark = await benchmarkService.getBenchmarkById(benchmarkId)
-        if (benchmark.stockName) {
             try {
-                const stocks = await stockService.getStocks()
-                const matchingStock = findMatchingStock(benchmark.stockName, stocks)
-
-                if (matchingStock) {
-                    // Collect all InChiKeys from all routes
-                    const allInchiKeys = new Set<string>()
-                    if (groundTruthRouteTree) {
-                        getAllRouteInchiKeysSet(groundTruthRouteTree).forEach((key) => allInchiKeys.add(key))
-                    }
-                    if (model1RouteTree) {
-                        getAllRouteInchiKeysSet(model1RouteTree).forEach((key) => allInchiKeys.add(key))
-                    }
-                    if (model2RouteTree) {
-                        getAllRouteInchiKeysSet(model2RouteTree).forEach((key) => allInchiKeys.add(key))
-                    }
-
-                    inStockInchiKeys = await stockService.checkMoleculesInStockByInchiKey(
-                        Array.from(allInchiKeys),
-                        matchingStock.id
-                    )
-                }
+                inStockInchiKeys = await stockService.checkMoleculesInStockByInchiKey(
+                    Array.from(allInchiKeys),
+                    stockData.id
+                )
             } catch (error) {
                 console.warn('Failed to check stock availability:', error)
             }
@@ -138,24 +166,6 @@ export async function RouteDisplayWithComparison({
     } catch (error) {
         console.error('Failed to load route display:', error)
         hasError = true
-    }
-
-    // Fetch available prediction runs for THIS target (with max ranks)
-    const availableRuns = await benchmarkService.getPredictionRunsForTarget(targetId)
-
-    // Get max ranks and model names for selected models
-    let model1Name = ''
-    let model2Name = ''
-
-    if (model1Id) {
-        const run = availableRuns.find((r) => r.id === model1Id)
-        model1MaxRank = run?.maxRank || 50
-        model1Name = run ? `${run.modelName}${run.modelVersion ? ` v${run.modelVersion}` : ''}` : 'Model 1'
-    }
-    if (model2Id) {
-        const run = availableRuns.find((r) => r.id === model2Id)
-        model2MaxRank = run?.maxRank || 50
-        model2Name = run ? `${run.modelName}${run.modelVersion ? ` v${run.modelVersion}` : ''}` : 'Model 2'
     }
 
     // Determine current mode - URL is the single source of truth

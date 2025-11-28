@@ -11,6 +11,7 @@ import type {
     RouteVisualizationNode,
 } from '@/types'
 import prisma from '@/lib/db'
+import { layoutTree } from '@/lib/route-visualization/layout'
 
 // ============================================================================
 // Types for internal use (from Python retrocast models)
