@@ -1,8 +1,8 @@
+import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 
 import { getPredictionRuns } from '@/lib/services/prediction.service'
 import { Badge } from '@/components/ui/badge'
-import { ClickableTableRow } from '@/components/ui/clickable-table-row'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 type RunListProps = {
@@ -55,8 +55,16 @@ export async function RunList({ searchParams }: RunListProps) {
                         </TableHeader>
                         <TableBody>
                             {benchmarkRuns.map((run) => (
-                                <ClickableTableRow key={run.id} href={`/runs/${run.id}`}>
-                                    <TableCell className="font-semibold">{run.modelInstance.name}</TableCell>
+                                <TableRow key={run.id} className="group hover:bg-muted/50 relative transition-colors">
+                                    <TableCell className="font-semibold">
+                                        <Link
+                                            href={`/runs/${run.id}`}
+                                            className="focus:ring-primary rounded-sm outline-none after:absolute after:inset-0 focus:ring-2"
+                                            prefetch={true}
+                                        >
+                                            {run.modelInstance.name}
+                                        </Link>
+                                    </TableCell>
                                     <TableCell className="text-right">
                                         <Badge variant="secondary">{run.totalRoutes.toLocaleString()}</Badge>
                                     </TableCell>
@@ -68,7 +76,7 @@ export async function RunList({ searchParams }: RunListProps) {
                                             addSuffix: true,
                                         })}
                                     </TableCell>
-                                </ClickableTableRow>
+                                </TableRow>
                             ))}
                         </TableBody>
                     </Table>

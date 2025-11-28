@@ -1,6 +1,7 @@
+import Link from 'next/link'
+
 import * as benchmarkService from '@/lib/services/benchmark.service'
 import { Badge } from '@/components/ui/badge'
-import { ClickableTableRow } from '@/components/ui/clickable-table-row'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 /**
@@ -30,8 +31,16 @@ export async function BenchmarkList() {
             </TableHeader>
             <TableBody>
                 {benchmarks.map((benchmark) => (
-                    <ClickableTableRow key={benchmark.id} href={`/benchmarks/${benchmark.id}`}>
-                        <TableCell className="font-semibold">{benchmark.name}</TableCell>
+                    <TableRow key={benchmark.id} className="group hover:bg-muted/50 relative transition-colors">
+                        <TableCell className="font-semibold">
+                            <Link
+                                href={`/benchmarks/${benchmark.id}`}
+                                className="focus:ring-primary rounded-sm outline-none after:absolute after:inset-0 focus:ring-2"
+                                prefetch={true}
+                            >
+                                {benchmark.name}
+                            </Link>
+                        </TableCell>
                         <TableCell className="text-muted-foreground">{benchmark.description || '—'}</TableCell>
                         <TableCell className="text-right">
                             <Badge variant="secondary">{benchmark.targetCount.toLocaleString()}</Badge>
@@ -43,7 +52,7 @@ export async function BenchmarkList() {
                                 <span className="text-muted-foreground">—</span>
                             )}
                         </TableCell>
-                    </ClickableTableRow>
+                    </TableRow>
                 ))}
             </TableBody>
         </Table>
