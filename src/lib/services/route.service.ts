@@ -721,12 +721,16 @@ export async function loadBenchmarkFromFile(
     }
 
     // Parse benchmark file
-    console.log('Parsing benchmark file...')
+    if (process.env.NODE_ENV !== 'test') {
+        console.log('Parsing benchmark file...')
+    }
     const benchmarkData = await parseBenchmarkFile(filePath)
 
     // Load targets
     const targetIds = Object.keys(benchmarkData.targets)
-    console.log(`Loading ${targetIds.length} targets...`)
+    if (process.env.NODE_ENV !== 'test') {
+        console.log(`Loading ${targetIds.length} targets...`)
+    }
 
     let moleculesCreated = 0
     let moleculesReused = 0
@@ -873,8 +877,10 @@ export async function loadBenchmarkFromFile(
             }
         })
 
-        const processed = Math.min(i + BATCH_SIZE, targetIds.length)
-        console.log(`Processed ${processed}/${targetIds.length} targets...`)
+        if (process.env.NODE_ENV !== 'test') {
+            const processed = Math.min(i + BATCH_SIZE, targetIds.length)
+            console.log(`Processed ${processed}/${targetIds.length} targets...`)
+        }
     }
 
     // Update benchmark hasGroundTruth flag if any ground truth routes were loaded
@@ -883,10 +889,14 @@ export async function loadBenchmarkFromFile(
             where: { id: benchmarkId },
             data: { hasGroundTruth: true },
         })
-        console.log('Updated benchmark hasGroundTruth flag to true')
+        if (process.env.NODE_ENV !== 'test') {
+            console.log('Updated benchmark hasGroundTruth flag to true')
+        }
     }
 
-    console.log('Benchmark load complete!')
+    if (process.env.NODE_ENV !== 'test') {
+        console.log('Benchmark load complete!')
+    }
 
     return {
         benchmarkId,

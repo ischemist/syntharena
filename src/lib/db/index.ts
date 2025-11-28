@@ -1,11 +1,9 @@
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { PrismaClient } from '@prisma/client'
-import { config } from 'dotenv'
 
-// Load environment variables - check for test env first, then fall back to .env
-// This allows tests to use .env.test instead of .env
-const envFile = process.env.NODE_ENV === 'test' ? '.env.test' : '.env'
-config({ path: envFile })
+// Environment variables are loaded by:
+// - Next.js automatically in development/production
+// - Vitest config for tests
 
 const globalForPrisma = global as unknown as {
     prisma: PrismaClient
