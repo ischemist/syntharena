@@ -336,6 +336,10 @@ export async function getStockMolecules(
     limit: number = 24,
     offset: number = 0
 ): Promise<{ molecules: MoleculeWithStocks[]; total: number; hasMore: boolean }> {
+    // Sanitize and validate inputs
+    const validLimit = Math.min(Math.max(1, limit), 1000)
+    const validOffset = Math.max(0, offset)
+
     // 1. Get total from metadata (instant)
     const stock = await prisma.stock.findUnique({
         where: { id: stockId },
@@ -352,8 +356,8 @@ export async function getStockMolecules(
     // 2. Efficient Index Walk on StockItem
     const stockItems = await prisma.stockItem.findMany({
         where: { stockId },
-        take: limit + 1,
-        skip: offset,
+        take: validLimit + 1,
+        skip: validOffset,
         orderBy: { moleculeId: 'asc' }, // Stable sort using index
         include: {
             molecule: {
@@ -368,8 +372,8 @@ export async function getStockMolecules(
         },
     })
 
-    const hasMore = stockItems.length > limit
-    const resultItems = hasMore ? stockItems.slice(0, limit) : stockItems
+    const hasMore = stockItems.length > validLimit
+    const resultItems = hasMore ? stockItems.slice(0, validLimit) : stockItems
 
     const molecules = resultItems.map((item) => ({
         id: item.molecule.id,
@@ -405,7 +409,10 @@ export async function searchMolecules(
     limit: number = 24,
     offset: number = 0
 ): Promise<{ molecules: MoleculeWithStocks[]; total: number; hasMore: boolean }> {
+    // Sanitize and validate inputs
     const sanitizedQuery = query.trim()
+    const validLimit = Math.min(Math.max(1, limit), 1000)
+    const validOffset = Math.max(0, offset)
 
     // Build filters
     const baseFilter = stockId ? { stockItems: { some: { stockId } } } : {}
@@ -425,15 +432,15 @@ export async function searchMolecules(
                     },
                 },
             },
-            take: limit + 1,
-            skip: offset,
+            take: validLimit + 1,
+            skip: validOffset,
             orderBy: { smiles: 'asc' }, // Sorting here is unavoidable but filtered
         }),
         prisma.molecule.count({ where: whereClause }),
     ])
 
-    const hasMore = molecules.length > limit
-    const resultMolecules = hasMore ? molecules.slice(0, limit) : molecules
+    const hasMore = molecules.length > validLimit
+    const resultMolecules = hasMore ? molecules.slice(0, validLimit) : molecules
 
     const transformedMolecules = resultMolecules.map((molecule) => ({
         id: molecule.id,
