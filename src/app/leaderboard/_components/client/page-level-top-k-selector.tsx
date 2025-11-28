@@ -1,6 +1,7 @@
 'use client'
 
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
 
@@ -13,29 +14,44 @@ type PageLevelTopKSelectorProps = {
 const DEFAULT_TOP_K = ['Top-1', 'Top-5', 'Top-10']
 
 /**
- * Page-level client component that manages Top-K selection state for all metrics.
+ * Page-level client component that manages Top-K selection via URL state.
  * Provides selected metrics via context to all child components.
  * Renders selector buttons outside of any card for global control.
+ * Following App Router Manifesto: URL is canon - state is shareable and refresh-safe.
  */
 export function PageLevelTopKSelector({ topKMetricNames, children }: PageLevelTopKSelectorProps) {
-    const [selectedTopK, setSelectedTopK] = useState<string[]>(
-        // Filter default Top-K to only include what's available
-        DEFAULT_TOP_K.filter((k) => topKMetricNames.includes(k))
-    )
+    const router = useRouter()
+    const pathname = usePathname()
+    const searchParams = useSearchParams()
+
+    // Parse selected Top-K from URL (comma-separated: ?topK=Top-1,Top-5,Top-10)
+    const topKParam = searchParams.get('topK')
+    const selectedTopK = topKParam
+        ? topKParam.split(',').filter((k) => topKMetricNames.includes(k))
+        : // Default: filter to only include what's available
+          DEFAULT_TOP_K.filter((k) => topKMetricNames.includes(k))
 
     const handleTopKToggle = (metricName: string) => {
-        setSelectedTopK((prev) => {
-            const newSelection = prev.includes(metricName)
-                ? prev.filter((k) => k !== metricName)
-                : [...prev, metricName]
+        const newSelection = selectedTopK.includes(metricName)
+            ? selectedTopK.filter((k) => k !== metricName)
+            : [...selectedTopK, metricName]
 
-            // Sort numerically by extracting the K value
-            return newSelection.sort((a, b) => {
-                const aNum = parseInt(a.replace(/^\D+/, ''))
-                const bNum = parseInt(b.replace(/^\D+/, ''))
-                return aNum - bNum
-            })
+        // Sort numerically by extracting the K value
+        const sorted = newSelection.sort((a, b) => {
+            const aNum = parseInt(a.replace(/^\D+/, ''))
+            const bNum = parseInt(b.replace(/^\D+/, ''))
+            return aNum - bNum
         })
+
+        // Update URL with new selection
+        const params = new URLSearchParams(searchParams.toString())
+        if (sorted.length > 0) {
+            params.set('topK', sorted.join(','))
+        } else {
+            params.delete('topK')
+        }
+
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false })
     }
 
     return (

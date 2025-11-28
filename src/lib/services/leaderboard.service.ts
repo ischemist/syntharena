@@ -1,9 +1,4 @@
-/**
- * Leaderboard Service
- *
- * Provides comparison functions for displaying model performance across benchmarks.
- * Used by leaderboard UI to show statistical comparisons and stratified metrics.
- */
+import { unstable_cache } from 'next/cache'
 
 import type { LeaderboardEntry, MetricResult, ReliabilityCode, StratifiedMetric } from '@/types'
 import prisma from '@/lib/db'
@@ -14,12 +9,8 @@ import prisma from '@/lib/db'
 
 /**
  * Get leaderboard data for all models with optional filters.
- *
- * @param benchmarkId - Optional: Filter by benchmark
- * @param stockId - Optional: Filter by stock
- * @returns Array of leaderboard entries for comparison
  */
-export async function getLeaderboard(benchmarkId?: string, stockId?: string): Promise<LeaderboardEntry[]> {
+async function _getLeaderboard(benchmarkId?: string, stockId?: string): Promise<LeaderboardEntry[]> {
     // Fetch all statistics with filters
     const statistics = await prisma.modelRunStatistics.findMany({
         where: {
@@ -34,87 +25,59 @@ export async function getLeaderboard(benchmarkId?: string, stockId?: string): Pr
             stock: true,
             predictionRun: {
                 include: {
-                    modelInstance: {
-                        include: {
-                            algorithm: true,
-                        },
-                    },
+                    modelInstance: true,
                     benchmarkSet: true,
                 },
             },
             metrics: true,
         },
         orderBy: [
-            {
-                predictionRun: {
-                    benchmarkSet: {
-                        name: 'asc',
-                    },
-                },
-            },
-            {
-                predictionRun: {
-                    modelInstance: {
-                        name: 'asc',
-                    },
-                },
-            },
+            { predictionRun: { benchmarkSet: { name: 'asc' } } },
+            { predictionRun: { modelInstance: { name: 'asc' } } },
         ],
     })
 
     // Transform to leaderboard entries
-    const entries: LeaderboardEntry[] = statistics.map((stat) => {
-        // Get overall solvability metric
-        const solvabilityMetric = stat.metrics.find(
-            (m: (typeof stat.metrics)[0]) => m.metricName === 'Solvability' && m.groupKey === null
-        )
+    return statistics.map((stat) => {
+        // Helper to extract metric result
+        const getMetricResult = (m?: (typeof stat.metrics)[0]): MetricResult => {
+            if (!m) {
+                return {
+                    value: 0,
+                    ciLower: 0,
+                    ciUpper: 0,
+                    nSamples: 0,
+                    reliability: { code: 'LOW_N', message: 'No data' },
+                }
+            }
+            return {
+                value: m.value,
+                ciLower: m.ciLower,
+                ciUpper: m.ciUpper,
+                nSamples: m.nSamples,
+                reliability: {
+                    code: m.reliabilityCode as ReliabilityCode,
+                    message: m.reliabilityMessage,
+                },
+            }
+        }
 
-        const solvability: MetricResult = solvabilityMetric
-            ? {
-                  value: solvabilityMetric.value,
-                  ciLower: solvabilityMetric.ciLower,
-                  ciUpper: solvabilityMetric.ciUpper,
-                  nSamples: solvabilityMetric.nSamples,
-                  reliability: {
-                      code: solvabilityMetric.reliabilityCode,
-                      message: solvabilityMetric.reliabilityMessage,
-                  },
-              }
-            : {
-                  value: 0,
-                  ciLower: 0,
-                  ciUpper: 0,
-                  nSamples: 0,
-                  reliability: { code: 'LOW_N', message: 'No data' },
-              }
+        // Get overall solvability metric
+        const solvabilityMetric = stat.metrics.find((m) => m.metricName === 'Solvability' && m.groupKey === null)
 
         // Get top-k accuracy metrics (only if benchmark has ground truth)
         const topKAccuracy: Record<string, MetricResult> = {}
         if (stat.predictionRun.benchmarkSet.hasGroundTruth) {
-            const topKMetricNames = [
-                ...new Set(
-                    stat.metrics
-                        .filter((m: (typeof stat.metrics)[0]) => m.metricName.startsWith('Top-') && m.groupKey === null)
-                        .map((m: (typeof stat.metrics)[0]) => m.metricName)
-                ),
-            ]
+            const uniqueMetricNames = new Set(
+                stat.metrics
+                    .filter((m) => m.metricName.startsWith('Top-') && m.groupKey === null)
+                    .map((m) => m.metricName)
+            )
 
-            for (const metricName of topKMetricNames) {
-                const metric = stat.metrics.find(
-                    (m: (typeof stat.metrics)[0]) => m.metricName === metricName && m.groupKey === null
-                )
-
+            for (const metricName of uniqueMetricNames) {
+                const metric = stat.metrics.find((m) => m.metricName === metricName && m.groupKey === null)
                 if (metric) {
-                    topKAccuracy[metricName] = {
-                        value: metric.value,
-                        ciLower: metric.ciLower,
-                        ciUpper: metric.ciUpper,
-                        nSamples: metric.nSamples,
-                        reliability: {
-                            code: metric.reliabilityCode,
-                            message: metric.reliabilityMessage,
-                        },
-                    }
+                    topKAccuracy[metricName] = getMetricResult(metric)
                 }
             }
         }
@@ -124,88 +87,162 @@ export async function getLeaderboard(benchmarkId?: string, stockId?: string): Pr
             benchmarkName: stat.predictionRun.benchmarkSet.name,
             stockName: stat.stock.name,
             metrics: {
-                solvability,
+                solvability: getMetricResult(solvabilityMetric),
                 ...(Object.keys(topKAccuracy).length > 0 && { topKAccuracy }),
             },
         }
     })
-
-    return entries
 }
 
 /**
- * Get stratified metric breakdown by route length for comparison.
+ * Cached version of getLeaderboard.
+ * Prevents re-aggregation on every request.
+ */
+export const getLeaderboard = unstable_cache(_getLeaderboard, ['leaderboard-entries'], {
+    tags: ['leaderboard', 'metrics'],
+    revalidate: 3600,
+})
+
+/**
+ * Get stratified metrics for a benchmark, grouped by Stock ID.
+ * Replaces the N+1 pattern of fetching per-stock.
  *
  * @param benchmarkId - The benchmark ID
- * @param stockId - The stock ID
- * @param metricName - The metric name (e.g., "Solvability", "Top-1")
- * @returns Map of route length to map of model name to metric result
+ * @param stockIds - Optional: Specific stock IDs to fetch. If null, fetches all.
+ * @returns Array of tuples [StockID, [ModelName, StratifiedData][]]
  */
-export async function getStratifiedComparison(
+async function _getStratifiedMetrics(
     benchmarkId: string,
-    stockId: string,
-    metricName: string
-): Promise<Map<number, Map<string, MetricResult>>> {
-    // Fetch all statistics for this benchmark + stock
+    stockIds?: string[]
+): Promise<
+    [
+        string, // Stock ID
+        [
+            string, // Model Name
+            {
+                solvability: StratifiedMetric
+                topKAccuracy?: Record<string, StratifiedMetric>
+            },
+        ][],
+    ][]
+> {
+    // Single optimized query for all requested stocks
     const statistics = await prisma.modelRunStatistics.findMany({
         where: {
-            stockId,
-            predictionRun: {
-                benchmarkSetId: benchmarkId,
-            },
+            predictionRun: { benchmarkSetId: benchmarkId },
+            ...(stockIds && { stockId: { in: stockIds } }),
         },
         include: {
             predictionRun: {
-                include: {
-                    modelInstance: true,
-                },
+                include: { modelInstance: true, benchmarkSet: true },
             },
-            metrics: {
-                where: {
-                    metricName,
-                    groupKey: { not: null }, // Only stratified metrics
-                },
-            },
+            metrics: true,
         },
     })
 
-    // Build nested map: routeLength -> modelName -> MetricResult
-    const comparisonMap = new Map<number, Map<string, MetricResult>>()
+    // Nested Map Structure: StockID -> ModelName -> Data
+    const result = new Map<
+        string,
+        Map<string, { solvability: StratifiedMetric; topKAccuracy?: Record<string, StratifiedMetric> }>
+    >()
 
     for (const stat of statistics) {
+        const stockId = stat.stockId
         const modelName = stat.predictionRun.modelInstance.name
 
-        for (const metric of stat.metrics) {
-            if (metric.groupKey === null) continue
-
-            const routeLength = metric.groupKey
-            if (!comparisonMap.has(routeLength)) {
-                comparisonMap.set(routeLength, new Map())
-            }
-
-            const modelMap = comparisonMap.get(routeLength)!
-            modelMap.set(modelName, {
-                value: metric.value,
-                ciLower: metric.ciLower,
-                ciUpper: metric.ciUpper,
-                nSamples: metric.nSamples,
-                reliability: {
-                    code: metric.reliabilityCode,
-                    message: metric.reliabilityMessage,
-                },
-            })
+        if (!result.has(stockId)) {
+            result.set(stockId, new Map())
         }
+        const stockMap = result.get(stockId)!
+
+        // --- Helper: Build Stratified Metric Object ---
+        const buildStratifiedMetric = (name: string): StratifiedMetric | null => {
+            const overall = stat.metrics.find((m) => m.metricName === name && m.groupKey === null)
+            const byGroup = stat.metrics
+                .filter((m) => m.metricName === name && m.groupKey !== null)
+                .reduce(
+                    (acc, m) => {
+                        acc[m.groupKey!] = {
+                            value: m.value,
+                            ciLower: m.ciLower,
+                            ciUpper: m.ciUpper,
+                            nSamples: m.nSamples,
+                            reliability: {
+                                code: m.reliabilityCode as ReliabilityCode,
+                                message: m.reliabilityMessage,
+                            },
+                        }
+                        return acc
+                    },
+                    {} as Record<number, MetricResult>
+                )
+
+            if (!overall && Object.keys(byGroup).length === 0) return null
+
+            return {
+                metricName: name,
+                overall: overall
+                    ? {
+                          value: overall.value,
+                          ciLower: overall.ciLower,
+                          ciUpper: overall.ciUpper,
+                          nSamples: overall.nSamples,
+                          reliability: {
+                              code: overall.reliabilityCode as ReliabilityCode,
+                              message: overall.reliabilityMessage,
+                          },
+                      }
+                    : {
+                          value: 0,
+                          ciLower: 0,
+                          ciUpper: 0,
+                          nSamples: 0,
+                          reliability: { code: 'LOW_N', message: 'No data' },
+                      },
+                byGroup,
+            }
+        }
+
+        // --- Build Data ---
+        const solvability = buildStratifiedMetric('Solvability')
+        if (!solvability) continue // Should not happen if data is valid
+
+        let topKAccuracy: Record<string, StratifiedMetric> | undefined
+        if (stat.predictionRun.benchmarkSet.hasGroundTruth) {
+            const topKNames = [
+                ...new Set(stat.metrics.filter((m) => m.metricName.startsWith('Top-')).map((m) => m.metricName)),
+            ]
+
+            const acc: Record<string, StratifiedMetric> = {}
+            for (const name of topKNames) {
+                const metric = buildStratifiedMetric(name)
+                if (metric) acc[name] = metric
+            }
+            if (Object.keys(acc).length > 0) topKAccuracy = acc
+        }
+
+        stockMap.set(modelName, {
+            solvability,
+            ...(topKAccuracy && { topKAccuracy }),
+        })
     }
 
-    return comparisonMap
+    // Convert the final Map to a serializable array of tuples before returning
+    return Array.from(result.entries()).map(([stockId, modelMap]) => [stockId, Array.from(modelMap.entries())])
 }
 
 /**
+ * Cached version of getStratifiedMetrics.
+ * Prevents re-aggregation on every request.
+ */
+export const getStratifiedMetrics = unstable_cache(_getStratifiedMetrics, ['stratified-metrics'], {
+    tags: ['leaderboard', 'metrics'],
+    revalidate: 3600, // Example: revalidate every hour
+})
+
+/**
  * Get rank probability distribution for a model run.
- *
- * @param runId - The prediction run ID
- * @param stockId - The stock ID
- * @returns Rank distribution and expected rank
+ * Parsing JSON is unavoidable here, but this is usually a drill-down detail.
  */
 export async function getModelRankDistribution(
     runId: string,
@@ -214,7 +251,6 @@ export async function getModelRankDistribution(
     rankDistribution: Array<{ rank: number; probability: number }>
     expectedRank?: number
 }> {
-    // Fetch statistics
     const stats = await prisma.modelRunStatistics.findUnique({
         where: {
             predictionRunId_stockId: {
@@ -228,246 +264,13 @@ export async function getModelRankDistribution(
         throw new Error('Statistics not found for this run and stock.')
     }
 
-    // Parse JSON to get rank distribution
-    let parsedStats: Record<string, unknown>
     try {
-        parsedStats = JSON.parse(stats.statisticsJson) as Record<string, unknown>
+        const parsedStats = JSON.parse(stats.statisticsJson) as Record<string, unknown>
+        return {
+            rankDistribution: (parsedStats.rankDistribution as Array<{ rank: number; probability: number }>) || [],
+            expectedRank: parsedStats.expectedRank as number | undefined,
+        }
     } catch {
         throw new Error('Failed to parse statistics JSON.')
     }
-
-    return {
-        rankDistribution: (parsedStats.rankDistribution as Array<{ rank: number; probability: number }>) || [],
-        expectedRank: parsedStats.expectedRank as number | undefined,
-    }
-}
-
-/**
- * Get leaderboard data grouped by benchmark.
- * Returns a map of benchmark IDs to their leaderboard entries.
- *
- * @param stockId - Optional: Filter by stock
- * @returns Map of benchmark ID to array of leaderboard entries for that benchmark
- */
-export async function getLeaderboardByBenchmark(stockId?: string): Promise<
-    Map<
-        string,
-        {
-            benchmarkId: string
-            benchmarkName: string
-            hasGroundTruth: boolean
-            entries: LeaderboardEntry[]
-        }
-    >
-> {
-    // Get all entries, optionally filtered by stock
-    const allEntries = await getLeaderboard(undefined, stockId)
-
-    // Group by benchmark
-    const grouped = new Map<
-        string,
-        {
-            benchmarkId: string
-            benchmarkName: string
-            hasGroundTruth: boolean
-            entries: LeaderboardEntry[]
-        }
-    >()
-
-    // Get all unique benchmark names
-    const benchmarkNames = [...new Set(allEntries.map((entry) => entry.benchmarkName))]
-
-    // Fetch all relevant benchmarks in one query
-    const benchmarks = await prisma.benchmarkSet.findMany({
-        where: { name: { in: benchmarkNames } },
-        select: { id: true, name: true, hasGroundTruth: true },
-    })
-
-    // Create a map for easy lookup
-    const benchmarkMap = new Map(benchmarks.map((b) => [b.name, b]))
-
-    for (const entry of allEntries) {
-        const benchmark = benchmarkMap.get(entry.benchmarkName)
-        if (!benchmark) continue
-
-        if (!grouped.has(entry.benchmarkName)) {
-            grouped.set(entry.benchmarkName, {
-                benchmarkId: benchmark.id,
-                benchmarkName: benchmark.name,
-                hasGroundTruth: benchmark.hasGroundTruth,
-                entries: [],
-            })
-        }
-
-        // Add entry to the group
-        const group = grouped.get(entry.benchmarkName)
-        if (group) {
-            group.entries.push(entry)
-        }
-    }
-
-    return grouped
-}
-
-/**
- * Get all metrics for a specific benchmark-stock combination.
- * Returns metrics grouped by model for easy table display.
- *
- * @param benchmarkId - The benchmark ID
- * @param stockId - The stock ID
- * @returns Map of model name to all metrics (overall and stratified)
- */
-export async function getMetricsByBenchmarkAndStock(
-    benchmarkId: string,
-    stockId: string
-): Promise<
-    Map<
-        string,
-        {
-            solvability: StratifiedMetric
-            topKAccuracy?: Record<string, StratifiedMetric>
-        }
-    >
-> {
-    // Fetch all statistics for this combination
-    const statistics = await prisma.modelRunStatistics.findMany({
-        where: {
-            stockId,
-            predictionRun: {
-                benchmarkSetId: benchmarkId,
-            },
-        },
-        include: {
-            predictionRun: {
-                include: {
-                    modelInstance: true,
-                    benchmarkSet: true,
-                },
-            },
-            metrics: true,
-        },
-    })
-
-    const metricsMap = new Map<
-        string,
-        {
-            solvability: StratifiedMetric
-            topKAccuracy?: Record<string, StratifiedMetric>
-        }
-    >()
-
-    for (const stat of statistics) {
-        const modelName = stat.predictionRun.modelInstance.name
-
-        // Build solvability metric
-        const solvabilityOverall = stat.metrics.find(
-            (m: (typeof stat.metrics)[0]) => m.metricName === 'Solvability' && m.groupKey === null
-        )
-        const solvabilityByGroup = stat.metrics
-            .filter((m: (typeof stat.metrics)[0]) => m.metricName === 'Solvability' && m.groupKey !== null)
-            .reduce(
-                (acc: Record<number, MetricResult>, m: (typeof stat.metrics)[0]) => {
-                    acc[m.groupKey!] = {
-                        value: m.value,
-                        ciLower: m.ciLower,
-                        ciUpper: m.ciUpper,
-                        nSamples: m.nSamples,
-                        reliability: {
-                            code: m.reliabilityCode as ReliabilityCode,
-                            message: m.reliabilityMessage,
-                        },
-                    }
-                    return acc
-                },
-                {} as Record<number, MetricResult>
-            )
-
-        const solvability: StratifiedMetric = {
-            metricName: 'Solvability',
-            overall: solvabilityOverall
-                ? {
-                      value: solvabilityOverall.value,
-                      ciLower: solvabilityOverall.ciLower,
-                      ciUpper: solvabilityOverall.ciUpper,
-                      nSamples: solvabilityOverall.nSamples,
-                      reliability: {
-                          code: solvabilityOverall.reliabilityCode,
-                          message: solvabilityOverall.reliabilityMessage,
-                      },
-                  }
-                : {
-                      value: 0,
-                      ciLower: 0,
-                      ciUpper: 0,
-                      nSamples: 0,
-                      reliability: { code: 'LOW_N', message: 'No data' },
-                  },
-            byGroup: solvabilityByGroup,
-        }
-
-        // Build top-k metrics if benchmark has ground truth
-        let topKAccuracy: Record<string, StratifiedMetric> | undefined
-        if (stat.predictionRun.benchmarkSet.hasGroundTruth) {
-            const topKNames = [
-                ...new Set(
-                    stat.metrics
-                        .filter((m: (typeof stat.metrics)[0]) => m.metricName.startsWith('Top-'))
-                        .map((m: (typeof stat.metrics)[0]) => m.metricName)
-                ),
-            ]
-
-            topKAccuracy = {}
-            for (const metricName of topKNames) {
-                const overall = stat.metrics.find(
-                    (m: (typeof stat.metrics)[0]) => m.metricName === metricName && m.groupKey === null
-                )
-                const byGroup = stat.metrics
-                    .filter((m: (typeof stat.metrics)[0]) => m.metricName === metricName && m.groupKey !== null)
-                    .reduce(
-                        (acc: Record<number, MetricResult>, m: (typeof stat.metrics)[0]) => {
-                            acc[m.groupKey!] = {
-                                value: m.value,
-                                ciLower: m.ciLower,
-                                ciUpper: m.ciUpper,
-                                nSamples: m.nSamples,
-                                reliability: {
-                                    code: m.reliabilityCode as ReliabilityCode,
-                                    message: m.reliabilityMessage,
-                                },
-                            }
-                            return acc
-                        },
-                        {} as Record<number, MetricResult>
-                    )
-
-                if (overall) {
-                    topKAccuracy[metricName] = {
-                        metricName,
-                        overall: {
-                            value: overall.value,
-                            ciLower: overall.ciLower,
-                            ciUpper: overall.ciUpper,
-                            nSamples: overall.nSamples,
-                            reliability: {
-                                code: overall.reliabilityCode,
-                                message: overall.reliabilityMessage,
-                            },
-                        },
-                        byGroup,
-                    }
-                }
-            }
-
-            if (Object.keys(topKAccuracy).length === 0) {
-                topKAccuracy = undefined
-            }
-        }
-
-        metricsMap.set(modelName, {
-            solvability,
-            ...(topKAccuracy && { topKAccuracy }),
-        })
-    }
-
-    return metricsMap
 }

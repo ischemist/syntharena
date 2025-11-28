@@ -1,6 +1,7 @@
 'use client'
 
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { BarChart3, Table2 } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Cell, ErrorBar, XAxis, YAxis } from 'recharts'
 
@@ -22,36 +23,49 @@ type BenchmarkMetricsDisplayProps = {
 // Create context for view mode (to share between toggle and display)
 type ViewModeContextType = {
     view: 'table' | 'chart'
-    setView: (view: 'table' | 'chart') => void
 }
 const ViewModeContext = createContext<ViewModeContextType>({
     view: 'table',
-    setView: () => {},
 })
 
 /**
- * Wrapper that manages view mode state and provides it via context.
+ * Wrapper that provides view mode from URL to children via context.
  * Must wrap both MetricsViewToggleButtons and BenchmarkMetricsDisplay.
+ * Following App Router Manifesto: URL is canon - view state is shareable.
  */
 export function MetricsViewProvider({ children }: { children: React.ReactNode }) {
-    const [view, setView] = useState<'table' | 'chart'>('table')
+    const searchParams = useSearchParams()
+    const view = (searchParams.get('view') as 'table' | 'chart') || 'table'
 
-    return <ViewModeContext.Provider value={{ view, setView }}>{children}</ViewModeContext.Provider>
+    return <ViewModeContext.Provider value={{ view }}>{children}</ViewModeContext.Provider>
 }
 
 /**
  * View toggle buttons for table/chart display.
- * Reads/writes view mode from context.
+ * Reads view mode from context, writes to URL.
  */
 export function MetricsViewToggleButtons() {
-    const { view, setView } = useContext(ViewModeContext)
+    const router = useRouter()
+    const pathname = usePathname()
+    const searchParams = useSearchParams()
+    const { view } = useContext(ViewModeContext)
+
+    const handleViewChange = (newView: 'table' | 'chart') => {
+        const params = new URLSearchParams(searchParams.toString())
+        if (newView === 'table') {
+            params.delete('view') // Default is table, keep URL clean
+        } else {
+            params.set('view', newView)
+        }
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    }
 
     return (
         <div className="flex gap-2">
             <Button
                 variant={view === 'table' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setView('table')}
+                onClick={() => handleViewChange('table')}
                 className="gap-2"
             >
                 <Table2 className="h-4 w-4" />
@@ -60,7 +74,7 @@ export function MetricsViewToggleButtons() {
             <Button
                 variant={view === 'chart' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setView('chart')}
+                onClick={() => handleViewChange('chart')}
                 className="gap-2"
             >
                 <BarChart3 className="h-4 w-4" />
