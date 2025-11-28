@@ -35,7 +35,7 @@ export async function StockList() {
                             <Link
                                 href={`/stocks/${stock.id}`}
                                 className="focus:ring-primary rounded-sm outline-none after:absolute after:inset-0 focus:ring-2"
-                                prefetch={true}
+                                prefetch={false}
                             >
                                 {stock.name}
                             </Link>
