@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 
-import { BreadcrumbNavigation } from '@/components/breadcrumbs'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
@@ -33,8 +32,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
     children,
+    breadcrumbs,
 }: Readonly<{
     children: React.ReactNode
+    breadcrumbs: React.ReactNode
 }>) {
     return (
         <html lang="en" suppressHydrationWarning>
@@ -47,7 +48,7 @@ export default function RootLayout({
                                 <div className="flex items-center gap-2 px-4">
                                     <SidebarTrigger className="-ml-1" />
                                     <Separator orientation="vertical" className="mr-2 h-4" />
-                                    <BreadcrumbNavigation />
+                                    {breadcrumbs}
                                 </div>
                             </header>
                             <div className="flex max-w-[1400px] flex-1 flex-col gap-4 pr-8 pl-6">{children}</div>
