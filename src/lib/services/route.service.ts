@@ -771,37 +771,15 @@ export async function loadBenchmarkFromFile(
                     const fileLength = targetData.ground_truth.length
                     const fileIsConvergent = targetData.ground_truth.has_convergent_reaction
 
-                    // Check if a route with this signature or contentHash already exists (global dedup)
-                    const existingRoute =
-                        signature && signature !== ''
-                            ? await tx.route.findFirst({
-                                  where: {
-                                      signature: signature,
-                                  },
-                                  select: { id: true, length: true, isConvergent: true },
-                              })
-                            : contentHash && contentHash !== ''
-                              ? await tx.route.findFirst({
-                                    where: {
-                                        contentHash: contentHash,
-                                    },
-                                    select: { id: true, length: true, isConvergent: true },
-                                })
-                              : null
-
+                    // Attempt to create route or reuse if exists (handles race conditions via unique constraints)
+                    const uniqueId = `${externalId}-${Date.now()}-${Math.random()}`
                     let routeId: string
                     let routeLength: number
                     let routeIsConvergent: boolean
+                    let isNewRoute = false
 
-                    if (existingRoute) {
-                        // Route already exists, reuse it
-                        routeId = existingRoute.id
-                        routeLength = existingRoute.length
-                        routeIsConvergent = existingRoute.isConvergent
-                    } else {
-                        // Create ground truth route (structure only, no prediction metadata)
-                        // Generate unique placeholders if signature/hash are missing (for tests/legacy data)
-                        const uniqueId = `${externalId}-${Date.now()}-${Math.random()}`
+                    try {
+                        // Try creating the route - will fail if signature/contentHash already exists
                         const route = await tx.route.create({
                             data: {
                                 contentHash:
@@ -813,6 +791,7 @@ export async function loadBenchmarkFromFile(
                             select: { id: true },
                         })
                         routeId = route.id
+                        isNewRoute = true
 
                         // Store route tree
                         const newMoleculesCreated = await storeRouteTree(route.id, targetData.ground_truth.target, tx)
@@ -839,6 +818,26 @@ export async function loadBenchmarkFromFile(
                         })
 
                         routesCreated++
+                    } catch (error) {
+                        // Route already exists (unique constraint violation) - find and reuse it
+                        const existingRoute =
+                            signature && signature !== ''
+                                ? await tx.route.findUnique({
+                                      where: { signature },
+                                      select: { id: true, length: true, isConvergent: true },
+                                  })
+                                : await tx.route.findUnique({
+                                      where: { contentHash },
+                                      select: { id: true, length: true, isConvergent: true },
+                                  })
+
+                        if (!existingRoute) {
+                            throw error // Not a duplicate key error, re-throw
+                        }
+
+                        routeId = existingRoute.id
+                        routeLength = existingRoute.length
+                        routeIsConvergent = existingRoute.isConvergent
                     }
 
                     // Update benchmark target to link to ground truth route and use properties

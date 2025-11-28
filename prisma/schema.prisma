@@ -167,7 +167,7 @@ model PredictionRoute {
 
   // Constraints
   @@unique([predictionRunId, targetId, rank]) // Each rank is unique per target/run
-  @@unique([routeId, predictionRunId, targetId]) // Same route predicted once per target/run
+  @@unique([routeId, predictionRunId, targetId]) // Prevents duplicate route structures per target/run (intentional)
   @@index([targetId, rank])
   @@index([predictionRunId])
   @@index([routeId])

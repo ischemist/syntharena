@@ -749,6 +749,9 @@ export async function createModelStatistics(
  * Call this after loading all predictions for a run.
  * NOTE: Now counts PredictionRoutes, not Routes (deduplication is enabled).
  *
+ * Uses a raw SQL query to perform aggregation in the database, avoiding
+ * high memory consumption for runs with a large number of routes.
+ *
  * @param predictionRunId - PredictionRun ID
  * @returns Updated PredictionRun
  * @throws Error if run not found
@@ -767,22 +770,19 @@ export async function updatePredictionRunStats(predictionRunId: string): Promise
         throw new Error(`Prediction run not found: ${predictionRunId}`)
     }
 
-    // Compute aggregate stats from PredictionRoutes
-    // Count number of predictions and average the route lengths
-    const predictionRoutes = await prisma.predictionRoute.findMany({
-        where: { predictionRunId },
-        select: {
-            route: {
-                select: {
-                    length: true,
-                },
-            },
-        },
-    })
+    // Compute aggregate stats using raw SQL to avoid loading all routes into memory
+    // This query counts predictions and calculates average route length in the database
+    const result = await prisma.$queryRaw<[{ totalRoutes: number; avgRouteLength: number | null }]>`
+        SELECT 
+            COUNT(*) as totalRoutes,
+            AVG(r.length) as avgRouteLength
+        FROM PredictionRoute pr
+        INNER JOIN Route r ON r.id = pr.routeId
+        WHERE pr.predictionRunId = ${predictionRunId}
+    `
 
-    const totalRoutes = predictionRoutes.length
-    const avgRouteLength =
-        totalRoutes > 0 ? predictionRoutes.reduce((sum, pr) => sum + pr.route.length, 0) / totalRoutes : 0
+    const totalRoutes = Number(result[0]?.totalRoutes ?? 0)
+    const avgRouteLength = result[0]?.avgRouteLength !== null ? Number(result[0].avgRouteLength) : 0
 
     // Update run record
     const updatedRun = await prisma.predictionRun.update({
