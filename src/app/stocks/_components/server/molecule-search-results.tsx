@@ -22,7 +22,11 @@ interface MoleculeSearchResultsProps {
 export async function MoleculeSearchResults({ query = '', stockId, page = 1, limit = 50 }: MoleculeSearchResultsProps) {
     const offset = (page - 1) * limit
     // Use optimized function that fetches molecules with stocks in a single query
-    const result = await stockService.searchStockMoleculesWithStocks(query, stockId, limit, offset)
+    const isSearching = query.trim().length > 0
+
+    const result = isSearching
+        ? await stockService.searchMolecules(query, stockId, limit, offset)
+        : await stockService.getStockMolecules(stockId, limit, offset)
 
     const moleculesWithStocks = result.molecules
 

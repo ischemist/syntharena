@@ -1,4 +1,5 @@
 import * as fs from 'fs/promises'
+import { cache } from 'react'
 import { Prisma } from '@prisma/client'
 
 import type { Molecule, MoleculeSearchResult, MoleculeWithStocks, StockListItem } from '@/types'
@@ -214,7 +215,7 @@ export async function getStocks(): Promise<StockListItem[]> {
  * @returns Stock with itemCount
  * @throws Error if stock not found
  */
-export async function getStockById(stockId: string): Promise<StockListItem> {
+async function _getStockById(stockId: string): Promise<StockListItem> {
     const stock = await prisma.stock.findUnique({
         where: { id: stockId },
         include: {
@@ -235,6 +236,8 @@ export async function getStockById(stockId: string): Promise<StockListItem> {
         itemCount: stock._count.items,
     }
 }
+
+export const getStockById = cache(_getStockById)
 
 /**
  * Searches for molecules by SMILES or InChiKey with optional stock filtering.
@@ -315,82 +318,124 @@ export async function searchStockMolecules(
 }
 
 /**
- * Searches for molecules by SMILES or InChiKey with optional stock filtering.
- * Returns molecules with their cross-stock information in a single optimized query.
- * This avoids the N+1 query problem by fetching related stocks in the same query.
+ * Fast path for browsing a specific stock.
+ * Uses the primary index on StockItem to efficiently paginate through molecules
+ * without needing to sort the entire Molecule table.
  *
- * @param query - Optional search term (SMILES or InChiKey prefix). If empty, shows all molecules.
- * @param stockId - Optional stock ID to filter results
- * @param limit - Maximum number of results (default 50, max 1000)
- * @param offset - Number of results to skip for pagination (default 0)
- * @returns Search results with molecules (including stocks) and pagination info
+ * Use this when:
+ * 1. Filtering by a specific stock ID
+ * 2. NO text search query is present
+ *
+ * @param stockId - The stock ID to browse
+ * @param limit - Max results (default 24)
+ * @param offset - Pagination offset
+ * @returns Molecules in the stock with pagination metadata
  */
-export async function searchStockMoleculesWithStocks(
-    query: string = '',
-    stockId?: string,
-    limit: number = 50,
+export async function getStockMolecules(
+    stockId: string,
+    limit: number = 24,
     offset: number = 0
 ): Promise<{ molecules: MoleculeWithStocks[]; total: number; hasMore: boolean }> {
-    // Sanitize and validate inputs
+    // 1. Get total from metadata (instant)
+    const stock = await prisma.stock.findUnique({
+        where: { id: stockId },
+        select: {
+            _count: {
+                select: { items: true },
+            },
+        },
+    })
+
+    if (!stock) throw new Error('Stock not found')
+    const total = stock._count.items
+
+    // 2. Efficient Index Walk on StockItem
+    const stockItems = await prisma.stockItem.findMany({
+        where: { stockId },
+        take: limit + 1,
+        skip: offset,
+        orderBy: { moleculeId: 'asc' }, // Stable sort using index
+        include: {
+            molecule: {
+                include: {
+                    stockItems: {
+                        include: {
+                            stock: { select: { id: true, name: true } },
+                        },
+                    },
+                },
+            },
+        },
+    })
+
+    const hasMore = stockItems.length > limit
+    const resultItems = hasMore ? stockItems.slice(0, limit) : stockItems
+
+    const molecules = resultItems.map((item) => ({
+        id: item.molecule.id,
+        smiles: item.molecule.smiles,
+        inchikey: item.molecule.inchikey,
+        stocks: item.molecule.stockItems.map((si) => ({
+            id: si.stock.id,
+            name: si.stock.name,
+        })),
+    }))
+
+    return { molecules, total, hasMore }
+}
+
+/**
+ * Slow path for searching molecules by SMILES/InChiKey.
+ * Performs a text scan on the Molecule table, optionally filtered by stock.
+ * This is computationally more expensive than getStockMolecules due to text matching.
+ *
+ * Use this when:
+ * 1. A search query string is present (e.g. "benzene")
+ * 2. OR searching across ALL stocks (no stockId)
+ *
+ * @param query - The search string (SMILES substring or InChiKey prefix)
+ * @param stockId - Optional stock ID to filter results
+ * @param limit - Max results (default 24)
+ * @param offset - Pagination offset
+ * @returns Search results with pagination metadata
+ */
+export async function searchMolecules(
+    query: string,
+    stockId?: string,
+    limit: number = 24,
+    offset: number = 0
+): Promise<{ molecules: MoleculeWithStocks[]; total: number; hasMore: boolean }> {
     const sanitizedQuery = query.trim()
-    const validLimit = Math.min(Math.max(1, limit), 1000)
-    const validOffset = Math.max(0, offset)
 
-    // Build base filter (stock filtering)
-    const baseFilter = stockId
-        ? {
-              stockItems: {
-                  some: { stockId },
-              },
-          }
-        : {}
+    // Build filters
+    const baseFilter = stockId ? { stockItems: { some: { stockId } } } : {}
+    const searchFilter = {
+        OR: [{ smiles: { contains: sanitizedQuery } }, { inchikey: { startsWith: sanitizedQuery.toUpperCase() } }],
+    }
 
-    // Build search filter (only if query provided)
-    const searchFilter = sanitizedQuery
-        ? {
-              OR: [
-                  { smiles: { contains: sanitizedQuery } },
-                  { inchikey: { startsWith: sanitizedQuery.toUpperCase() } },
-              ],
-          }
-        : {}
+    const whereClause = { AND: [baseFilter, searchFilter] }
 
-    // Combine filters
-    const whereClause =
-        sanitizedQuery && stockId
-            ? { AND: [baseFilter, searchFilter] }
-            : sanitizedQuery
-              ? searchFilter
-              : stockId
-                ? baseFilter
-                : {}
-
-    // Execute query with pagination - include stocks in main query
     const [molecules, total] = await Promise.all([
         prisma.molecule.findMany({
             where: whereClause,
             include: {
                 stockItems: {
                     include: {
-                        stock: {
-                            select: { id: true, name: true },
-                        },
+                        stock: { select: { id: true, name: true } },
                     },
                 },
             },
-            take: validLimit + 1,
-            skip: validOffset,
-            orderBy: { smiles: 'asc' },
+            take: limit + 1,
+            skip: offset,
+            orderBy: { smiles: 'asc' }, // Sorting here is unavoidable but filtered
         }),
         prisma.molecule.count({ where: whereClause }),
     ])
 
-    // Check if there are more results
-    const hasMore = molecules.length > validLimit
-    const resultMolecules = hasMore ? molecules.slice(0, validLimit) : molecules
+    const hasMore = molecules.length > limit
+    const resultMolecules = hasMore ? molecules.slice(0, limit) : molecules
 
-    // Transform to MoleculeWithStocks format
-    const transformedMolecules: MoleculeWithStocks[] = resultMolecules.map((molecule) => ({
+    const transformedMolecules = resultMolecules.map((molecule) => ({
         id: molecule.id,
         smiles: molecule.smiles,
         inchikey: molecule.inchikey,
@@ -400,11 +445,7 @@ export async function searchStockMoleculesWithStocks(
         })),
     }))
 
-    return {
-        molecules: transformedMolecules,
-        total,
-        hasMore,
-    }
+    return { molecules: transformedMolecules, total, hasMore }
 }
 
 /**
