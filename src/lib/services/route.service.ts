@@ -788,8 +788,14 @@ export async function loadBenchmarkFromFile(
                     const fileLength = targetData.ground_truth.length
                     const fileIsConvergent = targetData.ground_truth.has_convergent_reaction
 
+                    // Enforce data quality: ground truth routes must have contentHash and signature for deduplication
+                    if (!contentHash || !signature) {
+                        throw new Error(
+                            `Ground truth route for target ${externalId} is missing contentHash or signature. Cannot ensure deduplication.`
+                        )
+                    }
+
                     // Attempt to create route or reuse if exists (handles race conditions via unique constraints)
-                    const uniqueId = `${externalId}-${Date.now()}-${Math.random()}`
                     let routeId: string
                     let routeLength: number
                     let routeIsConvergent: boolean
@@ -798,9 +804,8 @@ export async function loadBenchmarkFromFile(
                         // Try creating the route - will fail if signature/contentHash already exists
                         const route = await tx.route.create({
                             data: {
-                                contentHash:
-                                    contentHash && contentHash !== '' ? contentHash : `placeholder-hash-${uniqueId}`,
-                                signature: signature && signature !== '' ? signature : `placeholder-sig-${uniqueId}`,
+                                contentHash,
+                                signature,
                                 length: 0, // Will be set below
                                 isConvergent: false, // Will be set below
                             },

@@ -446,7 +446,6 @@ export async function getTargetsByRun(
 
     const targetsWithMolecule: BenchmarkTargetWithMolecule[] = targets.map((t) => ({
         ...t,
-        molecule: t.molecule,
         hasGroundTruth: !!t.groundTruthRouteId,
         routeCount: t.predictionRoutes.length,
     }))
