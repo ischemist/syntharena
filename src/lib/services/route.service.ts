@@ -771,15 +771,23 @@ export async function loadBenchmarkFromFile(
                     const fileLength = targetData.ground_truth.length
                     const fileIsConvergent = targetData.ground_truth.has_convergent_reaction
 
-                    // Check if a route with this signature already exists (global dedup)
-                    const existingRoute = signature
-                        ? await tx.route.findFirst({
-                              where: {
-                                  signature: signature,
-                              },
-                              select: { id: true, length: true, isConvergent: true },
-                          })
-                        : null
+                    // Check if a route with this signature or contentHash already exists (global dedup)
+                    const existingRoute =
+                        signature && signature !== ''
+                            ? await tx.route.findFirst({
+                                  where: {
+                                      signature: signature,
+                                  },
+                                  select: { id: true, length: true, isConvergent: true },
+                              })
+                            : contentHash && contentHash !== ''
+                              ? await tx.route.findFirst({
+                                    where: {
+                                        contentHash: contentHash,
+                                    },
+                                    select: { id: true, length: true, isConvergent: true },
+                                })
+                              : null
 
                     let routeId: string
                     let routeLength: number
@@ -792,10 +800,13 @@ export async function loadBenchmarkFromFile(
                         routeIsConvergent = existingRoute.isConvergent
                     } else {
                         // Create ground truth route (structure only, no prediction metadata)
+                        // Generate unique placeholders if signature/hash are missing (for tests/legacy data)
+                        const uniqueId = `${externalId}-${Date.now()}-${Math.random()}`
                         const route = await tx.route.create({
                             data: {
-                                contentHash: contentHash ?? '',
-                                signature: signature ?? '',
+                                contentHash:
+                                    contentHash && contentHash !== '' ? contentHash : `placeholder-hash-${uniqueId}`,
+                                signature: signature && signature !== '' ? signature : `placeholder-sig-${uniqueId}`,
                                 length: 0, // Will be set below
                                 isConvergent: false, // Will be set below
                             },

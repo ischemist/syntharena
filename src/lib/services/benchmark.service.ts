@@ -122,6 +122,10 @@ export async function deleteBenchmark(benchmarkId: string): Promise<void> {
                 },
             },
         }),
+        // Delete prediction runs for this benchmark
+        prisma.predictionRun.deleteMany({
+            where: { benchmarkSetId: benchmarkId },
+        }),
         // Note: Route nodes and Routes may still be referenced by other predictions
         // Only delete routes that are ONLY used as ground truth for this benchmark
         // This is complex - for now, leave orphaned routes (they'll be cleaned up separately)

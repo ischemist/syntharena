@@ -345,15 +345,14 @@ describe('benchmark.service', () => {
         })
     })
 
-    describe.skip('getBenchmarkTargets - Filter by ground truth (TODO: update for new schema)', () => {
+    describe('getBenchmarkTargets - Filter by ground truth', () => {
         it('should filter targets with ground truth', async () => {
             const { benchmark, targets } = await createTestBenchmark('gt-filter', { targetCount: 3 })
 
-            // Add ground truth route to first target
+            // Add ground truth route to first target (ground truth routes don't use PredictionRoute)
             const route = await prisma.route.create({
                 data: {
-                    targetId: targets[0].id,
-                    rank: 1,
+                    signature: `gt-signature-${Date.now()}`,
                     contentHash: 'test-hash',
                     length: 0,
                     isConvergent: false,
@@ -381,7 +380,7 @@ describe('benchmark.service', () => {
         })
     })
 
-    describe.skip('getBenchmarkTargets - Filter by route length (TODO: update for new schema)', () => {
+    describe('getBenchmarkTargets - Filter by route length', () => {
         it('should filter targets by minimum route length', async () => {
             const { benchmark } = await createTestBenchmark('min-length-filter', { targetCount: 3 })
 
@@ -415,7 +414,7 @@ describe('benchmark.service', () => {
         })
     })
 
-    describe.skip('getBenchmarkTargets - Filter by convergence (TODO: update for new schema)', () => {
+    describe('getBenchmarkTargets - Filter by convergence', () => {
         it('should filter targets by convergence', async () => {
             const { benchmark } = await createTestBenchmark('convergence-filter', { targetCount: 3 })
 
@@ -457,7 +456,7 @@ describe('benchmark.service', () => {
         })
     })
 
-    describe.skip('getBenchmarkTargets - Combined filters (TODO: update for new schema)', () => {
+    describe('getBenchmarkTargets - Combined filters', () => {
         it('should apply multiple filters together', async () => {
             const { benchmark } = await createTestBenchmark('combined-filters', { targetCount: 5 })
 
@@ -534,10 +533,10 @@ describe('benchmark.service', () => {
         it('should count targets with ground truth', async () => {
             const { benchmark, targets } = await createTestBenchmark('gt-count-test', { targetCount: 3 })
 
+            // Ground truth routes are stored directly without PredictionRoute
             const route = await prisma.route.create({
                 data: {
-                    targetId: targets[0].id,
-                    rank: 1,
+                    signature: `gt-sig-${Date.now()}`,
                     contentHash: 'test-hash',
                     length: 0,
                     isConvergent: false,
@@ -619,44 +618,108 @@ describe('benchmark.service', () => {
             expect(targets).toHaveLength(0)
         })
 
-        it('should cascade delete routes when benchmark is deleted', async () => {
+        it('should cascade delete prediction routes but preserve shared routes when benchmark is deleted', async () => {
             const { benchmark, targets } = await createTestBenchmark('cascade-delete-test', {
                 targetCount: 1,
             })
 
-            // Create a route for the target
+            // Create a route and predictionRoute for the target
             const route = await prisma.route.create({
                 data: {
-                    targetId: targets[0].id,
-                    rank: 1,
-                    contentHash: 'test-hash',
+                    signature: `cascade-sig-${Date.now()}`,
+                    contentHash: `test-hash-${Date.now()}`,
                     length: 2,
                     isConvergent: false,
                 },
             })
 
+            // Create algorithm, model, and prediction run
+            const algorithm = await prisma.algorithm.create({
+                data: { name: `cascade-algo-${Date.now()}` },
+            })
+
+            const modelInstance = await prisma.modelInstance.create({
+                data: {
+                    algorithmId: algorithm.id,
+                    name: `cascade-model-${Date.now()}`,
+                },
+            })
+
+            const predictionRun = await prisma.predictionRun.create({
+                data: {
+                    modelInstanceId: modelInstance.id,
+                    benchmarkSetId: benchmark.id,
+                    totalRoutes: 1,
+                },
+            })
+
+            const predictionRoute = await prisma.predictionRoute.create({
+                data: {
+                    routeId: route.id,
+                    predictionRunId: predictionRun.id,
+                    targetId: targets[0].id,
+                    rank: 1,
+                },
+            })
+
             const routeId = route.id
+            const predictionRouteId = predictionRoute.id
 
             await deleteBenchmark(benchmark.id)
 
-            const deletedRoute = await prisma.route.findUnique({
+            // Routes are shared and should NOT be deleted
+            const notDeletedRoute = await prisma.route.findUnique({
                 where: { id: routeId },
             })
-            expect(deletedRoute).toBeNull()
+            expect(notDeletedRoute).not.toBeNull()
+
+            // But PredictionRoutes should be deleted
+            const deletedPredictionRoute = await prisma.predictionRoute.findUnique({
+                where: { id: predictionRouteId },
+            })
+            expect(deletedPredictionRoute).toBeNull()
         })
 
-        it('should cascade delete route nodes when benchmark is deleted', async () => {
+        it('should preserve route nodes when benchmark is deleted (routes are shared)', async () => {
             const { benchmark, targets } = await createTestBenchmark('cascade-nodes-test', {
                 targetCount: 1,
             })
 
             const route = await prisma.route.create({
                 data: {
-                    targetId: targets[0].id,
-                    rank: 1,
-                    contentHash: 'test-hash',
+                    signature: `nodes-sig-${Date.now()}`,
+                    contentHash: `test-hash-nodes-${Date.now()}`,
                     length: 1,
                     isConvergent: false,
+                },
+            })
+
+            // Create algorithm, model, and prediction run
+            const algorithm = await prisma.algorithm.create({
+                data: { name: `nodes-algo-${Date.now()}` },
+            })
+
+            const modelInstance = await prisma.modelInstance.create({
+                data: {
+                    algorithmId: algorithm.id,
+                    name: `nodes-model-${Date.now()}`,
+                },
+            })
+
+            const predictionRun = await prisma.predictionRun.create({
+                data: {
+                    modelInstanceId: modelInstance.id,
+                    benchmarkSetId: benchmark.id,
+                    totalRoutes: 1,
+                },
+            })
+
+            await prisma.predictionRoute.create({
+                data: {
+                    routeId: route.id,
+                    predictionRunId: predictionRun.id,
+                    targetId: targets[0].id,
+                    rank: 1,
                 },
             })
 
@@ -664,7 +727,7 @@ describe('benchmark.service', () => {
             const mol1 = await prisma.molecule.create({
                 data: {
                     smiles: 'C',
-                    inchikey: 'NODE-TEST-1',
+                    inchikey: `NODE-TEST-${Date.now()}`,
                 },
             })
 
@@ -680,10 +743,11 @@ describe('benchmark.service', () => {
 
             await deleteBenchmark(benchmark.id)
 
-            const deletedNode = await prisma.routeNode.findUnique({
+            // Route nodes should NOT be deleted (routes are shared across benchmarks)
+            const notDeletedNode = await prisma.routeNode.findUnique({
                 where: { id: nodeId },
             })
-            expect(deletedNode).toBeNull()
+            expect(notDeletedNode).not.toBeNull()
         })
 
         it('should throw error when benchmark not found', async () => {
