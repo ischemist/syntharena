@@ -17,20 +17,27 @@ interface MoleculeCardProps {
     index?: number // Add this prop
 }
 
+const ABOVE_THE_FOLD_COUNT = 12
+const RENDER_DELAY_MS = 30
+
+/**
+ * Client component that displays a single molecule card with structure visualization.
+ * Shows SMILES and InChiKey in a hover card with copy-to-clipboard functionality.
+ */
 export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
     const [copiedField, setCopiedField] = useState<'smiles' | 'inchikey' | null>(null)
 
     // TIME SLICING:
     // If index < 12 (likely "above the fold"), render immediately.
     // Otherwise, delay rendering to free up the main thread.
-    const [isReady, setIsReady] = useState(index < 12)
+    const [isReady, setIsReady] = useState(index < ABOVE_THE_FOLD_COUNT)
 
     useEffect(() => {
         if (isReady) return
 
         // Stagger calculation: 30ms per item
         // Item 50 waits 1.5 seconds. The browser remains interactive.
-        const delay = (index - 12) * 30
+        const delay = (index - ABOVE_THE_FOLD_COUNT) * RENDER_DELAY_MS
         const timer = setTimeout(() => setIsReady(true), delay)
 
         return () => clearTimeout(timer)

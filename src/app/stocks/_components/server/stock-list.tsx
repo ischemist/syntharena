@@ -4,6 +4,10 @@ import * as stockService from '@/lib/services/stock.service'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
+/**
+ * Server component that displays all available stocks with their molecule counts.
+ * Each stock row is clickable and navigates to the stock detail page.
+ */
 export async function StockList() {
     const stocks = await stockService.getStocks()
 
