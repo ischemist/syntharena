@@ -88,9 +88,6 @@ async function main() {
     }
 
     // Parse arguments
-    let filePath: string | undefined
-    let benchmarkName: string | undefined
-    let description: string | undefined
     let stockDbNameOverride: string | undefined
 
     // First two non-flag args are filePath and benchmarkName
@@ -104,9 +101,9 @@ async function main() {
         }
     }
 
-    filePath = nonFlagArgs[0]
-    benchmarkName = nonFlagArgs[1]
-    description = nonFlagArgs[2] // Optional
+    const filePath = nonFlagArgs[0]
+    const benchmarkName = nonFlagArgs[1]
+    const description = nonFlagArgs[2] // Optional
 
     // Resolve to absolute path
     const absolutePath = path.resolve(filePath)
@@ -127,7 +124,6 @@ async function main() {
         // Phase 9: Parse stock_name from file and resolve to stockId
         console.log('Parsing file metadata...')
         let stockName: string | undefined
-        let stockId: string
 
         try {
             const metadata = await new Promise<BenchmarkMetadata>((resolve, reject) => {
@@ -178,7 +174,7 @@ async function main() {
                     `Please load the stock first using: pnpm tsx scripts/load-stock.ts <csv-file> "${stockNameToResolve}"`
             )
         }
-        stockId = stock.id
+        const stockId = stock.id
         console.log(`✓ Resolved stock "${stock.name}" to ID: ${stockId}`)
         console.log('')
 
