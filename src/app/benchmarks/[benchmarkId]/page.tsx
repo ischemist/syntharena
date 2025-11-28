@@ -76,7 +76,7 @@ export default function BenchmarkDetailPage(props: BenchmarkDetailPageProps) {
                 <TargetGrid
                     benchmarkId={benchmarkId}
                     page={page}
-                    limit={24}
+                    limit={25}
                     searchQuery={q}
                     searchType={searchType}
                     isConvergent={isConvergent}

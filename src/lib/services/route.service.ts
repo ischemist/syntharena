@@ -100,7 +100,7 @@ export async function getRouteById(routeId: string): Promise<Route> {
  * @param routeId - Route ID to fetch all nodes for
  * @returns Complete route node tree
  */
-async function buildRouteNodeTree(rootNodeId: string, routeId: string): Promise<RouteNodeWithDetails> {
+async function _buildRouteNodeTree(rootNodeId: string, routeId: string): Promise<RouteNodeWithDetails> {
     // Fetch all nodes for this route in a single query
     const nodes = await prisma.routeNode.findMany({
         where: { routeId },
@@ -144,6 +144,15 @@ async function buildRouteNodeTree(rootNodeId: string, routeId: string): Promise<
 }
 
 /**
+ * Shared cached route node tree builder.
+ * OPTIMIZATION: React.cache ensures this function is only called once per request
+ * for the same arguments, even when used by multiple service functions.
+ * This prevents duplicate DB queries when getGroundTruthRouteData,
+ * getRouteTreeForVisualization, and getRouteTreeWithLayout are called together.
+ */
+const buildRouteNodeTree = cache(_buildRouteNodeTree)
+
+/**
  * Retrieves complete ground truth route tree for visualization.
  * Used for benchmark ground truth routes that are directly linked to targets.
  *
@@ -153,38 +162,38 @@ async function buildRouteNodeTree(rootNodeId: string, routeId: string): Promise<
  * @throws Error if route or target not found
  */
 async function _getGroundTruthRouteData(routeId: string, targetId: string): Promise<RouteVisualizationData> {
-    const route = await prisma.route.findUnique({
-        where: { id: routeId },
-    })
+    // Batch independent queries
+    const [route, target, rootNode] = await Promise.all([
+        prisma.route.findUnique({
+            where: { id: routeId },
+        }),
+        prisma.benchmarkTarget.findUnique({
+            where: { id: targetId },
+            include: {
+                molecule: true,
+            },
+        }),
+        prisma.routeNode.findFirst({
+            where: {
+                routeId,
+                parentId: null,
+            },
+        }),
+    ])
 
     if (!route) {
         throw new Error('Route not found')
     }
 
-    const target = await prisma.benchmarkTarget.findUnique({
-        where: { id: targetId },
-        include: {
-            molecule: true,
-        },
-    })
-
     if (!target) {
         throw new Error('Target not found')
     }
-
-    // Find root node
-    const rootNode = await prisma.routeNode.findFirst({
-        where: {
-            routeId,
-            parentId: null,
-        },
-    })
 
     if (!rootNode) {
         throw new Error('Route has no root node')
     }
 
-    // Build tree
+    // Build tree using shared function
     const tree = await buildRouteNodeTree(rootNode.id, routeId)
 
     return {
@@ -211,6 +220,7 @@ async function _getGroundTruthRouteData(routeId: string, targetId: string): Prom
     }
 }
 
+// Per-request cache wrapper
 export const getGroundTruthRouteData = cache(_getGroundTruthRouteData)
 
 /**
@@ -370,33 +380,35 @@ function transformToVisualizationTree(node: RouteNodeWithDetails): RouteVisualiz
  * @throws Error if route not found
  */
 async function _getRouteTreeForVisualization(routeId: string): Promise<RouteVisualizationNode> {
-    const route = await prisma.route.findUnique({
-        where: { id: routeId },
-    })
+    // Batch independent queries
+    const [route, rootNode] = await Promise.all([
+        prisma.route.findUnique({
+            where: { id: routeId },
+        }),
+        prisma.routeNode.findFirst({
+            where: {
+                routeId,
+                parentId: null,
+            },
+        }),
+    ])
 
     if (!route) {
         throw new Error('Route not found')
     }
 
-    // Find root node (node with no parent)
-    const rootNode = await prisma.routeNode.findFirst({
-        where: {
-            routeId,
-            parentId: null,
-        },
-    })
-
     if (!rootNode) {
         throw new Error('Route has no root node')
     }
 
-    // Build full tree with details (fetches all nodes in single query)
+    // Build tree using shared function
     const tree = await buildRouteNodeTree(rootNode.id, routeId)
 
     // Transform to visualization format
     return transformToVisualizationTree(tree)
 }
 
+// Per-request cache wrapper
 export const getRouteTreeForVisualization = cache(_getRouteTreeForVisualization)
 
 /**
@@ -416,8 +428,8 @@ async function _getRouteTreeWithLayout(
     nodes: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }>
     edges: Array<{ source: string; target: string }>
 }> {
-    // Get the visualization tree
-    const tree = await _getRouteTreeForVisualization(routeId)
+    // Get the visualization tree (internally uses shared buildRouteNodeTree via cache)
+    const tree = await getRouteTreeForVisualization(routeId)
 
     // Calculate layout server-side
     const layout = layoutTree(tree, idPrefix)
@@ -425,6 +437,7 @@ async function _getRouteTreeWithLayout(
     return layout
 }
 
+// Per-request cache wrapper
 export const getRouteTreeWithLayout = cache(_getRouteTreeWithLayout)
 
 // ============================================================================

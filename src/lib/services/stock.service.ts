@@ -240,10 +240,10 @@ async function _getStockById(stockId: string): Promise<StockListItem> {
 export const getStockById = cache(_getStockById)
 
 /**
- * Retrieves a stock by name with case-insensitive fuzzy matching.
- * Tries exact match first, then falls back to contains matching.
+ * Retrieves a stock by name with case-insensitive exact matching.
+ * This ensures deterministic stock associations for loading scripts.
  *
- * @param stockName - The stock name to search for
+ * @param stockName - The stock name to search for (case-insensitive)
  * @returns Stock with itemCount, or null if not found
  */
 async function _getStockByName(stockName: string): Promise<StockListItem | null> {
@@ -257,13 +257,8 @@ async function _getStockByName(stockName: string): Promise<StockListItem | null>
         },
     })
 
-    // Try exact match first (case-insensitive)
-    let stock = stocks.find((s) => s.name.toLowerCase() === stockName.toLowerCase())
-
-    // Fall back to contains if exact match fails
-    if (!stock) {
-        stock = stocks.find((s) => s.name.toLowerCase().includes(stockName.toLowerCase()))
-    }
+    // Exact match only (case-insensitive) to prevent ambiguous associations
+    const stock = stocks.find((s) => s.name.toLowerCase() === stockName.toLowerCase())
 
     if (!stock) {
         return null
