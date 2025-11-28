@@ -588,6 +588,8 @@ describe('route.service - Service Function Tests', () => {
                         ground_truth: {
                             target: singleMoleculePython,
                             rank: 1,
+                            content_hash: `hash-single-${Date.now()}`,
+                            signature: `sig-single-${Date.now()}`,
                         },
                         route_length: 0,
                         is_convergent: false,
@@ -634,7 +636,7 @@ describe('route.service - Service Function Tests', () => {
                             target: singleMoleculePython,
                             rank: 1,
                             content_hash: `hash-${Date.now()}-1`, // Unique hash
-                            signature: null,
+                            signature: `sig-${Date.now()}-1`,
                         },
                     },
                     'target-2': {
@@ -643,7 +645,7 @@ describe('route.service - Service Function Tests', () => {
                             target: linearChainPython,
                             rank: 1,
                             content_hash: `hash-${Date.now()}-2`, // Unique hash
-                            signature: null,
+                            signature: `sig-${Date.now()}-2`,
                         },
                     },
                 },
@@ -674,6 +676,8 @@ describe('route.service - Service Function Tests', () => {
                         ground_truth: {
                             target: linearChainPython,
                             rank: 1,
+                            content_hash: `hash-properties-${Date.now()}`,
+                            signature: `sig-properties-${Date.now()}`,
                         },
                     },
                 },
@@ -758,6 +762,8 @@ describe('route.service - Service Function Tests', () => {
                         ground_truth: {
                             target: singleMoleculePython,
                             rank: 1,
+                            content_hash: `hash-reuse-${Date.now()}`,
+                            signature: `sig-reuse-${Date.now()}`,
                         },
                     },
                 },
