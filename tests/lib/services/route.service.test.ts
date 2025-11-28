@@ -1,26 +1,22 @@
 /**
- * Tests for route.service.ts
+ * route.service.test.ts
  *
- * Focus: Testing the actual exported service functions
- * - getRouteById: Retrieve route by ID
- * - getRouteTreeData: Complete route tree for visualization
- * - getRoutesByTarget: All routes for a target
- * - getRouteTreeForVisualization: Simplified tree structure
- * - loadBenchmarkFromFile: Loading benchmarks from files
+ * Tests for route service functions:
+ * - getGroundTruthRouteData: Complete ground truth route tree for visualization
+ * - getRoutesByTarget: Fetching predicted routes for a target
+ * - getRouteTreeForVisualization: Complete visualization tree
  */
 
-import * as fs from 'fs/promises'
-import * as path from 'path'
-import * as zlib from 'zlib'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import prisma from '@/lib/db'
+import type { PythonRouteNode } from '@/types'
+import { db } from '@/lib/db'
 import {
+    createRouteFromPython,
+    getGroundTruthRouteData,
     getRouteById,
     getRoutesByTarget,
-    getRouteTreeData,
     getRouteTreeForVisualization,
-    loadBenchmarkFromFile,
 } from '@/lib/services/route.service'
 
 import {
@@ -247,11 +243,11 @@ describe('route.service - Service Function Tests', () => {
         })
     })
 
-    describe('getRouteTreeData', () => {
+    describe('getGroundTruthRouteData', () => {
         it('should retrieve complete route tree with target and root node', async () => {
             const { route, benchmarkTarget } = await createCompleteRoute(singleMoleculePython)
 
-            const result = await getRouteTreeData(route.id, undefined, benchmarkTarget.id)
+            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
 
             expect(result).toBeDefined()
             expect(result.route).toBeDefined()
@@ -262,7 +258,7 @@ describe('route.service - Service Function Tests', () => {
         it('should include molecule data in tree nodes', async () => {
             const { route, benchmarkTarget } = await createCompleteRoute(singleMoleculePython)
 
-            const result = await getRouteTreeData(route.id, undefined, benchmarkTarget.id)
+            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
 
             expect(result.rootNode.molecule).toBeDefined()
             expect(result.rootNode.molecule.smiles).toBe(singleMoleculePython.smiles)
@@ -272,7 +268,7 @@ describe('route.service - Service Function Tests', () => {
         it('should build complete tree structure for linear chain', async () => {
             const { route, benchmarkTarget } = await createCompleteRoute(linearChainPython)
 
-            const result = await getRouteTreeData(route.id, undefined, benchmarkTarget.id)
+            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
 
             expect(result.rootNode.children.length).toBe(1)
             expect(result.rootNode.children[0].children.length).toBe(1)
@@ -282,7 +278,7 @@ describe('route.service - Service Function Tests', () => {
         it('should build convergent tree structure', async () => {
             const { route, benchmarkTarget } = await createCompleteRoute(convergentRoutePython)
 
-            const result = await getRouteTreeData(route.id, undefined, benchmarkTarget.id)
+            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
 
             expect(result.rootNode.children.length).toBe(2)
             expect(result.rootNode.isLeaf).toBe(false)
@@ -296,14 +292,14 @@ describe('route.service - Service Function Tests', () => {
                 data: { groundTruthRouteId: route.id },
             })
 
-            const result = await getRouteTreeData(route.id, undefined, benchmarkTarget.id)
+            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
 
             expect(result.target.hasGroundTruth).toBe(true)
             expect(result.target.groundTruthRouteId).toBe(route.id)
         })
 
         it('should throw error when route not found', async () => {
-            await expect(getRouteTreeData('non-existent-id', undefined, 'fake-target-id')).rejects.toThrow(
+            await expect(getGroundTruthRouteData('non-existent-id', 'fake-target-id')).rejects.toThrow(
                 'Route not found'
             )
         })
@@ -311,7 +307,7 @@ describe('route.service - Service Function Tests', () => {
         it('should handle complex multi-level routes', async () => {
             const { route, benchmarkTarget } = await createCompleteRoute(complexRoutePython)
 
-            const result = await getRouteTreeData(route.id, undefined, benchmarkTarget.id)
+            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
 
             expect(result.rootNode).toBeDefined()
             expect(result.rootNode.children.length).toBeGreaterThan(0)

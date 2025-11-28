@@ -87,7 +87,7 @@ export async function RouteDisplayWithComparison({
         target = await benchmarkService.getTargetById(targetId)
 
         if (target.groundTruthRouteId) {
-            groundTruthRouteData = await routeService.getRouteTreeData(target.groundTruthRouteId)
+            groundTruthRouteData = await routeService.getGroundTruthRouteData(target.groundTruthRouteId, targetId)
             groundTruthRouteTree = await routeService.getRouteTreeForVisualization(target.groundTruthRouteId)
         }
 

@@ -100,7 +100,7 @@ export async function RouteDisplay({ targetId }: RouteDisplayProps) {
 
         // Fetch complete route data for JSON viewer
         if (target.groundTruthRouteId) {
-            routeData = await routeService.getRouteTreeData(target.groundTruthRouteId)
+            routeData = await routeService.getGroundTruthRouteData(target.groundTruthRouteId, targetId)
         }
     } catch (error) {
         console.error('Failed to load route display:', error)

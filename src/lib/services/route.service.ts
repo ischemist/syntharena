@@ -142,90 +142,15 @@ async function buildRouteNodeTree(rootNodeId: string, routeId: string): Promise<
 }
 
 /**
- * Retrieves complete route tree for visualization.
- * Can fetch either a ground truth route (by routeId) or a predicted route (by predictionRouteId).
+ * Retrieves complete ground truth route tree for visualization.
+ * Used for benchmark ground truth routes that are directly linked to targets.
  *
- * @param routeId - The route ID (for ground truth routes)
- * @param predictionRouteId - Optional: The prediction route ID (for predicted routes)
- * @param targetId - Optional: The target ID (required for ground truth routes to link to target)
+ * @param routeId - The route ID
+ * @param targetId - The target ID to link the route to
  * @returns Route with full node tree and target
- * @throws Error if route not found or if ground truth route is requested without targetId
+ * @throws Error if route or target not found
  */
-export async function getRouteTreeData(
-    routeId: string,
-    predictionRouteId?: string,
-    targetId?: string
-): Promise<RouteVisualizationData> {
-    // Case 1: Fetching a predicted route (has PredictionRoute)
-    if (predictionRouteId) {
-        const predictionRoute = await prisma.predictionRoute.findUnique({
-            where: { id: predictionRouteId },
-            include: {
-                route: true,
-                target: {
-                    include: {
-                        molecule: true,
-                    },
-                },
-            },
-        })
-
-        if (!predictionRoute) {
-            throw new Error('Prediction route not found')
-        }
-
-        // Find root node
-        const rootNode = await prisma.routeNode.findFirst({
-            where: {
-                routeId: predictionRoute.routeId,
-                parentId: null,
-            },
-        })
-
-        if (!rootNode) {
-            throw new Error('Route has no root node')
-        }
-
-        // Build tree
-        const tree = await buildRouteNodeTree(rootNode.id, predictionRoute.routeId)
-
-        return {
-            route: {
-                id: predictionRoute.route.id,
-                signature: predictionRoute.route.signature,
-                contentHash: predictionRoute.route.contentHash,
-                length: predictionRoute.route.length,
-                isConvergent: predictionRoute.route.isConvergent,
-            },
-            predictionRoute: {
-                id: predictionRoute.id,
-                routeId: predictionRoute.routeId,
-                predictionRunId: predictionRoute.predictionRunId,
-                targetId: predictionRoute.targetId,
-                rank: predictionRoute.rank,
-                metadata: predictionRoute.metadata,
-            },
-            target: {
-                id: predictionRoute.target.id,
-                benchmarkSetId: predictionRoute.target.benchmarkSetId,
-                targetId: predictionRoute.target.targetId,
-                moleculeId: predictionRoute.target.moleculeId,
-                routeLength: predictionRoute.target.routeLength,
-                isConvergent: predictionRoute.target.isConvergent,
-                metadata: predictionRoute.target.metadata,
-                groundTruthRouteId: predictionRoute.target.groundTruthRouteId,
-                molecule: predictionRoute.target.molecule,
-                hasGroundTruth: !!predictionRoute.target.groundTruthRouteId,
-            },
-            rootNode: tree,
-        }
-    }
-
-    // Case 2: Fetching a ground truth route (no PredictionRoute, requires targetId)
-    if (!targetId) {
-        throw new Error('targetId is required for ground truth routes')
-    }
-
+export async function getGroundTruthRouteData(routeId: string, targetId: string): Promise<RouteVisualizationData> {
     const route = await prisma.route.findUnique({
         where: { id: routeId },
     })
@@ -282,6 +207,96 @@ export async function getRouteTreeData(
         },
         rootNode: tree,
     }
+}
+
+/**
+ * Retrieves complete predicted route tree for visualization.
+ * Used for model predictions which are linked via PredictionRoute junction table.
+ *
+ * @param predictionRouteId - The prediction route ID (junction table)
+ * @returns Route with full node tree, target, and prediction metadata
+ * @throws Error if prediction route not found
+ */
+export async function getPredictedRouteData(predictionRouteId: string): Promise<RouteVisualizationData> {
+    const predictionRoute = await prisma.predictionRoute.findUnique({
+        where: { id: predictionRouteId },
+        include: {
+            route: true,
+            target: {
+                include: {
+                    molecule: true,
+                },
+            },
+        },
+    })
+
+    if (!predictionRoute) {
+        throw new Error('Prediction route not found')
+    }
+
+    // Find root node
+    const rootNode = await prisma.routeNode.findFirst({
+        where: {
+            routeId: predictionRoute.routeId,
+            parentId: null,
+        },
+    })
+
+    if (!rootNode) {
+        throw new Error('Route has no root node')
+    }
+
+    // Build tree
+    const tree = await buildRouteNodeTree(rootNode.id, predictionRoute.routeId)
+
+    return {
+        route: {
+            id: predictionRoute.route.id,
+            signature: predictionRoute.route.signature,
+            contentHash: predictionRoute.route.contentHash,
+            length: predictionRoute.route.length,
+            isConvergent: predictionRoute.route.isConvergent,
+        },
+        predictionRoute: {
+            id: predictionRoute.id,
+            routeId: predictionRoute.routeId,
+            predictionRunId: predictionRoute.predictionRunId,
+            targetId: predictionRoute.targetId,
+            rank: predictionRoute.rank,
+            metadata: predictionRoute.metadata,
+        },
+        target: {
+            id: predictionRoute.target.id,
+            benchmarkSetId: predictionRoute.target.benchmarkSetId,
+            targetId: predictionRoute.target.targetId,
+            moleculeId: predictionRoute.target.moleculeId,
+            routeLength: predictionRoute.target.routeLength,
+            isConvergent: predictionRoute.target.isConvergent,
+            metadata: predictionRoute.target.metadata,
+            groundTruthRouteId: predictionRoute.target.groundTruthRouteId,
+            molecule: predictionRoute.target.molecule,
+            hasGroundTruth: !!predictionRoute.target.groundTruthRouteId,
+        },
+        rootNode: tree,
+    }
+}
+
+/**
+ * @deprecated Use getGroundTruthRouteData or getPredictedRouteData instead.
+ * This function is kept for backward compatibility but will be removed in a future version.
+ */
+export async function getRouteTreeData(
+    routeId: string,
+    predictionRouteId?: string,
+    targetId?: string
+): Promise<RouteVisualizationData> {
+    if (predictionRouteId) {
+        return getPredictedRouteData(predictionRouteId)
+    }
+    if (!targetId) {
+        throw new Error('targetId is required for ground truth routes')
+    }
+    return getGroundTruthRouteData(routeId, targetId)
 }
 
 /**
