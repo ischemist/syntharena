@@ -2,9 +2,8 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 
 import { getBenchmarkSets } from '@/lib/services/benchmark.service'
-import { getLeaderboard, getMetricsByBenchmarkAndStock } from '@/lib/services/leaderboard.service'
+import { getLeaderboard, getStratifiedMetrics } from '@/lib/services/leaderboard.service'
 import { getStocks } from '@/lib/services/stock.service'
-import { Skeleton } from '@/components/ui/skeleton'
 
 import { PageLevelTopKSelector } from './_components/client/page-level-top-k-selector'
 import { StratifiedMetricsFilter } from './_components/client/stratified-metrics-filter'
@@ -98,6 +97,7 @@ async function BenchmarkHeaderWrapper({ searchParams }: { searchParams: Promise<
 
 /**
  * Server component that wraps all metrics content with page-level Top-K selector.
+ * Optimized: Fetches leaderboard and stocks in parallel to eliminate waterfall.
  */
 async function LeaderboardContent({ searchParams }: { searchParams: Promise<{ benchmarkId?: string }> }) {
     const benchmarkId = await getEffectiveBenchmarkId(searchParams)
@@ -107,8 +107,8 @@ async function LeaderboardContent({ searchParams }: { searchParams: Promise<{ be
         return null
     }
 
-    // Get leaderboard data for the selected benchmark
-    const entries = await getLeaderboard(benchmarkId)
+    // OPTIMIZATION: Fetch leaderboard and stocks in parallel
+    const [entries, stocks] = await Promise.all([getLeaderboard(benchmarkId), getStocks()])
 
     if (entries.length === 0) {
         return (
@@ -146,7 +146,7 @@ async function LeaderboardContent({ searchParams }: { searchParams: Promise<{ be
             <div className="flex flex-col gap-6">
                 <BenchmarkLeaderboardOverall entries={entries} hasGroundTruth={hasGroundTruth} stockName={stockName} />
                 <Suspense fallback={<LeaderboardCardSkeleton />}>
-                    <StratifiedMetricsWrapper benchmarkId={benchmarkId} metricNames={['Solvability']} />
+                    <StratifiedMetricsWrapper benchmarkId={benchmarkId} stocks={stocks} metricNames={['Solvability']} />
                 </Suspense>
             </div>
         )
@@ -162,6 +162,7 @@ async function LeaderboardContent({ searchParams }: { searchParams: Promise<{ be
                 <Suspense fallback={<LeaderboardCardSkeleton />}>
                     <StratifiedMetricsWrapper
                         benchmarkId={benchmarkId}
+                        stocks={stocks}
                         metricNames={['Solvability', ...sortedTopKNames]}
                     />
                 </Suspense>
@@ -172,63 +173,41 @@ async function LeaderboardContent({ searchParams }: { searchParams: Promise<{ be
 
 /**
  * Server component that renders stratified metric cards for each metric/stock combination.
+ * OPTIMIZED: Fetches all stratified metrics in one query, eliminating N+1 pattern.
  */
-async function StratifiedMetricsWrapper({ benchmarkId, metricNames }: { benchmarkId: string; metricNames: string[] }) {
-    const stocks = await getStocks()
-
+async function StratifiedMetricsWrapper({
+    benchmarkId,
+    stocks,
+    metricNames,
+}: {
+    benchmarkId: string
+    stocks: Awaited<ReturnType<typeof getStocks>>
+    metricNames: string[]
+}) {
     if (stocks.length === 0) {
         return null
     }
 
+    // OPTIMIZATION: Single query for all stocks' stratified metrics
+    const stockIds = stocks.map((s) => s.id)
+    const stratifiedMetricsMap = await getStratifiedMetrics(benchmarkId, stockIds)
+
     return (
         <>
-            {stocks.map((stock) => (
-                <div key={stock.id} className="flex flex-col gap-6">
-                    {metricNames.map((metricName) => (
-                        <Suspense
-                            key={`${stock.id}-${metricName}`}
-                            fallback={
-                                <div>
-                                    <Skeleton className="mb-4 h-6 w-64" />
-                                    <Skeleton className="h-64 w-full" />
-                                </div>
-                            }
-                        >
-                            <StratifiedMetricWrapper
-                                benchmarkId={benchmarkId}
-                                stockId={stock.id}
-                                metricName={metricName}
-                            />
-                        </Suspense>
-                    ))}
-                </div>
-            ))}
+            {stocks.map((stock) => {
+                const stockMetrics = stratifiedMetricsMap.get(stock.id)
+                if (!stockMetrics) return null
+
+                return (
+                    <div key={stock.id} className="flex flex-col gap-6">
+                        {metricNames.map((metricName) => (
+                            <StratifiedMetricsFilter key={`${stock.id}-${metricName}`} metricName={metricName}>
+                                <StratifiedMetricCard metricName={metricName} metricsMap={stockMetrics} />
+                            </StratifiedMetricsFilter>
+                        ))}
+                    </div>
+                )
+            })}
         </>
-    )
-}
-
-/**
- * Async wrapper that fetches and renders a single stratified metric card.
- * Wrapped with StratifiedMetricsFilter to only show selected Top-K metrics.
- */
-async function StratifiedMetricWrapper({
-    benchmarkId,
-    stockId,
-    metricName,
-}: {
-    benchmarkId: string
-    stockId: string
-    metricName: string
-}) {
-    const metricsMap = await getMetricsByBenchmarkAndStock(benchmarkId, stockId)
-
-    if (metricsMap.size === 0) {
-        return null
-    }
-
-    return (
-        <StratifiedMetricsFilter metricName={metricName}>
-            <StratifiedMetricCard metricName={metricName} metricsMap={metricsMap} />
-        </StratifiedMetricsFilter>
     )
 }
