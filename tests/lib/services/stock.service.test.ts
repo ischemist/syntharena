@@ -21,10 +21,11 @@ import {
     getMoleculesWithStocks,
     getMoleculeWithStocks,
     getStockById,
+    getStockMolecules,
     getStocks,
     loadStockFromFile,
+    searchMolecules,
     searchStockMolecules,
-    searchStockMoleculesWithStocks,
 } from '@/lib/services/stock.service'
 
 import {
@@ -440,18 +441,67 @@ describe('StockService', () => {
         })
     })
 
-    describe('searchStockMoleculesWithStocks', () => {
+    describe('getStockMolecules', () => {
         let stockId1: string
 
         beforeEach(async () => {
             const csvPath = await createTempCsvFile(validCsvContent)
-            const result1 = await loadStockFromFile(csvPath, 'stock-with-stocks-1')
-            await loadStockFromFile(csvPath, 'stock-with-stocks-2')
+            const result1 = await loadStockFromFile(csvPath, 'stock-molecules-1')
             stockId1 = result1.stockId
         })
 
         it('should return molecules with cross-stock information', async () => {
-            const result = await searchStockMoleculesWithStocks('C', stockId1)
+            const result = await getStockMolecules(stockId1)
+
+            expect(result.molecules.length).toBeGreaterThan(0)
+            const mol = result.molecules[0]
+            expect(mol.stocks).toBeDefined()
+            expect(Array.isArray(mol.stocks)).toBe(true)
+        })
+
+        it('should avoid N+1 queries', async () => {
+            // This is a quality check - the function should fetch all stock relations in one query
+            const result = await getStockMolecules(stockId1, 50)
+
+            // If N+1 existed, we'd see many queries. This passes if it returns successfully.
+            expect(result.molecules.length).toBeGreaterThan(0)
+            expect(result.molecules.every((m) => Array.isArray(m.stocks))).toBe(true)
+        })
+
+        it('should support pagination', async () => {
+            const result = await getStockMolecules(stockId1, 3, 0)
+
+            expect(result.molecules).toHaveLength(3)
+            expect(result.hasMore).toBe(true)
+        })
+
+        it('should return total count', async () => {
+            const result = await getStockMolecules(stockId1)
+
+            expect(result.total).toBe(7)
+        })
+
+        it('should indicate when more results available', async () => {
+            const result = await getStockMolecules(stockId1, 5)
+
+            expect(result.hasMore).toBe(true)
+            expect(result.molecules).toHaveLength(5)
+            expect(result.total).toBe(7)
+        })
+    })
+
+    describe('searchMolecules', () => {
+        let stockId1: string
+
+        beforeEach(async () => {
+            const csvPath = await createTempCsvFile(validCsvContent)
+            const result1 = await loadStockFromFile(csvPath, 'search-molecules-1')
+            await loadStockFromFile(csvPath, 'search-molecules-2')
+            stockId1 = result1.stockId
+        })
+
+        it('should return molecules with cross-stock information', async () => {
+            const result = await searchMolecules('C', stockId1)
 
             expect(result.molecules.length).toBeGreaterThan(0)
             const mol = result.molecules[0]
@@ -460,7 +510,7 @@ describe('StockService', () => {
         })
 
         it('should include all stocks for molecules in multiple stocks', async () => {
-            const result = await searchStockMoleculesWithStocks('C')
+            const result = await searchMolecules('C')
 
             // First molecule (C) should be in both stocks
             const methane = result.molecules.find((m) => m.smiles === 'C')
@@ -471,7 +521,7 @@ describe('StockService', () => {
 
         it('should avoid N+1 queries', async () => {
             // This is a quality check - the function should fetch all stock relations in one query
-            const result = await searchStockMoleculesWithStocks('', stockId1, 50)
+            const result = await searchMolecules('', stockId1, 50)
 
             // If N+1 existed, we'd see many queries. This passes if it returns successfully.
             expect(result.molecules.length).toBeGreaterThan(0)
@@ -479,7 +529,7 @@ describe('StockService', () => {
         })
 
         it('should support pagination', async () => {
-            const result = await searchStockMoleculesWithStocks('', undefined, 3, 0)
+            const result = await searchMolecules('', stockId1, 3, 0)
 
             expect(result.molecules).toHaveLength(3)
             expect(result.hasMore).toBe(true)
@@ -704,7 +754,7 @@ describe('StockService', () => {
             expect(stocks).toHaveLength(2)
 
             // 3. Search for molecules
-            const searchResults = await searchStockMoleculesWithStocks('CC')
+            const searchResults = await searchMolecules('CC')
             expect(searchResults.molecules.length).toBeGreaterThan(0)
 
             // 4. Check availability
