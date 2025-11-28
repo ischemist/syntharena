@@ -24,7 +24,7 @@ export function BreadcrumbShell({ items }: { items: Crumb[] }) {
                 {items.map((item, index) => {
                     const isLast = index === items.length - 1
                     return (
-                        <Fragment key={index}>
+                        <Fragment key={item.href || item.label}>
                             <BreadcrumbSeparator className="hidden md:block" />
                             <BreadcrumbItem className={index === 0 ? 'hidden md:block' : ''}>
                                 {isLast || !item.href ? (
