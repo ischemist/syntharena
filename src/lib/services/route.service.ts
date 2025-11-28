@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import * as zlib from 'zlib'
+import { cache } from 'react'
 import { Prisma } from '@prisma/client'
 
 import type {
@@ -150,7 +151,7 @@ async function buildRouteNodeTree(rootNodeId: string, routeId: string): Promise<
  * @returns Route with full node tree and target
  * @throws Error if route or target not found
  */
-export async function getGroundTruthRouteData(routeId: string, targetId: string): Promise<RouteVisualizationData> {
+async function _getGroundTruthRouteData(routeId: string, targetId: string): Promise<RouteVisualizationData> {
     const route = await prisma.route.findUnique({
         where: { id: routeId },
     })
@@ -209,6 +210,8 @@ export async function getGroundTruthRouteData(routeId: string, targetId: string)
     }
 }
 
+export const getGroundTruthRouteData = cache(_getGroundTruthRouteData)
+
 /**
  * Retrieves complete predicted route tree for visualization.
  * Used for model predictions which are linked via PredictionRoute junction table.
@@ -217,7 +220,7 @@ export async function getGroundTruthRouteData(routeId: string, targetId: string)
  * @returns Route with full node tree, target, and prediction metadata
  * @throws Error if prediction route not found
  */
-export async function getPredictedRouteData(predictionRouteId: string): Promise<RouteVisualizationData> {
+async function _getPredictedRouteData(predictionRouteId: string): Promise<RouteVisualizationData> {
     const predictionRoute = await prisma.predictionRoute.findUnique({
         where: { id: predictionRouteId },
         include: {
@@ -281,6 +284,8 @@ export async function getPredictedRouteData(predictionRouteId: string): Promise<
     }
 }
 
+export const getPredictedRouteData = cache(_getPredictedRouteData)
+
 /**
  * @deprecated Use getGroundTruthRouteData or getPredictedRouteData instead.
  * This function is kept for backward compatibility but will be removed in a future version.
@@ -291,12 +296,12 @@ export async function getRouteTreeData(
     targetId?: string
 ): Promise<RouteVisualizationData> {
     if (predictionRouteId) {
-        return getPredictedRouteData(predictionRouteId)
+        return _getPredictedRouteData(predictionRouteId)
     }
     if (!targetId) {
         throw new Error('targetId is required for ground truth routes')
     }
-    return getGroundTruthRouteData(routeId, targetId)
+    return _getGroundTruthRouteData(routeId, targetId)
 }
 
 /**
@@ -363,7 +368,7 @@ function transformToVisualizationTree(node: RouteNodeWithDetails): RouteVisualiz
  * @returns Route tree with SMILES and InChiKey hierarchy
  * @throws Error if route not found
  */
-export async function getRouteTreeForVisualization(routeId: string): Promise<RouteVisualizationNode> {
+async function _getRouteTreeForVisualization(routeId: string): Promise<RouteVisualizationNode> {
     const route = await prisma.route.findUnique({
         where: { id: routeId },
     })
@@ -390,6 +395,8 @@ export async function getRouteTreeForVisualization(routeId: string): Promise<Rou
     // Transform to visualization format
     return transformToVisualizationTree(tree)
 }
+
+export const getRouteTreeForVisualization = cache(_getRouteTreeForVisualization)
 
 // ============================================================================
 // Benchmark Loading Functions
