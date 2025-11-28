@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import * as zlib from 'zlib'
+import { cache } from 'react'
 import { Prisma } from '@prisma/client'
 
 import type {
@@ -10,6 +11,7 @@ import type {
     RouteVisualizationNode,
 } from '@/types'
 import prisma from '@/lib/db'
+import { layoutTree } from '@/lib/route-visualization/layout'
 
 // ============================================================================
 // Types for internal use (from Python retrocast models)
@@ -98,7 +100,7 @@ export async function getRouteById(routeId: string): Promise<Route> {
  * @param routeId - Route ID to fetch all nodes for
  * @returns Complete route node tree
  */
-async function buildRouteNodeTree(rootNodeId: string, routeId: string): Promise<RouteNodeWithDetails> {
+async function _buildRouteNodeTree(rootNodeId: string, routeId: string): Promise<RouteNodeWithDetails> {
     // Fetch all nodes for this route in a single query
     const nodes = await prisma.routeNode.findMany({
         where: { routeId },
@@ -142,6 +144,15 @@ async function buildRouteNodeTree(rootNodeId: string, routeId: string): Promise<
 }
 
 /**
+ * Shared cached route node tree builder.
+ * OPTIMIZATION: React.cache ensures this function is only called once per request
+ * for the same arguments, even when used by multiple service functions.
+ * This prevents duplicate DB queries when getGroundTruthRouteData,
+ * getRouteTreeForVisualization, and getRouteTreeWithLayout are called together.
+ */
+const buildRouteNodeTree = cache(_buildRouteNodeTree)
+
+/**
  * Retrieves complete ground truth route tree for visualization.
  * Used for benchmark ground truth routes that are directly linked to targets.
  *
@@ -150,39 +161,39 @@ async function buildRouteNodeTree(rootNodeId: string, routeId: string): Promise<
  * @returns Route with full node tree and target
  * @throws Error if route or target not found
  */
-export async function getGroundTruthRouteData(routeId: string, targetId: string): Promise<RouteVisualizationData> {
-    const route = await prisma.route.findUnique({
-        where: { id: routeId },
-    })
+async function _getGroundTruthRouteData(routeId: string, targetId: string): Promise<RouteVisualizationData> {
+    // Batch independent queries
+    const [route, target, rootNode] = await Promise.all([
+        prisma.route.findUnique({
+            where: { id: routeId },
+        }),
+        prisma.benchmarkTarget.findUnique({
+            where: { id: targetId },
+            include: {
+                molecule: true,
+            },
+        }),
+        prisma.routeNode.findFirst({
+            where: {
+                routeId,
+                parentId: null,
+            },
+        }),
+    ])
 
     if (!route) {
         throw new Error('Route not found')
     }
 
-    const target = await prisma.benchmarkTarget.findUnique({
-        where: { id: targetId },
-        include: {
-            molecule: true,
-        },
-    })
-
     if (!target) {
         throw new Error('Target not found')
     }
-
-    // Find root node
-    const rootNode = await prisma.routeNode.findFirst({
-        where: {
-            routeId,
-            parentId: null,
-        },
-    })
 
     if (!rootNode) {
         throw new Error('Route has no root node')
     }
 
-    // Build tree
+    // Build tree using shared function
     const tree = await buildRouteNodeTree(rootNode.id, routeId)
 
     return {
@@ -209,6 +220,9 @@ export async function getGroundTruthRouteData(routeId: string, targetId: string)
     }
 }
 
+// Per-request cache wrapper
+export const getGroundTruthRouteData = cache(_getGroundTruthRouteData)
+
 /**
  * Retrieves complete predicted route tree for visualization.
  * Used for model predictions which are linked via PredictionRoute junction table.
@@ -217,7 +231,7 @@ export async function getGroundTruthRouteData(routeId: string, targetId: string)
  * @returns Route with full node tree, target, and prediction metadata
  * @throws Error if prediction route not found
  */
-export async function getPredictedRouteData(predictionRouteId: string): Promise<RouteVisualizationData> {
+async function _getPredictedRouteData(predictionRouteId: string): Promise<RouteVisualizationData> {
     const predictionRoute = await prisma.predictionRoute.findUnique({
         where: { id: predictionRouteId },
         include: {
@@ -281,6 +295,8 @@ export async function getPredictedRouteData(predictionRouteId: string): Promise<
     }
 }
 
+export const getPredictedRouteData = cache(_getPredictedRouteData)
+
 /**
  * @deprecated Use getGroundTruthRouteData or getPredictedRouteData instead.
  * This function is kept for backward compatibility but will be removed in a future version.
@@ -291,12 +307,12 @@ export async function getRouteTreeData(
     targetId?: string
 ): Promise<RouteVisualizationData> {
     if (predictionRouteId) {
-        return getPredictedRouteData(predictionRouteId)
+        return _getPredictedRouteData(predictionRouteId)
     }
     if (!targetId) {
         throw new Error('targetId is required for ground truth routes')
     }
-    return getGroundTruthRouteData(routeId, targetId)
+    return _getGroundTruthRouteData(routeId, targetId)
 }
 
 /**
@@ -363,33 +379,66 @@ function transformToVisualizationTree(node: RouteNodeWithDetails): RouteVisualiz
  * @returns Route tree with SMILES and InChiKey hierarchy
  * @throws Error if route not found
  */
-export async function getRouteTreeForVisualization(routeId: string): Promise<RouteVisualizationNode> {
-    const route = await prisma.route.findUnique({
-        where: { id: routeId },
-    })
+async function _getRouteTreeForVisualization(routeId: string): Promise<RouteVisualizationNode> {
+    // Batch independent queries
+    const [route, rootNode] = await Promise.all([
+        prisma.route.findUnique({
+            where: { id: routeId },
+        }),
+        prisma.routeNode.findFirst({
+            where: {
+                routeId,
+                parentId: null,
+            },
+        }),
+    ])
 
     if (!route) {
         throw new Error('Route not found')
     }
 
-    // Find root node (node with no parent)
-    const rootNode = await prisma.routeNode.findFirst({
-        where: {
-            routeId,
-            parentId: null,
-        },
-    })
-
     if (!rootNode) {
         throw new Error('Route has no root node')
     }
 
-    // Build full tree with details (fetches all nodes in single query)
+    // Build tree using shared function
     const tree = await buildRouteNodeTree(rootNode.id, routeId)
 
     // Transform to visualization format
     return transformToVisualizationTree(tree)
 }
+
+// Per-request cache wrapper
+export const getRouteTreeForVisualization = cache(_getRouteTreeForVisualization)
+
+/**
+ * Retrieves a route tree with pre-calculated layout positions.
+ * Performs all layout calculations server-side to minimize client-side work.
+ * Returns positioned nodes and edges ready for React Flow rendering.
+ *
+ * @param routeId - The route ID
+ * @param idPrefix - Prefix for node IDs (e.g., "gt-route-", "pred1-")
+ * @returns Object with positioned nodes array and edges array
+ * @throws Error if route not found
+ */
+async function _getRouteTreeWithLayout(
+    routeId: string,
+    idPrefix: string
+): Promise<{
+    nodes: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }>
+    edges: Array<{ source: string; target: string }>
+}> {
+    // Get the visualization tree (internally uses shared buildRouteNodeTree via cache)
+    const tree = await getRouteTreeForVisualization(routeId)
+
+    // Calculate layout server-side
+    const layout = layoutTree(tree, idPrefix)
+
+    return layout
+}
+
+// Per-request cache wrapper
+export const getRouteTreeWithLayout = cache(_getRouteTreeWithLayout)
 
 // ============================================================================
 // Benchmark Loading Functions

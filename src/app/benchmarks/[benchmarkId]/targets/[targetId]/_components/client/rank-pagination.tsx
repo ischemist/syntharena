@@ -1,7 +1,8 @@
 'use client'
 
+import { useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
+import { ChevronLeftIcon, ChevronRightIcon, Loader2Icon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 
@@ -15,22 +16,32 @@ interface RankPaginationProps {
 /**
  * Pagination-style control for navigating through route ranks.
  * Shows [◀ Prev] Rank X of Y [Next ▶] with disabled states at boundaries.
+ *
+ * Phase 7 optimization:
+ * - Uses useTransition for optimistic UI updates
+ * - Shows loading spinner instead of unmounting entire UI
+ * - Keeps old content visible while new data loads
  */
 export function RankPagination({ paramName, currentRank, maxRank, label }: RankPaginationProps) {
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
+    const [isPending, startTransition] = useTransition()
 
     const handleRankChange = (newRank: number) => {
         if (newRank < 1 || newRank > maxRank) return
 
         const params = new URLSearchParams(searchParams.toString())
         params.set(paramName, newRank.toString())
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+
+        // Phase 7: Wrap navigation in startTransition for optimistic UI
+        startTransition(() => {
+            router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+        })
     }
 
-    const isPrevDisabled = currentRank <= 1
-    const isNextDisabled = currentRank >= maxRank
+    const isPrevDisabled = currentRank <= 1 || isPending
+    const isNextDisabled = currentRank >= maxRank || isPending
 
     return (
         <div className="flex items-center gap-2">
@@ -46,8 +57,9 @@ export function RankPagination({ paramName, currentRank, maxRank, label }: RankP
                     <ChevronLeftIcon className="h-4 w-4" />
                     <span className="hidden sm:inline">Prev</span>
                 </Button>
-                <span className="px-3 text-sm text-gray-700 dark:text-gray-300">
+                <span className="flex items-center gap-2 px-3 text-sm text-gray-700 dark:text-gray-300">
                     Rank {currentRank} of {maxRank}
+                    {isPending && <Loader2Icon className="h-3 w-3 animate-spin text-gray-500" />}
                 </span>
                 <Button
                     variant="outline"

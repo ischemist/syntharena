@@ -17,9 +17,12 @@ const nodeTypes = {
 }
 
 interface RouteGraphProps {
-    route: RouteVisualizationNode
+    route?: RouteVisualizationNode
     inStockInchiKeys: Set<string>
     idPrefix?: string
+    // Pre-calculated layout from server (Phase 3 optimization)
+    preCalculatedNodes?: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }>
+    preCalculatedEdges?: Array<{ source: string; target: string }>
 }
 
 /**
@@ -32,18 +35,60 @@ interface RouteGraphProps {
  * - Stock availability highlighting (InChiKey-based)
  * - Pan and zoom controls
  * - Responsive layout
+ *
+ * Phase 3 optimization:
+ * - Accepts pre-calculated layout from server to skip client-side positioning
+ * - Falls back to client-side layout if not provided (backward compatibility)
  */
-export function RouteGraph({ route, inStockInchiKeys, idPrefix = 'route-' }: RouteGraphProps) {
+export function RouteGraph({
+    route,
+    inStockInchiKeys,
+    idPrefix = 'route-',
+    preCalculatedNodes,
+    preCalculatedEdges,
+}: RouteGraphProps) {
     const { theme } = useTheme()
 
     // Memoize graph building to avoid unnecessary recalculations
     const { initialNodes, initialEdges } = useMemo(() => {
+        // Phase 3: Use server-calculated layout if available
+        if (preCalculatedNodes && preCalculatedEdges) {
+            const nodes: Node<RouteGraphNode>[] = preCalculatedNodes.map((n) => {
+                const inStock = inStockInchiKeys.has(n.inchikey)
+                return {
+                    id: n.id,
+                    type: 'molecule',
+                    position: { x: n.x, y: n.y },
+                    data: {
+                        smiles: n.smiles,
+                        status: inStock ? 'in-stock' : 'default',
+                        inStock,
+                    },
+                }
+            })
+
+            const edges: Edge[] = preCalculatedEdges.map((e, idx) => ({
+                id: `${idPrefix}edge-${idx}`,
+                source: e.source,
+                target: e.target,
+                animated: false,
+                style: { stroke: '#94a3b8', strokeWidth: 2 },
+            }))
+
+            return { initialNodes: nodes, initialEdges: edges }
+        }
+
+        // Fallback: Client-side layout calculation (backward compatibility)
+        if (!route) {
+            throw new Error('RouteGraph requires either route or preCalculatedNodes/preCalculatedEdges')
+        }
+
         const { nodes, edges } = buildRouteGraph(route, inStockInchiKeys, idPrefix)
         return {
             initialNodes: nodes as Node<RouteGraphNode>[],
             initialEdges: edges as Edge[],
         }
-    }, [route, inStockInchiKeys, idPrefix])
+    }, [route, inStockInchiKeys, idPrefix, preCalculatedNodes, preCalculatedEdges])
 
     const [nodes, , onNodesChange] = useNodesState(initialNodes)
     const [edges, , onEdgesChange] = useEdgesState(initialEdges)

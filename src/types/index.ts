@@ -48,7 +48,7 @@ export interface MoleculeWithStocks extends Molecule {
 export interface Stock {
     id: string
     name: string
-    description?: string
+    description?: string | null
 }
 
 /**
@@ -96,12 +96,14 @@ export interface MoleculeSearchResult {
 /**
  * Represents a benchmark set - a collection of retrosynthesis problems.
  * Matches the Python BenchmarkSet model from retrocast.
+ * Phase 9: Now requires stockId for direct reference (no runtime lookups).
  */
 export interface BenchmarkSet {
     id: string
     name: string
     description?: string | null
-    stockName?: string | null
+    stockId: string // REQUIRED: Direct reference to stock (enforced by DB)
+    stock?: Stock // Optional: included when relation is loaded
     createdAt: Date
 }
 
@@ -111,6 +113,7 @@ export interface BenchmarkSet {
  */
 export interface BenchmarkListItem extends BenchmarkSet {
     targetCount: number
+    stock: Stock // REQUIRED in list views for display
 }
 
 /**
@@ -230,11 +233,12 @@ export interface BenchmarkStats {
 
 /**
  * Input for creating a new benchmark set.
+ * Phase 9: stockId is now required (no more runtime lookups).
  */
 export interface CreateBenchmarkInput {
     name: string
     description?: string
-    stockName?: string
+    stockId: string // REQUIRED: Must reference an existing stock
 }
 
 /**

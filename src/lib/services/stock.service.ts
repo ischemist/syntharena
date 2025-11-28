@@ -240,6 +240,41 @@ async function _getStockById(stockId: string): Promise<StockListItem> {
 export const getStockById = cache(_getStockById)
 
 /**
+ * Retrieves a stock by name with case-insensitive exact matching.
+ * This ensures deterministic stock associations for loading scripts.
+ *
+ * @param stockName - The stock name to search for (case-insensitive)
+ * @returns Stock with itemCount, or null if not found
+ */
+async function _getStockByName(stockName: string): Promise<StockListItem | null> {
+    // Fetch all stocks and do case-insensitive matching in memory
+    // This is acceptable since stock count is typically small (<100)
+    const stocks = await prisma.stock.findMany({
+        include: {
+            _count: {
+                select: { items: true },
+            },
+        },
+    })
+
+    // Exact match only (case-insensitive) to prevent ambiguous associations
+    const stock = stocks.find((s) => s.name.toLowerCase() === stockName.toLowerCase())
+
+    if (!stock) {
+        return null
+    }
+
+    return {
+        id: stock.id,
+        name: stock.name,
+        description: stock.description || undefined,
+        itemCount: stock._count.items,
+    }
+}
+
+export const getStockByName = cache(_getStockByName)
+
+/**
  * Searches for molecules by SMILES or InChiKey with optional stock filtering.
  * Uses prefix matching for efficient indexed search.
  * If no query is provided, returns all molecules (optionally filtered by stock).

@@ -46,11 +46,7 @@ export async function BenchmarkList() {
                             <Badge variant="secondary">{benchmark.targetCount.toLocaleString()}</Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                            {benchmark.stockName ? (
-                                <Badge variant="outline">{benchmark.stockName}</Badge>
-                            ) : (
-                                <span className="text-muted-foreground">—</span>
-                            )}
+                            <Badge variant="outline">{benchmark.stock.name}</Badge>
                         </TableCell>
                     </TableRow>
                 ))}

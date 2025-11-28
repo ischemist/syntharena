@@ -144,12 +144,23 @@ const storeRouteInDatabase = async (pythonRoute: PythonMolecule, routeId: string
 }
 
 /**
+ * Helper to create a test stock
+ */
+const createTestStock = async () => {
+    return await prisma.stock.create({
+        data: { name: `test-stock-${Date.now()}-${Math.random()}` },
+    })
+}
+
+/**
  * Helper to create a complete route setup
  */
 const createCompleteRoute = async (pythonRoute: PythonMolecule) => {
+    const stock = await createTestStock()
     const benchmark = await prisma.benchmarkSet.create({
         data: {
             name: `test-benchmark-${Date.now()}-${Math.random()}`,
+            stockId: stock.id,
         },
     })
 
@@ -326,8 +337,12 @@ describe('route.service - Service Function Tests', () => {
 
     describe('getRoutesByTarget', () => {
         it('should return empty array when no routes exist', async () => {
+            const stock = await createTestStock()
             const benchmark = await prisma.benchmarkSet.create({
-                data: { name: 'test-benchmark' },
+                data: {
+                    name: 'test-benchmark',
+                    stockId: stock.id,
+                },
             })
 
             const mol = await prisma.molecule.create({
@@ -576,8 +591,12 @@ describe('route.service - Service Function Tests', () => {
         }
 
         it('should load benchmark from file with single target', async () => {
+            const stock = await createTestStock()
             const benchmark = await prisma.benchmarkSet.create({
-                data: { name: 'test-load-benchmark' },
+                data: {
+                    name: 'test-load-benchmark',
+                    stockId: stock.id,
+                },
             })
 
             const benchmarkData = {
@@ -613,8 +632,12 @@ describe('route.service - Service Function Tests', () => {
         })
 
         it('should throw error when file does not exist', async () => {
+            const stock = await createTestStock()
             const benchmark = await prisma.benchmarkSet.create({
-                data: { name: 'test-benchmark' },
+                data: {
+                    name: 'test-benchmark',
+                    stockId: stock.id,
+                },
             })
 
             await expect(loadBenchmarkFromFile('/non/existent/file.json.gz', benchmark.id, 'Test')).rejects.toThrow(
@@ -623,8 +646,12 @@ describe('route.service - Service Function Tests', () => {
         })
 
         it('should load multiple targets from file', async () => {
+            const stock = await createTestStock()
             const benchmark = await prisma.benchmarkSet.create({
-                data: { name: 'test-multi-benchmark' },
+                data: {
+                    name: 'test-multi-benchmark',
+                    stockId: stock.id,
+                },
             })
 
             const benchmarkData = {
@@ -635,7 +662,7 @@ describe('route.service - Service Function Tests', () => {
                         ground_truth: {
                             target: singleMoleculePython,
                             rank: 1,
-                            content_hash: `hash-${Date.now()}-1`, // Unique hash
+                            content_hash: `hash-${Date.now()}-1`,
                             signature: `sig-${Date.now()}-1`,
                         },
                     },
@@ -644,7 +671,7 @@ describe('route.service - Service Function Tests', () => {
                         ground_truth: {
                             target: linearChainPython,
                             rank: 1,
-                            content_hash: `hash-${Date.now()}-2`, // Unique hash
+                            content_hash: `hash-${Date.now()}-2`,
                             signature: `sig-${Date.now()}-2`,
                         },
                     },
@@ -664,8 +691,12 @@ describe('route.service - Service Function Tests', () => {
         })
 
         it('should compute route properties correctly', async () => {
+            const stock = await createTestStock()
             const benchmark = await prisma.benchmarkSet.create({
-                data: { name: 'test-properties' },
+                data: {
+                    name: 'test-properties',
+                    stockId: stock.id,
+                },
             })
 
             const benchmarkData = {
@@ -693,7 +724,7 @@ describe('route.service - Service Function Tests', () => {
                 })
 
                 expect(target).toBeDefined()
-                expect(target!.routeLength).toBe(2) // Linear chain has length 2
+                expect(target!.routeLength).toBe(2)
                 expect(target!.isConvergent).toBe(false)
 
                 const route = await prisma.route.findUnique({
@@ -708,8 +739,12 @@ describe('route.service - Service Function Tests', () => {
         })
 
         it('should handle targets without ground truth', async () => {
+            const stock = await createTestStock()
             const benchmark = await prisma.benchmarkSet.create({
-                data: { name: 'test-no-ground-truth' },
+                data: {
+                    name: 'test-no-ground-truth',
+                    stockId: stock.id,
+                },
             })
 
             const benchmarkData = {
@@ -750,8 +785,12 @@ describe('route.service - Service Function Tests', () => {
                 },
             })
 
+            const stock = await createTestStock()
             const benchmark = await prisma.benchmarkSet.create({
-                data: { name: 'test-reuse' },
+                data: {
+                    name: 'test-reuse',
+                    stockId: stock.id,
+                },
             })
 
             const benchmarkData = {

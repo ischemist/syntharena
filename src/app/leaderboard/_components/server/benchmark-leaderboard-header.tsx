@@ -38,12 +38,10 @@ export async function BenchmarkLeaderboardHeader({ benchmarkId, benchmarks }: Be
                     <div className="text-muted-foreground text-sm">Total Targets</div>
                     <div className="text-lg font-medium">{benchmark.targetCount}</div>
                 </div>
-                {benchmark.stockName && (
-                    <div>
-                        <div className="text-muted-foreground text-sm">Stock</div>
-                        <div className="text-lg font-medium">{benchmark.stockName}</div>
-                    </div>
-                )}
+                <div>
+                    <div className="text-muted-foreground text-sm">Stock</div>
+                    <div className="text-lg font-medium">{benchmark.stock.name}</div>
+                </div>
                 <div>
                     <div className="text-muted-foreground text-sm">Ground Truth</div>
                     <Badge variant="secondary" className="mt-1">

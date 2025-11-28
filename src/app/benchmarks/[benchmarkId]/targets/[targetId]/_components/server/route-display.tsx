@@ -3,7 +3,6 @@ import { Suspense } from 'react'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkService from '@/lib/services/benchmark.service'
 import * as routeService from '@/lib/services/route.service'
-import { findMatchingStock } from '@/lib/services/stock-mapping'
 import * as stockService from '@/lib/services/stock.service'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -57,26 +56,12 @@ async function RouteVisualizationContent({ routeId, benchmarkId }: { routeId: st
     // Collect all InChiKeys from route for stock checking
     const allInchiKeys = Array.from(getAllRouteInchiKeysSet(routeTree))
 
-    // Check stock availability if benchmark has a stock
+    // Phase 9: Check stock availability using direct stock relation (no fuzzy matching)
     let inStockInchiKeys = new Set<string>()
-    if (benchmark.stockName) {
+    if (benchmark.stock) {
         try {
-            // Get all available stocks
-            const stocks = await stockService.getStocks()
-
-            // Use smart matching to find the stock
-            const matchingStock = findMatchingStock(benchmark.stockName, stocks)
-
-            if (matchingStock) {
-                inStockInchiKeys = await stockService.checkMoleculesInStockByInchiKey(allInchiKeys, matchingStock.id)
-                console.log(
-                    `[Route Visualization] Matched benchmark stock "${benchmark.stockName}" to database stock "${matchingStock.name}"`
-                )
-            } else {
-                console.warn(
-                    `[Route Visualization] Could not find matching stock for benchmark "${benchmark.stockName}". Available: ${stocks.map((s) => s.name).join(', ')}`
-                )
-            }
+            inStockInchiKeys = await stockService.checkMoleculesInStockByInchiKey(allInchiKeys, benchmark.stock.id)
+            console.log(`[Route Visualization] Checking stock availability for "${benchmark.stock.name}"`)
         } catch (error) {
             console.warn('Failed to check stock availability:', error)
         }

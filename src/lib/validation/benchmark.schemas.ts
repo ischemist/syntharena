@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 /**
  * Schema for creating a new benchmark set.
+ * Phase 9: Now requires stockId instead of stockName (no runtime lookups).
  */
 export const CreateBenchmarkSchema = z.object({
     name: z
@@ -12,11 +13,7 @@ export const CreateBenchmarkSchema = z.object({
             message: 'Benchmark name must contain only lowercase letters, numbers, and hyphens.',
         }),
     description: z.string().max(500, 'Description must be less than 500 characters.').optional(),
-    stockName: z
-        .string()
-        .max(100, 'Stock name must be less than 100 characters.')
-        .regex(/^[a-z0-9-]+$/, { message: 'Stock name must contain only lowercase letters, numbers, and hyphens.' })
-        .optional(),
+    stockId: z.string().cuid2('A valid stock ID is required.'),
 })
 
 /**

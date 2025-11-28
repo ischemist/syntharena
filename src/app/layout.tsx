@@ -51,7 +51,7 @@ export default function RootLayout({
                                     {breadcrumbs}
                                 </div>
                             </header>
-                            <div className="flex max-w-[1400px] flex-1 flex-col gap-4 pr-8 pl-6">{children}</div>
+                            <div className="flex max-w-[1400px] flex-1 flex-col gap-4 pr-8 pb-8 pl-6">{children}</div>
                         </SidebarInset>
                     </SidebarProvider>
                     <Toaster />

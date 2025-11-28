@@ -49,7 +49,8 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import * as zlib from 'zlib'
-import { config } from 'dotenv'
+
+import './env-loader'
 
 import prisma from '../src/lib/db'
 import {
@@ -62,9 +63,6 @@ import {
     type PythonModelStatistics,
     type PythonRoute,
 } from '../src/lib/services/prediction-writer.service'
-
-// Load environment variables
-config({ path: '.env' })
 
 // ============================================================================
 // Types for File Formats

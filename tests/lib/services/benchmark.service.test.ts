@@ -29,6 +29,16 @@ import {
 // ============================================================================
 
 /**
+ * Create a test stock for benchmarks
+ */
+const createTestStock = async (name?: string) => {
+    const uniqueName = name || `test-stock-${Date.now()}-${Math.random()}`
+    return await prisma.stock.create({
+        data: { name: uniqueName },
+    })
+}
+
+/**
  * Create test molecules for use in benchmarks
  */
 const createTestMolecules = async () => {
@@ -63,11 +73,13 @@ const createTestBenchmark = async (
     name: string,
     options: {
         description?: string
-        stockName?: string
+        stock?: { id: string }
         targetCount?: number
     } = {}
 ) => {
-    const benchmark = await createBenchmark(name, options.description, options.stockName)
+    // Create stock if not provided
+    const stock = options.stock || (await createTestStock())
+    const benchmark = await createBenchmark(name, options.description, stock.id)
     const molecules = await createTestMolecules()
 
     const targets = []
@@ -100,36 +112,47 @@ describe('benchmark.service', () => {
 
     describe('createBenchmark', () => {
         it('should create a benchmark with all fields', async () => {
-            const result = await createBenchmark('test-bench', 'Test description', 'test-stock')
+            const stock = await createTestStock()
+            const result = await createBenchmark('test-bench', 'Test description', stock.id)
 
             expect(result.name).toBe('test-bench')
             expect(result.description).toBe('Test description')
-            expect(result.stockName).toBe('test-stock')
+            expect(result.stockId).toBe(stock.id)
+            expect(result.stock?.name).toBe(stock.name)
             expect(result.id).toBeDefined()
         })
 
-        it('should create a benchmark with minimal fields', async () => {
-            const result = await createBenchmark('minimal-bench')
+        it('should create a benchmark with minimal description', async () => {
+            const stock = await createTestStock()
+            const result = await createBenchmark('minimal-bench', undefined, stock.id)
 
             expect(result.name).toBe('minimal-bench')
             expect(result.description).toBeNull()
-            expect(result.stockName).toBeNull()
+            expect(result.stockId).toBe(stock.id)
         })
 
         it('should throw error when duplicate name exists', async () => {
-            await createBenchmark('duplicate-test')
+            const stock = await createTestStock()
+            await createBenchmark('duplicate-test', undefined, stock.id)
 
-            await expect(createBenchmark('duplicate-test')).rejects.toThrow(
+            await expect(createBenchmark('duplicate-test', undefined, stock.id)).rejects.toThrow(
                 'A benchmark with name "duplicate-test" already exists.'
+            )
+        })
+
+        it('should throw error when stockId is invalid', async () => {
+            await expect(createBenchmark('test-bench', undefined, 'invalid-stock-id')).rejects.toThrow(
+                'Stock not found'
             )
         })
     })
 
     describe('getBenchmarkSets', () => {
         it('should return all benchmarks ordered by creation date descending', async () => {
-            await createBenchmark('bench-1')
-            await createBenchmark('bench-2')
-            await createBenchmark('bench-3')
+            const stock = await createTestStock()
+            await createBenchmark('bench-1', undefined, stock.id)
+            await createBenchmark('bench-2', undefined, stock.id)
+            await createBenchmark('bench-3', undefined, stock.id)
 
             const results = await getBenchmarkSets()
 
@@ -156,7 +179,8 @@ describe('benchmark.service', () => {
         })
 
         it('should map null description to undefined', async () => {
-            const benchmark = await createBenchmark('null-desc')
+            const stock = await createTestStock()
+            const benchmark = await createBenchmark('null-desc', undefined, stock.id)
 
             const results = await getBenchmarkSets()
             const found = results.find((b) => b.id === benchmark.id)
@@ -168,18 +192,31 @@ describe('benchmark.service', () => {
             const results = await getBenchmarkSets()
             expect(results).toHaveLength(0)
         })
+
+        it('should include stock information', async () => {
+            const stock = await createTestStock('My Test Stock')
+            await createBenchmark('bench-with-stock', undefined, stock.id)
+
+            const results = await getBenchmarkSets()
+            const found = results.find((b) => b.name === 'bench-with-stock')
+
+            expect(found?.stock.name).toBe('My Test Stock')
+            expect(found?.stockId).toBe(stock.id)
+        })
     })
 
     describe('getBenchmarkById', () => {
         it('should retrieve a benchmark with correct properties', async () => {
-            const created = await createBenchmark('retrieve-test', 'A description', 'stock-name')
+            const stock = await createTestStock('Ref Stock')
+            const created = await createBenchmark('retrieve-test', 'A description', stock.id)
 
             const result = await getBenchmarkById(created.id)
 
             expect(result.id).toBe(created.id)
             expect(result.name).toBe('retrieve-test')
             expect(result.description).toBe('A description')
-            expect(result.stockName).toBe('stock-name')
+            expect(result.stockId).toBe(stock.id)
+            expect(result.stock.name).toBe('Ref Stock')
         })
 
         it('should include target count in result', async () => {
@@ -195,7 +232,8 @@ describe('benchmark.service', () => {
         })
 
         it('should return zero target count for empty benchmark', async () => {
-            const benchmark = await createBenchmark('empty-bench')
+            const stock = await createTestStock()
+            const benchmark = await createBenchmark('empty-bench', undefined, stock.id)
 
             const result = await getBenchmarkById(benchmark.id)
 
@@ -584,7 +622,8 @@ describe('benchmark.service', () => {
         })
 
         it('should return zero stats for empty benchmark', async () => {
-            const benchmark = await createBenchmark('empty-stats-test')
+            const stock = await createTestStock()
+            const benchmark = await createBenchmark('empty-stats-test', undefined, stock.id)
 
             const stats = await getBenchmarkStats(benchmark.id)
 

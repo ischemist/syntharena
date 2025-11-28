@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { Prisma } from '@prisma/client'
 
 import type {
@@ -15,25 +16,38 @@ import prisma from '@/lib/db'
 
 /**
  * Creates a new empty benchmark set.
+ * Phase 9: Now requires stockId for direct reference (no runtime lookups).
  *
  * @param name - Unique benchmark name
  * @param description - Optional description
- * @param stockName - Optional reference stock name
- * @returns Created benchmark
- * @throws Error if name already exists
+ * @param stockId - REQUIRED stock ID reference
+ * @returns Created benchmark with stock relation
+ * @throws Error if name already exists or stockId is invalid
  */
-export async function createBenchmark(name: string, description?: string, stockName?: string): Promise<BenchmarkSet> {
+export async function createBenchmark(
+    name: string,
+    description: string | undefined,
+    stockId: string
+): Promise<BenchmarkSet> {
     try {
         return await prisma.benchmarkSet.create({
             data: {
                 name,
                 description: description || null,
-                stockName: stockName || null,
+                stockId,
+            },
+            include: {
+                stock: true,
             },
         })
     } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-            throw new Error(`A benchmark with name "${name}" already exists.`)
+        if (error instanceof Prisma.PrismaClientKnownRequestError) {
+            if (error.code === 'P2002') {
+                throw new Error(`A benchmark with name "${name}" already exists.`)
+            }
+            if (error.code === 'P2003') {
+                throw new Error(`Stock not found. Please provide a valid stock ID.`)
+            }
         }
         throw error
     }
@@ -41,12 +55,14 @@ export async function createBenchmark(name: string, description?: string, stockN
 
 /**
  * Retrieves all benchmark sets with target counts.
+ * Phase 9: Now includes stock relation (no runtime lookups needed).
  *
- * @returns Array of benchmarks with targetCount
+ * @returns Array of benchmarks with targetCount and stock
  */
-export async function getBenchmarkSets(): Promise<BenchmarkListItem[]> {
+async function _getBenchmarkSets(): Promise<BenchmarkListItem[]> {
     const benchmarks = await prisma.benchmarkSet.findMany({
         include: {
+            stock: true,
             _count: {
                 select: { targets: true },
             },
@@ -58,23 +74,28 @@ export async function getBenchmarkSets(): Promise<BenchmarkListItem[]> {
         id: benchmark.id,
         name: benchmark.name,
         description: benchmark.description || undefined,
-        stockName: benchmark.stockName || undefined,
+        stockId: benchmark.stockId,
+        stock: benchmark.stock,
         createdAt: benchmark.createdAt,
         targetCount: benchmark._count.targets,
     }))
 }
 
+export const getBenchmarkSets = cache(_getBenchmarkSets)
+
 /**
  * Retrieves a single benchmark by ID with target count.
+ * Phase 9: Now includes stock relation (no runtime lookups needed).
  *
  * @param benchmarkId - The benchmark ID
- * @returns Benchmark with targetCount
+ * @returns Benchmark with targetCount and stock
  * @throws Error if benchmark not found
  */
-export async function getBenchmarkById(benchmarkId: string): Promise<BenchmarkListItem> {
+async function _getBenchmarkById(benchmarkId: string): Promise<BenchmarkListItem> {
     const benchmark = await prisma.benchmarkSet.findUnique({
         where: { id: benchmarkId },
         include: {
+            stock: true,
             _count: {
                 select: { targets: true },
             },
@@ -89,11 +110,14 @@ export async function getBenchmarkById(benchmarkId: string): Promise<BenchmarkLi
         id: benchmark.id,
         name: benchmark.name,
         description: benchmark.description || undefined,
-        stockName: benchmark.stockName || undefined,
+        stockId: benchmark.stockId,
+        stock: benchmark.stock,
         createdAt: benchmark.createdAt,
         targetCount: benchmark._count.targets,
     }
 }
+
+export const getBenchmarkById = cache(_getBenchmarkById)
 
 /**
  * Deletes a benchmark and all its targets and routes.
@@ -288,7 +312,7 @@ export async function getBenchmarkTargets(
  * @returns Target with molecule and route info
  * @throws Error if target not found
  */
-export async function getTargetById(targetId: string): Promise<BenchmarkTargetWithMolecule> {
+async function _getTargetById(targetId: string): Promise<BenchmarkTargetWithMolecule> {
     const target = await prisma.benchmarkTarget.findUnique({
         where: { id: targetId },
         include: {
@@ -313,6 +337,8 @@ export async function getTargetById(targetId: string): Promise<BenchmarkTargetWi
         hasGroundTruth: !!target.groundTruthRouteId,
     }
 }
+
+export const getTargetById = cache(_getTargetById)
 
 // ============================================================================
 // Statistics Functions
@@ -410,7 +436,7 @@ export async function getPredictionRunsForBenchmark(benchmarkId: string) {
  * @param targetId - The benchmark target ID
  * @returns Array of prediction runs with target-specific route info
  */
-export async function getPredictionRunsForTarget(targetId: string) {
+async function _getPredictionRunsForTarget(targetId: string) {
     // Verify target exists
     const target = await prisma.benchmarkTarget.findUnique({
         where: { id: targetId },
@@ -482,6 +508,8 @@ export async function getPredictionRunsForTarget(targetId: string) {
     return Array.from(runMap.values()).sort((a, b) => b.executedAt.getTime() - a.executedAt.getTime())
 }
 
+export const getPredictionRunsForTarget = cache(_getPredictionRunsForTarget)
+
 /**
  * Get a specific predicted route for a target from a prediction run.
  * Returns the route tree structure for visualization.
@@ -491,7 +519,7 @@ export async function getPredictionRunsForTarget(targetId: string) {
  * @param rank - The route rank (1-indexed)
  * @returns Route tree with molecule details, or null if not found
  */
-export async function getPredictedRouteForTarget(targetId: string, runId: string, rank: number) {
+async function _getPredictedRouteForTarget(targetId: string, runId: string, rank: number) {
     // Import route tree builder
     const { buildRouteTree } = await import('./route-tree-builder')
 
@@ -526,3 +554,5 @@ export async function getPredictedRouteForTarget(targetId: string, runId: string
 
     return buildRouteTree(predictionRoute.route.nodes)
 }
+
+export const getPredictedRouteForTarget = cache(_getPredictedRouteForTarget)
