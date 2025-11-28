@@ -45,11 +45,12 @@ model BenchmarkSet {
   id             String  @id @default(cuid())
   name           String  @unique // e.g. "mkt-lin-500"
   description    String?
-  stockName      String? // The "stock_name" required by the benchmark contract
+  stockId        String // Direct reference to the stock
   hasGroundTruth Boolean @default(false) // All-or-nothing: targets either all have GT routes or none do
 
   createdAt DateTime @default(now())
 
+  stock      Stock                @relation(fields: [stockId], references: [id])
   targets    BenchmarkTarget[]
   runs       PredictionRun[]
   statistics ModelRunStatistics[]
@@ -260,6 +261,7 @@ model Stock {
   name        String  @unique // "buyables-stock" (matches directory name)
   description String?
 
+  benchmarks  BenchmarkSet[]
   items       StockItem[]
   evaluations RouteSolvability[]
   statistics  ModelRunStatistics[]
