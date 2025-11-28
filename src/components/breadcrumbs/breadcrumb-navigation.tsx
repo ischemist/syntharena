@@ -28,6 +28,7 @@ export function BreadcrumbNavigation() {
 
     // Filter out route groups like (auth), (dashboard) - they start with parentheses
     const cleanSegments = useMemo(() => segments.filter((s) => !s.startsWith('(')), [segments])
+    const segmentsKey = JSON.stringify(cleanSegments)
 
     // Fetch display names for dynamic segments (IDs)
     useEffect(() => {
@@ -44,7 +45,7 @@ export function BreadcrumbNavigation() {
         }
 
         fetchNames()
-    }, [cleanSegments]) // Re-fetch when path changes
+    }, [segmentsKey]) // Re-fetch when path changes
 
     // Build breadcrumb structure from segments
     const breadcrumbs = buildBreadcrumbs(cleanSegments, displayNames)
