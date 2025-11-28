@@ -100,6 +100,7 @@ async function _getLeaderboard(benchmarkId?: string, stockId?: string): Promise<
  */
 export const getLeaderboard = unstable_cache(_getLeaderboard, ['leaderboard-entries'], {
     tags: ['leaderboard', 'metrics'],
+    revalidate: 3600,
 })
 
 /**
@@ -236,6 +237,7 @@ async function _getStratifiedMetrics(
  */
 export const getStratifiedMetrics = unstable_cache(_getStratifiedMetrics, ['stratified-metrics'], {
     tags: ['leaderboard', 'metrics'],
+    revalidate: 3600, // Example: revalidate every hour
 })
 
 /**
