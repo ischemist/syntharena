@@ -19,14 +19,14 @@ export function createLeaderboardColumns(displayedTopK: string[]): ColumnDef<Lea
         {
             accessorKey: 'modelName',
             id: 'modelName',
-            header: ({ column }) => <DataTableColumnHeader column={column} title="Model" />,
+            header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Model" />,
             cell: ({ row }) => <div className="font-medium">{row.getValue('modelName')}</div>,
         },
         // Solvability Column
         {
             accessorKey: 'metrics.solvability.value',
             id: 'solvability',
-            header: ({ column }) => <DataTableColumnHeader column={column} title="Solvability" />,
+            header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Solvability" />,
             cell: ({ row }) => {
                 const metric = row.original.metrics.solvability
                 const isLastColumn = displayedTopK.length === 0
@@ -51,7 +51,7 @@ export function createLeaderboardColumns(displayedTopK: string[]): ColumnDef<Lea
         columns.push({
             id: metricName,
             accessorFn: (row) => row.metrics.topKAccuracy?.[metricName]?.value,
-            header: ({ column }) => <DataTableColumnHeader column={column} title={metricName} />,
+            header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title={metricName} />,
             cell: ({ row }) => {
                 const metric = row.original.metrics.topKAccuracy?.[metricName]
                 return (

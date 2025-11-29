@@ -107,7 +107,9 @@ export function BenchmarkMetricsDisplay({
     const hasTopKMetrics = topKMetricNames.length > 0
 
     // Determine which Top-K metrics to show in the table/chart
-    const displayedTopK = useMemo(() => (hasTopKMetrics ? selectedTopK : []), [hasTopKMetrics, selectedTopK])
+    // Join to string for stable comparison - prevents column recreation on reference changes
+    const displayedTopKKey = hasTopKMetrics ? selectedTopK.join(',') : ''
+    const displayedTopK = useMemo(() => (displayedTopKKey ? displayedTopKKey.split(',') : []), [displayedTopKKey])
 
     // TanStack Table state
     const [sorting, setSorting] = useState<SortingState>([])

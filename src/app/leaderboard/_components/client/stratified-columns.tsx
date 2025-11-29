@@ -28,7 +28,7 @@ export function createStratifiedColumns(routeLengths: number[]): ColumnDef<Strat
         {
             accessorKey: 'modelName',
             id: 'modelName',
-            header: ({ column }) => <DataTableColumnHeader column={column} title="Model" />,
+            header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Model" />,
             cell: ({ row }) => <div className="font-medium">{row.getValue('modelName')}</div>,
         },
     ]
@@ -40,7 +40,9 @@ export function createStratifiedColumns(routeLengths: number[]): ColumnDef<Strat
         columns.push({
             id: `length-${length}`,
             accessorFn: (row) => row.metricsByLength[length]?.value,
-            header: ({ column }) => <DataTableColumnHeader column={column} title={`Length ${length}`} />,
+            header: ({ column, table }) => (
+                <DataTableColumnHeader column={column} table={table} title={`Length ${length}`} />
+            ),
             cell: ({ row }) => {
                 const metric = row.original.metricsByLength[length]
                 return (
