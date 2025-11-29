@@ -1,9 +1,9 @@
 'use client'
 
-import type { MetricResult, StratifiedMetric } from '@/types'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import type { StratifiedMetric } from '@/types'
 
 import { useSelectedTopK } from './page-level-top-k-selector'
+import { StratifiedMetricTable } from './stratified-metric-table'
 
 type StratifiedMetricsSectionProps = {
     metricsMap: Map<
@@ -13,14 +13,14 @@ type StratifiedMetricsSectionProps = {
             topKAccuracy?: Record<string, StratifiedMetric>
         }
     >
-    MetricCell: React.ComponentType<{ metric: MetricResult; showBadge?: boolean }>
 }
 
 /**
  * Client component for displaying stratified metrics (broken down by route length).
  * Shows all stratified metrics in tables within the same card section.
+ * Uses TanStack Table for sorting functionality.
  */
-export function StratifiedMetricsSection({ metricsMap, MetricCell }: StratifiedMetricsSectionProps) {
+export function StratifiedMetricsSection({ metricsMap }: StratifiedMetricsSectionProps) {
     // Get selected Top-K from context
     const selectedTopK = useSelectedTopK()
     if (metricsMap.size === 0) {
@@ -62,110 +62,16 @@ export function StratifiedMetricsSection({ metricsMap, MetricCell }: StratifiedM
             <h3 className="text-lg font-semibold">Stratified Metrics</h3>
 
             {/* Solvability by Route Length */}
-            <div>
-                <h4 className="text-muted-foreground mb-3 text-sm font-medium">Solvability by Route Length</h4>
-                <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Model</TableHead>
-                                {sortedLengths.map((length, idx) => (
-                                    <TableHead
-                                        key={length}
-                                        className={
-                                            idx === sortedLengths.length - 1
-                                                ? 'min-w-[220px] pr-24 text-right'
-                                                : 'min-w-[220px] text-right'
-                                        }
-                                    >
-                                        Length {length}
-                                    </TableHead>
-                                ))}
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {modelsArray.map(([modelName, metrics]) => (
-                                <TableRow key={modelName}>
-                                    <TableCell className="font-medium">{modelName}</TableCell>
-                                    {sortedLengths.map((length, idx) => {
-                                        const metric = metrics.solvability.byGroup[length]
-                                        const isLastColumn = idx === sortedLengths.length - 1
-                                        return (
-                                            <TableCell
-                                                key={length}
-                                                className={
-                                                    isLastColumn
-                                                        ? 'pr-24 text-right' // Extra padding right for last column upper CI + badge
-                                                        : 'text-right'
-                                                }
-                                            >
-                                                {metric ? <MetricCell metric={metric} showBadge /> : '-'}
-                                            </TableCell>
-                                        )
-                                    })}
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
-            </div>
+            <StratifiedMetricTable metricName="Solvability" metricsMap={metricsMap} routeLengths={sortedLengths} />
 
             {/* Top-K Accuracy by Route Length */}
             {displayedTopK.map((topKMetricName) => (
-                <div key={topKMetricName}>
-                    <h4 className="text-muted-foreground mb-3 text-sm font-medium">
-                        {topKMetricName} Accuracy by Route Length
-                    </h4>
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Model</TableHead>
-                                    {sortedLengths.map((length, idx) => (
-                                        <TableHead
-                                            key={length}
-                                            className={
-                                                idx === sortedLengths.length - 1
-                                                    ? 'min-w-[220px] pr-24 text-right'
-                                                    : 'min-w-[220px] text-right'
-                                            }
-                                        >
-                                            Length {length}
-                                        </TableHead>
-                                    ))}
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {modelsArray.map(([modelName, metrics]) => {
-                                    const topKMetric = metrics.topKAccuracy?.[topKMetricName]
-                                    if (!topKMetric) return null
-
-                                    return (
-                                        <TableRow key={modelName}>
-                                            <TableCell className="font-medium">{modelName}</TableCell>
-                                            {sortedLengths.map((length, idx) => {
-                                                const metric = topKMetric.byGroup[length]
-                                                const isLastColumn = idx === sortedLengths.length - 1
-                                                return (
-                                                    <TableCell
-                                                        key={length}
-                                                        className={
-                                                            isLastColumn
-                                                                ? 'pr-24 text-right' // Extra padding right for last column upper CI + badge
-                                                                : 'text-right'
-                                                        }
-                                                    >
-                                                        {metric ? <MetricCell metric={metric} showBadge /> : '-'}
-                                                    </TableCell>
-                                                )
-                                            })}
-                                        </TableRow>
-                                    )
-                                })}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </div>
+                <StratifiedMetricTable
+                    key={topKMetricName}
+                    metricName={topKMetricName}
+                    metricsMap={metricsMap}
+                    routeLengths={sortedLengths}
+                />
             ))}
         </div>
     )

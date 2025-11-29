@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useMemo } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
@@ -25,11 +25,15 @@ export function PageLevelTopKSelector({ topKMetricNames, children }: PageLevelTo
     const searchParams = useSearchParams()
 
     // Parse selected Top-K from URL (comma-separated: ?topK=Top-1,Top-5,Top-10)
+    // Memoized to maintain stable reference - prevents downstream column recreation
+    // which would break TanStack Table's sorting state tracking
     const topKParam = searchParams.get('topK')
-    const selectedTopK = topKParam
-        ? topKParam.split(',').filter((k) => topKMetricNames.includes(k))
-        : // Default: filter to only include what's available
-          DEFAULT_TOP_K.filter((k) => topKMetricNames.includes(k))
+    const selectedTopK = useMemo(() => {
+        return topKParam
+            ? topKParam.split(',').filter((k) => topKMetricNames.includes(k))
+            : // Default: filter to only include what's available
+              DEFAULT_TOP_K.filter((k) => topKMetricNames.includes(k))
+    }, [topKParam, topKMetricNames])
 
     const handleTopKToggle = (metricName: string) => {
         const newSelection = selectedTopK.includes(metricName)

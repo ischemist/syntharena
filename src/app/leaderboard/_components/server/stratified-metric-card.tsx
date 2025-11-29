@@ -1,7 +1,7 @@
 import type { StratifiedMetric } from '@/types'
-import { MetricCell } from '@/components/metrics'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+
+import { StratifiedMetricTable } from '../client/stratified-metric-table'
 
 type StratifiedMetricCardProps = {
     metricName: string
@@ -16,8 +16,12 @@ type StratifiedMetricCardProps = {
 
 /**
  * Server component that displays a single stratified metric (by route length) in a bordered card.
- * Card title format: "{metricName} - {stockName}"
+ * Card title shows the metric name. Table content is delegated to client component for sorting.
  * Shows performance breakdown across route lengths for all models.
+ *
+ * Following App Router Manifesto:
+ * - Server component defines structure
+ * - Client component (StratifiedMetricTable) handles interactive sorting
  */
 export function StratifiedMetricCard({ metricName, metricsMap }: StratifiedMetricCardProps) {
     // Convert map to array for rendering
@@ -51,59 +55,12 @@ export function StratifiedMetricCard({ metricName, metricsMap }: StratifiedMetri
                 <CardTitle>{metricName}</CardTitle>
             </CardHeader>
             <CardContent>
-                <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Model</TableHead>
-                                {sortedLengths.map((length, idx) => (
-                                    <TableHead
-                                        key={length}
-                                        className={
-                                            idx === sortedLengths.length - 1
-                                                ? 'min-w-[220px] pr-24 text-right'
-                                                : 'min-w-[220px] text-right'
-                                        }
-                                    >
-                                        Length {length}
-                                    </TableHead>
-                                ))}
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {modelsArray.map(([modelName, metrics]) => {
-                                const stratifiedMetric =
-                                    metricName === 'Solvability'
-                                        ? metrics.solvability
-                                        : metrics.topKAccuracy?.[metricName]
-
-                                if (!stratifiedMetric) return null
-
-                                return (
-                                    <TableRow key={modelName}>
-                                        <TableCell className="font-medium">{modelName}</TableCell>
-                                        {sortedLengths.map((length, idx) => {
-                                            const metric = stratifiedMetric.byGroup[length]
-                                            const isLastColumn = idx === sortedLengths.length - 1
-                                            return (
-                                                <TableCell
-                                                    key={length}
-                                                    className={
-                                                        isLastColumn
-                                                            ? 'pr-24 text-right' // Extra padding right for last column upper CI + badge
-                                                            : 'text-right'
-                                                    }
-                                                >
-                                                    {metric ? <MetricCell metric={metric} showBadge /> : '-'}
-                                                </TableCell>
-                                            )
-                                        })}
-                                    </TableRow>
-                                )
-                            })}
-                        </TableBody>
-                    </Table>
-                </div>
+                <StratifiedMetricTable
+                    metricName={metricName}
+                    metricsMap={metricsMap}
+                    routeLengths={sortedLengths}
+                    showTitle={false}
+                />
             </CardContent>
         </Card>
     )

@@ -1,17 +1,20 @@
 'use client'
+'use no memo'
 
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { flexRender, getCoreRowModel, getSortedRowModel, SortingState, useReactTable } from '@tanstack/react-table'
 import { BarChart3, Table2 } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Cell, ErrorBar, XAxis, YAxis } from 'recharts'
 
 import type { LeaderboardEntry } from '@/types'
-import { MetricCell } from '@/components/metrics'
+import { cn } from '@/lib/utils'
 import { chartColors } from '@/components/theme/chart-palette'
 import { Button } from '@/components/ui/button'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
+import { createLeaderboardColumns } from './leaderboard-columns'
 import { useSelectedTopK } from './page-level-top-k-selector'
 
 type BenchmarkMetricsDisplayProps = {
@@ -91,6 +94,7 @@ export function MetricsViewToggleButtons() {
  * Following App Router Manifesto:
  * - Client component for interactive UI
  * - Receives data and uses context for view mode and selectedTopK
+ * - Uses TanStack Table for sorting functionality
  */
 export function BenchmarkMetricsDisplay({
     entries,
@@ -104,7 +108,28 @@ export function BenchmarkMetricsDisplay({
     const hasTopKMetrics = topKMetricNames.length > 0
 
     // Determine which Top-K metrics to show in the table/chart
-    const displayedTopK = hasTopKMetrics ? selectedTopK : []
+    // Join to string for stable comparison - prevents column recreation on reference changes
+    const displayedTopKKey = hasTopKMetrics ? selectedTopK.join(',') : ''
+    const displayedTopK = useMemo(() => (displayedTopKKey ? displayedTopKKey.split(',') : []), [displayedTopKKey])
+
+    // TanStack Table state
+    const [sorting, setSorting] = useState<SortingState>([])
+
+    // Create columns based on displayed Top-K metrics
+    const columns = useMemo(() => createLeaderboardColumns(displayedTopK), [displayedTopK])
+
+    // Initialize TanStack Table
+    // eslint-disable-next-line react-hooks/incompatible-library
+    const table = useReactTable({
+        data: entries,
+        columns,
+        state: {
+            sorting,
+        },
+        onSortingChange: setSorting,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+    })
 
     return (
         <div>
@@ -113,66 +138,43 @@ export function BenchmarkMetricsDisplay({
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
-                            <TableRow>
-                                <TableHead>Model</TableHead>
-                                <TableHead
-                                    className={
-                                        displayedTopK.length === 0
-                                            ? 'min-w-[220px] pr-24 text-right'
-                                            : 'min-w-[220px] text-right'
-                                    }
-                                >
-                                    Solvability
-                                </TableHead>
-                                {displayedTopK.map((metricName, idx) => (
-                                    <TableHead
-                                        key={metricName}
-                                        className={
-                                            idx === displayedTopK.length - 1
-                                                ? 'min-w-[220px] pr-24 text-right'
-                                                : 'min-w-[220px] text-right'
-                                        }
-                                    >
-                                        {metricName}
-                                    </TableHead>
-                                ))}
-                            </TableRow>
+                            {table.getHeaderGroups().map((headerGroup) => (
+                                <TableRow key={headerGroup.id}>
+                                    {headerGroup.headers.map((header, idx) => {
+                                        const isLastColumn = idx === headerGroup.headers.length - 1
+                                        const isModelName = header.id === 'modelName'
+                                        return (
+                                            <TableHead
+                                                key={header.id}
+                                                className={cn(!isModelName && 'min-w-[220px]', isLastColumn && 'pr-24')}
+                                            >
+                                                {header.isPlaceholder
+                                                    ? null
+                                                    : flexRender(header.column.columnDef.header, header.getContext())}
+                                            </TableHead>
+                                        )
+                                    })}
+                                </TableRow>
+                            ))}
                         </TableHeader>
                         <TableBody>
-                            {entries.map((entry) => {
-                                const key = `${entry.modelName}-${entry.stockName}`
-                                const isLastColumnSolvability = displayedTopK.length === 0
-                                return (
-                                    <TableRow key={key}>
-                                        <TableCell className="font-medium">{entry.modelName}</TableCell>
-                                        <TableCell
-                                            className={
-                                                isLastColumnSolvability
-                                                    ? 'pr-24 text-right' // Extra padding right for last column upper CI + badge
-                                                    : 'text-right'
-                                            }
-                                        >
-                                            <MetricCell metric={entry.metrics.solvability} showBadge />
-                                        </TableCell>
-                                        {displayedTopK.map((metricName, idx) => {
-                                            const metric = entry.metrics.topKAccuracy?.[metricName]
-                                            const isLastColumn = idx === displayedTopK.length - 1
-                                            return (
-                                                <TableCell
-                                                    key={metricName}
-                                                    className={
-                                                        isLastColumn
-                                                            ? 'pr-24 text-right' // Extra padding right for last column upper CI + badge
-                                                            : 'text-right'
-                                                    }
-                                                >
-                                                    {metric ? <MetricCell metric={metric} showBadge /> : '-'}
-                                                </TableCell>
-                                            )
-                                        })}
+                            {table.getRowModel().rows.length ? (
+                                table.getRowModel().rows.map((row) => (
+                                    <TableRow key={row.id}>
+                                        {row.getVisibleCells().map((cell) => (
+                                            <TableCell key={cell.id}>
+                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                            </TableCell>
+                                        ))}
                                     </TableRow>
-                                )
-                            })}
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={columns.length} className="h-24 text-center">
+                                        No results.
+                                    </TableCell>
+                                </TableRow>
+                            )}
                         </TableBody>
                     </Table>
 

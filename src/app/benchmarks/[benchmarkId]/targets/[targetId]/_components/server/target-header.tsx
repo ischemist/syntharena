@@ -1,18 +1,14 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
 
 import * as benchmarkService from '@/lib/services/benchmark.service'
 import * as routeService from '@/lib/services/route.service'
 import { RouteLengthBadge, RouteTypeBadge } from '@/components/route-badges'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 
 interface TargetHeaderProps {
-    benchmarkId: string
     targetId: string
 }
 
@@ -23,7 +19,7 @@ interface TargetHeaderProps {
  * Right column: target ID, badges, SMILES, InChiKey, and route hashes
  * Handles 404 if target not found.
  */
-export async function TargetHeader({ benchmarkId, targetId }: TargetHeaderProps) {
+export async function TargetHeader({ targetId }: TargetHeaderProps) {
     let target
     try {
         target = await benchmarkService.getTargetById(targetId)
