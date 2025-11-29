@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { flexRender, getCoreRowModel, getSortedRowModel, SortingState, useReactTable } from '@tanstack/react-table'
 
 import type { StratifiedMetric } from '@/types'
+import { cn } from '@/lib/utils'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 import { createStratifiedColumns, transformStratifiedData } from './stratified-columns'
@@ -62,16 +63,20 @@ export function StratifiedMetricTable({
                     <TableHeader>
                         {table.getHeaderGroups().map((headerGroup) => (
                             <TableRow key={headerGroup.id}>
-                                {headerGroup.headers.map((header) => (
-                                    <TableHead
-                                        key={header.id}
-                                        className={header.id === 'modelName' ? '' : 'min-w-[220px]'}
-                                    >
-                                        {header.isPlaceholder
-                                            ? null
-                                            : flexRender(header.column.columnDef.header, header.getContext())}
-                                    </TableHead>
-                                ))}
+                                {headerGroup.headers.map((header, idx) => {
+                                    const isLastColumn = idx === headerGroup.headers.length - 1
+                                    const isModelName = header.id === 'modelName'
+                                    return (
+                                        <TableHead
+                                            key={header.id}
+                                            className={cn(!isModelName && 'min-w-[220px]', isLastColumn && 'pr-24')}
+                                        >
+                                            {header.isPlaceholder
+                                                ? null
+                                                : flexRender(header.column.columnDef.header, header.getContext())}
+                                        </TableHead>
+                                    )
+                                })}
                             </TableRow>
                         ))}
                     </TableHeader>

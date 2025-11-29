@@ -40,13 +40,11 @@ export function createStratifiedColumns(routeLengths: number[]): ColumnDef<Strat
         columns.push({
             id: `length-${length}`,
             accessorFn: (row) => row.metricsByLength[length]?.value,
-            header: ({ column }) => (
-                <DataTableColumnHeader column={column} title={`Length ${length}`} className="justify-end" />
-            ),
+            header: ({ column }) => <DataTableColumnHeader column={column} title={`Length ${length}`} />,
             cell: ({ row }) => {
                 const metric = row.original.metricsByLength[length]
                 return (
-                    <div className={isLastColumn ? 'pr-24 text-right' : 'text-right'}>
+                    <div className={isLastColumn ? 'flex justify-center pr-24' : 'flex justify-center'}>
                         {metric ? <MetricCell metric={metric} showBadge /> : '-'}
                     </div>
                 )

@@ -26,14 +26,12 @@ export function createLeaderboardColumns(displayedTopK: string[]): ColumnDef<Lea
         {
             accessorKey: 'metrics.solvability.value',
             id: 'solvability',
-            header: ({ column }) => (
-                <DataTableColumnHeader column={column} title="Solvability" className="justify-end" />
-            ),
+            header: ({ column }) => <DataTableColumnHeader column={column} title="Solvability" />,
             cell: ({ row }) => {
                 const metric = row.original.metrics.solvability
                 const isLastColumn = displayedTopK.length === 0
                 return (
-                    <div className={isLastColumn ? 'pr-24 text-right' : 'text-right'}>
+                    <div className={isLastColumn ? 'flex justify-center pr-24' : 'flex justify-center'}>
                         <MetricCell metric={metric} showBadge />
                     </div>
                 )
@@ -53,13 +51,11 @@ export function createLeaderboardColumns(displayedTopK: string[]): ColumnDef<Lea
         columns.push({
             id: metricName,
             accessorFn: (row) => row.metrics.topKAccuracy?.[metricName]?.value,
-            header: ({ column }) => (
-                <DataTableColumnHeader column={column} title={metricName} className="justify-end" />
-            ),
+            header: ({ column }) => <DataTableColumnHeader column={column} title={metricName} />,
             cell: ({ row }) => {
                 const metric = row.original.metrics.topKAccuracy?.[metricName]
                 return (
-                    <div className={isLastColumn ? 'pr-24 text-right' : 'text-right'}>
+                    <div className={isLastColumn ? 'flex justify-center pr-24' : 'flex justify-center'}>
                         {metric ? <MetricCell metric={metric} showBadge /> : '-'}
                     </div>
                 )

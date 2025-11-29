@@ -15,6 +15,7 @@ type DataTableColumnHeaderProps<TData, TValue> = {
 /**
  * Reusable sortable column header component for TanStack Table.
  * Displays sort indicators and handles click to toggle sorting.
+ * When actively sorted, shows single directional arrow and visual highlight.
  */
 export function DataTableColumnHeader<TData, TValue>({
     column,
@@ -26,13 +27,14 @@ export function DataTableColumnHeader<TData, TValue>({
     }
 
     const sorted = column.getIsSorted()
+    const isSorted = sorted !== false
 
     return (
-        <div className={cn('flex items-center space-x-2', className)}>
+        <div className={cn('flex items-center justify-center', className)}>
             <Button
                 variant="ghost"
                 size="sm"
-                className="data-[state=open]:bg-accent -ml-3 h-8"
+                className={cn('hover:bg-accent/50 h-8', isSorted && 'bg-accent/80 hover:bg-accent font-semibold')}
                 onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
             >
                 <span>{title}</span>
@@ -41,7 +43,7 @@ export function DataTableColumnHeader<TData, TValue>({
                 ) : sorted === 'asc' ? (
                     <ArrowUp className="ml-2 h-4 w-4" />
                 ) : (
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                    <ArrowUpDown className="text-muted-foreground ml-2 h-4 w-4 opacity-50" />
                 )}
             </Button>
         </div>

@@ -7,6 +7,7 @@ import { BarChart3, Table2 } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Cell, ErrorBar, XAxis, YAxis } from 'recharts'
 
 import type { LeaderboardEntry } from '@/types'
+import { cn } from '@/lib/utils'
 import { chartColors } from '@/components/theme/chart-palette'
 import { Button } from '@/components/ui/button'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
@@ -135,16 +136,20 @@ export function BenchmarkMetricsDisplay({
                         <TableHeader>
                             {table.getHeaderGroups().map((headerGroup) => (
                                 <TableRow key={headerGroup.id}>
-                                    {headerGroup.headers.map((header) => (
-                                        <TableHead
-                                            key={header.id}
-                                            className={header.id === 'modelName' ? '' : 'min-w-[220px]'}
-                                        >
-                                            {header.isPlaceholder
-                                                ? null
-                                                : flexRender(header.column.columnDef.header, header.getContext())}
-                                        </TableHead>
-                                    ))}
+                                    {headerGroup.headers.map((header, idx) => {
+                                        const isLastColumn = idx === headerGroup.headers.length - 1
+                                        const isModelName = header.id === 'modelName'
+                                        return (
+                                            <TableHead
+                                                key={header.id}
+                                                className={cn(!isModelName && 'min-w-[220px]', isLastColumn && 'pr-24')}
+                                            >
+                                                {header.isPlaceholder
+                                                    ? null
+                                                    : flexRender(header.column.columnDef.header, header.getContext())}
+                                            </TableHead>
+                                        )
+                                    })}
                                 </TableRow>
                             ))}
                         </TableHeader>
