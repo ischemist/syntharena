@@ -38,13 +38,13 @@ export function DataTableColumnHeader<TData, TValue>({
                 size="sm"
                 className={cn('hover:bg-accent/50 h-8', isSorted && 'bg-accent/80 hover:bg-accent font-semibold')}
                 onClick={() => {
-                    // Force the logic:
-                    // If currently Descending -> go Ascending
-                    // Anything else (Unsorted or Ascending) -> go Descending
-                    if (isSorted === 'desc') {
-                        column.toggleSorting(false) // false = ASC
+                    const currentSort = column.getIsSorted()
+                    if (currentSort === 'asc') {
+                        column.clearSorting() // asc -> unsorted
+                    } else if (currentSort === 'desc') {
+                        column.toggleSorting(false) // desc -> asc
                     } else {
-                        column.toggleSorting(true) // true = DESC
+                        column.toggleSorting(true) // unsorted -> desc
                     }
                 }}
             >

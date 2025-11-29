@@ -50,7 +50,7 @@ export default function TargetDetailPage(props: TargetDetailPageProps) {
         <div className="flex flex-col gap-6">
             {/* Target header with molecule structure */}
             <Suspense fallback={<TargetDetailSkeleton />}>
-                <TargetHeader benchmarkId={benchmarkId} targetId={targetId} />
+                <TargetHeader targetId={targetId} />
             </Suspense>
 
             {/* Route visualization with comparison support */}
