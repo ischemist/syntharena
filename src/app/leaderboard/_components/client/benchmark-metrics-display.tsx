@@ -1,4 +1,5 @@
 'use client'
+'use no memo'
 
 import { createContext, useContext, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -118,6 +119,7 @@ export function BenchmarkMetricsDisplay({
     const columns = useMemo(() => createLeaderboardColumns(displayedTopK), [displayedTopK])
 
     // Initialize TanStack Table
+    // eslint-disable-next-line react-hooks/incompatible-library
     const table = useReactTable({
         data: entries,
         columns,

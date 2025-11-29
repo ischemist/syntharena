@@ -1,6 +1,5 @@
 import { AlertCircle } from 'lucide-react'
 
-import type { Molecule } from '@/types'
 import { getTargetPredictions } from '@/lib/services/prediction.service'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 

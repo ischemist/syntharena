@@ -41,6 +41,7 @@ export function StratifiedMetricTable({
     const columns = useMemo(() => createStratifiedColumns(routeLengths), [routeLengths])
 
     // Initialize TanStack Table
+    // eslint-disable-next-line react-hooks/incompatible-library
     const table = useReactTable({
         data,
         columns,
