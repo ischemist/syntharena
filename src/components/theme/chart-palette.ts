@@ -6,12 +6,12 @@
 // Primary blue color scheme for bar charts
 export const chartColors = {
     // Primary bar colors (use for main data series)
-    primary: 'hsl(220 70% 50%)',
+    primary: 'hsl(261, 100%, 79%)',
     primaryDark: 'hsl(220 70% 35%)', // For error bars on primary
 
     // Color palette for grouped/multi-series charts
     series: [
-        'hsl(220 70% 50%)', // Primary blue
+        'hsl(261, 100%, 79%)', // Primary blue
         'hsl(200 70% 50%)', // Cyan blue
         'hsl(240 70% 55%)', // Purple blue
         'hsl(180 60% 45%)', // Teal
@@ -33,6 +33,23 @@ export const chartColors = {
 } as const
 
 /**
+ * Semantic color mapping for specific metrics.
+ * Ensures consistent colors across all chart types.
+ */
+export const metricColors = {
+    Solvability: { bar: '#c77dff', errorBar: '#9d4edd' },
+    'Top-1': { bar: '#ffccd5', errorBar: '#ffb3c1' },
+    'Top-2': { bar: '#ffb3c1', errorBar: '#ff8fa3' },
+    'Top-3': { bar: '#ff8fa3', errorBar: '#ff758f' },
+    'Top-4': { bar: '#ff758f', errorBar: '#ff4d6d' },
+    'Top-5': { bar: '#ff4d6d', errorBar: '#c9184a' },
+    'Top-10': { bar: '#c9184a', errorBar: '#a4133c' },
+    'Top-20': { bar: '#a4133c', errorBar: '#800f2f' },
+    'Top-50': { bar: '#800f2f', errorBar: '#590d22' },
+    'Top-100': { bar: '#590d22', errorBar: '#461220' },
+} as const
+
+/**
  * Get bar color and corresponding error bar color for a series index
  */
 export function getSeriesColors(index: number): { bar: string; errorBar: string } {
@@ -41,4 +58,12 @@ export function getSeriesColors(index: number): { bar: string; errorBar: string 
         bar: chartColors.series[seriesIndex],
         errorBar: chartColors.seriesErrorBars[seriesIndex],
     }
+}
+
+/**
+ * Get colors for a specific metric by name, with fallback to series colors.
+ * This ensures consistent colors across all chart types while supporting unknown metrics.
+ */
+export function getMetricColors(metricName: string, fallbackIndex: number): { bar: string; errorBar: string } {
+    return metricColors[metricName as keyof typeof metricColors] ?? getSeriesColors(fallbackIndex)
 }

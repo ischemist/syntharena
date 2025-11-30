@@ -165,7 +165,7 @@ export function TargetSearchBar({ hasGroundTruth, minLength, maxLength }: Target
                 <Search className="text-muted-foreground absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2" />
                 <Input
                     type="text"
-                    placeholder="Search targets..."
+                    placeholder="Search targets by ID, SMILES, or InChI Key..."
                     defaultValue={currentQuery}
                     onChange={(e) => handleQueryChange(e.target.value)}
                     className="h-8 pl-8"
@@ -228,6 +228,7 @@ export function TargetSearchBar({ hasGroundTruth, minLength, maxLength }: Target
                     <div className="border-input flex h-8 items-center gap-2 rounded-md border bg-transparent px-3 shadow-xs">
                         <span className="text-muted-foreground text-sm">Steps</span>
                         <Input
+                            key={`min-${currentMinLength || 'empty'}`}
                             type="number"
                             placeholder={`${minLength}`}
                             min={minLength}
@@ -238,6 +239,7 @@ export function TargetSearchBar({ hasGroundTruth, minLength, maxLength }: Target
                         />
                         <span className="text-muted-foreground">—</span>
                         <Input
+                            key={`max-${currentMaxLength || 'empty'}`}
                             type="number"
                             placeholder={`${maxLength}`}
                             min={minLength}

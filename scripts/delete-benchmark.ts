@@ -5,12 +5,10 @@
  */
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { PrismaClient } from '@prisma/client'
-import { config } from 'dotenv'
+
+import './env-loader'
 
 import { deleteBenchmark as deleteBenchmarkFromService } from '../src/lib/services/benchmark.service'
-
-// Load environment variables FIRST
-config({ path: '.env' })
 
 const adapter = new PrismaBetterSqlite3({
     url: process.env.DATABASE_URL,

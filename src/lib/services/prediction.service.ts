@@ -258,6 +258,7 @@ export const getTargetPredictions = cache(_getTargetPredictions)
  * @param runId - The prediction run ID
  * @param query - Search query (matches targetId or SMILES substring). Empty string returns initial targets.
  * @param stockId - Optional: Stock ID to include in route data
+ * @param routeLength - Optional: Filter by ground truth route length (only applies to benchmarks with GT)
  * @param limit - Maximum number of results (default: 20)
  * @returns Array of matching targets with molecule data
  * @throws Error if run not found
@@ -266,6 +267,7 @@ async function _searchTargets(
     runId: string,
     query: string,
     stockId?: string,
+    routeLength?: number,
     limit = 20
 ): Promise<BenchmarkTargetWithMolecule[]> {
     // Verify run exists and get benchmark ID
@@ -300,6 +302,7 @@ async function _searchTargets(
                 },
             ],
         }),
+        ...(routeLength !== undefined && { routeLength }),
     }
 
     // Search by targetId or SMILES substring
@@ -336,6 +339,55 @@ async function _searchTargets(
 }
 
 export const searchTargets = cache(_searchTargets)
+
+/**
+ * Get available ground truth route lengths for a benchmark set.
+ * Only returns lengths where targets exist.
+ *
+ * @param runId - The prediction run ID
+ * @returns Sorted array of unique route lengths
+ * @throws Error if run not found
+ */
+async function _getAvailableRouteLengths(runId: string): Promise<number[]> {
+    // Verify run exists and get benchmark ID
+    const run = await prisma.predictionRun.findUnique({
+        where: { id: runId },
+        select: {
+            benchmarkSetId: true,
+            benchmarkSet: {
+                select: { hasGroundTruth: true },
+            },
+        },
+    })
+
+    if (!run) {
+        throw new Error('Prediction run not found.')
+    }
+
+    // Only fetch route lengths if benchmark has ground truth
+    if (!run.benchmarkSet.hasGroundTruth) {
+        return []
+    }
+
+    // Get distinct route lengths from targets with ground truth
+    const targets = await prisma.benchmarkTarget.findMany({
+        where: {
+            benchmarkSetId: run.benchmarkSetId,
+            routeLength: { not: null },
+        },
+        select: {
+            routeLength: true,
+        },
+        distinct: ['routeLength'],
+        orderBy: {
+            routeLength: 'asc',
+        },
+    })
+
+    return targets.map((t) => t.routeLength!).filter((length): length is number => length !== null)
+}
+
+export const getAvailableRouteLengths = cache(_getAvailableRouteLengths)
 
 /**
  * Get paginated targets for a prediction run with filters.
@@ -484,7 +536,7 @@ export const getTargetsByRun = cache(_getTargetsByRun)
  * @returns Array of target IDs in alphabetical order
  * @throws Error if run not found
  */
-async function _getTargetIdsByRun(runId: string): Promise<string[]> {
+async function _getTargetIdsByRun(runId: string, routeLength?: number): Promise<string[]> {
     // Verify run exists and get benchmark ID
     const run = await prisma.predictionRun.findUnique({
         where: { id: runId },
@@ -495,11 +547,13 @@ async function _getTargetIdsByRun(runId: string): Promise<string[]> {
         throw new Error('Prediction run not found.')
     }
 
-    // Get ALL target IDs for this benchmark set, ordered alphabetically
+    // Get target IDs for this benchmark set, ordered alphabetically
+    // Optionally filtered by route length
     // This includes targets for which the model found no routes
     const targets = await prisma.benchmarkTarget.findMany({
         where: {
             benchmarkSetId: run.benchmarkSetId,
+            ...(routeLength !== undefined && { routeLength }),
         },
         select: {
             id: true,
