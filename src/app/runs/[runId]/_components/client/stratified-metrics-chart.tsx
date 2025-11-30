@@ -5,7 +5,7 @@ import { Bar, BarChart, CartesianGrid, ErrorBar, XAxis, YAxis } from 'recharts'
 
 import type { StratifiedMetric } from '@/types'
 import { filterPlateauStratifiedMetrics } from '@/lib/utils'
-import { getSeriesColors } from '@/components/theme/chart-palette'
+import { getMetricColors } from '@/components/theme/chart-palette'
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip } from '@/components/ui/chart'
 
 type StratifiedMetricsChartProps = {
@@ -82,11 +82,11 @@ export function StratifiedMetricsChart({ metrics, minSamples = 5 }: StratifiedMe
         return row
     })
 
-    // Chart configuration using centralized color palette
+    // Chart configuration using semantic color mapping with fallback
     const chartConfig = filteredMetrics.reduce(
         (config, m, idx) => {
             const metricKey = m.name.toLowerCase().replace(/[^a-z0-9]/g, '_')
-            const colors = getSeriesColors(idx)
+            const colors = getMetricColors(m.name, idx)
             config[metricKey] = {
                 label: m.name,
                 color: colors.bar,

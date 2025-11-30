@@ -4,7 +4,7 @@ import { Bar, BarChart, CartesianGrid, Cell, ErrorBar, XAxis, YAxis } from 'rech
 
 import type { MetricResult } from '@/types'
 import { filterPlateauMetrics } from '@/lib/utils'
-import { chartColors } from '@/components/theme/chart-palette'
+import { getMetricColors } from '@/components/theme/chart-palette'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 
 type MetricsChartProps = {
@@ -24,11 +24,12 @@ export function MetricsChart({ metrics }: MetricsChartProps) {
     // Filter out duplicate plateau values in Top-k metrics
     const filteredMetrics = filterPlateauMetrics(metrics)
 
-    // Transform metrics data for recharts
-    const chartData = filteredMetrics.map((m) => {
+    // Transform metrics data for recharts with semantic colors
+    const chartData = filteredMetrics.map((m, idx) => {
         const value = m.metric.value * 100 // Convert to percentage
         const ciLower = m.metric.ciLower * 100
         const ciUpper = m.metric.ciUpper * 100
+        const colors = getMetricColors(m.name, idx)
         return {
             name: m.name,
             value,
@@ -40,6 +41,9 @@ export function MetricsChart({ metrics }: MetricsChartProps) {
             errorUpper: ciUpper - value,
             nSamples: m.metric.nSamples,
             reliability: m.metric.reliability,
+            // Store colors for this metric
+            barColor: colors.bar,
+            errorBarColor: colors.errorBar,
         }
     })
 
@@ -47,7 +51,6 @@ export function MetricsChart({ metrics }: MetricsChartProps) {
     const chartConfig = {
         value: {
             label: 'Value',
-            color: chartColors.primary,
         },
     }
 
@@ -105,20 +108,22 @@ export function MetricsChart({ metrics }: MetricsChartProps) {
                         />
                     }
                 />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]} fill={chartColors.primary}>
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    {chartData.map((entry, index) => (
+                        <Cell
+                            key={`cell-${index}`}
+                            fill={entry.barColor}
+                            opacity={entry.reliability.code === 'OK' ? 1 : 0.5}
+                        />
+                    ))}
                     {/* ErrorBar with array [lower, upper] for asymmetric error bars */}
                     <ErrorBar
                         dataKey={(entry) => [entry.errorLower, entry.errorUpper]}
                         width={6}
                         strokeWidth={2.5}
-                        stroke={chartColors.primaryDark}
+                        stroke="currentColor"
+                        opacity={0.8}
                     />
-                    {chartData.map((entry, index) => (
-                        <Cell
-                            key={`cell-${index}`}
-                            fill={entry.reliability.code === 'OK' ? chartColors.reliable : chartColors.unreliable}
-                        />
-                    ))}
                 </Bar>
             </BarChart>
         </ChartContainer>

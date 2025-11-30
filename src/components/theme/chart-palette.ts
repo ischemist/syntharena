@@ -33,6 +33,23 @@ export const chartColors = {
 } as const
 
 /**
+ * Semantic color mapping for specific metrics.
+ * Ensures consistent colors across all chart types.
+ */
+export const metricColors = {
+    Solvability: { bar: 'hsl(261, 100%, 79%)', errorBar: 'hsl(220 70% 25%)' },
+    'Top-1': { bar: '#ffccd5', errorBar: '#ffb3c1' },
+    'Top-2': { bar: '#', errorBar: '#' },
+    'Top-3': { bar: '#', errorBar: '#' },
+    'Top-4': { bar: '#', errorBar: '#' },
+    'Top-5': { bar: '#', errorBar: '#' },
+    'Top-10': { bar: '#', errorBar: '#' },
+    'Top-20': { bar: '#', errorBar: '#' },
+    'Top-50': { bar: '#', errorBar: '#' },
+    'Top-100': { bar: '#', errorBar: '#' },
+} as const
+
+/**
  * Get bar color and corresponding error bar color for a series index
  */
 export function getSeriesColors(index: number): { bar: string; errorBar: string } {
@@ -41,4 +58,12 @@ export function getSeriesColors(index: number): { bar: string; errorBar: string 
         bar: chartColors.series[seriesIndex],
         errorBar: chartColors.seriesErrorBars[seriesIndex],
     }
+}
+
+/**
+ * Get colors for a specific metric by name, with fallback to series colors.
+ * This ensures consistent colors across all chart types while supporting unknown metrics.
+ */
+export function getMetricColors(metricName: string, fallbackIndex: number): { bar: string; errorBar: string } {
+    return metricColors[metricName as keyof typeof metricColors] ?? getSeriesColors(fallbackIndex)
 }
