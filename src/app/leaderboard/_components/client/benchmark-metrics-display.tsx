@@ -5,11 +5,11 @@ import { createContext, useContext, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { flexRender, getCoreRowModel, getSortedRowModel, SortingState, useReactTable } from '@tanstack/react-table'
 import { BarChart3, Table2 } from 'lucide-react'
-import { Bar, BarChart, CartesianGrid, Cell, ErrorBar, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, ErrorBar, XAxis, YAxis } from 'recharts'
 
 import type { LeaderboardEntry } from '@/types'
 import { cn } from '@/lib/utils'
-import { chartColors } from '@/components/theme/chart-palette'
+import { getMetricColors } from '@/components/theme/chart-palette'
 import { Button } from '@/components/ui/button'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -232,10 +232,13 @@ function ModelComparisonChart({ metricName, entries }: { metricName: string; ent
         return null
     }
 
+    // Get semantic colors for this metric
+    const colors = getMetricColors(metricName, 0)
+
     const chartConfig = {
         value: {
             label: metricName,
-            color: chartColors.primary,
+            color: colors.bar,
         },
     }
 
@@ -304,19 +307,13 @@ function ModelComparisonChart({ metricName, entries }: { metricName: string; ent
                             />
                         }
                     />
-                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]} fill={colors.bar}>
                         <ErrorBar
                             dataKey={(entry) => [entry.errorLower, entry.errorUpper]}
                             width={6}
                             strokeWidth={2.5}
-                            stroke={chartColors.primaryDark}
+                            stroke={colors.errorBar}
                         />
-                        {chartData.map((entry, index) => (
-                            <Cell
-                                key={`cell-${index}`}
-                                fill={entry.reliability.code === 'OK' ? chartColors.reliable : chartColors.unreliable}
-                            />
-                        ))}
                     </Bar>
                 </BarChart>
             </ChartContainer>
