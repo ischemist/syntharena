@@ -199,7 +199,7 @@ export function StratifiedMetricsChart({ metrics, minSamples = 5 }: StratifiedMe
                         )
                     }}
                 />
-                <ChartLegend content={<ChartLegendContent />} />
+                <ChartLegend className="mt-2" content={<ChartLegendContent />} />
                 {filteredMetrics.map((m) => {
                     const metricKey = m.name.toLowerCase().replace(/[^a-z0-9]/g, '_')
                     const barColor = chartConfig[metricKey].color

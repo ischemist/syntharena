@@ -37,16 +37,16 @@ export const chartColors = {
  * Ensures consistent colors across all chart types.
  */
 export const metricColors = {
-    Solvability: { bar: 'hsl(261, 100%, 79%)', errorBar: 'hsl(220 70% 25%)' },
+    Solvability: { bar: '#c77dff', errorBar: '#9d4edd' },
     'Top-1': { bar: '#ffccd5', errorBar: '#ffb3c1' },
-    'Top-2': { bar: '#', errorBar: '#' },
-    'Top-3': { bar: '#', errorBar: '#' },
-    'Top-4': { bar: '#', errorBar: '#' },
-    'Top-5': { bar: '#', errorBar: '#' },
-    'Top-10': { bar: '#', errorBar: '#' },
-    'Top-20': { bar: '#', errorBar: '#' },
-    'Top-50': { bar: '#', errorBar: '#' },
-    'Top-100': { bar: '#', errorBar: '#' },
+    'Top-2': { bar: '#ffb3c1', errorBar: '#ff8fa3' },
+    'Top-3': { bar: '#ff8fa3', errorBar: '#ff758f' },
+    'Top-4': { bar: '#ff758f', errorBar: '#ff4d6d' },
+    'Top-5': { bar: '#ff4d6d', errorBar: '#c9184a' },
+    'Top-10': { bar: '#c9184a', errorBar: '#a4133c' },
+    'Top-20': { bar: '#a4133c', errorBar: '#800f2f' },
+    'Top-50': { bar: '#800f2f', errorBar: '#590d22' },
+    'Top-100': { bar: '#590d22', errorBar: '#461220' },
 } as const
 
 /**
