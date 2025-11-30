@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 type NavigationData = {
     totalTargets: number
@@ -18,25 +19,28 @@ type NavigationData = {
 }
 
 type TargetSearchProps = {
-    onSearch: (query: string) => Promise<BenchmarkTargetWithMolecule[]>
+    onSearch: (query: string, routeLength?: number) => Promise<BenchmarkTargetWithMolecule[]>
     navigation: NavigationData
+    availableRouteLengths: number[]
+    currentRouteLength?: number
 }
 
-export function TargetSearch({ onSearch, navigation }: TargetSearchProps) {
+export function TargetSearch({ onSearch, navigation, availableRouteLengths, currentRouteLength }: TargetSearchProps) {
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
 
     const [open, setOpen] = useState(false)
     const [query, setQuery] = useState(searchParams.get('search') || '')
+    const [selectedRouteLength, setSelectedRouteLength] = useState<number | undefined>(currentRouteLength)
     const [results, setResults] = useState<BenchmarkTargetWithMolecule[]>([])
     const [isSearching, setIsSearching] = useState(false)
 
     // Load initial results when popover opens
     useEffect(() => {
-        if (open && results.length === 0 && !query) {
+        if (open && results.length === 0 && !query && !selectedRouteLength) {
             setIsSearching(true)
-            onSearch('')
+            onSearch('', selectedRouteLength)
                 .then(setResults)
                 .catch((error) => {
                     console.error('Failed to load initial targets:', error)
@@ -44,14 +48,14 @@ export function TargetSearch({ onSearch, navigation }: TargetSearchProps) {
                 })
                 .finally(() => setIsSearching(false))
         }
-    }, [open, onSearch, query, results.length])
+    }, [open, onSearch, query, selectedRouteLength, results.length])
 
     // Debounced search effect
     useEffect(() => {
         const timer = setTimeout(async () => {
             setIsSearching(true)
             try {
-                const searchResults = await onSearch(query)
+                const searchResults = await onSearch(query, selectedRouteLength)
                 setResults(searchResults)
             } catch (error) {
                 console.error('Search failed:', error)
@@ -62,7 +66,7 @@ export function TargetSearch({ onSearch, navigation }: TargetSearchProps) {
         }, 300)
 
         return () => clearTimeout(timer)
-    }, [query, onSearch])
+    }, [query, selectedRouteLength, onSearch])
 
     const handleInputChange = (value: string) => {
         setQuery(value)
@@ -94,6 +98,19 @@ export function TargetSearch({ onSearch, navigation }: TargetSearchProps) {
         setResults([])
         const params = new URLSearchParams(searchParams.toString())
         params.delete('search')
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    }
+
+    const handleRouteLengthChange = (value: string) => {
+        const params = new URLSearchParams(searchParams.toString())
+        if (value === 'all') {
+            setSelectedRouteLength(undefined)
+            params.delete('routeLength')
+        } else {
+            const length = parseInt(value, 10)
+            setSelectedRouteLength(length)
+            params.set('routeLength', value)
+        }
         router.replace(`${pathname}?${params.toString()}`, { scroll: false })
     }
 
@@ -239,6 +256,35 @@ export function TargetSearch({ onSearch, navigation }: TargetSearchProps) {
                     </Command>
                 </PopoverContent>
             </Popover>
+
+            {/* Route Length Filter - Only show if available */}
+            {availableRouteLengths.length > 0 && (
+                <>
+                    <Select value={selectedRouteLength?.toString() || 'all'} onValueChange={handleRouteLengthChange}>
+                        <SelectTrigger className="w-[130px]">
+                            <SelectValue placeholder="All lengths" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All lengths</SelectItem>
+                            {availableRouteLengths.map((length) => (
+                                <SelectItem key={length} value={length.toString()}>
+                                    {length} steps
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    {selectedRouteLength !== undefined && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRouteLengthChange('all')}
+                            title="Clear route length filter"
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
+                    )}
+                </>
+            )}
         </div>
     )
 }

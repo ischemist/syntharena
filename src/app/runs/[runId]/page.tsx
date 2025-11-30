@@ -14,6 +14,7 @@ type PageProps = {
         target?: string
         rank?: string
         view?: string
+        routeLength?: string
     }>
 }
 
@@ -76,7 +77,7 @@ async function RunStatisticsSummaryWrapper({
     searchParams,
 }: {
     params: Promise<{ runId: string }>
-    searchParams: Promise<{ stock?: string }>
+    searchParams: Promise<{ stock?: string; routeLength?: string }>
 }) {
     const { runId } = await params
     const { RunStatisticsSummary } = await import('./_components/server/run-statistics-summary')
@@ -88,7 +89,7 @@ async function RunStatisticsStratifiedWrapper({
     searchParams,
 }: {
     params: Promise<{ runId: string }>
-    searchParams: Promise<{ stock?: string }>
+    searchParams: Promise<{ stock?: string; routeLength?: string }>
 }) {
     const { runId } = await params
     const { RunStatisticsStratified } = await import('./_components/server/run-statistics-stratified')
