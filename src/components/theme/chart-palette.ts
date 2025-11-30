@@ -6,12 +6,12 @@
 // Primary blue color scheme for bar charts
 export const chartColors = {
     // Primary bar colors (use for main data series)
-    primary: 'hsl(220 70% 50%)',
+    primary: 'hsl(261, 100%, 79%)',
     primaryDark: 'hsl(220 70% 35%)', // For error bars on primary
 
     // Color palette for grouped/multi-series charts
     series: [
-        'hsl(220 70% 50%)', // Primary blue
+        'hsl(261, 100%, 79%)', // Primary blue
         'hsl(200 70% 50%)', // Cyan blue
         'hsl(240 70% 55%)', // Purple blue
         'hsl(180 60% 45%)', // Teal

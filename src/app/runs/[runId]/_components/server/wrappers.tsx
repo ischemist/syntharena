@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 
 import { getPredictionRunById, getStocksForRun, getTargetIdsByRun } from '@/lib/services/prediction.service'
 
@@ -43,7 +43,7 @@ export async function RunDetailHeaderWrapper({ params }: ParamsProps) {
 }
 
 /**
- * Wrapper for StockSelector - fetches stocks and passes to client for default selection
+ * Wrapper for StockSelector - fetches stocks and handles auto-selection server-side
  */
 export async function StockSelectorWrapper({ params, searchParams }: ParamsProps & SearchParamsProps) {
     const { runId } = await params
@@ -51,7 +51,26 @@ export async function StockSelectorWrapper({ params, searchParams }: ParamsProps
 
     const [stocks, targetIds] = await Promise.all([getStocksForRun(runId), getTargetIdsByRun(runId)])
 
-    // Pass data to client component for client-side default selection (Phase 5)
+    // Server-side auto-selection: If no stock param exists but stocks are available, redirect with first stock
+    if (!searchParamsResolved.stock && stocks.length > 0) {
+        const params = new URLSearchParams(searchParamsResolved as Record<string, string>)
+        params.set('stock', stocks[0].id)
+
+        // Auto-select first target if none selected
+        if (!searchParamsResolved.target && targetIds[0]) {
+            params.set('target', targetIds[0])
+            params.set('rank', '1')
+        }
+
+        redirect(`?${params.toString()}`)
+    }
+
+    // Hide selector if only one stock
+    if (stocks.length <= 1) {
+        return null
+    }
+
+    // Pass data to client component
     return (
         <StockSelector
             stocks={stocks}
