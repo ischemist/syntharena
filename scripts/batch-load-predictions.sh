@@ -124,16 +124,23 @@ for model in "${MODELS[@]}"; do
         # Parse dataset config
         IFS=':' read -r dataset stock_path stock_db <<< "$config"
 
-        # Build command
+        # Build command array
         algorithm="${ALGORITHM_NAMES[$model]}"
-        cmd="pnpm tsx scripts/load-predictions.ts \"$dataset\" \"$model\" --algorithm \"$algorithm\" --stock-path \"$stock_path\" --stock-db \"$stock_db\""
+        cmd_args=(
+            pnpm tsx scripts/load-predictions.ts
+            "$dataset"
+            "$model"
+            --algorithm "$algorithm"
+            --stock-path "$stock_path"
+            --stock-db "$stock_db"
+        )
 
         # Add optional parameters if they exist
         if [[ -n "${ALGORITHM_PAPERS[$model]}" ]]; then
-            cmd="$cmd --algorithm-paper \"${ALGORITHM_PAPERS[$model]}\""
+            cmd_args+=(--algorithm-paper "${ALGORITHM_PAPERS[$model]}")
         fi
         if [[ -n "${MODEL_VERSIONS[$model]}" ]]; then
-            cmd="$cmd --model-version \"${MODEL_VERSIONS[$model]}\""
+            cmd_args+=(--model-version "${MODEL_VERSIONS[$model]}")
         fi
 
         # Increment step counter
@@ -143,7 +150,7 @@ for model in "${MODELS[@]}"; do
         show_progress "$CURRENT_STEP" "$TOTAL_STEPS" "${model}/${dataset}: Loading..."
 
         # Execute command silently, capturing output
-        if ! eval "$cmd" > /dev/null 2>&1; then
+        if ! "${cmd_args[@]}" > /dev/null 2>&1; then
             # Record failure
             FAILED_JOBS+=("${model}/${dataset}")
         fi
