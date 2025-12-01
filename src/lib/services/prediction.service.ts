@@ -184,11 +184,6 @@ async function _getTargetPredictions(
                     nodes: {
                         include: {
                             molecule: true,
-                            children: {
-                                include: {
-                                    molecule: true,
-                                },
-                            },
                         },
                     },
                 },

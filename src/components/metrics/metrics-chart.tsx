@@ -1,11 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ErrorBar, XAxis, YAxis } from 'recharts'
 
 import type { MetricResult } from '@/types'
 import { filterPlateauMetrics } from '@/lib/utils'
 import { getMetricColors } from '@/components/theme/chart-palette'
-import { ChartContainer, ChartTooltip } from '@/components/ui/chart'
+import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip } from '@/components/ui/chart'
 
 type MetricsChartProps = {
     metrics: Array<{
@@ -14,6 +15,11 @@ type MetricsChartProps = {
     }>
 }
 
+// Track which specific bar is being hovered
+type HoveredBar = {
+    metricKey: string
+} | null
+
 /**
  * Bar chart visualization of overall metrics with error bars.
  * Displays percentage values with 95% confidence interval error bars.
@@ -21,6 +27,9 @@ type MetricsChartProps = {
  * Client component that uses recharts for interactive visualization.
  */
 export function MetricsChart({ metrics }: MetricsChartProps) {
+    const [hoveredBar, setHoveredBar] = useState<HoveredBar>(null)
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+
     // Filter out duplicate plateau values in Top-k metrics
     const filteredMetrics = filterPlateauMetrics(metrics)
 
@@ -71,6 +80,11 @@ export function MetricsChart({ metrics }: MetricsChartProps) {
                     left: 20,
                     bottom: 20,
                 }}
+                onMouseMove={(e) => {
+                    if (e?.chartX !== undefined && e?.chartY !== undefined) {
+                        setMousePos({ x: e.chartX, y: e.chartY })
+                    }
+                }}
             >
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis
@@ -90,13 +104,19 @@ export function MetricsChart({ metrics }: MetricsChartProps) {
                     domain={[0, 100]}
                 />
                 <ChartTooltip
+                    isAnimationActive={false}
+                    position={{ x: mousePos.x + 15, y: mousePos.y - 10 }}
+                    cursor={false}
                     content={({ active, payload }) => {
-                        if (!active || !payload || payload.length === 0) return null
+                        // Only show tooltip when hovering over a specific bar
+                        if (!active || !payload || payload.length === 0 || !hoveredBar) {
+                            return null
+                        }
 
                         const dataPoint = payload[0]?.payload
-                        const metricKey = payload[0]?.dataKey as string
+                        const metricKey = hoveredBar.metricKey
                         const metricName = chartConfig[metricKey]?.label || metricKey
-                        const value = payload[0]?.value
+                        const value = dataPoint[metricKey]
                         const color = chartConfig[metricKey]?.color
 
                         return (
@@ -141,6 +161,7 @@ export function MetricsChart({ metrics }: MetricsChartProps) {
                         )
                     }}
                 />
+                <ChartLegend className="mt-2" content={<ChartLegendContent />} />
                 {filteredMetrics.map((m) => {
                     const metricKey = m.name.toLowerCase().replace(/[^a-z0-9]/g, '_')
                     const barColor = chartConfig[metricKey].color
@@ -155,6 +176,10 @@ export function MetricsChart({ metrics }: MetricsChartProps) {
                             fillOpacity={isReliable ? 1 : 0.5}
                             radius={[4, 4, 0, 0]}
                             name={m.name}
+                            onMouseEnter={() => {
+                                setHoveredBar({ metricKey })
+                            }}
+                            onMouseLeave={() => setHoveredBar(null)}
                         >
                             <ErrorBar
                                 dataKey={(entry) => entry[`${metricKey}_error`]}
