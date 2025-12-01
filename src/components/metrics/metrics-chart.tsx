@@ -5,7 +5,7 @@ import { Bar, BarChart, CartesianGrid, ErrorBar, XAxis, YAxis } from 'recharts'
 import type { MetricResult } from '@/types'
 import { filterPlateauMetrics } from '@/lib/utils'
 import { getMetricColors } from '@/components/theme/chart-palette'
-import { ChartContainer, ChartTooltip } from '@/components/ui/chart'
+import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip } from '@/components/ui/chart'
 
 type MetricsChartProps = {
     metrics: Array<{
@@ -141,6 +141,7 @@ export function MetricsChart({ metrics }: MetricsChartProps) {
                         )
                     }}
                 />
+                <ChartLegend className="mt-2" content={<ChartLegendContent />} />
                 {filteredMetrics.map((m) => {
                     const metricKey = m.name.toLowerCase().replace(/[^a-z0-9]/g, '_')
                     const barColor = chartConfig[metricKey].color
