@@ -106,7 +106,7 @@ export function MetricsChart({ metrics }: MetricsChartProps) {
                 <ChartTooltip
                     isAnimationActive={false}
                     position={{ x: mousePos.x + 15, y: mousePos.y - 10 }}
-                    cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }}
+                    cursor={false}
                     content={({ active, payload }) => {
                         // Only show tooltip when hovering over a specific bar
                         if (!active || !payload || payload.length === 0 || !hoveredBar) {
