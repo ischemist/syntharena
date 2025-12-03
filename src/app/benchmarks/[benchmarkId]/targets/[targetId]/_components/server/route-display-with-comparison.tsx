@@ -335,13 +335,16 @@ export async function RouteDisplayWithComparison({
                                     <div className="border-t border-gray-200 pt-3 dark:border-gray-700" />
                                 )}
 
-                                <div className="grid items-end gap-3 md:grid-cols-2">
+                                <div className="grid gap-3 md:grid-cols-2">
                                     <div className="space-y-3">
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                            Acceptable Route
-                                        </label>
+                                        {/* Mimick ModelPredictionSelector layout: label + button height */}
+                                        <div className="flex h-9 items-center">
+                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                Acceptable Route
+                                            </span>
+                                        </div>
                                         {/* Acceptable route selector (if multiple routes) */}
-                                        {hasMultipleAcceptableRoutes && (
+                                        {hasMultipleAcceptableRoutes ? (
                                             <RoutePagination
                                                 paramName="acceptableIndex"
                                                 currentValue={acceptableIndex}
@@ -349,6 +352,8 @@ export async function RouteDisplayWithComparison({
                                                 label="Route"
                                                 zeroBasedIndex={true}
                                             />
+                                        ) : (
+                                            <div className="h-9" />
                                         )}
                                     </div>
 
