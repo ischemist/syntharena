@@ -7,10 +7,10 @@ import { Button } from '@/components/ui/button'
 
 interface RouteViewToggleProps {
     viewMode: RouteViewMode
-    hasGroundTruth: boolean
+    hasAcceptableRoute: boolean
 }
 
-export function RouteViewToggle({ viewMode, hasGroundTruth }: RouteViewToggleProps) {
+export function RouteViewToggle({ viewMode, hasAcceptableRoute }: RouteViewToggleProps) {
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
@@ -36,7 +36,7 @@ export function RouteViewToggle({ viewMode, hasGroundTruth }: RouteViewTogglePro
                     variant={viewMode === 'side-by-side' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => handleViewModeChange('side-by-side')}
-                    disabled={!hasGroundTruth}
+                    disabled={!hasAcceptableRoute}
                 >
                     Side-by-Side
                 </Button>
@@ -44,13 +44,13 @@ export function RouteViewToggle({ viewMode, hasGroundTruth }: RouteViewTogglePro
                     variant={viewMode === 'diff-overlay' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => handleViewModeChange('diff-overlay')}
-                    disabled={!hasGroundTruth}
+                    disabled={!hasAcceptableRoute}
                 >
                     Diff Overlay
                 </Button>
             </div>
-            {!hasGroundTruth && (
-                <span className="text-muted-foreground text-xs italic">(Comparison requires ground truth)</span>
+            {!hasAcceptableRoute && (
+                <span className="text-muted-foreground text-xs italic">(Comparison requires acceptable routes)</span>
             )}
         </div>
     )

@@ -14,9 +14,9 @@ import { SmileDrawerSvg } from '@/components/smile-drawer'
  * Supported statuses:
  * - "in-stock": Molecule is available in the selected stock (green border)
  * - "default": Normal molecule node (gray border)
- * - "match": Both GT and prediction have this molecule (green border, solid)
- * - "extension": Only in prediction, not in GT (amber/yellow border, solid) - potential alternative route
- * - "ghost": Only in GT, missing from prediction (gray border, dashed)
+ * - "match": Both acceptable route and prediction have this molecule (green border, solid)
+ * - "extension": Only in prediction, not in acceptable route (amber/yellow border, solid) - potential alternative route
+ * - "ghost": Only in acceptable route, missing from prediction (gray border, dashed)
  */
 export function MoleculeNode({ data }: NodeProps<Node<RouteGraphNode>>) {
     const { smiles, status, isLeaf, inStock } = data
@@ -36,7 +36,7 @@ export function MoleculeNode({ data }: NodeProps<Node<RouteGraphNode>>) {
     const nodeClass = statusClasses[status] || statusClasses.default
 
     // Show stock badge for leaf nodes in comparison mode
-    // GT vs pred: extension or match
+    // Acceptable vs pred: extension or match
     // Pred vs pred: any pred-* status
     const showStockBadge =
         isLeaf &&

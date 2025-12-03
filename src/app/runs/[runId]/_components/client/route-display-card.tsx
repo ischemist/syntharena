@@ -155,7 +155,7 @@ export function RouteDisplayCard({
                 )}
 
                 {/* View mode toggle */}
-                <RouteViewToggle viewMode={viewMode} hasGroundTruth={hasAcceptableRoute} />
+                <RouteViewToggle viewMode={viewMode} hasAcceptableRoute={hasAcceptableRoute} />
 
                 {/* Route visualization */}
                 <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
@@ -169,7 +169,7 @@ export function RouteDisplayCard({
                     {(viewMode === 'side-by-side' || viewMode === 'diff-overlay') &&
                         acceptableRouteVisualizationNode && (
                             <RouteComparison
-                                groundTruthRoute={acceptableRouteVisualizationNode}
+                                acceptableRoute={acceptableRouteVisualizationNode}
                                 predictionRoute={visualizationNode}
                                 mode={viewMode}
                                 inStockInchiKeys={inStockInchiKeys}
@@ -185,8 +185,8 @@ export function RouteDisplayCard({
                     {viewMode === 'prediction-only'
                         ? 'Scroll to zoom. Drag to pan. Nodes marked in green are in stock.'
                         : viewMode === 'side-by-side'
-                          ? 'Scroll to zoom. Drag to pan. Green = match with acceptable route, amber = extension (not in acceptable route).'
-                          : 'Scroll to zoom. Drag to pan. Green = match, amber = extension, dashed gray = missing from prediction.'}
+                          ? 'Scroll to zoom. Drag to pan. Green = matches acceptable route, amber = extension (not in acceptable route).'
+                          : 'Scroll to zoom. Drag to pan. Green = matches acceptable route, amber = extension, dashed gray = missing from prediction.'}
                 </p>
 
                 {/* Route metadata */}

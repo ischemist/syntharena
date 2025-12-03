@@ -58,8 +58,8 @@ export function RankPagination({ paramName, currentRank, maxRank, label }: RankP
                     <span className="hidden sm:inline">Prev</span>
                 </Button>
                 <span className="flex items-center gap-2 px-3 text-sm text-gray-700 dark:text-gray-300">
-                    Rank {currentRank} of {maxRank}
-                    {isPending && <Loader2Icon className="h-3 w-3 animate-spin text-gray-500" />}
+                    Rank {isPending ? <Loader2Icon className="h-3 w-3 animate-spin text-gray-500" /> : currentRank} of{' '}
+                    {maxRank}
                 </span>
                 <Button
                     variant="outline"

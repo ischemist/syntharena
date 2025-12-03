@@ -297,18 +297,6 @@ export async function RouteDisplayWithComparison({
                         {/* Model selector */}
                         <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
                             <div className="space-y-3">
-                                {/* Acceptable route selector (if multiple routes) */}
-                                {hasMultipleAcceptableRoutes && (
-                                    <>
-                                        <AcceptableRoutePagination
-                                            currentIndex={acceptableIndex}
-                                            totalRoutes={totalAcceptableRoutes}
-                                            label="Acceptable Route"
-                                        />
-                                        <div className="border-t border-gray-200 pt-3 dark:border-gray-700" />
-                                    </>
-                                )}
-
                                 {model1Id && acceptableRouteTree && model1RouteTree && (
                                     <div className="flex items-center gap-2">
                                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -347,21 +335,36 @@ export async function RouteDisplayWithComparison({
                                     <div className="border-t border-gray-200 pt-3 dark:border-gray-700" />
                                 )}
 
-                                <ModelPredictionSelector
-                                    runs={availableRuns}
-                                    paramName="model1"
-                                    label="Model Prediction"
-                                    selectedRunId={model1Id}
-                                />
+                                <div className="grid gap-3 md:grid-cols-2">
+                                    <div className="space-y-3">
+                                        {/* Acceptable route selector (if multiple routes) */}
+                                        {hasMultipleAcceptableRoutes && (
+                                            <AcceptableRoutePagination
+                                                currentIndex={acceptableIndex}
+                                                totalRoutes={totalAcceptableRoutes}
+                                                label="Acceptable Route"
+                                            />
+                                        )}
+                                    </div>
 
-                                {model1Id && model1RouteTree && (
-                                    <RankPagination
-                                        paramName="rank1"
-                                        currentRank={rank1}
-                                        maxRank={model1MaxRank}
-                                        label="Route Rank"
-                                    />
-                                )}
+                                    <div className="space-y-3">
+                                        <ModelPredictionSelector
+                                            runs={availableRuns}
+                                            paramName="model1"
+                                            label="Model Prediction"
+                                            selectedRunId={model1Id}
+                                        />
+
+                                        {model1Id && model1RouteTree && (
+                                            <RankPagination
+                                                paramName="rank1"
+                                                currentRank={rank1}
+                                                maxRank={model1MaxRank}
+                                                label="Route Rank"
+                                            />
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -391,11 +394,16 @@ export async function RouteDisplayWithComparison({
                                     <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
                                         {acceptableRouteTree && (
                                             <RouteComparison
-                                                groundTruthRoute={acceptableRouteTree}
+                                                acceptableRoute={acceptableRouteTree}
                                                 predictionRoute={model1RouteTree}
                                                 mode={viewMode}
                                                 inStockInchiKeys={inStockInchiKeys}
                                                 modelName={model1Name}
+                                                acceptableRouteLabel={
+                                                    hasMultipleAcceptableRoutes
+                                                        ? `Acceptable Route ${acceptableIndex + 1}${acceptableIndex === 0 ? ' (Primary)' : ''}`
+                                                        : 'Acceptable Route'
+                                                }
                                             />
                                         )}
                                     </div>

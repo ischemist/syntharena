@@ -38,7 +38,7 @@ type TargetRouteGraphDisplayProps = {
 }
 
 /**
- * Slow path: Fetch and display route graph with ground truth comparison.
+ * Slow path: Fetch and display route graph with acceptable route comparison.
  * This component streams in after target metadata is displayed.
  */
 export async function TargetRouteGraphDisplay({
