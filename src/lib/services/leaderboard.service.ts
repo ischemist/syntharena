@@ -67,7 +67,7 @@ async function _getLeaderboard(benchmarkId?: string, stockId?: string): Promise<
 
         // Get top-k accuracy metrics (only if benchmark has ground truth)
         const topKAccuracy: Record<string, MetricResult> = {}
-        if (stat.predictionRun.benchmarkSet.hasGroundTruth) {
+        if (stat.predictionRun.benchmarkSet.hasAcceptableRoutes) {
             const uniqueMetricNames = new Set(
                 stat.metrics
                     .filter((m) => m.metricName.startsWith('Top-') && m.groupKey === null)
@@ -208,7 +208,7 @@ async function _getStratifiedMetrics(
         if (!solvability) continue // Should not happen if data is valid
 
         let topKAccuracy: Record<string, StratifiedMetric> | undefined
-        if (stat.predictionRun.benchmarkSet.hasGroundTruth) {
+        if (stat.predictionRun.benchmarkSet.hasAcceptableRoutes) {
             const topKNames = [
                 ...new Set(stat.metrics.filter((m) => m.metricName.startsWith('Top-')).map((m) => m.metricName)),
             ]

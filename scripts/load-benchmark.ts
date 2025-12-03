@@ -29,13 +29,17 @@
  *         "target-id": {
  *           "id": "target-id",
  *           "smiles": "target-smiles",
- *           "metadata": {...},
- *           "ground_truth": { "target": {...}, "rank": 1 },
- *           "is_convergent": boolean,
- *           "route_length": number
+ *           "inchi_key": "...",
+ *           "acceptable_routes": [...],
+ *           "metadata": {...}
  *         }
  *       }
  *     }
+ *
+ * Notes:
+ *   - acceptable_routes is an array (can be empty for pure prediction tasks)
+ *   - First route in array (index 0) is the PRIMARY route used for stratification
+ *   - route_length and is_convergent are computed from primary route automatically
  *
  * The script will:
  *   1. Parse the gzipped JSON file and extract stock_name
@@ -44,8 +48,8 @@
  *   4. For each target:
  *      - Create or reuse Molecule records
  *      - Create BenchmarkTarget record
- *      - Parse and store ground truth route (if present) as RouteNode tree
- *   5. Compute route properties (length, convergence)
+ *      - Parse and store acceptable routes (if present) as RouteNode tree with junction records
+ *   5. Compute route properties (length, convergence) from primary route (index 0)
  *   6. Report statistics on completion
  */
 import * as fs from 'fs'
@@ -199,7 +203,7 @@ async function main() {
         console.log(`Targets Loaded:       ${result.targetsLoaded}`)
         console.log(`Molecules Created:    ${result.moleculesCreated}`)
         console.log(`Molecules Reused:     ${result.moleculesReused}`)
-        console.log(`Ground Truth Routes:  ${result.routesCreated}`)
+        console.log(`Acceptable Routes:    ${result.routesCreated}`)
         console.log(`Time Elapsed:         ${elapsed}s`)
         console.log('='.repeat(70))
 

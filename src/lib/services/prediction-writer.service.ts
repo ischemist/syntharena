@@ -556,7 +556,8 @@ export async function createRouteFromPython(
  * @param predictionRouteId - PredictionRoute ID
  * @param stockId - Stock ID
  * @param isSolvable - Can this route be solved with the stock?
- * @param isGtMatch - Does this route match the ground truth?
+ * @param matchesAcceptable - Does this route match any acceptable route?
+ * @param matchedAcceptableIndex - Index of matched acceptable route (0-based), or null if no match
  * @returns Created or updated RouteSolvability
  * @throws Error if predictionRoute or stock not found
  */
@@ -564,7 +565,8 @@ export async function createRouteSolvability(
     predictionRouteId: string,
     stockId: string,
     isSolvable: boolean,
-    isGtMatch: boolean
+    matchesAcceptable: boolean,
+    matchedAcceptableIndex: number | null
 ): Promise<{ id: string; predictionRouteId: string; stockId: string }> {
     // Verify predictionRoute exists
     const predictionRoute = await prisma.predictionRoute.findUnique({
@@ -594,13 +596,15 @@ export async function createRouteSolvability(
         },
         update: {
             isSolvable,
-            isGtMatch,
+            matchesAcceptable,
+            matchedAcceptableIndex,
         },
         create: {
             predictionRouteId,
             stockId,
             isSolvable,
-            isGtMatch,
+            matchesAcceptable,
+            matchedAcceptableIndex,
         },
         select: { id: true, predictionRouteId: true, stockId: true },
     })

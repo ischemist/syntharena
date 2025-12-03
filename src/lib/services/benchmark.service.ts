@@ -247,9 +247,9 @@ export async function getBenchmarkTargets(
 
     if (hasGroundTruth !== undefined) {
         if (hasGroundTruth) {
-            where.groundTruthRouteId = { not: null }
+            where.acceptableRoutes = { some: {} }
         } else {
-            where.groundTruthRouteId = null
+            where.acceptableRoutes = { none: {} }
         }
     }
 
@@ -285,19 +285,29 @@ export async function getBenchmarkTargets(
     const hasMore = targets.length > validLimit
     const resultTargets = hasMore ? targets.slice(0, validLimit) : targets
 
+    // Count acceptable routes for each target
+    const targetsWithCounts = await Promise.all(
+        resultTargets.map(async (target) => {
+            const acceptableRoutesCount = await prisma.acceptableRoute.count({
+                where: { benchmarkTargetId: target.id },
+            })
+            return {
+                id: target.id,
+                benchmarkSetId: target.benchmarkSetId,
+                targetId: target.targetId,
+                moleculeId: target.moleculeId,
+                routeLength: target.routeLength,
+                isConvergent: target.isConvergent,
+                metadata: target.metadata,
+                molecule: target.molecule,
+                hasAcceptableRoutes: acceptableRoutesCount > 0,
+                acceptableRoutesCount,
+            }
+        })
+    )
+
     return {
-        targets: resultTargets.map((target) => ({
-            id: target.id,
-            benchmarkSetId: target.benchmarkSetId,
-            targetId: target.targetId,
-            moleculeId: target.moleculeId,
-            routeLength: target.routeLength,
-            isConvergent: target.isConvergent,
-            metadata: target.metadata,
-            groundTruthRouteId: target.groundTruthRouteId,
-            molecule: target.molecule,
-            hasGroundTruth: !!target.groundTruthRouteId,
-        })),
+        targets: targetsWithCounts,
         total,
         hasMore,
         page: validPage,
@@ -324,6 +334,10 @@ async function _getTargetById(targetId: string): Promise<BenchmarkTargetWithMole
         throw new Error('Benchmark target not found')
     }
 
+    const acceptableRoutesCount = await prisma.acceptableRoute.count({
+        where: { benchmarkTargetId: target.id },
+    })
+
     return {
         id: target.id,
         benchmarkSetId: target.benchmarkSetId,
@@ -332,9 +346,9 @@ async function _getTargetById(targetId: string): Promise<BenchmarkTargetWithMole
         routeLength: target.routeLength,
         isConvergent: target.isConvergent,
         metadata: target.metadata,
-        groundTruthRouteId: target.groundTruthRouteId,
         molecule: target.molecule,
-        hasGroundTruth: !!target.groundTruthRouteId,
+        hasAcceptableRoutes: acceptableRoutesCount > 0,
+        acceptableRoutesCount,
     }
 }
 
@@ -360,20 +374,28 @@ export async function getBenchmarkStats(benchmarkId: string): Promise<BenchmarkS
         throw new Error('Benchmark not found')
     }
 
-    const targets = await prisma.benchmarkTarget.findMany({
-        where: { benchmarkSetId: benchmarkId },
-        select: {
-            routeLength: true,
-            isConvergent: true,
-            groundTruthRouteId: true,
-        },
-    })
+    const [targets, targetsWithAcceptableRoutes] = await Promise.all([
+        prisma.benchmarkTarget.findMany({
+            where: { benchmarkSetId: benchmarkId },
+            select: {
+                id: true,
+                routeLength: true,
+                isConvergent: true,
+            },
+        }),
+        prisma.benchmarkTarget.count({
+            where: {
+                benchmarkSetId: benchmarkId,
+                acceptableRoutes: { some: {} },
+            },
+        }),
+    ])
 
     const routeLengths = targets.filter((t) => t.routeLength !== null).map((t) => t.routeLength as number)
 
     return {
         totalTargets: targets.length,
-        targetsWithGroundTruth: targets.filter((t) => t.groundTruthRouteId).length,
+        targetsWithAcceptableRoutes,
         avgRouteLength: routeLengths.length > 0 ? routeLengths.reduce((a, b) => a + b, 0) / routeLengths.length : 0,
         convergentRoutes: targets.filter((t) => t.isConvergent).length,
         minRouteLength: routeLengths.length > 0 ? Math.min(...routeLengths) : 0,

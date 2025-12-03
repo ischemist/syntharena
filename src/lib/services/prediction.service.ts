@@ -97,7 +97,7 @@ async function _getPredictionRuns(benchmarkId?: string, modelId?: string): Promi
             },
             benchmarkSet: {
                 ...run.benchmarkSet,
-                hasGroundTruth: run.benchmarkSet.hasGroundTruth,
+                hasAcceptableRoutes: run.benchmarkSet.hasAcceptableRoutes,
             },
             totalRoutes: run.totalRoutes,
             totalTimeMs: run.totalTimeMs,
@@ -159,12 +159,19 @@ async function _getTargetPredictions(
     runId: string,
     stockId?: string
 ): Promise<TargetPredictionDetail> {
-    // Fetch target with molecule and ground truth
+    // Fetch target with molecule and acceptable routes
     const target = await prisma.benchmarkTarget.findUnique({
         where: { id: targetId },
         include: {
             molecule: true,
-            groundTruthRoute: true,
+            acceptableRoutes: {
+                include: {
+                    route: true,
+                },
+                orderBy: {
+                    routeIndex: 'asc',
+                },
+            },
         },
     })
 
@@ -210,7 +217,8 @@ async function _getTargetPredictions(
             stockId: s.stockId,
             stockName: s.stock.name,
             isSolvable: s.isSolvable,
-            isGtMatch: s.isGtMatch,
+            matchesAcceptable: s.matchesAcceptable,
+            matchedAcceptableIndex: s.matchedAcceptableIndex,
         }))
 
         return {
@@ -229,17 +237,24 @@ async function _getTargetPredictions(
         }
     })
 
-    // Check for GT match
-    const groundTruthRank = routesWithTrees.find((r) => r.solvability.some((s) => s.isGtMatch))?.predictionRoute.rank
+    // Check for acceptable match - find first matched route
+    const acceptableMatchRank = routesWithTrees.find((r) => r.solvability.some((s) => s.matchesAcceptable))
+        ?.predictionRoute.rank
+
+    // Extract acceptable routes from junction table (include routeIndex for ordering)
+    const acceptableRoutes = target.acceptableRoutes.map((ar) => ({
+        ...ar.route,
+        routeIndex: ar.routeIndex,
+    }))
 
     return {
         targetId: target.targetId,
         molecule: target.molecule,
         routeLength: target.routeLength,
         isConvergent: target.isConvergent,
-        hasGroundTruth: !!target.groundTruthRouteId,
-        groundTruthRoute: target.groundTruthRoute || undefined,
-        groundTruthRank,
+        hasAcceptableRoutes: target.acceptableRoutes.length > 0,
+        acceptableRoutes,
+        acceptableMatchRank,
         routes: routesWithTrees,
     }
 }
@@ -325,12 +340,23 @@ async function _searchTargets(
         },
     })
 
-    return targets.map((t) => ({
-        ...t,
-        molecule: t.molecule,
-        hasGroundTruth: !!t.groundTruthRouteId,
-        routeCount: t.predictionRoutes.length,
-    }))
+    // Count acceptable routes for each target
+    const targetsWithCounts = await Promise.all(
+        targets.map(async (t) => {
+            const acceptableRoutesCount = await prisma.acceptableRoute.count({
+                where: { benchmarkTargetId: t.id },
+            })
+            return {
+                ...t,
+                molecule: t.molecule,
+                hasAcceptableRoutes: acceptableRoutesCount > 0,
+                acceptableRoutesCount,
+                routeCount: t.predictionRoutes.length,
+            }
+        })
+    )
+
+    return targetsWithCounts
 }
 
 export const searchTargets = cache(_searchTargets)
@@ -350,7 +376,7 @@ async function _getAvailableRouteLengths(runId: string): Promise<number[]> {
         select: {
             benchmarkSetId: true,
             benchmarkSet: {
-                select: { hasGroundTruth: true },
+                select: { hasAcceptableRoutes: true },
             },
         },
     })
@@ -359,12 +385,12 @@ async function _getAvailableRouteLengths(runId: string): Promise<number[]> {
         throw new Error('Prediction run not found.')
     }
 
-    // Only fetch route lengths if benchmark has ground truth
-    if (!run.benchmarkSet.hasGroundTruth) {
+    // Only fetch route lengths if benchmark has acceptable routes
+    if (!run.benchmarkSet.hasAcceptableRoutes) {
         return []
     }
 
-    // Get distinct route lengths from targets with ground truth
+    // Get distinct route lengths from targets with acceptable routes
     const targets = await prisma.benchmarkTarget.findMany({
         where: {
             benchmarkSetId: run.benchmarkSetId,
@@ -429,9 +455,9 @@ async function _getTargetsByRun(
     // Build where clause
     const where: Prisma.BenchmarkTargetWhereInput = {
         benchmarkSetId: run.benchmarkSetId,
-        // Filter by ground truth availability
+        // Filter by acceptable routes availability
         ...(hasGroundTruth !== undefined && {
-            groundTruthRouteId: hasGroundTruth ? { not: null } : null,
+            acceptableRoutes: hasGroundTruth ? { some: {} } : { none: {} },
         }),
         // Filter by route length
         ...(minRouteLength !== undefined && {
@@ -462,7 +488,7 @@ async function _getTargetsByRun(
                         solvabilityStatus: {
                             some: {
                                 stockId,
-                                isGtMatch: gtRank === 'found',
+                                matchesAcceptable: gtRank === 'found',
                             },
                         },
                     }),
@@ -503,11 +529,20 @@ async function _getTargetsByRun(
         },
     })
 
-    const targetsWithMolecule: BenchmarkTargetWithMolecule[] = targets.map((t) => ({
-        ...t,
-        hasGroundTruth: !!t.groundTruthRouteId,
-        routeCount: t.predictionRoutes.length,
-    }))
+    // Count acceptable routes for each target
+    const targetsWithMolecule: BenchmarkTargetWithMolecule[] = await Promise.all(
+        targets.map(async (t) => {
+            const acceptableRoutesCount = await prisma.acceptableRoute.count({
+                where: { benchmarkTargetId: t.id },
+            })
+            return {
+                ...t,
+                hasAcceptableRoutes: acceptableRoutesCount > 0,
+                acceptableRoutesCount,
+                routeCount: t.predictionRoutes.length,
+            }
+        })
+    )
 
     return {
         targets: targetsWithMolecule,

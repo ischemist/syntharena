@@ -1,10 +1,10 @@
 ## Loading Stock
 
 ```bash
-pnpm tsx scripts/load-stock.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/stocks/export/buyables-stock-export.txt "ASKCOS Buyables Stock" "Compounds available for less than \$100/g from eMolecules, Sigma-Aldrich, LabNetwork, Mcule, and ChemBridge, curated by ASKCOS team"
-pnpm tsx scripts/load-stock.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/stocks/export/n1-stock-export.txt "n1 Stock" "A set of all leaves from routes in PaRoutes n1 evaluation set"
-pnpm tsx scripts/load-stock.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/stocks/export/n5-stock-export.txt "n5 Stock" "A set of all leaves from routes in PaRoutes n5 evaluation set"
-pnpm tsx scripts/load-stock.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/stocks/export/n1-n5-stock-export.txt "n1+n5 Stock" "A set of all leaves from routes in PaRoutes n1 and n5 evaluation sets"
+pnpm tsx scripts/load-stock.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/stocks/buyables-stock.csv "ASKCOS Buyables Stock" "Compounds available for less than \$100/g from eMolecules, Sigma-Aldrich, LabNetwork, Mcule, and ChemBridge, curated by ASKCOS team"
+pnpm tsx scripts/load-stock.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/stocks/n1-stock.csv "n1 Stock" "A set of all leaves from routes in PaRoutes n1 evaluation set"
+pnpm tsx scripts/load-stock.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/stocks/n5-stock.csv "n5 Stock" "A set of all leaves from routes in PaRoutes n5 evaluation set"
+pnpm tsx scripts/load-stock.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/stocks/n1-n5-stock.csv "n1+n5 Stock" "A set of all leaves from routes in PaRoutes n1 and n5 evaluation sets"
 ```
 
 ## Loading Benchmarks
@@ -14,7 +14,7 @@ pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-p
 
 pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/ref-lng-84.json.gz "ref-lng-84" "84 targets with extra long ground truth routes" --stock "n1+n5 Stock"
 
-pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/mkt-cnv-160.json.gz "mkt-cnv-160" "160 targets with convergent ground truth routes of variable length with all leaves in buyables. Part of the Procrustes suite." --stock "ASKCOS Buyables Stock"
+pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/mkt-cnv-160.json.gz "mkt-cnv-160" "160 targets with convergent ground truth routes of variable length with all leaves in buyables. Part of the Procrustes suite." --stock "ASKCOS Buyables Stock"
 
 pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/mkt-lin-500.json.gz "mkt-lin-500" "500 targets with linear ground truth routes of variable length with all leaves in buyables. Part of the Procrustes suite." --stock "ASKCOS Buyables Stock"
 
