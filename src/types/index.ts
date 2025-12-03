@@ -125,10 +125,9 @@ export interface BenchmarkTarget {
     benchmarkSetId: string
     targetId: string // External ID like "n5-00123"
     moleculeId: string
-    routeLength: number | null
-    isConvergent: boolean | null
+    routeLength: number | null // Computed from PRIMARY acceptable route (index 0)
+    isConvergent: boolean | null // Computed from PRIMARY acceptable route (index 0)
     metadata: string | null // JSON blob
-    groundTruthRouteId: string | null
 }
 
 /**
@@ -137,8 +136,20 @@ export interface BenchmarkTarget {
  */
 export interface BenchmarkTargetWithMolecule extends BenchmarkTarget {
     molecule: Molecule
-    hasGroundTruth: boolean
+    hasAcceptableRoutes: boolean
+    acceptableRoutesCount?: number // Number of acceptable routes for this target
     routeCount?: number // Number of predicted routes (for list views)
+}
+
+/**
+ * Junction table: Links BenchmarkTarget to multiple acceptable routes.
+ * Preserves array order from Python model via routeIndex (0 = primary route).
+ */
+export interface AcceptableRoute {
+    id: string
+    benchmarkTargetId: string
+    routeId: string
+    routeIndex: number // 0-based index (0 = primary route used for stratification)
 }
 
 /**
@@ -181,7 +192,7 @@ export interface RouteSummary {
     rank: number
     length: number
     isConvergent: boolean
-    isGroundTruth: boolean
+    matchesAcceptable: boolean // Does this route match any acceptable route?
 }
 
 /**
@@ -215,6 +226,7 @@ export interface RouteNodeWithDetails extends RouteNode {
 export interface RouteVisualizationData {
     route: Route
     predictionRoute?: PredictionRoute // For predicted routes (includes rank, metadata)
+    acceptableRoutes?: Array<Route & { routeIndex: number }> // For targets with multiple acceptable routes
     target: BenchmarkTargetWithMolecule
     rootNode: RouteNodeWithDetails
 }
@@ -224,7 +236,7 @@ export interface RouteVisualizationData {
  */
 export interface BenchmarkStats {
     totalTargets: number
-    targetsWithGroundTruth: number
+    targetsWithAcceptableRoutes: number
     avgRouteLength: number
     convergentRoutes: number
     minRouteLength: number
