@@ -108,7 +108,7 @@ export function StratifiedMetricsSkeleton() {
         <Card variant="bordered">
             <CardHeader>
                 <CardTitle>Metrics by Route Length</CardTitle>
-                <CardDescription>Performance breakdown by ground truth route length</CardDescription>
+                <CardDescription>Performance breakdown by acceptable route length</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 <Skeleton className="h-8 w-48" />

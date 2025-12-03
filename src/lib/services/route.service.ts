@@ -261,6 +261,43 @@ async function _getAcceptableRouteData(routeId: string, targetId: string): Promi
 export const getAcceptableRouteData = cache(_getAcceptableRouteData)
 
 /**
+ * Retrieves all acceptable routes for a target with route metadata.
+ * Returns routes ordered by routeIndex (0 = primary acceptable route).
+ *
+ * @param targetId - The benchmark target ID
+ * @returns Array of acceptable routes with route metadata, ordered by routeIndex
+ */
+async function _getAcceptableRoutesForTarget(
+    targetId: string
+): Promise<Array<{ routeIndex: number; route: { id: string; contentHash: string | null; signature: string | null } }>> {
+    const acceptableRoutes = await prisma.acceptableRoute.findMany({
+        where: { benchmarkTargetId: targetId },
+        include: {
+            route: {
+                select: {
+                    id: true,
+                    contentHash: true,
+                    signature: true,
+                },
+            },
+        },
+        orderBy: { routeIndex: 'asc' },
+    })
+
+    return acceptableRoutes.map((ar) => ({
+        routeIndex: ar.routeIndex,
+        route: {
+            id: ar.route.id,
+            contentHash: ar.route.contentHash,
+            signature: ar.route.signature,
+        },
+    }))
+}
+
+// Per-request cache wrapper
+export const getAcceptableRoutesForTarget = cache(_getAcceptableRoutesForTarget)
+
+/**
  * Retrieves complete predicted route tree for visualization.
  * Used for model predictions which are linked via PredictionRoute junction table.
  *

@@ -13,8 +13,8 @@ type TargetInfoCardProps = {
     molecule: Molecule
     routeLength?: number | null
     isConvergent?: boolean | null
-    hasGroundTruth?: boolean
-    groundTruthRank?: number | null
+    hasAcceptableRoutes?: boolean
+    acceptableMatchRank?: number | null
     hasNoPredictions?: boolean
 }
 
@@ -28,8 +28,8 @@ export function TargetInfoCard({
     molecule,
     routeLength,
     isConvergent,
-    hasGroundTruth,
-    groundTruthRank,
+    hasAcceptableRoutes,
+    acceptableMatchRank,
     hasNoPredictions,
 }: TargetInfoCardProps) {
     return (
@@ -56,7 +56,7 @@ export function TargetInfoCard({
                             {isConvergent !== null && isConvergent !== undefined && (
                                 <Badge variant="secondary">{isConvergent ? 'Convergent' : 'Linear'}</Badge>
                             )}
-                            {hasGroundTruth && <Badge variant="secondary">Has Ground Truth</Badge>}
+                            {hasAcceptableRoutes && <Badge variant="secondary">Has Acceptable Routes</Badge>}
                         </div>
 
                         {/* SMILES */}
@@ -71,11 +71,13 @@ export function TargetInfoCard({
                             <p className="font-mono text-xs break-all">{molecule.inchikey}</p>
                         </div>
 
-                        {/* Ground truth match alert */}
-                        {groundTruthRank && (
+                        {/* Acceptable route match alert */}
+                        {acceptableMatchRank && (
                             <Alert>
                                 <AlertCircle className="h-4 w-4" />
-                                <AlertDescription>Ground truth match found at rank {groundTruthRank}</AlertDescription>
+                                <AlertDescription>
+                                    Acceptable route match found at rank {acceptableMatchRank}
+                                </AlertDescription>
                             </Alert>
                         )}
 

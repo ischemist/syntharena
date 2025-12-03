@@ -180,7 +180,7 @@ export function BenchmarkMetricsDisplay({
 
                     {!hasTopKMetrics && (
                         <p className="text-muted-foreground mt-4 text-sm">
-                            * Top-K accuracy metrics are only available for benchmarks with ground truth routes
+                            * Top-K accuracy metrics are only available for benchmarks with acceptable routes
                         </p>
                     )}
                 </div>

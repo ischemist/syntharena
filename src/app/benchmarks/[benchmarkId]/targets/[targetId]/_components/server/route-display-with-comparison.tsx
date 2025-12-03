@@ -36,12 +36,12 @@ function RouteVisualizationError() {
 }
 
 /**
- * No ground truth available message.
+ * No acceptable routes available message.
  */
-function NoGroundTruthRoute() {
+function NoAcceptableRoute() {
     return (
         <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">
-            No ground truth route available for this target
+            No acceptable routes available for this target
         </div>
     )
 }
@@ -72,8 +72,8 @@ export async function RouteDisplayWithComparison({
     viewMode: viewModeProp,
 }: RouteDisplayWithComparisonProps) {
     let target
-    let groundTruthRouteData
-    let groundTruthRouteTree: RouteVisualizationNode | undefined
+    let acceptableRouteData
+    let acceptableRouteTree: RouteVisualizationNode | undefined
     let model1RouteTree: RouteVisualizationNode | undefined
     let model2RouteTree: RouteVisualizationNode | undefined
     let hasError = false
@@ -88,8 +88,8 @@ export async function RouteDisplayWithComparison({
         maxRank: number
     }> = []
 
-    // Phase 3: Pre-calculated layout for server-side rendering (gt-only mode)
-    let groundTruthLayout:
+    // Phase 3: Pre-calculated layout for server-side rendering (acceptable-route-only mode)
+    let acceptableRouteLayout:
         | {
               nodes: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }>
               edges: Array<{ source: string; target: string }>
@@ -114,13 +114,18 @@ export async function RouteDisplayWithComparison({
         const benchmark = benchmarkResult
         availableRuns = availableRunsResult
 
-        // OPTIMIZATION: Batch 2 - Ground truth data (dependent on target, but parallel to each other)
+        // OPTIMIZATION: Batch 2 - Acceptable route data (fetch primary route)
         // Phase 3: Fetch pre-calculated layout instead of just tree
-        const groundTruthPromises = target.groundTruthRouteId
+        let primaryAcceptableRouteId: string | undefined
+        const acceptableRoutes = await routeService.getAcceptableRoutesForTarget(targetId)
+        const primaryRoute = acceptableRoutes.find((ar) => ar.routeIndex === 0)
+        primaryAcceptableRouteId = primaryRoute?.route.id
+
+        const acceptableRoutePromises = primaryAcceptableRouteId
             ? Promise.all([
-                  routeService.getGroundTruthRouteData(target.groundTruthRouteId, targetId),
-                  routeService.getRouteTreeForVisualization(target.groundTruthRouteId),
-                  routeService.getRouteTreeWithLayout(target.groundTruthRouteId, 'gt-route-'),
+                  routeService.getAcceptableRouteData(primaryAcceptableRouteId, targetId),
+                  routeService.getRouteTreeForVisualization(primaryAcceptableRouteId),
+                  routeService.getRouteTreeWithLayout(primaryAcceptableRouteId, 'acceptable-route-'),
               ])
             : Promise.resolve([null, null, null] as const)
 
@@ -135,15 +140,15 @@ export async function RouteDisplayWithComparison({
         const stockData = benchmark.stock
 
         // Await all parallel batches
-        const [[groundTruthData, groundTruthTree, gtLayout], [model1Result, model2Result]] = await Promise.all([
-            groundTruthPromises,
+        const [[acceptableData, acceptableTree, acceptableLayout], [model1Result, model2Result]] = await Promise.all([
+            acceptableRoutePromises,
             predictionPromises,
         ])
 
         // Assign results
-        groundTruthRouteData = groundTruthData ?? undefined
-        groundTruthRouteTree = groundTruthTree ?? undefined
-        groundTruthLayout = gtLayout ?? undefined
+        acceptableRouteData = acceptableData ?? undefined
+        acceptableRouteTree = acceptableTree ?? undefined
+        acceptableRouteLayout = acceptableLayout ?? undefined
 
         if (model1Result) {
             model1RouteTree = convertToVisualizationNode(model1Result)
@@ -164,8 +169,8 @@ export async function RouteDisplayWithComparison({
         // Collect InChiKeys and check stock (only if we have stock data)
         if (stockData) {
             const allInchiKeys = new Set<string>()
-            if (groundTruthRouteTree) {
-                getAllRouteInchiKeysSet(groundTruthRouteTree).forEach((key) => allInchiKeys.add(key))
+            if (acceptableRouteTree) {
+                getAllRouteInchiKeysSet(acceptableRouteTree).forEach((key) => allInchiKeys.add(key))
             }
             if (model1RouteTree) {
                 getAllRouteInchiKeysSet(model1RouteTree).forEach((key) => allInchiKeys.add(key))
@@ -189,12 +194,12 @@ export async function RouteDisplayWithComparison({
     }
 
     // Determine current mode - URL is the single source of truth
-    // Default to pred-vs-pred when no ground truth is available
+    // Default to pred-vs-pred when no acceptable routes are available
     const validModes: ComparisonMode[] = ['gt-only', 'gt-vs-pred', 'pred-vs-pred']
     const mode: ComparisonMode =
         modeProp && validModes.includes(modeProp as ComparisonMode)
             ? (modeProp as ComparisonMode)
-            : groundTruthRouteTree
+            : acceptableRouteTree
               ? 'gt-only'
               : 'pred-vs-pred'
 
@@ -212,33 +217,33 @@ export async function RouteDisplayWithComparison({
 
     // Render tab-based UI
     return (
-        <ComparisonModeTabs currentMode={mode} hasGroundTruth={!!groundTruthRouteTree}>
+        <ComparisonModeTabs currentMode={mode} hasAcceptableRoutes={!!acceptableRouteTree}>
             {{
                 gtOnly: (
                     <div className="space-y-4">
                         {/* Visualization */}
                         <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
-                            {!groundTruthRouteTree ? (
-                                <NoGroundTruthRoute />
+                            {!acceptableRouteTree ? (
+                                <NoAcceptableRoute />
                             ) : (
                                 <>
                                     <div className="mb-4">
                                         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                                            Ground Truth Route
+                                            Acceptable Route
                                         </h2>
                                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                                            {groundTruthRouteData &&
-                                                `Synthesis route with ${groundTruthRouteData.route.length} steps${groundTruthRouteData.route.isConvergent ? ' (convergent)' : ''}`}
+                                            {acceptableRouteData &&
+                                                `Synthesis route with ${acceptableRouteData.route.length} steps${acceptableRouteData.route.isConvergent ? ' (convergent)' : ''}`}
                                         </p>
                                     </div>
 
                                     <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
                                         <RouteGraph
-                                            route={groundTruthRouteTree}
+                                            route={acceptableRouteTree}
                                             inStockInchiKeys={inStockInchiKeys}
-                                            idPrefix="gt-route-"
-                                            preCalculatedNodes={groundTruthLayout?.nodes}
-                                            preCalculatedEdges={groundTruthLayout?.edges}
+                                            idPrefix="acceptable-route-"
+                                            preCalculatedNodes={acceptableRouteLayout?.nodes}
+                                            preCalculatedEdges={acceptableRouteLayout?.edges}
                                         />
                                     </div>
 
@@ -250,13 +255,13 @@ export async function RouteDisplayWithComparison({
                                         Scroll to zoom. Drag to pan. Nodes marked in green are in stock.
                                     </p>
 
-                                    {groundTruthRouteData && (
+                                    {acceptableRouteData && (
                                         <details className="mt-4 text-sm">
                                             <summary className="cursor-pointer font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
                                                 View JSON (debug)
                                             </summary>
                                             <div className="mt-4">
-                                                <RouteJsonViewer routeData={groundTruthRouteData} />
+                                                <RouteJsonViewer routeData={acceptableRouteData} />
                                             </div>
                                         </details>
                                     )}
@@ -271,7 +276,7 @@ export async function RouteDisplayWithComparison({
                         {/* Model selector */}
                         <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
                             <div className="space-y-3">
-                                {model1Id && groundTruthRouteTree && model1RouteTree && (
+                                {model1Id && acceptableRouteTree && model1RouteTree && (
                                     <div className="flex items-center gap-2">
                                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                                             Comparison View:
@@ -305,7 +310,7 @@ export async function RouteDisplayWithComparison({
                                     </div>
                                 )}
 
-                                {model1Id && groundTruthRouteTree && model1RouteTree && (
+                                {model1Id && acceptableRouteTree && model1RouteTree && (
                                     <div className="border-t border-gray-200 pt-3 dark:border-gray-700" />
                                 )}
 
@@ -331,7 +336,7 @@ export async function RouteDisplayWithComparison({
                         <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
                             {!model1Id ? (
                                 <div className="p-4 text-center text-sm text-gray-600 dark:text-gray-400">
-                                    Select a model to compare with ground truth
+                                    Select a model to compare with acceptable route
                                 </div>
                             ) : !model1RouteTree ? (
                                 <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">
@@ -351,9 +356,9 @@ export async function RouteDisplayWithComparison({
                                     </div>
 
                                     <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-                                        {groundTruthRouteTree && (
+                                        {acceptableRouteTree && (
                                             <RouteComparison
-                                                groundTruthRoute={groundTruthRouteTree}
+                                                groundTruthRoute={acceptableRouteTree}
                                                 predictionRoute={model1RouteTree}
                                                 mode={viewMode}
                                                 inStockInchiKeys={inStockInchiKeys}

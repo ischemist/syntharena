@@ -104,6 +104,7 @@ export interface BenchmarkSet {
     description?: string | null
     stockId: string // REQUIRED: Direct reference to stock (enforced by DB)
     stock?: Stock // Optional: included when relation is loaded
+    hasAcceptableRoutes: boolean // True if any target has acceptable routes
     createdAt: Date
 }
 

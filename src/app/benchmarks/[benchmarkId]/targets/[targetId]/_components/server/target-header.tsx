@@ -27,16 +27,21 @@ export async function TargetHeader({ targetId }: TargetHeaderProps) {
         notFound()
     }
 
-    // Fetch route data if ground truth exists to get hash/signature
-    let route
-    if (target.groundTruthRouteId) {
-        try {
-            route = await routeService.getRouteById(target.groundTruthRouteId)
-        } catch {
-            // If route fetch fails, continue without route data
-            route = null
-        }
+    // Fetch acceptable routes to get hash/signature of primary route
+    let acceptableRoutes: Array<{
+        routeIndex: number
+        route: { id: string; contentHash: string | null; signature: string | null }
+    }> = []
+    try {
+        const routes = await routeService.getAcceptableRoutesForTarget(targetId)
+        acceptableRoutes = routes
+    } catch {
+        // If route fetch fails, continue without route data
+        acceptableRoutes = []
     }
+
+    // Get primary route (index 0) for displaying hash/signature
+    const primaryRoute = acceptableRoutes.find((ar) => ar.routeIndex === 0)?.route
 
     return (
         <div className="space-y-4">
@@ -64,7 +69,13 @@ export async function TargetHeader({ targetId }: TargetHeaderProps) {
                                 {target.isConvergent !== null && (
                                     <RouteTypeBadge isConvergent={target.isConvergent} variant="ghost" />
                                 )}
-                                {target.hasGroundTruth && <Badge variant="secondary">Has Ground Truth</Badge>}
+                                {target.hasAcceptableRoutes && (
+                                    <Badge variant="secondary">
+                                        {acceptableRoutes.length === 1
+                                            ? '1 Acceptable Route'
+                                            : `${acceptableRoutes.length} Acceptable Routes`}
+                                    </Badge>
+                                )}
                             </div>
 
                             {/* SMILES */}
@@ -79,8 +90,8 @@ export async function TargetHeader({ targetId }: TargetHeaderProps) {
                                 <p className="font-mono text-xs break-all">{target.molecule.inchikey}</p>
                             </div>
 
-                            {/* Route Hashes - only show if ground truth exists and has hash data */}
-                            {route && route.contentHash && (
+                            {/* Route Hashes - only show if primary acceptable route exists and has hash data */}
+                            {primaryRoute && primaryRoute.contentHash && (
                                 <>
                                     <div>
                                         <div className="mb-1 flex items-baseline gap-1.5">
@@ -107,9 +118,9 @@ export async function TargetHeader({ targetId }: TargetHeaderProps) {
                                                 </HoverCardContent>
                                             </HoverCard>
                                         </div>
-                                        <p className="font-mono text-xs break-all">{route.contentHash}</p>
+                                        <p className="font-mono text-xs break-all">{primaryRoute.contentHash}</p>
                                     </div>
-                                    {route.signature && (
+                                    {primaryRoute.signature && (
                                         <div>
                                             <div className="mb-1 flex items-baseline gap-1.5">
                                                 <p className="text-muted-foreground text-xs font-semibold">
@@ -136,7 +147,7 @@ export async function TargetHeader({ targetId }: TargetHeaderProps) {
                                                     </HoverCardContent>
                                                 </HoverCard>
                                             </div>
-                                            <p className="font-mono text-xs break-all">{route.signature}</p>
+                                            <p className="font-mono text-xs break-all">{primaryRoute.signature}</p>
                                         </div>
                                     )}
                                 </>

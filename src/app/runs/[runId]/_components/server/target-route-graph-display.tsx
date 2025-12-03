@@ -2,7 +2,7 @@ import { AlertCircle } from 'lucide-react'
 
 import type { RouteNodeWithDetails, RouteVisualizationNode } from '@/types'
 import { getTargetPredictions } from '@/lib/services/prediction.service'
-import { getGroundTruthRouteWithNodes } from '@/lib/services/route.service'
+import * as routeService from '@/lib/services/route.service'
 import { checkMoleculesInStockByInchiKey } from '@/lib/services/stock.service'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
@@ -66,10 +66,11 @@ export async function TargetRouteGraphDisplay({
         return null // No routes to display
     }
 
-    // Build ground truth route tree if available
-    let groundTruthRouteNode: RouteNodeWithDetails | undefined
-    if (targetDetail.groundTruthRoute) {
-        groundTruthRouteNode = (await getGroundTruthRouteWithNodes(targetDetail.groundTruthRoute.id)) ?? undefined
+    // Build acceptable route tree if available (use primary route)
+    let acceptableRouteNode: RouteNodeWithDetails | undefined
+    if (targetDetail.acceptableRoutes && targetDetail.acceptableRoutes.length > 0) {
+        const primaryRoute = targetDetail.acceptableRoutes[0] // Primary route is at index 0
+        acceptableRouteNode = (await routeService.getAcceptableRouteWithNodes(primaryRoute.id)) ?? undefined
     }
 
     // Get stock items if stockId provided (for route visualization)
@@ -114,9 +115,11 @@ export async function TargetRouteGraphDisplay({
             route={routeDetail.route}
             predictionRoute={routeDetail.predictionRoute}
             visualizationNode={routeDetail.visualizationNode}
-            groundTruthVisualizationNode={groundTruthRouteNode ? toVisualizationNode(groundTruthRouteNode) : undefined}
+            acceptableRouteVisualizationNode={
+                acceptableRouteNode ? toVisualizationNode(acceptableRouteNode) : undefined
+            }
             isSolvable={solvability?.isSolvable}
-            isGtMatch={solvability?.isGtMatch}
+            matchesAcceptable={solvability?.matchesAcceptable}
             inStockInchiKeys={inStockInchiKeys}
             stockName={stockName}
             viewMode={viewMode}

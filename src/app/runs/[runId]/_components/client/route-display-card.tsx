@@ -15,9 +15,9 @@ type RouteDisplayCardProps = {
     route: Route
     predictionRoute: PredictionRoute
     visualizationNode: RouteVisualizationNode
-    groundTruthVisualizationNode?: RouteVisualizationNode
+    acceptableRouteVisualizationNode?: RouteVisualizationNode
     isSolvable?: boolean
-    isGtMatch?: boolean
+    matchesAcceptable?: boolean
     inStockInchiKeys: Set<string>
     stockName?: string
     viewMode?: string
@@ -30,9 +30,9 @@ export function RouteDisplayCard({
     route,
     predictionRoute,
     visualizationNode,
-    groundTruthVisualizationNode,
+    acceptableRouteVisualizationNode,
     isSolvable,
-    isGtMatch,
+    matchesAcceptable,
     inStockInchiKeys,
     stockName,
     viewMode: viewModeProp,
@@ -44,7 +44,7 @@ export function RouteDisplayCard({
     const pathname = usePathname()
     const searchParams = useSearchParams()
 
-    const hasGroundTruth = !!groundTruthVisualizationNode
+    const hasAcceptableRoute = !!acceptableRouteVisualizationNode
     const hasNavigation = currentRank !== undefined && totalPredictions !== undefined && targetId !== undefined
 
     // Validate and default view mode
@@ -110,9 +110,9 @@ export function RouteDisplayCard({
                                     )}
                                 </>
                             )}
-                            {isGtMatch && (
+                            {matchesAcceptable && (
                                 <Badge variant="secondary" className="gap-1">
-                                    ⭐ GT Match
+                                    ⭐ Acceptable Match
                                 </Badge>
                             )}
                         </div>
@@ -155,7 +155,7 @@ export function RouteDisplayCard({
                 )}
 
                 {/* View mode toggle */}
-                <RouteViewToggle viewMode={viewMode} hasGroundTruth={hasGroundTruth} />
+                <RouteViewToggle viewMode={viewMode} hasGroundTruth={hasAcceptableRoute} />
 
                 {/* Route visualization */}
                 <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
@@ -166,14 +166,15 @@ export function RouteDisplayCard({
                             idPrefix="run-route-"
                         />
                     )}
-                    {(viewMode === 'side-by-side' || viewMode === 'diff-overlay') && groundTruthVisualizationNode && (
-                        <RouteComparison
-                            groundTruthRoute={groundTruthVisualizationNode}
-                            predictionRoute={visualizationNode}
-                            mode={viewMode}
-                            inStockInchiKeys={inStockInchiKeys}
-                        />
-                    )}
+                    {(viewMode === 'side-by-side' || viewMode === 'diff-overlay') &&
+                        acceptableRouteVisualizationNode && (
+                            <RouteComparison
+                                groundTruthRoute={acceptableRouteVisualizationNode}
+                                predictionRoute={visualizationNode}
+                                mode={viewMode}
+                                inStockInchiKeys={inStockInchiKeys}
+                            />
+                        )}
                 </div>
 
                 {/* Legend */}
@@ -184,7 +185,7 @@ export function RouteDisplayCard({
                     {viewMode === 'prediction-only'
                         ? 'Scroll to zoom. Drag to pan. Nodes marked in green are in stock.'
                         : viewMode === 'side-by-side'
-                          ? 'Scroll to zoom. Drag to pan. Green = match with ground truth, amber = extension (not in ground truth).'
+                          ? 'Scroll to zoom. Drag to pan. Green = match with acceptable route, amber = extension (not in acceptable route).'
                           : 'Scroll to zoom. Drag to pan. Green = match, amber = extension, dashed gray = missing from prediction.'}
                 </p>
 
