@@ -287,26 +287,35 @@ export async function getBenchmarkTargets(
     const hasMore = targets.length > validLimit
     const resultTargets = hasMore ? targets.slice(0, validLimit) : targets
 
-    // Count acceptable routes for each target
-    const targetsWithCounts = await Promise.all(
-        resultTargets.map(async (target) => {
-            const acceptableRoutesCount = await prisma.acceptableRoute.count({
-                where: { benchmarkTargetId: target.id },
-            })
-            return {
-                id: target.id,
-                benchmarkSetId: target.benchmarkSetId,
-                targetId: target.targetId,
-                moleculeId: target.moleculeId,
-                routeLength: target.routeLength,
-                isConvergent: target.isConvergent,
-                metadata: target.metadata,
-                molecule: target.molecule,
-                hasAcceptableRoutes: acceptableRoutesCount > 0,
-                acceptableRoutesCount,
-            }
-        })
-    )
+    // Count acceptable routes for each target using groupBy to avoid N+1
+    const targetIds = resultTargets.map((t) => t.id)
+    const counts = await prisma.acceptableRoute.groupBy({
+        by: ['benchmarkTargetId'],
+        where: {
+            benchmarkTargetId: { in: targetIds },
+        },
+        _count: {
+            _all: true,
+        },
+    })
+
+    const countMap = new Map(counts.map((c) => [c.benchmarkTargetId, c._count._all]))
+
+    const targetsWithCounts = resultTargets.map((target) => {
+        const acceptableRoutesCount = countMap.get(target.id) || 0
+        return {
+            id: target.id,
+            benchmarkSetId: target.benchmarkSetId,
+            targetId: target.targetId,
+            moleculeId: target.moleculeId,
+            routeLength: target.routeLength,
+            isConvergent: target.isConvergent,
+            metadata: target.metadata,
+            molecule: target.molecule,
+            hasAcceptableRoutes: acceptableRoutesCount > 0,
+            acceptableRoutesCount,
+        }
+    })
 
     return {
         targets: targetsWithCounts,

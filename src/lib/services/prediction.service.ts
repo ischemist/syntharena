@@ -340,21 +340,30 @@ async function _searchTargets(
         },
     })
 
-    // Count acceptable routes for each target
-    const targetsWithCounts = await Promise.all(
-        targets.map(async (t) => {
-            const acceptableRoutesCount = await prisma.acceptableRoute.count({
-                where: { benchmarkTargetId: t.id },
-            })
-            return {
-                ...t,
-                molecule: t.molecule,
-                hasAcceptableRoutes: acceptableRoutesCount > 0,
-                acceptableRoutesCount,
-                routeCount: t.predictionRoutes.length,
-            }
-        })
-    )
+    // Count acceptable routes for each target using groupBy to avoid N+1
+    const targetIds = targets.map((t) => t.id)
+    const counts = await prisma.acceptableRoute.groupBy({
+        by: ['benchmarkTargetId'],
+        where: {
+            benchmarkTargetId: { in: targetIds },
+        },
+        _count: {
+            _all: true,
+        },
+    })
+
+    const countMap = new Map(counts.map((c) => [c.benchmarkTargetId, c._count._all]))
+
+    const targetsWithCounts = targets.map((t) => {
+        const acceptableRoutesCount = countMap.get(t.id) || 0
+        return {
+            ...t,
+            molecule: t.molecule,
+            hasAcceptableRoutes: acceptableRoutesCount > 0,
+            acceptableRoutesCount,
+            routeCount: t.predictionRoutes.length,
+        }
+    })
 
     return targetsWithCounts
 }
@@ -529,20 +538,29 @@ async function _getTargetsByRun(
         },
     })
 
-    // Count acceptable routes for each target
-    const targetsWithMolecule: BenchmarkTargetWithMolecule[] = await Promise.all(
-        targets.map(async (t) => {
-            const acceptableRoutesCount = await prisma.acceptableRoute.count({
-                where: { benchmarkTargetId: t.id },
-            })
-            return {
-                ...t,
-                hasAcceptableRoutes: acceptableRoutesCount > 0,
-                acceptableRoutesCount,
-                routeCount: t.predictionRoutes.length,
-            }
-        })
-    )
+    // Count acceptable routes for each target using groupBy to avoid N+1
+    const targetIds = targets.map((t) => t.id)
+    const counts = await prisma.acceptableRoute.groupBy({
+        by: ['benchmarkTargetId'],
+        where: {
+            benchmarkTargetId: { in: targetIds },
+        },
+        _count: {
+            _all: true,
+        },
+    })
+
+    const countMap = new Map(counts.map((c) => [c.benchmarkTargetId, c._count._all]))
+
+    const targetsWithMolecule: BenchmarkTargetWithMolecule[] = targets.map((t) => {
+        const acceptableRoutesCount = countMap.get(t.id) || 0
+        return {
+            ...t,
+            hasAcceptableRoutes: acceptableRoutesCount > 0,
+            acceptableRoutesCount,
+            routeCount: t.predictionRoutes.length,
+        }
+    })
 
     return {
         targets: targetsWithMolecule,
