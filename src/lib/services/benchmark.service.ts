@@ -76,6 +76,7 @@ async function _getBenchmarkSets(): Promise<BenchmarkListItem[]> {
         description: benchmark.description || undefined,
         stockId: benchmark.stockId,
         stock: benchmark.stock,
+        hasAcceptableRoutes: benchmark.hasAcceptableRoutes,
         createdAt: benchmark.createdAt,
         targetCount: benchmark._count.targets,
     }))
@@ -112,6 +113,7 @@ async function _getBenchmarkById(benchmarkId: string): Promise<BenchmarkListItem
         description: benchmark.description || undefined,
         stockId: benchmark.stockId,
         stock: benchmark.stock,
+        hasAcceptableRoutes: benchmark.hasAcceptableRoutes,
         createdAt: benchmark.createdAt,
         targetCount: benchmark._count.targets,
     }

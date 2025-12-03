@@ -17,6 +17,7 @@ interface TargetDetailPageProps {
         rank1?: string
         rank2?: string
         view?: string
+        acceptableIndex?: string
     }>
 }
 
@@ -55,7 +56,7 @@ export default function TargetDetailPage(props: TargetDetailPageProps) {
 
             {/* Route visualization with comparison support */}
             <Suspense
-                key={`${searchParams.mode}-${searchParams.model1}-${searchParams.model2}-${searchParams.rank1}-${searchParams.rank2}-${searchParams.view}`}
+                key={`${searchParams.mode}-${searchParams.model1}-${searchParams.model2}-${searchParams.rank1}-${searchParams.rank2}-${searchParams.view}-${searchParams.acceptableIndex}`}
                 fallback={
                     <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-6 dark:border-gray-800 dark:bg-gray-900/50">
                         <Skeleton className="h-[600px] w-full" />
@@ -71,6 +72,7 @@ export default function TargetDetailPage(props: TargetDetailPageProps) {
                     rank1={searchParams.rank1 ? parseInt(searchParams.rank1, 10) : 1}
                     rank2={searchParams.rank2 ? parseInt(searchParams.rank2, 10) : 1}
                     viewMode={searchParams.view}
+                    acceptableIndex={searchParams.acceptableIndex ? parseInt(searchParams.acceptableIndex, 10) : 0}
                 />
             </Suspense>
         </div>

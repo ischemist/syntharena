@@ -112,13 +112,13 @@ export async function RouteDisplay({ targetId }: RouteDisplayProps) {
             <div>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Acceptable Route</h2>
                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                    Synthesis route with {routeData!.route.length} steps
-                    {routeData!.route.isConvergent && ' (convergent)'}
+                    {routeData &&
+                        `Synthesis route with ${routeData.route.length} steps${routeData.route.isConvergent ? ' (convergent)' : ''}`}
                 </p>
             </div>
 
             <Suspense fallback={<RouteVisualizationSkeleton />}>
-                <RouteVisualizationContent routeId={primaryAcceptableRouteId} benchmarkId={target.benchmarkSetId} />
+                <RouteVisualizationContent routeId={primaryAcceptableRouteId} benchmarkId={target!.benchmarkSetId} />
             </Suspense>
 
             {/* Keep JSON viewer as fallback/debugging */}

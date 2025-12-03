@@ -8,6 +8,7 @@ import * as stockService from '@/lib/services/stock.service'
 import { PredictionComparison, RouteComparison, RouteGraph, RouteLegend } from '@/components/route-visualization'
 import { Button } from '@/components/ui/button'
 
+import { AcceptableRoutePagination } from '../client/acceptable-route-pagination'
 import { ComparisonModeTabs, type ComparisonMode } from '../client/comparison-mode-tabs'
 import { ModelPredictionSelector } from '../client/model-prediction-selector'
 import { RankPagination } from '../client/rank-pagination'
@@ -22,6 +23,7 @@ interface RouteDisplayWithComparisonProps {
     rank1: number
     rank2: number
     viewMode?: string
+    acceptableIndex?: number
 }
 
 /**
@@ -70,6 +72,7 @@ export async function RouteDisplayWithComparison({
     rank1,
     rank2,
     viewMode: viewModeProp,
+    acceptableIndex: acceptableIndexProp,
 }: RouteDisplayWithComparisonProps) {
     let target
     let acceptableRouteData
@@ -87,6 +90,9 @@ export async function RouteDisplayWithComparison({
         routeCount: number
         maxRank: number
     }> = []
+    let acceptableIndex = 0
+    let totalAcceptableRoutes = 0
+    let hasMultipleAcceptableRoutes = false
 
     // Phase 3: Pre-calculated layout for server-side rendering (acceptable-route-only mode)
     let acceptableRouteLayout:
@@ -114,18 +120,23 @@ export async function RouteDisplayWithComparison({
         const benchmark = benchmarkResult
         availableRuns = availableRunsResult
 
-        // OPTIMIZATION: Batch 2 - Acceptable route data (fetch primary route)
+        // OPTIMIZATION: Batch 2 - Acceptable route data (fetch selected route by index)
         // Phase 3: Fetch pre-calculated layout instead of just tree
-        let primaryAcceptableRouteId: string | undefined
         const acceptableRoutes = await routeService.getAcceptableRoutesForTarget(targetId)
-        const primaryRoute = acceptableRoutes.find((ar) => ar.routeIndex === 0)
-        primaryAcceptableRouteId = primaryRoute?.route.id
 
-        const acceptableRoutePromises = primaryAcceptableRouteId
+        // Validate and clamp acceptableIndex to valid range
+        acceptableIndex = Math.min(Math.max(0, acceptableIndexProp ?? 0), Math.max(0, acceptableRoutes.length - 1))
+
+        const selectedAcceptableRoute = acceptableRoutes.find((ar) => ar.routeIndex === acceptableIndex)
+        const selectedAcceptableRouteId = selectedAcceptableRoute?.route.id
+        totalAcceptableRoutes = acceptableRoutes.length
+        hasMultipleAcceptableRoutes = totalAcceptableRoutes > 1
+
+        const acceptableRoutePromises = selectedAcceptableRouteId
             ? Promise.all([
-                  routeService.getAcceptableRouteData(primaryAcceptableRouteId, targetId),
-                  routeService.getRouteTreeForVisualization(primaryAcceptableRouteId),
-                  routeService.getRouteTreeWithLayout(primaryAcceptableRouteId, 'acceptable-route-'),
+                  routeService.getAcceptableRouteData(selectedAcceptableRouteId, targetId),
+                  routeService.getRouteTreeForVisualization(selectedAcceptableRouteId),
+                  routeService.getRouteTreeWithLayout(selectedAcceptableRouteId, 'acceptable-route-'),
               ])
             : Promise.resolve([null, null, null] as const)
 
@@ -221,6 +232,17 @@ export async function RouteDisplayWithComparison({
             {{
                 gtOnly: (
                     <div className="space-y-4">
+                        {/* Acceptable route selector (only if multiple routes) */}
+                        {hasMultipleAcceptableRoutes && acceptableRouteTree && (
+                            <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
+                                <AcceptableRoutePagination
+                                    currentIndex={acceptableIndex}
+                                    totalRoutes={totalAcceptableRoutes}
+                                    label="Acceptable Route"
+                                />
+                            </div>
+                        )}
+
                         {/* Visualization */}
                         <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
                             {!acceptableRouteTree ? (
@@ -230,10 +252,13 @@ export async function RouteDisplayWithComparison({
                                     <div className="mb-4">
                                         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                                             Acceptable Route
+                                            {hasMultipleAcceptableRoutes &&
+                                                ` ${acceptableIndex + 1} of ${totalAcceptableRoutes}`}
                                         </h2>
                                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                                             {acceptableRouteData &&
                                                 `Synthesis route with ${acceptableRouteData.route.length} steps${acceptableRouteData.route.isConvergent ? ' (convergent)' : ''}`}
+                                            {acceptableIndex === 0 && ' (Primary)'}
                                         </p>
                                     </div>
 
@@ -276,6 +301,18 @@ export async function RouteDisplayWithComparison({
                         {/* Model selector */}
                         <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
                             <div className="space-y-3">
+                                {/* Acceptable route selector (if multiple routes) */}
+                                {hasMultipleAcceptableRoutes && (
+                                    <>
+                                        <AcceptableRoutePagination
+                                            currentIndex={acceptableIndex}
+                                            totalRoutes={totalAcceptableRoutes}
+                                            label="Acceptable Route"
+                                        />
+                                        <div className="border-t border-gray-200 pt-3 dark:border-gray-700" />
+                                    </>
+                                )}
+
                                 {model1Id && acceptableRouteTree && model1RouteTree && (
                                     <div className="flex items-center gap-2">
                                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
