@@ -5,13 +5,12 @@ import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkService from '@/lib/services/benchmark.service'
 import * as routeService from '@/lib/services/route.service'
 import * as stockService from '@/lib/services/stock.service'
+import { RoutePagination } from '@/components/route-pagination'
 import { PredictionComparison, RouteComparison, RouteGraph, RouteLegend } from '@/components/route-visualization'
 import { Button } from '@/components/ui/button'
 
-import { AcceptableRoutePagination } from '../client/acceptable-route-pagination'
 import { ComparisonModeTabs, type ComparisonMode } from '../client/comparison-mode-tabs'
 import { ModelPredictionSelector } from '../client/model-prediction-selector'
-import { RankPagination } from '../client/rank-pagination'
 import { RouteJsonViewer } from '../client/route-json-viewer'
 
 interface RouteDisplayWithComparisonProps {
@@ -231,10 +230,12 @@ export async function RouteDisplayWithComparison({
                         {/* Acceptable route selector (only if multiple routes) */}
                         {hasMultipleAcceptableRoutes && acceptableRouteTree && (
                             <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
-                                <AcceptableRoutePagination
-                                    currentIndex={acceptableIndex}
-                                    totalRoutes={totalAcceptableRoutes}
-                                    label="Acceptable Route"
+                                <RoutePagination
+                                    paramName="acceptableIndex"
+                                    currentValue={acceptableIndex}
+                                    maxValue={totalAcceptableRoutes}
+                                    label="Route"
+                                    zeroBasedIndex={true}
                                 />
                             </div>
                         )}
@@ -254,7 +255,6 @@ export async function RouteDisplayWithComparison({
                                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                                             {acceptableRouteData &&
                                                 `Synthesis route with ${acceptableRouteData.route.length} steps${acceptableRouteData.route.isConvergent ? ' (convergent)' : ''}`}
-                                            {acceptableIndex === 0 && ' (Primary)'}
                                         </p>
                                     </div>
 
@@ -335,14 +335,19 @@ export async function RouteDisplayWithComparison({
                                     <div className="border-t border-gray-200 pt-3 dark:border-gray-700" />
                                 )}
 
-                                <div className="grid gap-3 md:grid-cols-2">
+                                <div className="grid items-end gap-3 md:grid-cols-2">
                                     <div className="space-y-3">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            Acceptable Route
+                                        </label>
                                         {/* Acceptable route selector (if multiple routes) */}
                                         {hasMultipleAcceptableRoutes && (
-                                            <AcceptableRoutePagination
-                                                currentIndex={acceptableIndex}
-                                                totalRoutes={totalAcceptableRoutes}
-                                                label="Acceptable Route"
+                                            <RoutePagination
+                                                paramName="acceptableIndex"
+                                                currentValue={acceptableIndex}
+                                                maxValue={totalAcceptableRoutes}
+                                                label="Route"
+                                                zeroBasedIndex={true}
                                             />
                                         )}
                                     </div>
@@ -356,11 +361,11 @@ export async function RouteDisplayWithComparison({
                                         />
 
                                         {model1Id && model1RouteTree && (
-                                            <RankPagination
+                                            <RoutePagination
                                                 paramName="rank1"
-                                                currentRank={rank1}
-                                                maxRank={model1MaxRank}
-                                                label="Route Rank"
+                                                currentValue={rank1}
+                                                maxValue={model1MaxRank}
+                                                label="Rank"
                                             />
                                         )}
                                     </div>
@@ -401,7 +406,7 @@ export async function RouteDisplayWithComparison({
                                                 modelName={model1Name}
                                                 acceptableRouteLabel={
                                                     hasMultipleAcceptableRoutes
-                                                        ? `Acceptable Route ${acceptableIndex + 1}${acceptableIndex === 0 ? ' (Primary)' : ''}`
+                                                        ? `Acceptable Route ${acceptableIndex + 1}`
                                                         : 'Acceptable Route'
                                                 }
                                             />
@@ -476,11 +481,11 @@ export async function RouteDisplayWithComparison({
                                         />
 
                                         {model1Id && model1RouteTree && (
-                                            <RankPagination
+                                            <RoutePagination
                                                 paramName="rank1"
-                                                currentRank={rank1}
-                                                maxRank={model1MaxRank}
-                                                label="Model 1 Rank"
+                                                currentValue={rank1}
+                                                maxValue={model1MaxRank}
+                                                label="Rank"
                                             />
                                         )}
                                     </div>
@@ -494,11 +499,11 @@ export async function RouteDisplayWithComparison({
                                         />
 
                                         {model2Id && model2RouteTree && (
-                                            <RankPagination
+                                            <RoutePagination
                                                 paramName="rank2"
-                                                currentRank={rank2}
-                                                maxRank={model2MaxRank}
-                                                label="Model 2 Rank"
+                                                currentValue={rank2}
+                                                maxValue={model2MaxRank}
+                                                label="Rank"
                                             />
                                         )}
                                     </div>

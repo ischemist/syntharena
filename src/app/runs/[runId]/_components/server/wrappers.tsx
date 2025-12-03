@@ -26,6 +26,7 @@ type SearchParamsProps = {
         rank?: string
         view?: string
         routeLength?: string
+        acceptableIndex?: string
     }>
 }
 
@@ -99,6 +100,9 @@ export async function TargetSearchSectionWrapper({ params, searchParams }: Param
     const rank = parseInt(searchParamsResolved.rank || '1', 10)
     const viewMode = searchParamsResolved.view
     const routeLength = searchParamsResolved.routeLength
+    const acceptableIndex = searchParamsResolved.acceptableIndex
+        ? parseInt(searchParamsResolved.acceptableIndex, 10)
+        : undefined
 
     return (
         <>
@@ -117,13 +121,17 @@ export async function TargetSearchSectionWrapper({ params, searchParams }: Param
                     </Suspense>
 
                     {/* Slow path: Stream route graph as it loads */}
-                    <Suspense key={`${targetId}-${rank}-${viewMode}`} fallback={<RouteDisplaySkeleton />}>
+                    <Suspense
+                        key={`${targetId}-${rank}-${viewMode}-${acceptableIndex}`}
+                        fallback={<RouteDisplaySkeleton />}
+                    >
                         <TargetRouteGraphDisplay
                             runId={runId}
                             targetId={targetId}
                             rank={rank}
                             stockId={stockId}
                             viewMode={viewMode}
+                            acceptableIndex={acceptableIndex}
                         />
                     </Suspense>
                 </>

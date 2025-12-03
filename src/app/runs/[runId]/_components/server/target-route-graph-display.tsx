@@ -35,6 +35,7 @@ type TargetRouteGraphDisplayProps = {
     rank: number
     stockId?: string
     viewMode?: string
+    acceptableIndex?: number
 }
 
 /**
@@ -47,6 +48,7 @@ export async function TargetRouteGraphDisplay({
     rank,
     stockId,
     viewMode,
+    acceptableIndex: acceptableIndexProp,
 }: TargetRouteGraphDisplayProps) {
     // Fetch target predictions (cached from target-info-display)
     const targetDetail = await getTargetPredictions(targetId, runId, stockId)
@@ -66,11 +68,17 @@ export async function TargetRouteGraphDisplay({
         return null // No routes to display
     }
 
-    // Build acceptable route tree if available (use primary route)
+    // Build acceptable route tree if available
     let acceptableRouteNode: RouteNodeWithDetails | undefined
+    let acceptableIndex = 0
+    let totalAcceptableRoutes = 0
+
     if (targetDetail.acceptableRoutes && targetDetail.acceptableRoutes.length > 0) {
-        const primaryRoute = targetDetail.acceptableRoutes[0] // Primary route is at index 0
-        acceptableRouteNode = (await routeService.getAcceptableRouteWithNodes(primaryRoute.id)) ?? undefined
+        totalAcceptableRoutes = targetDetail.acceptableRoutes.length
+        // Validate and clamp acceptableIndex to valid range
+        acceptableIndex = Math.min(Math.max(0, acceptableIndexProp ?? 0), Math.max(0, totalAcceptableRoutes - 1))
+        const selectedRoute = targetDetail.acceptableRoutes[acceptableIndex]
+        acceptableRouteNode = (await routeService.getAcceptableRouteWithNodes(selectedRoute.id)) ?? undefined
     }
 
     // Get stock items if stockId provided (for route visualization)
@@ -92,9 +100,14 @@ export async function TargetRouteGraphDisplay({
 
     if (stockId && stockId !== 'all') {
         try {
-            // Collect all InChiKeys from the route tree
+            // Collect all InChiKeys from the route tree AND acceptable route tree
             const allInchiKeys = new Set<string>()
             collectInchiKeysFromRouteNode(routeDetail.routeNode, allInchiKeys)
+
+            // Also collect InChiKeys from acceptable route if available
+            if (acceptableRouteNode) {
+                collectInchiKeysFromRouteNode(acceptableRouteNode, allInchiKeys)
+            }
 
             // Check which molecules from the route are in stock
             inStockInchiKeys = await checkMoleculesInStockByInchiKey(Array.from(allInchiKeys), stockId)
@@ -126,6 +139,8 @@ export async function TargetRouteGraphDisplay({
             currentRank={requestedRank}
             totalPredictions={targetDetail.routes.length}
             targetId={targetId}
+            acceptableIndex={acceptableIndex}
+            totalAcceptableRoutes={totalAcceptableRoutes}
         />
     )
 }
