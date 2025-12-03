@@ -209,7 +209,6 @@ export const mockBenchmarkTarget = (id: string, benchmarkSetId: string, molecule
     routeLength: null,
     isConvergent: null,
     metadata: null,
-    groundTruthRouteId: null,
     createdAt: new Date(),
 })
 

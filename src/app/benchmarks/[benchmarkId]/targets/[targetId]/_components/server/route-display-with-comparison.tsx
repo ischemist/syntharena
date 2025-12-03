@@ -74,7 +74,6 @@ export async function RouteDisplayWithComparison({
     viewMode: viewModeProp,
     acceptableIndex: acceptableIndexProp,
 }: RouteDisplayWithComparisonProps) {
-    let target
     let acceptableRouteData
     let acceptableRouteTree: RouteVisualizationNode | undefined
     let model1RouteTree: RouteVisualizationNode | undefined
@@ -110,13 +109,10 @@ export async function RouteDisplayWithComparison({
 
     // OPTIMIZATION: Batch 1 - Initial parallel fetch (independent queries)
     try {
-        const [targetResult, benchmarkResult, availableRunsResult] = await Promise.all([
-            benchmarkService.getTargetById(targetId),
+        const [benchmarkResult, availableRunsResult] = await Promise.all([
             benchmarkService.getBenchmarkById(benchmarkId),
             benchmarkService.getPredictionRunsForTarget(targetId),
         ])
-
-        target = targetResult
         const benchmark = benchmarkResult
         availableRuns = availableRunsResult
 

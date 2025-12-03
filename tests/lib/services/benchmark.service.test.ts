@@ -383,38 +383,41 @@ describe('benchmark.service', () => {
         })
     })
 
-    describe('getBenchmarkTargets - Filter by ground truth', () => {
-        it('should filter targets with ground truth', async () => {
-            const { benchmark, targets } = await createTestBenchmark('gt-filter', { targetCount: 3 })
+    describe('getBenchmarkTargets - Filter by acceptable routes', () => {
+        it('should filter targets with acceptable routes', async () => {
+            const { benchmark, targets } = await createTestBenchmark('acceptable-filter', { targetCount: 3 })
 
-            // Add ground truth route to first target (ground truth routes don't use PredictionRoute)
+            // Add acceptable route to first target
             const route = await prisma.route.create({
                 data: {
-                    signature: `gt-signature-${Date.now()}`,
+                    signature: `acceptable-signature-${Date.now()}`,
                     contentHash: 'test-hash',
                     length: 0,
                     isConvergent: false,
                 },
             })
 
-            await prisma.benchmarkTarget.update({
-                where: { id: targets[0].id },
-                data: { groundTruthRouteId: route.id },
+            await prisma.acceptableRoute.create({
+                data: {
+                    benchmarkTargetId: targets[0].id,
+                    routeId: route.id,
+                    routeIndex: 0,
+                },
             })
 
             const result = await getBenchmarkTargets(benchmark.id, 1, 10, undefined, 'all', true)
 
             expect(result.targets.length).toBeGreaterThan(0)
-            expect(result.targets.every((t) => t.hasGroundTruth)).toBe(true)
+            expect(result.targets.every((t) => t.hasAcceptableRoutes)).toBe(true)
         })
 
-        it('should filter targets without ground truth', async () => {
-            const { benchmark } = await createTestBenchmark('no-gt-filter', { targetCount: 3 })
+        it('should filter targets without acceptable routes', async () => {
+            const { benchmark } = await createTestBenchmark('no-acceptable-filter', { targetCount: 3 })
 
             const result = await getBenchmarkTargets(benchmark.id, 1, 10, undefined, 'all', false)
 
             expect(result.targets.length).toBeGreaterThan(0)
-            expect(result.targets.every((t) => !t.hasGroundTruth)).toBe(true)
+            expect(result.targets.every((t) => !t.hasAcceptableRoutes)).toBe(true)
         })
     })
 
@@ -504,7 +507,7 @@ describe('benchmark.service', () => {
                 result.targets.every(
                     (t) =>
                         t.molecule.smiles.includes('CC') &&
-                        t.hasGroundTruth &&
+                        t.hasAcceptableRoutes &&
                         (t.routeLength === null || (t.routeLength >= 2 && t.routeLength <= 4)) &&
                         (t.isConvergent === null || t.isConvergent === true)
                 )
@@ -532,14 +535,14 @@ describe('benchmark.service', () => {
             expect(result.molecule.smiles).toBeDefined()
         })
 
-        it('should include hasGroundTruth flag', async () => {
-            const { targets } = await createTestBenchmark('gt-flag-test', {
+        it('should include hasAcceptableRoutes flag', async () => {
+            const { targets } = await createTestBenchmark('acceptable-flag-test', {
                 targetCount: 1,
             })
 
             const result = await getTargetById(targets[0].id)
 
-            expect(result.hasGroundTruth).toBe(false)
+            expect(result.hasAcceptableRoutes).toBe(false)
         })
 
         it('should throw error when target not found', async () => {
@@ -568,27 +571,30 @@ describe('benchmark.service', () => {
             expect(stats.totalTargets).toBe(3)
         })
 
-        it('should count targets with ground truth', async () => {
-            const { benchmark, targets } = await createTestBenchmark('gt-count-test', { targetCount: 3 })
+        it('should count targets with acceptable routes', async () => {
+            const { benchmark, targets } = await createTestBenchmark('acceptable-count-test', { targetCount: 3 })
 
-            // Ground truth routes are stored directly without PredictionRoute
+            // Create acceptable routes
             const route = await prisma.route.create({
                 data: {
-                    signature: `gt-sig-${Date.now()}`,
+                    signature: `acceptable-sig-${Date.now()}`,
                     contentHash: 'test-hash',
                     length: 0,
                     isConvergent: false,
                 },
             })
 
-            await prisma.benchmarkTarget.update({
-                where: { id: targets[0].id },
-                data: { groundTruthRouteId: route.id },
+            await prisma.acceptableRoute.create({
+                data: {
+                    benchmarkTargetId: targets[0].id,
+                    routeId: route.id,
+                    routeIndex: 0,
+                },
             })
 
             const stats = await getBenchmarkStats(benchmark.id)
 
-            expect(stats.targetsWithGroundTruth).toBe(1)
+            expect(stats.targetsWithAcceptableRoutes).toBe(1)
         })
 
         it('should compute average route length correctly', async () => {
@@ -628,7 +634,7 @@ describe('benchmark.service', () => {
             const stats = await getBenchmarkStats(benchmark.id)
 
             expect(stats.totalTargets).toBe(0)
-            expect(stats.targetsWithGroundTruth).toBe(0)
+            expect(stats.targetsWithAcceptableRoutes).toBe(0)
             expect(stats.avgRouteLength).toBe(0)
             expect(stats.convergentRoutes).toBe(0)
             expect(stats.minRouteLength).toBe(0)
