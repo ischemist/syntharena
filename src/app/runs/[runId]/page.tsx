@@ -15,6 +15,7 @@ type PageProps = {
         rank?: string
         view?: string
         routeLength?: string
+        acceptableIndex?: string
     }>
 }
 

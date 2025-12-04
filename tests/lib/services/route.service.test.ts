@@ -12,9 +12,10 @@ import * as path from 'path'
 import * as zlib from 'zlib'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import type { RouteNodeWithDetails } from '@/types'
 import prisma from '@/lib/db'
 import {
-    getGroundTruthRouteData,
+    getAcceptableRouteData,
     getRouteById,
     getRoutesByTarget,
     getRouteTreeForVisualization,
@@ -256,11 +257,11 @@ describe('route.service - Service Function Tests', () => {
         })
     })
 
-    describe('getGroundTruthRouteData', () => {
+    describe('getAcceptableRouteData', () => {
         it('should retrieve complete route tree with target and root node', async () => {
             const { route, benchmarkTarget } = await createCompleteRoute(singleMoleculePython)
 
-            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
+            const result = await getAcceptableRouteData(route.id, benchmarkTarget.id)
 
             expect(result).toBeDefined()
             expect(result.route).toBeDefined()
@@ -271,7 +272,7 @@ describe('route.service - Service Function Tests', () => {
         it('should include molecule data in tree nodes', async () => {
             const { route, benchmarkTarget } = await createCompleteRoute(singleMoleculePython)
 
-            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
+            const result = await getAcceptableRouteData(route.id, benchmarkTarget.id)
 
             expect(result.rootNode.molecule).toBeDefined()
             expect(result.rootNode.molecule.smiles).toBe(singleMoleculePython.smiles)
@@ -281,7 +282,7 @@ describe('route.service - Service Function Tests', () => {
         it('should build complete tree structure for linear chain', async () => {
             const { route, benchmarkTarget } = await createCompleteRoute(linearChainPython)
 
-            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
+            const result = await getAcceptableRouteData(route.id, benchmarkTarget.id)
 
             expect(result.rootNode.children.length).toBe(1)
             expect(result.rootNode.children[0].children.length).toBe(1)
@@ -291,43 +292,46 @@ describe('route.service - Service Function Tests', () => {
         it('should build convergent tree structure', async () => {
             const { route, benchmarkTarget } = await createCompleteRoute(convergentRoutePython)
 
-            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
+            const result = await getAcceptableRouteData(route.id, benchmarkTarget.id)
 
             expect(result.rootNode.children.length).toBe(2)
             expect(result.rootNode.isLeaf).toBe(false)
         })
 
-        it('should include target with ground truth flag', async () => {
+        it('should include target with acceptable routes flag', async () => {
             const { route, benchmarkTarget } = await createCompleteRoute(singleMoleculePython)
 
-            await prisma.benchmarkTarget.update({
-                where: { id: benchmarkTarget.id },
-                data: { groundTruthRouteId: route.id },
+            // Create an AcceptableRoute linking the target to the route
+            await prisma.acceptableRoute.create({
+                data: {
+                    benchmarkTargetId: benchmarkTarget.id,
+                    routeId: route.id,
+                    routeIndex: 0,
+                },
             })
 
-            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
+            const result = await getAcceptableRouteData(route.id, benchmarkTarget.id)
 
-            expect(result.target.hasGroundTruth).toBe(true)
-            expect(result.target.groundTruthRouteId).toBe(route.id)
+            expect(result.target.hasAcceptableRoutes).toBe(true)
         })
 
         it('should throw error when route not found', async () => {
-            await expect(getGroundTruthRouteData('non-existent-id', 'fake-target-id')).rejects.toThrow(
-                'Route not found'
-            )
+            await expect(getAcceptableRouteData('non-existent-id', 'fake-target-id')).rejects.toThrow('Route not found')
         })
 
         it('should handle complex multi-level routes', async () => {
             const { route, benchmarkTarget } = await createCompleteRoute(complexRoutePython)
 
-            const result = await getGroundTruthRouteData(route.id, benchmarkTarget.id)
+            const result = await getAcceptableRouteData(route.id, benchmarkTarget.id)
 
             expect(result.rootNode).toBeDefined()
             expect(result.rootNode.children.length).toBeGreaterThan(0)
 
             // Verify the tree has multiple levels
-            const countNodes = (node: typeof result.rootNode): number => {
-                return 1 + node.children.reduce((sum, child) => sum + countNodes(child), 0)
+            const countNodes = (node: RouteNodeWithDetails): number => {
+                return (
+                    1 + node.children.reduce((sum: number, child: RouteNodeWithDetails) => sum + countNodes(child), 0)
+                )
             }
 
             const totalNodes = countNodes(result.rootNode)
@@ -604,14 +608,15 @@ describe('route.service - Service Function Tests', () => {
                 targets: {
                     'target-1': {
                         smiles: singleMoleculePython.smiles,
-                        ground_truth: {
-                            target: singleMoleculePython,
-                            rank: 1,
-                            content_hash: `hash-single-${Date.now()}`,
-                            signature: `sig-single-${Date.now()}`,
-                        },
-                        route_length: 0,
-                        is_convergent: false,
+                        inchi_key: singleMoleculePython.inchikey,
+                        acceptable_routes: [
+                            {
+                                target: singleMoleculePython,
+                                rank: 1,
+                                content_hash: `hash-single-${Date.now()}`,
+                                signature: `sig-single-${Date.now()}`,
+                            },
+                        ],
                     },
                 },
             }
@@ -659,21 +664,27 @@ describe('route.service - Service Function Tests', () => {
                 targets: {
                     'target-1': {
                         smiles: singleMoleculePython.smiles,
-                        ground_truth: {
-                            target: singleMoleculePython,
-                            rank: 1,
-                            content_hash: `hash-${Date.now()}-1`,
-                            signature: `sig-${Date.now()}-1`,
-                        },
+                        inchi_key: singleMoleculePython.inchikey,
+                        acceptable_routes: [
+                            {
+                                target: singleMoleculePython,
+                                rank: 1,
+                                content_hash: `hash-${Date.now()}-1`,
+                                signature: `sig-${Date.now()}-1`,
+                            },
+                        ],
                     },
                     'target-2': {
                         smiles: linearChainPython.smiles,
-                        ground_truth: {
-                            target: linearChainPython,
-                            rank: 1,
-                            content_hash: `hash-${Date.now()}-2`,
-                            signature: `sig-${Date.now()}-2`,
-                        },
+                        inchi_key: linearChainPython.inchikey,
+                        acceptable_routes: [
+                            {
+                                target: linearChainPython,
+                                rank: 1,
+                                content_hash: `hash-${Date.now()}-2`,
+                                signature: `sig-${Date.now()}-2`,
+                            },
+                        ],
                     },
                 },
             }
@@ -704,12 +715,16 @@ describe('route.service - Service Function Tests', () => {
                 targets: {
                     'target-1': {
                         smiles: linearChainPython.smiles,
-                        ground_truth: {
-                            target: linearChainPython,
-                            rank: 1,
-                            content_hash: `hash-properties-${Date.now()}`,
-                            signature: `sig-properties-${Date.now()}`,
-                        },
+                        inchi_key: linearChainPython.inchikey,
+                        acceptable_routes: [
+                            {
+                                target: linearChainPython,
+                                length: 2,
+                                has_convergent_reaction: false,
+                                content_hash: `hash-properties-${Date.now()}`,
+                                signature: `sig-properties-${Date.now()}`,
+                            },
+                        ],
                     },
                 },
             }
@@ -727,40 +742,43 @@ describe('route.service - Service Function Tests', () => {
                 expect(target!.routeLength).toBe(2)
                 expect(target!.isConvergent).toBe(false)
 
-                const route = await prisma.route.findUnique({
-                    where: { id: target!.groundTruthRouteId! },
+                // Fetch the acceptable route linked to the target
+                const acceptableRoute = await prisma.acceptableRoute.findFirst({
+                    where: { benchmarkTargetId: target!.id },
+                    include: { route: true },
                 })
-                expect(route).toBeDefined()
-                expect(route!.length).toBe(2)
-                expect(route!.isConvergent).toBe(false)
+                expect(acceptableRoute).toBeDefined()
+                expect(acceptableRoute!.route.length).toBe(2)
+                expect(acceptableRoute!.route.isConvergent).toBe(false)
             } finally {
                 await cleanupTestFile(filePath)
             }
         })
 
-        it('should handle targets without ground truth', async () => {
+        it('should handle targets without acceptable routes', async () => {
             const stock = await createTestStock()
             const benchmark = await prisma.benchmarkSet.create({
                 data: {
-                    name: 'test-no-ground-truth',
+                    name: 'test-no-acceptable-routes',
                     stockId: stock.id,
                 },
             })
 
             const benchmarkData = {
-                name: 'No Ground Truth Test',
+                name: 'No Acceptable Routes Test',
                 targets: {
                     'target-1': {
                         smiles: singleMoleculePython.smiles,
-                        inchikey: singleMoleculePython.inchikey,
+                        inchi_key: singleMoleculePython.inchikey,
+                        acceptable_routes: [],
                     },
                 },
             }
 
-            const filePath = await createTestBenchmarkFile('test-no-gt.json.gz', benchmarkData)
+            const filePath = await createTestBenchmarkFile('test-no-acceptable.json.gz', benchmarkData)
 
             try {
-                const result = await loadBenchmarkFromFile(filePath, benchmark.id, 'No Ground Truth Test')
+                const result = await loadBenchmarkFromFile(filePath, benchmark.id, 'No Acceptable Routes Test')
 
                 expect(result.targetsLoaded).toBe(1)
                 expect(result.routesCreated).toBe(0)
@@ -770,7 +788,11 @@ describe('route.service - Service Function Tests', () => {
                 })
 
                 expect(target).toBeDefined()
-                expect(target!.groundTruthRouteId).toBeNull()
+                // Verify no acceptable routes are linked to this target
+                const acceptableRoutes = await prisma.acceptableRoute.findMany({
+                    where: { benchmarkTargetId: target!.id },
+                })
+                expect(acceptableRoutes).toHaveLength(0)
             } finally {
                 await cleanupTestFile(filePath)
             }
@@ -798,12 +820,15 @@ describe('route.service - Service Function Tests', () => {
                 targets: {
                     'target-1': {
                         smiles: singleMoleculePython.smiles,
-                        ground_truth: {
-                            target: singleMoleculePython,
-                            rank: 1,
-                            content_hash: `hash-reuse-${Date.now()}`,
-                            signature: `sig-reuse-${Date.now()}`,
-                        },
+                        inchi_key: singleMoleculePython.inchikey,
+                        acceptable_routes: [
+                            {
+                                target: singleMoleculePython,
+                                rank: 1,
+                                content_hash: `hash-reuse-${Date.now()}`,
+                                signature: `sig-reuse-${Date.now()}`,
+                            },
+                        ],
                     },
                 },
             }

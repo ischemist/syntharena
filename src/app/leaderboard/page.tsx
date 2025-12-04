@@ -122,8 +122,8 @@ async function LeaderboardContent({ searchParams }: { searchParams: Promise<{ be
     // Get stock name from first entry (all entries share same stock)
     const stockName = entries[0].stockName
 
-    // Check if benchmark has ground truth (based on presence of topKAccuracy)
-    const hasGroundTruth = entries.some((entry) => entry.metrics.topKAccuracy !== undefined)
+    // Check if benchmark has acceptable routes (based on presence of topKAccuracy)
+    const hasAcceptableRoutes = entries.some((entry) => entry.metrics.topKAccuracy !== undefined)
 
     // Determine which Top-K metrics to show (collect all unique keys)
     const topKMetricNames = new Set<string>()
@@ -140,11 +140,15 @@ async function LeaderboardContent({ searchParams }: { searchParams: Promise<{ be
         return aNum - bNum
     })
 
-    // If no ground truth, render without Top-K selector
-    if (!hasGroundTruth || sortedTopKNames.length === 0) {
+    // If no acceptable routes, render without Top-K selector
+    if (!hasAcceptableRoutes || sortedTopKNames.length === 0) {
         return (
             <div className="flex flex-col gap-6">
-                <BenchmarkLeaderboardOverall entries={entries} hasGroundTruth={hasGroundTruth} stockName={stockName} />
+                <BenchmarkLeaderboardOverall
+                    entries={entries}
+                    hasAcceptableRoutes={hasAcceptableRoutes}
+                    stockName={stockName}
+                />
                 <Suspense fallback={<LeaderboardCardSkeleton />}>
                     <StratifiedMetricsWrapper benchmarkId={benchmarkId} stocks={stocks} metricNames={['Solvability']} />
                 </Suspense>
@@ -156,7 +160,11 @@ async function LeaderboardContent({ searchParams }: { searchParams: Promise<{ be
         <PageLevelTopKSelector topKMetricNames={sortedTopKNames}>
             <div className="flex flex-col gap-6">
                 {/* Overall Metrics */}
-                <BenchmarkLeaderboardOverall entries={entries} hasGroundTruth={hasGroundTruth} stockName={stockName} />
+                <BenchmarkLeaderboardOverall
+                    entries={entries}
+                    hasAcceptableRoutes={hasAcceptableRoutes}
+                    stockName={stockName}
+                />
 
                 {/* Stratified Metrics by Route Length */}
                 <Suspense fallback={<LeaderboardCardSkeleton />}>

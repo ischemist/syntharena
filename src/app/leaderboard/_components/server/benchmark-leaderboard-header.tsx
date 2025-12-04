@@ -43,9 +43,9 @@ export async function BenchmarkLeaderboardHeader({ benchmarkId, benchmarks }: Be
                     <div className="text-lg font-medium">{benchmark.stock.name}</div>
                 </div>
                 <div>
-                    <div className="text-muted-foreground text-sm">Ground Truth</div>
+                    <div className="text-muted-foreground text-sm">Acceptable Routes</div>
                     <Badge variant="secondary" className="mt-1">
-                        {benchmark.targetCount > 0 ? 'Available' : 'Not Available'}
+                        {benchmark.hasAcceptableRoutes ? 'Available' : 'Not Available'}
                     </Badge>
                 </div>
             </CardContent>

@@ -14,9 +14,9 @@ interface TargetFilterBarProps {
 export async function TargetFilterBar({ benchmarkId }: TargetFilterBarProps) {
     const stats = await benchmarkService.getBenchmarkStats(benchmarkId)
 
-    const hasGroundTruth = stats.targetsWithGroundTruth > 0
+    const hasAcceptableRoutes = stats.targetsWithAcceptableRoutes > 0
     const minLength = stats.minRouteLength
     const maxLength = stats.maxRouteLength
 
-    return <TargetSearchBar hasGroundTruth={hasGroundTruth} minLength={minLength} maxLength={maxLength} />
+    return <TargetSearchBar hasAcceptableRoutes={hasAcceptableRoutes} minLength={minLength} maxLength={maxLength} />
 }

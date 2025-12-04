@@ -9,7 +9,7 @@ import {
 
 type BenchmarkLeaderboardOverallProps = {
     entries: LeaderboardEntry[]
-    hasGroundTruth: boolean
+    hasAcceptableRoutes: boolean
     stockName: string
 }
 
@@ -21,7 +21,11 @@ type BenchmarkLeaderboardOverallProps = {
  * - Server component defines structure and passes data to client components
  * - Client component handles view toggling (local state via context)
  */
-export function BenchmarkLeaderboardOverall({ entries, hasGroundTruth, stockName }: BenchmarkLeaderboardOverallProps) {
+export function BenchmarkLeaderboardOverall({
+    entries,
+    hasAcceptableRoutes,
+    stockName,
+}: BenchmarkLeaderboardOverallProps) {
     // Determine which Top-K metrics to show (collect all unique keys)
     const topKMetricNames = new Set<string>()
     entries.forEach((entry) => {
@@ -44,7 +48,7 @@ export function BenchmarkLeaderboardOverall({ entries, hasGroundTruth, stockName
                     <CardTitle>Overall Metrics</CardTitle>
                     <CardDescription>
                         Model performance comparison for {stockName}
-                        {!hasGroundTruth && ' (solvability only)'}
+                        {!hasAcceptableRoutes && ' (solvability only)'}
                     </CardDescription>
                     <CardAction>
                         <MetricsViewToggleButtons />

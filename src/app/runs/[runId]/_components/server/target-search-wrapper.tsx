@@ -17,7 +17,7 @@ export async function TargetSearchWrapper({ runId, stockId, currentTargetId, rou
     // Get target IDs for this run (ordered) - filtered by route length if specified
     const targetIds = await getTargetIdsByRun(runId, routeLengthFilter)
 
-    // Get available route lengths (empty if no ground truth)
+    // Get available route lengths (empty if no acceptable routes)
     const availableRouteLengths = await getAvailableRouteLengths(runId)
 
     // Find current position

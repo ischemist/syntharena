@@ -104,6 +104,7 @@ export interface BenchmarkSet {
     description?: string | null
     stockId: string // REQUIRED: Direct reference to stock (enforced by DB)
     stock?: Stock // Optional: included when relation is loaded
+    hasAcceptableRoutes: boolean // True if any target has acceptable routes
     createdAt: Date
 }
 
@@ -125,10 +126,9 @@ export interface BenchmarkTarget {
     benchmarkSetId: string
     targetId: string // External ID like "n5-00123"
     moleculeId: string
-    routeLength: number | null
-    isConvergent: boolean | null
+    routeLength: number | null // Computed from PRIMARY acceptable route (index 0)
+    isConvergent: boolean | null // Computed from PRIMARY acceptable route (index 0)
     metadata: string | null // JSON blob
-    groundTruthRouteId: string | null
 }
 
 /**
@@ -137,8 +137,20 @@ export interface BenchmarkTarget {
  */
 export interface BenchmarkTargetWithMolecule extends BenchmarkTarget {
     molecule: Molecule
-    hasGroundTruth: boolean
+    hasAcceptableRoutes: boolean
+    acceptableRoutesCount?: number // Number of acceptable routes for this target
     routeCount?: number // Number of predicted routes (for list views)
+}
+
+/**
+ * Junction table: Links BenchmarkTarget to multiple acceptable routes.
+ * Preserves array order from Python model via routeIndex (0 = primary route).
+ */
+export interface AcceptableRoute {
+    id: string
+    benchmarkTargetId: string
+    routeId: string
+    routeIndex: number // 0-based index (0 = primary route used for stratification)
 }
 
 /**
@@ -181,7 +193,7 @@ export interface RouteSummary {
     rank: number
     length: number
     isConvergent: boolean
-    isGroundTruth: boolean
+    matchesAcceptable: boolean // Does this route match any acceptable route?
 }
 
 /**
@@ -215,6 +227,7 @@ export interface RouteNodeWithDetails extends RouteNode {
 export interface RouteVisualizationData {
     route: Route
     predictionRoute?: PredictionRoute // For predicted routes (includes rank, metadata)
+    acceptableRoutes?: Array<Route & { routeIndex: number }> // For targets with multiple acceptable routes
     target: BenchmarkTargetWithMolecule
     rootNode: RouteNodeWithDetails
 }
@@ -224,7 +237,7 @@ export interface RouteVisualizationData {
  */
 export interface BenchmarkStats {
     totalTargets: number
-    targetsWithGroundTruth: number
+    targetsWithAcceptableRoutes: number
     avgRouteLength: number
     convergentRoutes: number
     minRouteLength: number
@@ -248,7 +261,7 @@ export interface BenchmarkTargetSearchParams {
     benchmarkId: string
     page?: number
     limit?: number
-    hasGroundTruth?: boolean
+    hasAcceptableRoutes?: boolean
     minRouteLength?: number
     maxRouteLength?: number
     isConvergent?: boolean
@@ -307,10 +320,10 @@ export interface RouteGraphNode {
 /**
  * Union type for node visual states.
  * - "in-stock" | "default": Used for single route visualization with stock highlighting
- * - "match" | "extension" | "ghost": Used for GT vs prediction comparison
- *   - "match": Node present in both ground truth and prediction
- *   - "extension": Node present in prediction but not ground truth (potential alternative route)
- *   - "ghost": Node present in ground truth but missing from prediction
+ * - "match" | "extension" | "ghost": Used for acceptable route vs prediction comparison
+ *   - "match": Node present in both acceptable route and prediction
+ *   - "extension": Node present in prediction but not acceptable route (potential alternative route)
+ *   - "ghost": Node present in acceptable route but missing from prediction
  * - "pred-shared" | "pred-1-only" | "pred-2-only": Used for prediction vs prediction comparison
  *   - "pred-shared": Node present in both predictions (teal)
  *   - "pred-1-only": Node unique to first prediction (sky blue)
@@ -329,7 +342,7 @@ export type NodeStatus =
 /**
  * View mode for route visualization.
  * - "prediction-only": Show only the predicted route
- * - "side-by-side": Show prediction and ground truth side by side
+ * - "side-by-side": Show prediction and acceptable route side by side
  * - "diff-overlay": Show merged view with diff highlighting
  */
 export type RouteViewMode = 'prediction-only' | 'side-by-side' | 'diff-overlay'
@@ -347,7 +360,7 @@ export interface RouteLayoutConfig {
 
 /**
  * Merged node structure for diff overlay visualization.
- * Combines ground truth and prediction routes into a single tree.
+ * Combines acceptable route and prediction routes into a single tree.
  */
 export interface MergedRouteNode {
     smiles: string
@@ -423,7 +436,8 @@ export interface ModelStatistics {
 export interface ScoredRoute {
     rank: number
     isSolved: boolean
-    isGtMatch: boolean // Does this route match the ground truth?
+    matchesAcceptable: boolean // Does this route match ANY acceptable route?
+    matchedAcceptableIndex: number | null // Which acceptable route was matched (0-based, null if no match)
 }
 
 /**
@@ -477,7 +491,7 @@ export interface PredictionRunWithStats {
     modelInstanceId: string
     benchmarkSetId: string
     modelInstance: ModelInstance
-    benchmarkSet: BenchmarkSet & { hasGroundTruth: boolean }
+    benchmarkSet: BenchmarkSet & { hasAcceptableRoutes: boolean }
     totalRoutes: number
     totalTimeMs?: number | null // Total execution time in milliseconds
     avgRouteLength?: number | null
@@ -497,13 +511,14 @@ export interface ScoredRouteWithSolvability {
         stockId: string
         stockName: string
         isSolvable: boolean
-        isGtMatch: boolean
+        matchesAcceptable: boolean
+        matchedAcceptableIndex: number | null
     }>
 }
 
 /**
  * Complete prediction detail for a target.
- * Includes all routes and ground truth comparison.
+ * Includes all routes and acceptable route comparison.
  * Updated to use PredictionRoute for prediction metadata.
  */
 export interface TargetPredictionDetail {
@@ -511,9 +526,9 @@ export interface TargetPredictionDetail {
     molecule: Molecule
     routeLength: number | null
     isConvergent: boolean | null
-    hasGroundTruth: boolean
-    groundTruthRoute?: Route // Optional: the ground truth route for comparison (structure only)
-    groundTruthRank?: number // Optional: rank at which GT was found in predictions
+    hasAcceptableRoutes: boolean
+    acceptableRoutes?: Array<Route & { routeIndex: number }> // Ordered by routeIndex (0 = primary)
+    acceptableMatchRank?: number // Optional: rank at which first acceptable match was found
     routes: Array<{
         route: Route // The route structure
         predictionRoute: PredictionRoute // The prediction metadata (rank, etc.)
@@ -523,7 +538,8 @@ export interface TargetPredictionDetail {
             stockId: string
             stockName: string
             isSolvable: boolean
-            isGtMatch: boolean
+            matchesAcceptable: boolean
+            matchedAcceptableIndex: number | null
         }>
     }>
 }

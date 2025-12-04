@@ -38,10 +38,10 @@ function RouteVisualizationError() {
     )
 }
 
-function NoGroundTruthRoute() {
+function NoAcceptableRoute() {
     return (
         <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
-            No ground truth route available for this target
+            No acceptable routes available for this target
         </div>
     )
 }
@@ -78,14 +78,20 @@ export async function RouteDisplay({ targetId }: RouteDisplayProps) {
     let target
     let routeData
     let hasError = false
+    let primaryAcceptableRouteId: string | undefined
 
     // Fetch data outside of JSX construction
     try {
         target = await benchmarkService.getTargetById(targetId)
 
+        // Fetch acceptable routes to get the primary route (index 0)
+        const acceptableRoutes = await routeService.getAcceptableRoutesForTarget(targetId)
+        const primaryRoute = acceptableRoutes.find((ar) => ar.routeIndex === 0)
+        primaryAcceptableRouteId = primaryRoute?.route.id
+
         // Fetch complete route data for JSON viewer
-        if (target.groundTruthRouteId) {
-            routeData = await routeService.getGroundTruthRouteData(target.groundTruthRouteId, targetId)
+        if (primaryAcceptableRouteId) {
+            routeData = await routeService.getAcceptableRouteData(primaryAcceptableRouteId, targetId)
         }
     } catch (error) {
         console.error('Failed to load route display:', error)
@@ -97,22 +103,22 @@ export async function RouteDisplay({ targetId }: RouteDisplayProps) {
         return <RouteVisualizationError />
     }
 
-    if (!target?.groundTruthRouteId) {
-        return <NoGroundTruthRoute />
+    if (!primaryAcceptableRouteId) {
+        return <NoAcceptableRoute />
     }
 
     return (
         <div className="space-y-4">
             <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Ground Truth Route</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Acceptable Route</h2>
                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                    Synthesis route with {routeData!.route.length} steps
-                    {routeData!.route.isConvergent && ' (convergent)'}
+                    {routeData &&
+                        `Synthesis route with ${routeData.route.length} steps${routeData.route.isConvergent ? ' (convergent)' : ''}`}
                 </p>
             </div>
 
             <Suspense fallback={<RouteVisualizationSkeleton />}>
-                <RouteVisualizationContent routeId={target.groundTruthRouteId} benchmarkId={target.benchmarkSetId} />
+                <RouteVisualizationContent routeId={primaryAcceptableRouteId} benchmarkId={target!.benchmarkSetId} />
             </Suspense>
 
             {/* Keep JSON viewer as fallback/debugging */}

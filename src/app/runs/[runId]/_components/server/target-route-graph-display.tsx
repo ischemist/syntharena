@@ -2,7 +2,7 @@ import { AlertCircle } from 'lucide-react'
 
 import type { RouteNodeWithDetails, RouteVisualizationNode } from '@/types'
 import { getTargetPredictions } from '@/lib/services/prediction.service'
-import { getGroundTruthRouteWithNodes } from '@/lib/services/route.service'
+import * as routeService from '@/lib/services/route.service'
 import { checkMoleculesInStockByInchiKey } from '@/lib/services/stock.service'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
@@ -35,10 +35,11 @@ type TargetRouteGraphDisplayProps = {
     rank: number
     stockId?: string
     viewMode?: string
+    acceptableIndex?: number
 }
 
 /**
- * Slow path: Fetch and display route graph with ground truth comparison.
+ * Slow path: Fetch and display route graph with acceptable route comparison.
  * This component streams in after target metadata is displayed.
  */
 export async function TargetRouteGraphDisplay({
@@ -47,6 +48,7 @@ export async function TargetRouteGraphDisplay({
     rank,
     stockId,
     viewMode,
+    acceptableIndex: acceptableIndexProp,
 }: TargetRouteGraphDisplayProps) {
     // Fetch target predictions (cached from target-info-display)
     const targetDetail = await getTargetPredictions(targetId, runId, stockId)
@@ -66,10 +68,17 @@ export async function TargetRouteGraphDisplay({
         return null // No routes to display
     }
 
-    // Build ground truth route tree if available
-    let groundTruthRouteNode: RouteNodeWithDetails | undefined
-    if (targetDetail.groundTruthRoute) {
-        groundTruthRouteNode = (await getGroundTruthRouteWithNodes(targetDetail.groundTruthRoute.id)) ?? undefined
+    // Build acceptable route tree if available
+    let acceptableRouteNode: RouteNodeWithDetails | undefined
+    let acceptableIndex = 0
+    let totalAcceptableRoutes = 0
+
+    if (targetDetail.acceptableRoutes && targetDetail.acceptableRoutes.length > 0) {
+        totalAcceptableRoutes = targetDetail.acceptableRoutes.length
+        // Validate and clamp acceptableIndex to valid range
+        acceptableIndex = Math.min(Math.max(0, acceptableIndexProp ?? 0), Math.max(0, totalAcceptableRoutes - 1))
+        const selectedRoute = targetDetail.acceptableRoutes[acceptableIndex]
+        acceptableRouteNode = (await routeService.getAcceptableRouteWithNodes(selectedRoute.id)) ?? undefined
     }
 
     // Get stock items if stockId provided (for route visualization)
@@ -91,9 +100,14 @@ export async function TargetRouteGraphDisplay({
 
     if (stockId && stockId !== 'all') {
         try {
-            // Collect all InChiKeys from the route tree
+            // Collect all InChiKeys from the route tree AND acceptable route tree
             const allInchiKeys = new Set<string>()
             collectInchiKeysFromRouteNode(routeDetail.routeNode, allInchiKeys)
+
+            // Also collect InChiKeys from acceptable route if available
+            if (acceptableRouteNode) {
+                collectInchiKeysFromRouteNode(acceptableRouteNode, allInchiKeys)
+            }
 
             // Check which molecules from the route are in stock
             inStockInchiKeys = await checkMoleculesInStockByInchiKey(Array.from(allInchiKeys), stockId)
@@ -114,15 +128,19 @@ export async function TargetRouteGraphDisplay({
             route={routeDetail.route}
             predictionRoute={routeDetail.predictionRoute}
             visualizationNode={routeDetail.visualizationNode}
-            groundTruthVisualizationNode={groundTruthRouteNode ? toVisualizationNode(groundTruthRouteNode) : undefined}
+            acceptableRouteVisualizationNode={
+                acceptableRouteNode ? toVisualizationNode(acceptableRouteNode) : undefined
+            }
             isSolvable={solvability?.isSolvable}
-            isGtMatch={solvability?.isGtMatch}
+            matchesAcceptable={solvability?.matchesAcceptable}
             inStockInchiKeys={inStockInchiKeys}
             stockName={stockName}
             viewMode={viewMode}
             currentRank={requestedRank}
             totalPredictions={targetDetail.routes.length}
             targetId={targetId}
+            acceptableIndex={acceptableIndex}
+            totalAcceptableRoutes={totalAcceptableRoutes}
         />
     )
 }

@@ -17,11 +17,12 @@ const nodeTypes = {
 }
 
 interface RouteComparisonProps {
-    groundTruthRoute: RouteVisualizationNode
+    acceptableRoute: RouteVisualizationNode
     predictionRoute: RouteVisualizationNode
     mode: 'side-by-side' | 'diff-overlay'
     inStockInchiKeys: Set<string>
     modelName?: string
+    acceptableRouteLabel?: string // e.g., "Acceptable Route 1" or "Acceptable Route 2 of 3"
 }
 
 /**
@@ -111,21 +112,22 @@ function DiffOverlayPanel({
 
 /**
  * Route comparison component supporting side-by-side and diff overlay views.
- * Shows the difference between ground truth and predicted routes.
+ * Shows the difference between acceptable route and predicted routes.
  */
 export function RouteComparison({
-    groundTruthRoute,
+    acceptableRoute,
     predictionRoute,
     mode,
     inStockInchiKeys,
     modelName,
+    acceptableRouteLabel,
 }: RouteComparisonProps) {
     // Collect InChiKeys from both routes for comparison
-    const gtInchiKeys = useMemo(() => {
+    const acceptableInchiKeys = useMemo(() => {
         const set = new Set<string>()
-        collectInchiKeys(groundTruthRoute, set)
+        collectInchiKeys(acceptableRoute, set)
         return set
-    }, [groundTruthRoute])
+    }, [acceptableRoute])
 
     const predInchiKeys = useMemo(() => {
         const set = new Set<string>()
@@ -134,22 +136,22 @@ export function RouteComparison({
     }, [predictionRoute])
 
     // Build graphs based on mode
-    const { gtGraph, predGraph, diffGraph } = useMemo(() => {
+    const { acceptableGraph, predGraph, diffGraph } = useMemo(() => {
         if (mode === 'side-by-side') {
             return {
-                gtGraph: buildSideBySideGraph(
-                    groundTruthRoute,
+                acceptableGraph: buildSideBySideGraph(
+                    acceptableRoute,
                     predictionRoute,
-                    gtInchiKeys,
+                    acceptableInchiKeys,
                     predInchiKeys,
                     true,
-                    'gt_',
+                    'acceptable_',
                     inStockInchiKeys
                 ),
                 predGraph: buildSideBySideGraph(
                     predictionRoute,
-                    groundTruthRoute,
-                    gtInchiKeys,
+                    acceptableRoute,
+                    acceptableInchiKeys,
                     predInchiKeys,
                     false,
                     'pred_',
@@ -159,17 +161,21 @@ export function RouteComparison({
             }
         } else {
             return {
-                gtGraph: null,
+                acceptableGraph: null,
                 predGraph: null,
-                diffGraph: buildDiffOverlayGraph(groundTruthRoute, predictionRoute, inStockInchiKeys),
+                diffGraph: buildDiffOverlayGraph(acceptableRoute, predictionRoute, inStockInchiKeys),
             }
         }
-    }, [groundTruthRoute, predictionRoute, gtInchiKeys, predInchiKeys, mode, inStockInchiKeys])
+    }, [acceptableRoute, predictionRoute, acceptableInchiKeys, predInchiKeys, mode, inStockInchiKeys])
 
-    if (mode === 'side-by-side' && gtGraph && predGraph) {
+    if (mode === 'side-by-side' && acceptableGraph && predGraph) {
         return (
             <div className="divide-border grid h-full grid-cols-2 divide-x">
-                <GraphPanel nodes={gtGraph.nodes} edges={gtGraph.edges} title="Ground Truth" />
+                <GraphPanel
+                    nodes={acceptableGraph.nodes}
+                    edges={acceptableGraph.edges}
+                    title={acceptableRouteLabel || 'Acceptable Route'}
+                />
                 <GraphPanel nodes={predGraph.nodes} edges={predGraph.edges} title={modelName || 'Prediction'} />
             </div>
         )

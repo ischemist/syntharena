@@ -35,8 +35,8 @@ export async function TargetInfoDisplay({ runId, targetId, stockId }: TargetInfo
             molecule={targetDetail.molecule}
             routeLength={targetDetail.routeLength}
             isConvergent={targetDetail.isConvergent}
-            hasGroundTruth={targetDetail.hasGroundTruth}
-            groundTruthRank={targetDetail.groundTruthRank}
+            hasAcceptableRoutes={targetDetail.hasAcceptableRoutes}
+            acceptableMatchRank={targetDetail.acceptableMatchRank}
             hasNoPredictions={!hasRoutes}
         />
     )

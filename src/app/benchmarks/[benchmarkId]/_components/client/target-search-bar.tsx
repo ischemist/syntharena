@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input'
 type SearchType = 'smiles' | 'inchikey' | 'targetId' | 'all'
 
 interface TargetSearchBarProps {
-    hasGroundTruth: boolean
+    hasAcceptableRoutes: boolean
     minLength: number
     maxLength: number
 }
@@ -27,7 +27,7 @@ interface TargetSearchBarProps {
  * Combines search, search type selector, and filters (when ground truth exists) in a single row.
  * Follows shadcn datatable pattern for compact, professional UI.
  */
-export function TargetSearchBar({ hasGroundTruth, minLength, maxLength }: TargetSearchBarProps) {
+export function TargetSearchBar({ hasAcceptableRoutes, minLength, maxLength }: TargetSearchBarProps) {
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
@@ -194,7 +194,7 @@ export function TargetSearchBar({ hasGroundTruth, minLength, maxLength }: Target
                 </DropdownMenuContent>
             </DropdownMenu>
 
-            {hasGroundTruth && (
+            {hasAcceptableRoutes && (
                 <>
                     {/* Convergence filter */}
                     <DropdownMenu>

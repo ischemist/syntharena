@@ -25,16 +25,16 @@ interface LayoutNodeWithStatus {
 
 /**
  * Builds side-by-side graph for a route with comparison status.
- * Used for both ground truth and prediction in side-by-side view.
+ * Used for both acceptable route and prediction in side-by-side view.
  *
- * For ground truth: shows all GT nodes as "match"
- * For prediction: shows predicted nodes (match/extension) + ghost nodes from GT
+ * For acceptable route: shows all acceptable route nodes as "match" with stock availability
+ * For prediction: shows predicted nodes (match/extension) with stock availability on leaf nodes
  *
  * @param route - Route to visualize
- * @param otherRoute - The other route for comparison (GT when building pred, pred when building GT)
- * @param gtInchiKeys - Set of InChiKeys from ground truth
+ * @param otherRoute - The other route for comparison (acceptable when building pred, pred when building acceptable)
+ * @param acceptableInchiKeys - Set of InChiKeys from acceptable route
  * @param predInchiKeys - Set of InChiKeys from prediction
- * @param isGT - Whether this is the ground truth route (true) or prediction (false)
+ * @param isAcceptableRoute - Whether this is the acceptable route (true) or prediction (false)
  * @param idPrefix - Prefix for node IDs
  * @param inStockInchiKeys - Set of InChiKeys that are in stock (optional)
  * @returns React Flow nodes and edges with comparison status
@@ -42,15 +42,27 @@ interface LayoutNodeWithStatus {
 export function buildSideBySideGraph(
     route: RouteVisualizationNode,
     otherRoute: RouteVisualizationNode,
-    gtInchiKeys: Set<string>,
+    acceptableInchiKeys: Set<string>,
     predInchiKeys: Set<string>,
-    isGT: boolean,
+    isAcceptableRoute: boolean,
     idPrefix: string,
     inStockInchiKeys?: Set<string>
 ): { nodes: Node<RouteGraphNode>[]; edges: Edge[] } {
-    if (isGT) {
-        // Ground truth side: just show the GT route with all nodes as "match"
+    if (isAcceptableRoute) {
+        // Acceptable route side: show the acceptable route with all nodes as "match" and stock info on leaf nodes
         const { nodes: layoutNodes, edges: layoutEdges } = layoutTree(route, idPrefix)
+
+        // Build a set to track which nodes are leaf nodes (no children in the tree)
+        const leafNodeIds = new Set<string>()
+        const nodeChildren = new Map<string, number>()
+        layoutEdges.forEach((edge) => {
+            nodeChildren.set(edge.source, (nodeChildren.get(edge.source) || 0) + 1)
+        })
+        layoutNodes.forEach((node) => {
+            if (!nodeChildren.has(node.id)) {
+                leafNodeIds.add(node.id)
+            }
+        })
 
         const nodes: Node<RouteGraphNode>[] = layoutNodes.map((n) => ({
             id: n.id,
@@ -59,6 +71,8 @@ export function buildSideBySideGraph(
             data: {
                 smiles: n.smiles,
                 status: 'match' as NodeStatus,
+                isLeaf: leafNodeIds.has(n.id),
+                inStock: inStockInchiKeys?.has(n.inchikey),
             },
         }))
 
@@ -72,7 +86,7 @@ export function buildSideBySideGraph(
 
         return { nodes, edges }
     } else {
-        // Prediction side: show only prediction nodes (no ghost nodes from GT)
+        // Prediction side: show only prediction nodes with stock info on leaf nodes
         const { nodes: layoutNodes, edges: layoutEdges } = layoutTree(route, idPrefix)
 
         // Build a set to track which nodes are leaf nodes (no children in the tree)
@@ -88,8 +102,8 @@ export function buildSideBySideGraph(
         })
 
         const nodes: Node<RouteGraphNode>[] = layoutNodes.map((n) => {
-            // Determine status based on whether it's in GT
-            const status: NodeStatus = gtInchiKeys.has(n.inchikey) ? 'match' : 'extension'
+            // Determine status based on whether it's in acceptable route
+            const status: NodeStatus = acceptableInchiKeys.has(n.inchikey) ? 'match' : 'extension'
             return {
                 id: n.id,
                 type: 'molecule',
@@ -116,54 +130,54 @@ export function buildSideBySideGraph(
 }
 
 /**
- * Merges ground truth and prediction trees for diff overlay.
+ * Merges acceptable route and prediction trees for diff overlay.
  * Creates a unified tree with status annotations.
  *
- * @param gtNode - Ground truth node (can be null)
+ * @param acceptableNode - Acceptable route node (can be null)
  * @param predNode - Prediction node (can be null)
- * @param gtInchiKeys - Set of all InChiKeys in ground truth
+ * @param acceptableInchiKeys - Set of all InChiKeys in acceptable route
  * @param predInchiKeys - Set of all InChiKeys in prediction
  * @returns Merged tree with status for each node
  */
 function mergeTreesForDiff(
-    gtNode: RouteVisualizationNode | null,
+    acceptableNode: RouteVisualizationNode | null,
     predNode: RouteVisualizationNode | null,
-    gtInchiKeys: Set<string>,
+    acceptableInchiKeys: Set<string>,
     predInchiKeys: Set<string>
 ): MergedRouteNode | null {
-    if (!gtNode && !predNode) return null
+    if (!acceptableNode && !predNode) return null
 
-    // Use prediction node if available, otherwise ground truth
-    const smiles = predNode?.smiles || gtNode!.smiles
-    const inchikey = predNode?.inchikey || gtNode!.inchikey
+    // Use prediction node if available, otherwise acceptable route
+    const smiles = predNode?.smiles || acceptableNode!.smiles
+    const inchikey = predNode?.inchikey || acceptableNode!.inchikey
     let status: NodeStatus
 
-    if (predInchiKeys.has(inchikey) && gtInchiKeys.has(inchikey)) {
+    if (predInchiKeys.has(inchikey) && acceptableInchiKeys.has(inchikey)) {
         status = 'match'
-    } else if (predInchiKeys.has(inchikey) && !gtInchiKeys.has(inchikey)) {
+    } else if (predInchiKeys.has(inchikey) && !acceptableInchiKeys.has(inchikey)) {
         status = 'extension'
     } else {
         status = 'ghost'
     }
 
     // Merge children by InChiKey
-    const gtChildren = gtNode?.children || []
+    const acceptableChildren = acceptableNode?.children || []
     const predChildren = predNode?.children || []
     const mergedChildrenMap = new Map<string, MergedRouteNode>()
 
     // Add all prediction children first
     predChildren.forEach((child) => {
-        const gtMatch = gtChildren.find((gc) => gc.inchikey === child.inchikey)
-        const merged = mergeTreesForDiff(gtMatch || null, child, gtInchiKeys, predInchiKeys)
+        const acceptableMatch = acceptableChildren.find((ac) => ac.inchikey === child.inchikey)
+        const merged = mergeTreesForDiff(acceptableMatch || null, child, acceptableInchiKeys, predInchiKeys)
         if (merged) {
             mergedChildrenMap.set(child.inchikey, merged)
         }
     })
 
-    // Add GT children that are missing from prediction
-    gtChildren.forEach((child) => {
+    // Add acceptable route children that are missing from prediction
+    acceptableChildren.forEach((child) => {
         if (!mergedChildrenMap.has(child.inchikey)) {
-            const merged = mergeTreesForDiff(child, null, gtInchiKeys, predInchiKeys)
+            const merged = mergeTreesForDiff(child, null, acceptableInchiKeys, predInchiKeys)
             if (merged) {
                 mergedChildrenMap.set(child.inchikey, merged)
             }
@@ -211,7 +225,7 @@ function flattenMergedLayoutTree(
     parentIsGhost: boolean
 ): void {
     // Dashed edges for:
-    // - 'ghost' status (missing from prediction in GT vs Pred mode)
+    // - 'ghost' status (missing from prediction in acceptable vs pred mode)
     // - 'pred-2-only' status (unique to Model 2 in pred-vs-pred mode)
     const isDashed = node.status === 'ghost' || node.status === 'pred-2-only'
     const isLeaf = node.children.length === 0
@@ -235,27 +249,27 @@ function flattenMergedLayoutTree(
 }
 
 /**
- * Builds diff overlay graph showing merged prediction and ground truth.
+ * Builds diff overlay graph showing merged prediction and acceptable route.
  * Highlights matches, extensions, and missing nodes.
  *
- * @param gtRoute - Ground truth route
+ * @param acceptableRoute - Acceptable route
  * @param predRoute - Predicted route
  * @param inStockInchiKeys - Set of InChiKeys that are in stock (optional)
  * @returns React Flow nodes and edges with diff highlighting
  */
 export function buildDiffOverlayGraph(
-    gtRoute: RouteVisualizationNode,
+    acceptableRoute: RouteVisualizationNode,
     predRoute: RouteVisualizationNode,
     inStockInchiKeys?: Set<string>
 ): { nodes: Node<RouteGraphNode>[]; edges: Edge[] } {
     // Collect all InChiKeys from both trees
-    const gtInchiKeys = new Set<string>()
+    const acceptableInchiKeys = new Set<string>()
     const predInchiKeys = new Set<string>()
-    collectInchiKeys(gtRoute, gtInchiKeys)
+    collectInchiKeys(acceptableRoute, acceptableInchiKeys)
     collectInchiKeys(predRoute, predInchiKeys)
 
     // Merge trees
-    const mergedTree = mergeTreesForDiff(gtRoute, predRoute, gtInchiKeys, predInchiKeys)
+    const mergedTree = mergeTreesForDiff(acceptableRoute, predRoute, acceptableInchiKeys, predInchiKeys)
     if (!mergedTree) return { nodes: [], edges: [] }
 
     // Build layout tree with status

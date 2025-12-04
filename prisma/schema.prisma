@@ -42,11 +42,11 @@ model Molecule {
 // =================================================================================
 
 model BenchmarkSet {
-  id             String  @id @default(cuid())
-  name           String  @unique // e.g. "mkt-lin-500"
-  description    String?
-  stockId        String // Direct reference to the stock
-  hasGroundTruth Boolean @default(false) // All-or-nothing: targets either all have GT routes or none do
+  id                  String  @id @default(cuid())
+  name                String  @unique // e.g. "mkt-lin-500"
+  description         String?
+  stockId             String // Direct reference to the stock
+  hasAcceptableRoutes Boolean @default(false) // All-or-nothing: targets either all have acceptable routes or none do
 
   createdAt DateTime @default(now())
 
@@ -63,22 +63,35 @@ model BenchmarkTarget {
   moleculeId     String // The SMILES/InchiKey link
 
   // Metadata for stratification (cached from Python model)
-  routeLength  Int? // Length of GT route
-  isConvergent Boolean? // Is GT route convergent?
+  // These are computed from the PRIMARY acceptable route (index 0) if available
+  routeLength  Int? // Length of primary acceptable route
+  isConvergent Boolean? // Is primary acceptable route convergent?
   metadata     String? // JSON blob for other metadata
-
-  // Ground Truth Link
-  // A target might have a ground truth route. This route is stored in the Route table
-  // but usually has no ModelInstance associated with it.
-  groundTruthRouteId String?
 
   // Relations
   benchmarkSet     BenchmarkSet      @relation(fields: [benchmarkSetId], references: [id])
   molecule         Molecule          @relation(fields: [moleculeId], references: [id])
-  groundTruthRoute Route?            @relation("GroundTruth", fields: [groundTruthRouteId], references: [id])
+  acceptableRoutes AcceptableRoute[]
   predictionRoutes PredictionRoute[]
 
   @@unique([benchmarkSetId, targetId])
+}
+
+// Junction table: Links BenchmarkTarget to multiple Route records (acceptable routes)
+// Preserves array order from Python model via routeIndex (0 = primary route)
+model AcceptableRoute {
+  id                String @id @default(cuid())
+  benchmarkTargetId String
+  routeId           String
+  routeIndex        Int // 0-based index in acceptable_routes array (0 = primary)
+
+  target BenchmarkTarget @relation(fields: [benchmarkTargetId], references: [id], onDelete: Cascade)
+  route  Route           @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@unique([benchmarkTargetId, routeId]) // One link per target-route pair
+  @@unique([benchmarkTargetId, routeIndex]) // Index is unique per target
+  @@index([benchmarkTargetId])
+  @@index([routeId])
 }
 
 // =================================================================================
@@ -142,12 +155,9 @@ model Route {
   isConvergent Boolean
 
   // Relations
-  // This reverse relation allows us to access the GT route from the target
-  // Multiple targets can share the same ground truth route (many-to-one)
-  asGroundTruthFor BenchmarkTarget[] @relation("GroundTruth")
-
-  nodes       RouteNode[]
-  predictions PredictionRoute[] // NEW: One route can be predicted multiple times
+  asAcceptableRouteFor AcceptableRoute[]
+  nodes                RouteNode[]
+  predictions          PredictionRoute[] // One route can be predicted multiple times
 }
 
 // Junction table: Connects a Route to a (PredictionRun, Target, Rank)
@@ -287,8 +297,9 @@ model RouteSolvability {
   predictionRouteId String // Changed from routeId - solvability is per prediction
   stockId           String
 
-  isSolvable Boolean
-  isGtMatch  Boolean // "Does this route match the ground truth?"
+  isSolvable            Boolean
+  matchesAcceptable     Boolean // "Does this route match ANY acceptable route?"
+  matchedAcceptableIndex Int?    // Which acceptable route was matched (0-based index, null if no match)
 
   // You might want to store specific metric data here if needed
   // e.g. "number of unavailable leaves"

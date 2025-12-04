@@ -36,9 +36,9 @@ export function RunDetailHeader({ run }: RunDetailHeaderProps) {
                         <div className="text-lg font-medium">{(run.totalTimeMs / 1000 / 60).toFixed(1)} min</div>
                     </div>
                 )}
-                {run.benchmarkSet.hasGroundTruth && (
+                {run.benchmarkSet.hasAcceptableRoutes && (
                     <div>
-                        <div className="text-muted-foreground text-sm">Ground Truth</div>
+                        <div className="text-muted-foreground text-sm">Acceptable Routes</div>
                         <Badge variant="secondary" className="mt-1">
                             Available
                         </Badge>

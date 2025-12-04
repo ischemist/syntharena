@@ -76,17 +76,18 @@ interface EvaluationFile {
     model_name: string
     benchmark_name: string
     stock_name: string
-    has_ground_truth: boolean
+    has_acceptable_routes: boolean
     results: {
         [targetId: string]: {
             target_id: string
             routes: Array<{
                 rank: number
                 is_solved: boolean
-                is_gt_match: boolean
+                matches_acceptable: boolean
+                matched_acceptable_index: number | null
             }>
             is_solvable: boolean
-            gt_rank: number | null
+            acceptable_rank: number | null
             route_length: number
             is_convergent: boolean
         }
@@ -535,7 +536,8 @@ async function main() {
                             predictionRoute.id,
                             stock.id,
                             routeEval.is_solved,
-                            routeEval.is_gt_match
+                            routeEval.matches_acceptable,
+                            routeEval.matched_acceptable_index
                         )
                         solvabilityRecordsCreated++
                     }
