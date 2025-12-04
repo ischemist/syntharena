@@ -1,9 +1,11 @@
 import Link from 'next/link'
+import { connection } from 'next/server'
 
 import * as homeService from '@/lib/services/home.service'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 export async function BenchmarksOverviewSection() {
+    await connection()
     const benchmarks = await homeService.getBenchmarkOverview()
 
     // Split into two series
