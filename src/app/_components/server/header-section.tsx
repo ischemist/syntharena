@@ -12,7 +12,7 @@ export function HeaderSection() {
                 </div>
                 <div className="flex gap-4 text-sm">
                     <Link
-                        href="https://github.com/ischemist/retrocast"
+                        href="https://github.com/ischemist/project-procrustes"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-muted-foreground hover:text-foreground transition-colors"
@@ -27,7 +27,7 @@ export function HeaderSection() {
                     >
                         GitHub
                     </Link>
-                    <span className="text-muted-foreground">MIT License</span>
+                    {/*<span className="text-muted-foreground">MIT License</span>*/}
                 </div>
             </div>
         </header>

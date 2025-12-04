@@ -7,13 +7,17 @@
 
 # Define models
 MODELS=(
-    "dms-explorer-xl"
-    "aizynthfinder-retro-star"
-    "aizynthfinder-mcts"
-    "retro-star"
-    "retro-star-high"
-    "askcos"
-    "syntheseus-retro0-local-retro"
+    # "dms-explorer-xl"
+    # "aizynthfinder-retro-star"
+    # "aizynthfinder-mcts"
+    # "aizynthfinder-retro-star-high"
+    "aizynthfinder-mcts-high"
+    # "retro-star"
+    # "retro-star-high"
+    # "syntheseus-retro0-local-retro"
+    # "synplanner-mcts"
+    # "synplanner-eval"
+    # "askcos"
 )
 
 # Define model metadata (algorithm names, papers, versions)
@@ -21,10 +25,14 @@ declare -A ALGORITHM_NAMES=(
     ["dms-explorer-xl"]="DirectMultiStep"
     ["aizynthfinder-retro-star"]="AiZynthFinder Retro*"
     ["aizynthfinder-mcts"]="AiZynthFinder MCTS"
+    ["aizynthfinder-retro-star-high"]="AiZynthFinder Retro* (High Effort)"
+    ["aizynthfinder-mcts-high"]="AiZynthFinder MCTS (High Effort)"
     ["retro-star"]="Retro*"
     ["retro-star-high"]="Retro* (High Effort)"
     ["askcos"]="ASKCOS"
     ["syntheseus-retro0-local-retro"]="Syntheseus Retro0 Local Retro"
+    ["synplanner-mcts"]="SynPlanner MCTS"
+    ["synplanner-eval"]="SynPlanner Eval"
 )
 
 declare -A ALGORITHM_PAPERS=(
@@ -32,18 +40,20 @@ declare -A ALGORITHM_PAPERS=(
 )
 
 declare -A MODEL_VERSIONS=(
-    ["dms-explorer-xl"]="v1.0"
+    ["dms-explorer-xl"]="1.0"
 )
 
 # Define datasets with their stock configurations
 # Format: "dataset:stock-path:stock-db-name"
 DATASET_CONFIGS=(
-    # "mkt-lin-500:buyables-stock:ASKCOS Buyables Stock"
+    "mkt-lin-500:buyables-stock:ASKCOS Buyables Stock"
     # "mkt-cnv-160:buyables-stock:ASKCOS Buyables Stock"
+    "mkt-lin-500-single-gt:buyables-stock:ASKCOS Buyables Stock"
+    # "mkt-cnv-160-single-gt:buyables-stock:ASKCOS Buyables Stock"
     # "ref-lin-600:n5-stock:n5 Stock"
     # "ref-cnv-400:n5-stock:n5 Stock"
     # "ref-lng-84:n1-n5-stock:n1+n5 Stock"
-    "uspto-190:buyables-stock:ASKCOS Buyables Stock"
+    # "uspto-190:buyables-stock:ASKCOS Buyables Stock"
 )
 
 # Progress bar function with ETA and elapsed time
