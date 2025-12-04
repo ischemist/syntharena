@@ -10,18 +10,21 @@ pnpm tsx scripts/load-stock.ts /Users/morgunov/Developer/ischemist/project-procr
 ## Loading Benchmarks
 
 ```bash
-pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/uspto-190.json.gz "uspto-190" "190 targets from the test set of the original Retro*" --stock "ASKCOS Buyables Stock"
-
-pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/ref-lng-84.json.gz "ref-lng-84" "84 targets with extra long ground truth routes" --stock "n1+n5 Stock"
+pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/uspto-190.json.gz "uspto-190" "190 targets from the test set of the original Retro*" --stock "ASKCOS Buyables Stock"
 
 pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/mkt-cnv-160.json.gz "mkt-cnv-160" "160 targets with convergent ground truth routes of variable length with all leaves in buyables. Part of the Procrustes suite." --stock "ASKCOS Buyables Stock"
 
-pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/mkt-lin-500.json.gz "mkt-lin-500" "500 targets with linear ground truth routes of variable length with all leaves in buyables. Part of the Procrustes suite." --stock "ASKCOS Buyables Stock"
+pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/mkt-lin-500.json.gz "mkt-lin-500" "500 targets with linear ground truth routes of variable length with all leaves in buyables. Part of the Procrustes suite." --stock "ASKCOS Buyables Stock"
 
-pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/ref-lin-600.json.gz "ref-lin-600" "600 targets with linear ground truth routes of variable length. Part of the Procrustes suite." --stock "n5 Stock"
+pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/ref-lin-600.json.gz "ref-lin-600" "600 targets with linear ground truth routes of variable length. Part of the Procrustes suite." --stock "n5 Stock"
 
-pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/re-export/ref-cnv-400.json.gz "ref-cnv-400" "400 targets with convergent ground truth routes of variable length. Part of the Procrustes suite." --stock "n5 Stock"
+pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/ref-cnv-400.json.gz "ref-cnv-400" "400 targets with convergent ground truth routes of variable length. Part of the Procrustes suite." --stock "n5 Stock"
 
+pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/ref-lng-84.json.gz "ref-lng-84" "84 targets with extra long ground truth routes" --stock "n1+n5 Stock"
+
+pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/mkt-cnv-160-single-gt.json.gz "mkt-cnv-160-single-gt" "160 targets with convergent ground truth routes of variable length with all leaves in buyables. Part of the Procrustes suite." --stock "ASKCOS Buyables Stock"
+
+pnpm tsx scripts/load-benchmark.ts /Users/morgunov/Developer/ischemist/project-procrustes/data/1-benchmarks/definitions/mkt-lin-500-single-gt.json.gz "mkt-lin-500-single-gt" "500 targets with linear ground truth routes of variable length with all leaves in buyables. Part of the Procrustes suite." --stock "ASKCOS Buyables Stock"
 
 ```
 
