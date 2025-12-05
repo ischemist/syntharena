@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { VENDOR_SOURCES } from '@/types'
+
 /**
  * Schema for searching molecules across stocks.
  * Validates search query and optional filters.
@@ -53,7 +55,7 @@ export type DeleteStockInput = z.infer<typeof DeleteStockSchema>
  * Used for client-side filter controls validation.
  */
 export const StockMoleculeFiltersSchema = z.object({
-    vendors: z.array(z.enum(['MC', 'LN', 'EM', 'SA', 'CB'])).optional(),
+    vendors: z.array(z.enum(VENDOR_SOURCES)).optional(),
     minPpg: z.number().min(0, 'Minimum price must be non-negative').optional(),
     maxPpg: z.number().min(0, 'Maximum price must be non-negative').optional(),
     buyableOnly: z.boolean().optional(),

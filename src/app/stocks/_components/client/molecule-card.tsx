@@ -64,8 +64,9 @@ export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
     const hasBuyableData = molecule.stockItem?.source != null && molecule.stockItem?.ppg != null
 
     return (
-        <Card className="group relative aspect-[4/5] overflow-hidden transition-all hover:shadow-lg">
-            <div className="flex h-full w-full items-center justify-center p-4">
+        <Card className="group relative aspect-4/5 overflow-hidden transition-all hover:shadow-lg">
+            {/* Molecule container - takes up space but leaves room for metadata */}
+            <div className="absolute inset-x-0 top-4 bottom-12 flex items-center justify-center p-4">
                 {isReady ? (
                     <div className="animate-in fade-in duration-500">
                         <SmileDrawerSvg smilesStr={molecule.smiles} width={100} height={100} />

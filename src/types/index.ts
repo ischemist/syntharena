@@ -36,7 +36,8 @@ export interface Molecule {
 /**
  * Vendor source enumeration for buyable molecules.
  */
-export type VendorSource = 'MC' | 'LN' | 'EM' | 'SA' | 'CB'
+export const VENDOR_SOURCES = ['MC', 'LN', 'EM', 'SA', 'CB'] as const
+export type VendorSource = (typeof VENDOR_SOURCES)[number]
 
 /**
  * Human-readable vendor names mapping.

@@ -67,22 +67,16 @@ export async function MoleculeSearchResults({
         )
     }
 
-    const hasFilters =
-        (query && query.trim().length > 0) ||
-        vendors?.length ||
-        minPpg !== undefined ||
-        maxPpg !== undefined ||
-        buyableOnly
     const totalPages = Math.ceil(result.total / limit)
 
     return (
         <div className="space-y-4">
             <div className="flex items-center gap-2">
                 <p className="text-muted-foreground text-sm">
-                    {hasFilters ? (
+                    {query ? (
                         <>
-                            Found {result.total.toLocaleString()} {result.total === 1 ? 'molecule' : 'molecules'}
-                            {query && <> matching &quot;{query}&quot;</>}
+                            Found {result.total.toLocaleString()} {result.total === 1 ? 'molecule' : 'molecules'}{' '}
+                            matching &quot;{query}&quot;
                         </>
                     ) : (
                         <>

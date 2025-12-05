@@ -235,7 +235,7 @@ export async function updateStockItemMetadata(
             select: { id: true },
         })
         return stockItem
-    } catch (error) {
+    } catch {
         // Stock item doesn't exist
         return null
     }
@@ -299,7 +299,7 @@ export async function batchUpdateStockItemMetadata(
                             },
                         })
                         updated++
-                    } catch (error) {
+                    } catch {
                         // Stock item doesn't exist in this stock
                         notFound++
                     }
@@ -579,32 +579,33 @@ export async function getStockMolecules(
     const validLimit = Math.min(Math.max(1, limit), 1000)
     const validOffset = Math.max(0, offset)
 
-    // Build filter conditions
-    const whereClause: Prisma.StockItemWhereInput = {
-        stockId,
-    }
+    // Build filter conditions using AND array for clean composition
+    const conditions: Prisma.StockItemWhereInput[] = [{ stockId }]
 
     // Apply vendor filter
     if (filters?.vendors && filters.vendors.length > 0) {
-        whereClause.source = { in: filters.vendors }
+        conditions.push({ source: { in: filters.vendors } })
     }
 
     // Apply price range filters
     if (filters?.minPpg !== undefined || filters?.maxPpg !== undefined) {
-        whereClause.ppg = {}
+        const ppgFilter: { gte?: number; lte?: number } = {}
         if (filters.minPpg !== undefined) {
-            whereClause.ppg.gte = filters.minPpg
+            ppgFilter.gte = filters.minPpg
         }
         if (filters.maxPpg !== undefined) {
-            whereClause.ppg.lte = filters.maxPpg
+            ppgFilter.lte = filters.maxPpg
         }
+        conditions.push({ ppg: ppgFilter })
     }
 
     // Apply buyable only filter
     if (filters?.buyableOnly) {
-        whereClause.source = { not: null }
-        whereClause.ppg = { not: null }
+        conditions.push({ source: { not: null } })
+        conditions.push({ ppg: { not: null } })
     }
+
+    const whereClause: Prisma.StockItemWhereInput = conditions.length === 1 ? conditions[0] : { AND: conditions }
 
     // 1. Get total count with filters
     const total = await prisma.stockItem.count({ where: whereClause })
@@ -689,7 +690,7 @@ export async function searchMolecules(
     const validLimit = Math.min(Math.max(1, limit), 1000)
     const validOffset = Math.max(0, offset)
 
-    // Build base filter (stock filtering)
+    // Build base filter (stock filtering) using AND array for clean composition
     const baseFilter: Prisma.MoleculeWhereInput = {}
 
     if (
@@ -699,30 +700,34 @@ export async function searchMolecules(
         filters?.maxPpg !== undefined ||
         filters?.buyableOnly
     ) {
-        const stockItemFilter: Prisma.StockItemWhereInput = {}
+        const stockItemConditions: Prisma.StockItemWhereInput[] = []
 
         if (stockId) {
-            stockItemFilter.stockId = stockId
+            stockItemConditions.push({ stockId })
         }
 
         if (filters?.vendors && filters.vendors.length > 0) {
-            stockItemFilter.source = { in: filters.vendors }
+            stockItemConditions.push({ source: { in: filters.vendors } })
         }
 
         if (filters?.minPpg !== undefined || filters?.maxPpg !== undefined) {
-            stockItemFilter.ppg = {}
+            const ppgFilter: { gte?: number; lte?: number } = {}
             if (filters.minPpg !== undefined) {
-                stockItemFilter.ppg.gte = filters.minPpg
+                ppgFilter.gte = filters.minPpg
             }
             if (filters.maxPpg !== undefined) {
-                stockItemFilter.ppg.lte = filters.maxPpg
+                ppgFilter.lte = filters.maxPpg
             }
+            stockItemConditions.push({ ppg: ppgFilter })
         }
 
         if (filters?.buyableOnly) {
-            stockItemFilter.source = { not: null }
-            stockItemFilter.ppg = { not: null }
+            stockItemConditions.push({ source: { not: null } })
+            stockItemConditions.push({ ppg: { not: null } })
         }
+
+        const stockItemFilter: Prisma.StockItemWhereInput =
+            stockItemConditions.length === 1 ? stockItemConditions[0] : { AND: stockItemConditions }
 
         baseFilter.stockItems = { some: stockItemFilter }
     }

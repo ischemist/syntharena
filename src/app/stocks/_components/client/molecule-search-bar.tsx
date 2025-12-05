@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown, Search, X } from 'lucide-react'
 
@@ -34,7 +34,7 @@ interface MoleculeSearchBarProps {
  * Combines search, vendor filter, price range, and buyable-only toggle.
  * Follows shadcn datatable pattern for compact, professional UI.
  */
-export function MoleculeSearchBar({ availableVendors, priceRange, totalCount, buyableCount }: MoleculeSearchBarProps) {
+export function MoleculeSearchBar({ availableVendors, totalCount, buyableCount }: MoleculeSearchBarProps) {
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
@@ -46,9 +46,18 @@ export function MoleculeSearchBar({ availableVendors, priceRange, totalCount, bu
     const currentMaxPpg = searchParams.get('maxPpg')
     const currentBuyableOnly = searchParams.get('buyableOnly') === 'true'
 
-    /**
-     * Updates URL search params and resets pagination to page 1
-     */
+    // Local state for controlled inputs - initialized from URL params
+    const [minPpgValue, setMinPpgValue] = useState(currentMinPpg || '')
+    const [maxPpgValue, setMaxPpgValue] = useState(currentMaxPpg || '')
+
+    // Reset local state when URL params change externally (e.g., reset button clears URL)
+    if ((currentMinPpg || '') !== minPpgValue && minPpgValue !== '' && !currentMinPpg) {
+        setMinPpgValue('')
+    }
+    if ((currentMaxPpg || '') !== maxPpgValue && maxPpgValue !== '' && !currentMaxPpg) {
+        setMaxPpgValue('')
+    }
+
     const updateSearchParams = useCallback(
         (updates: Partial<Record<string, string | null>>) => {
             const params = new URLSearchParams(searchParams)
@@ -72,9 +81,6 @@ export function MoleculeSearchBar({ availableVendors, priceRange, totalCount, bu
         [router, pathname, searchParams]
     )
 
-    /**
-     * Handle search input change with debouncing
-     */
     const handleQueryChange = (newQuery: string) => {
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current)
@@ -89,9 +95,6 @@ export function MoleculeSearchBar({ availableVendors, priceRange, totalCount, bu
         debounceTimerRef.current = timer
     }
 
-    /**
-     * Handle vendor filter change (multi-select)
-     */
     const handleVendorToggle = (vendor: VendorSource) => {
         const newVendors = currentVendors.includes(vendor)
             ? currentVendors.filter((v) => v !== vendor)
@@ -102,10 +105,14 @@ export function MoleculeSearchBar({ availableVendors, priceRange, totalCount, bu
         })
     }
 
-    /**
-     * Handle price range changes with debouncing
-     */
     const handlePriceChange = (type: 'min' | 'max', value: string) => {
+        // Update local state immediately for responsive UI
+        if (type === 'min') {
+            setMinPpgValue(value)
+        } else {
+            setMaxPpgValue(value)
+        }
+
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current)
         }
@@ -119,18 +126,12 @@ export function MoleculeSearchBar({ availableVendors, priceRange, totalCount, bu
         debounceTimerRef.current = timer
     }
 
-    /**
-     * Handle buyable only toggle
-     */
     const handleBuyableOnlyChange = (checked: boolean) => {
         updateSearchParams({
             buyableOnly: checked ? 'true' : null,
         })
     }
 
-    /**
-     * Reset all filters
-     */
     const handleReset = () => {
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current)
@@ -139,9 +140,6 @@ export function MoleculeSearchBar({ availableVendors, priceRange, totalCount, bu
         router.push(pathname)
     }
 
-    /**
-     * Cleanup timer on unmount
-     */
     useEffect(() => {
         return () => {
             if (debounceTimerRef.current) {
@@ -159,7 +157,6 @@ export function MoleculeSearchBar({ availableVendors, priceRange, totalCount, bu
     const activeFilterClass = 'border border-input bg-transparent shadow-xs'
 
     const hasVendorFilters = availableVendors.length > 0
-    const hasPriceRange = priceRange.min !== null && priceRange.max !== null
 
     return (
         <div className="flex items-center gap-2">
@@ -209,23 +206,21 @@ export function MoleculeSearchBar({ availableVendors, priceRange, totalCount, bu
                 <div className="border-input flex h-8 items-center gap-2 rounded-md border bg-transparent px-3 shadow-xs">
                     <span className="text-muted-foreground text-sm">$/g</span>
                     <Input
-                        key={`min-${currentMinPpg || 'empty'}`}
                         type="number"
                         placeholder="Min"
                         min={0}
                         step="0.01"
-                        defaultValue={currentMinPpg || ''}
+                        value={minPpgValue}
                         onChange={(e) => handlePriceChange('min', e.target.value)}
                         className="h-6 w-20 border-0 bg-transparent px-1 text-center text-sm shadow-none focus-visible:ring-0"
                     />
                     <span className="text-muted-foreground">—</span>
                     <Input
-                        key={`max-${currentMaxPpg || 'empty'}`}
                         type="number"
                         placeholder="Max"
                         min={0}
                         step="0.01"
-                        defaultValue={currentMaxPpg || ''}
+                        value={maxPpgValue}
                         onChange={(e) => handlePriceChange('max', e.target.value)}
                         className="h-6 w-20 border-0 bg-transparent px-1 text-center text-sm shadow-none focus-visible:ring-0"
                     />
