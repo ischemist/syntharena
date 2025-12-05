@@ -368,6 +368,17 @@ export interface RouteGraphNode {
 }
 
 /**
+ * Commercial metadata for buyable molecules.
+ * Used in Maps to associate InChiKeys with vendor information.
+ */
+export type BuyableMetadata = {
+    ppg: number | null
+    source: VendorSource | null
+    leadTime: string | null
+    link: string | null
+}
+
+/**
  * Union type for node visual states.
  * - "in-stock" | "default": Used for single route visualization with stock highlighting
  * - "match" | "extension" | "ghost": Used for acceptable route vs prediction comparison

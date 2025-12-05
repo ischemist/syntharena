@@ -1,14 +1,7 @@
 'use client'
 
-import type { RouteVisualizationNode, VendorSource } from '@/types'
+import type { BuyableMetadata, RouteVisualizationNode } from '@/types'
 import { RouteGraph, RouteLegend } from '@/components/route-visualization'
-
-type BuyableMetadata = {
-    ppg: number | null
-    source: VendorSource | null
-    leadTime: string | null
-    link: string | null
-}
 
 interface RouteVisualizationWrapperProps {
     routeTree: RouteVisualizationNode

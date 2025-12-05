@@ -5,19 +5,9 @@
 
 import type { Edge, Node } from '@xyflow/react'
 
-import type { MergedRouteNode, NodeStatus, RouteGraphNode, RouteVisualizationNode, VendorSource } from '@/types'
+import type { BuyableMetadata, MergedRouteNode, NodeStatus, RouteGraphNode, RouteVisualizationNode } from '@/types'
 
 import { assignPositions, calculateSubtreeWidth, collectInchiKeys, layoutTree } from './layout'
-
-/**
- * Buyable metadata for enriching route nodes.
- */
-export interface BuyableMetadata {
-    ppg: number | null
-    source: VendorSource | null
-    leadTime: string | null
-    link: string | null
-}
 
 /**
  * Internal layout node with status for merged trees.

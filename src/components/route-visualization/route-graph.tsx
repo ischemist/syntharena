@@ -5,7 +5,7 @@ import { Background, Controls, ReactFlow, useEdgesState, useNodesState } from '@
 import type { Edge, Node } from '@xyflow/react'
 import { useTheme } from 'next-themes'
 
-import type { RouteGraphNode, RouteVisualizationNode, VendorSource } from '@/types'
+import type { BuyableMetadata, RouteGraphNode, RouteVisualizationNode } from '@/types'
 import { buildRouteGraph } from '@/lib/route-visualization'
 
 import { MoleculeNode } from './molecule-node'
@@ -14,13 +14,6 @@ import '@xyflow/react/dist/style.css'
 
 const nodeTypes = {
     molecule: MoleculeNode,
-}
-
-type BuyableMetadata = {
-    ppg: number | null
-    source: VendorSource | null
-    leadTime: string | null
-    link: string | null
 }
 
 interface RouteGraphProps {

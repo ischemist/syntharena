@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 
-import type { VendorSource } from '@/types'
+import type { BuyableMetadata } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkService from '@/lib/services/benchmark.service'
 import * as routeService from '@/lib/services/route.service'
@@ -9,13 +9,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 import { RouteJsonViewer } from '../client/route-json-viewer'
 import { RouteVisualizationWrapper } from '../client/route-visualization-wrapper'
-
-type BuyableMetadata = {
-    ppg: number | null
-    source: VendorSource | null
-    leadTime: string | null
-    link: string | null
-}
 
 interface RouteDisplayProps {
     targetId: string

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-import type { RouteNodeWithDetails, RouteVisualizationNode, VendorSource } from '@/types'
+import type { BuyableMetadata, RouteNodeWithDetails, RouteVisualizationNode } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkService from '@/lib/services/benchmark.service'
 import * as routeService from '@/lib/services/route.service'
@@ -12,13 +12,6 @@ import { Button } from '@/components/ui/button'
 import { ComparisonModeTabs, type ComparisonMode } from '../client/comparison-mode-tabs'
 import { ModelPredictionSelector } from '../client/model-prediction-selector'
 import { RouteJsonViewer } from '../client/route-json-viewer'
-
-type BuyableMetadata = {
-    ppg: number | null
-    source: VendorSource | null
-    leadTime: string | null
-    link: string | null
-}
 
 interface RouteDisplayWithComparisonProps {
     targetId: string

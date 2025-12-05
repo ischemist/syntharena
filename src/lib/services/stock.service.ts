@@ -3,6 +3,7 @@ import { cache } from 'react'
 import { Prisma } from '@prisma/client'
 
 import type {
+    BuyableMetadata,
     Molecule,
     MoleculeSearchResult,
     MoleculeWithStocks,
@@ -934,17 +935,6 @@ export async function checkMoleculesInStockByInchiKey(inchikeyArray: string[], s
 
     // Return as Set for O(1) lookup
     return new Set(moleculesInStock.map((mol) => mol.inchikey))
-}
-
-/**
- * Buyable metadata for a molecule in a stock.
- * Includes commercial information (vendor, price, lead time, link).
- */
-export interface BuyableMetadata {
-    ppg: number | null
-    source: VendorSource | null
-    leadTime: string | null
-    link: string | null
 }
 
 /**

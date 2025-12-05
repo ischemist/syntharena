@@ -21,7 +21,8 @@ async function exportStratifiedLatexTable(
     benchmarkId: string,
     includeTime: boolean,
     includeTimeRelative: boolean,
-    includeCost: boolean
+    includeCost: boolean,
+    noCi: boolean
 ) {
     // Fetch statistics with stratified metrics for the benchmark
     const statistics = await prisma.modelRunStatistics.findMany({
@@ -60,8 +61,9 @@ async function exportStratifiedLatexTable(
     })
 
     // Build format string based on flags
-    let formatStr =
-        '% Format: Model & L1 & L1_lower & L1_upper & L2 & L2_lower & L2_upper & L3 & L3_lower & L3_upper & L4 & L4_lower & L4_upper & L5 & L5_lower & L5_upper'
+    let formatStr = noCi
+        ? '% Format: Model & L1 & L2 & L3 & L4 & L5'
+        : '% Format: Model & L1 & L1_lower & L1_upper & L2 & L2_lower & L2_upper & L3 & L3_lower & L3_upper & L4 & L4_lower & L4_upper & L5 & L5_lower & L5_upper'
     if (includeTime) {
         formatStr += ' & Duration'
     }
@@ -79,7 +81,7 @@ async function exportStratifiedLatexTable(
     console.log()
 
     // Define route lengths to include
-    const routeLengths = [1, 2, 3, 4, 5]
+    const routeLengths = [2, 3, 4, 5]
 
     for (const stat of statistics) {
         const dbModelName = stat.predictionRun.modelInstance.name
@@ -95,10 +97,18 @@ async function exportStratifiedLatexTable(
             const metric = stat.metrics.find((m) => m.groupKey === length)
 
             if (metric) {
-                values.push(formatMetric(metric.value), formatMetric(metric.ciLower), formatMetric(metric.ciUpper))
+                if (noCi) {
+                    values.push(formatMetric(metric.value))
+                } else {
+                    values.push(formatMetric(metric.value), formatMetric(metric.ciLower), formatMetric(metric.ciUpper))
+                }
             } else {
                 // No data for this route length
-                values.push('--', '--', '--')
+                if (noCi) {
+                    values.push('--')
+                } else {
+                    values.push('--', '--', '--')
+                }
             }
         }
 
@@ -132,6 +142,7 @@ function parseArgs() {
     let includeTime = false
     let includeTimeRelative = false
     let includeCost = false
+    let noCi = false
 
     for (const arg of args) {
         if (arg === '-t') {
@@ -140,26 +151,29 @@ function parseArgs() {
             includeTimeRelative = true
         } else if (arg === '-c') {
             includeCost = true
+        } else if (arg === '-noci') {
+            noCi = true
         } else if (!arg.startsWith('-')) {
             benchmarkId = arg
         }
     }
 
-    return { benchmarkId, includeTime, includeTimeRelative, includeCost }
+    return { benchmarkId, includeTime, includeTimeRelative, includeCost, noCi }
 }
 
 // Main execution
-const { benchmarkId, includeTime, includeTimeRelative, includeCost } = parseArgs()
+const { benchmarkId, includeTime, includeTimeRelative, includeCost, noCi } = parseArgs()
 
 if (!benchmarkId) {
-    console.error('Usage: pnpm tsx scripts/export-stratified-latex-table.ts <benchmarkId> [-t] [-trel] [-c]')
+    console.error('Usage: pnpm tsx scripts/export-stratified-latex-table.ts <benchmarkId> [-t] [-trel] [-c] [-noci]')
     console.error('  -t     Include total wall time (minutes)')
     console.error('  -trel  Include wall time per target (seconds/target)')
     console.error('  -c     Include total cost (USD)')
+    console.error('  -noci  Show only actual values (no confidence intervals)')
     process.exit(1)
 }
 
-exportStratifiedLatexTable(benchmarkId, includeTime, includeTimeRelative, includeCost)
+exportStratifiedLatexTable(benchmarkId, includeTime, includeTimeRelative, includeCost, noCi)
     .catch((e) => {
         console.error('Error:', e)
         process.exit(1)

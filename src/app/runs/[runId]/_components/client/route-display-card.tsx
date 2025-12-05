@@ -2,20 +2,13 @@
 
 import { CheckCircle, XCircle } from 'lucide-react'
 
-import type { PredictionRoute, Route, RouteViewMode, RouteVisualizationNode, VendorSource } from '@/types'
+import type { BuyableMetadata, PredictionRoute, Route, RouteViewMode, RouteVisualizationNode } from '@/types'
 import { RoutePagination } from '@/components/route-pagination'
 import { RouteComparison, RouteGraph, RouteLegend } from '@/components/route-visualization'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 import { RouteViewToggle } from './route-view-toggle'
-
-type BuyableMetadata = {
-    ppg: number | null
-    source: VendorSource | null
-    leadTime: string | null
-    link: string | null
-}
 
 type RouteDisplayCardProps = {
     route: Route

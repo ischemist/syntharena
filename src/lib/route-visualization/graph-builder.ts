@@ -5,19 +5,9 @@
 
 import type { Edge, Node } from '@xyflow/react'
 
-import type { RouteGraphNode, RouteVisualizationNode, VendorSource } from '@/types'
+import type { BuyableMetadata, RouteGraphNode, RouteVisualizationNode } from '@/types'
 
 import { collectInchiKeys, layoutTree } from './layout'
-
-/**
- * Buyable metadata for enriching route nodes.
- */
-export interface BuyableMetadata {
-    ppg: number | null
-    source: VendorSource | null
-    leadTime: string | null
-    link: string | null
-}
 
 /**
  * Builds React Flow graph from a visualization tree.

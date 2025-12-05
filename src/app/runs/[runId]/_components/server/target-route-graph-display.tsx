@@ -1,19 +1,12 @@
 import { AlertCircle } from 'lucide-react'
 
-import type { RouteNodeWithDetails, RouteVisualizationNode, VendorSource } from '@/types'
+import type { BuyableMetadata, RouteNodeWithDetails, RouteVisualizationNode } from '@/types'
 import { getTargetPredictions } from '@/lib/services/prediction.service'
 import * as routeService from '@/lib/services/route.service'
 import { checkMoleculesInStockByInchiKey, getBuyableMetadataForInchiKeys } from '@/lib/services/stock.service'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 import { RouteDisplayCard } from '../client/route-display-card'
-
-type BuyableMetadata = {
-    ppg: number | null
-    source: VendorSource | null
-    leadTime: string | null
-    link: string | null
-}
 
 /**
  * Convert RouteNodeWithDetails to RouteVisualizationNode (client-ready format).
