@@ -226,6 +226,12 @@ model ModelRunStatistics {
   statisticsJson  String // Full ModelStatistics JSON blob for flexibility
   computedAt      DateTime @default(now())
 
+  // Runtime metrics (in seconds) from Python ModelStatistics
+  totalWallTime Float? // total_wall_time from Python
+  totalCpuTime  Float? // total_cpu_time from Python
+  meanWallTime  Float? // mean_wall_time from Python
+  meanCpuTime   Float? // mean_cpu_time from Python
+
   // Relations
   predictionRun PredictionRun           @relation(fields: [predictionRunId], references: [id])
   benchmarkSet  BenchmarkSet            @relation(fields: [benchmarkSetId], references: [id])
@@ -301,8 +307,14 @@ model RouteSolvability {
   matchesAcceptable     Boolean // "Does this route match ANY acceptable route?"
   matchedAcceptableIndex Int?    // Which acceptable route was matched (0-based index, null if no match)
 
-  // You might want to store specific metric data here if needed
-  // e.g. "number of unavailable leaves"
+  // Stratification properties from Python TargetEvaluation
+  // Source priority: matched acceptable route > first solved predicted route > None
+  stratificationLength       Int?     // stratification_length from Python
+  stratificationIsConvergent Boolean? // stratification_is_convergent from Python
+
+  // Runtime metrics for this evaluation (in seconds)
+  wallTime Float? // wall_time from Python TargetEvaluation
+  cpuTime  Float? // cpu_time from Python TargetEvaluation
 
   predictionRoute PredictionRoute @relation(fields: [predictionRouteId], references: [id], onDelete: Cascade)
   stock           Stock           @relation(fields: [stockId], references: [id])

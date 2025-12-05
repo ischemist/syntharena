@@ -61,6 +61,11 @@ export interface PythonModelStatistics {
         probability: number
     }[]
     expected_rank?: number
+    // Runtime metrics (in seconds) from Python ModelStatistics
+    total_wall_time?: number | null
+    total_cpu_time?: number | null
+    mean_wall_time?: number | null
+    mean_cpu_time?: number | null
 }
 
 // ============================================================================
@@ -149,6 +154,20 @@ export function transformPythonStatistics(pythonStats: PythonModelStatistics): M
     }
     if (pythonStats.expected_rank !== undefined) {
         result.expectedRank = pythonStats.expected_rank
+    }
+
+    // Transform runtime metrics (in seconds)
+    if (pythonStats.total_wall_time !== undefined && pythonStats.total_wall_time !== null) {
+        result.totalWallTime = pythonStats.total_wall_time
+    }
+    if (pythonStats.total_cpu_time !== undefined && pythonStats.total_cpu_time !== null) {
+        result.totalCpuTime = pythonStats.total_cpu_time
+    }
+    if (pythonStats.mean_wall_time !== undefined && pythonStats.mean_wall_time !== null) {
+        result.meanWallTime = pythonStats.mean_wall_time
+    }
+    if (pythonStats.mean_cpu_time !== undefined && pythonStats.mean_cpu_time !== null) {
+        result.meanCpuTime = pythonStats.mean_cpu_time
     }
 
     return result

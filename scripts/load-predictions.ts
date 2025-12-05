@@ -88,8 +88,12 @@ interface EvaluationFile {
             }>
             is_solvable: boolean
             acceptable_rank: number | null
-            route_length: number
-            is_convergent: boolean
+            // Stratification fields (renamed in Python TargetEvaluation)
+            stratification_length: number | null
+            stratification_is_convergent: boolean | null
+            // Runtime metrics (in seconds)
+            wall_time: number | null
+            cpu_time: number | null
         }
     }
 }
@@ -537,7 +541,11 @@ async function main() {
                             stock.id,
                             routeEval.is_solved,
                             routeEval.matches_acceptable,
-                            routeEval.matched_acceptable_index
+                            routeEval.matched_acceptable_index,
+                            targetEval.stratification_length,
+                            targetEval.stratification_is_convergent,
+                            targetEval.wall_time,
+                            targetEval.cpu_time
                         )
                         solvabilityRecordsCreated++
                     }
