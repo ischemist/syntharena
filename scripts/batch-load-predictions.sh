@@ -7,17 +7,17 @@
 
 # Define models
 MODELS=(
-    "dms-explorer-xl"
-    "aizynthfinder-retro-star"
-    "aizynthfinder-mcts"
-    "aizynthfinder-retro-star-high"
-    "aizynthfinder-mcts-high"
-    "retro-star"
-    "retro-star-high"
-    "syntheseus-retro0-local-retro"
-    "synplanner-mcts"
-    "synplanner-eval"
-    # "askcos"
+    # "dms-explorer-xl"
+    # "aizynthfinder-retro-star"
+    # "aizynthfinder-mcts"
+    # "aizynthfinder-retro-star-high"
+    # "aizynthfinder-mcts-high"
+    # "retro-star"
+    # "retro-star-high"
+    # "syntheseus-retro0-local-retro"
+    # "synplanner-mcts"
+    # "synplanner-eval"
+    "askcos"
 )
 
 # Define model metadata (algorithm names, papers, versions)

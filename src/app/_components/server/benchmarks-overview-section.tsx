@@ -8,9 +8,9 @@ export async function BenchmarksOverviewSection() {
     await connection()
     const benchmarks = await homeService.getBenchmarkOverview()
 
-    // Split into two series
-    const mktBenchmarks = benchmarks.filter((b) => b.name.startsWith('mkt-'))
-    const refBenchmarks = benchmarks.filter((b) => b.name.startsWith('ref-'))
+    // Split into two series, exclude -single-gt benchmarks
+    const mktBenchmarks = benchmarks.filter((b) => b.name.startsWith('mkt-') && !b.name.endsWith('-single-gt'))
+    const refBenchmarks = benchmarks.filter((b) => b.name.startsWith('ref-') && !b.name.endsWith('-single-gt'))
 
     return (
         <section className="py-8">
