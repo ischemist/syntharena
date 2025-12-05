@@ -500,6 +500,7 @@ export interface PredictionRunWithStats {
     totalRoutes: number
     hourlyCost?: number | null // USD per hour (user-specified)
     totalCost?: number | null // Pre-calculated: hourlyCost * (totalWallTime / 3600)
+    totalWallTime?: number | null // Total wall time in seconds (from statistics[0])
     avgRouteLength?: number | null
     solvabilitySummary?: Record<string, number> // stockId -> solvability percentage
     executedAt: Date
@@ -576,4 +577,7 @@ export interface LeaderboardEntry {
         solvability: MetricResult
         topKAccuracy?: Record<string, MetricResult> // "Top-1", "Top-5", etc.
     }
+    // Runtime metrics from ModelRunStatistics
+    totalWallTime?: number | null // Total wall time in seconds
+    totalCost?: number | null // Total cost in USD
 }

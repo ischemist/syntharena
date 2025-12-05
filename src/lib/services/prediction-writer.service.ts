@@ -829,9 +829,9 @@ export async function updatePredictionRunCost(predictionRunId: string): Promise<
         return null
     }
 
-    // Calculate total cost: hourlyCost * (totalWallTime / 60)
+    // Calculate total cost: hourlyCost * (totalWallTime / 3600)
     // totalWallTime is in seconds, convert to hours
-    const totalCost = run.hourlyCost * (statistics.totalWallTime / 60)
+    const totalCost = run.hourlyCost * (statistics.totalWallTime / 3600)
 
     // Update the run with calculated cost
     const updatedRun = await prisma.predictionRun.update({
