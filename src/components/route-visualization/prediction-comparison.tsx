@@ -5,7 +5,7 @@ import { Background, Controls, ReactFlow, useEdgesState, useNodesState } from '@
 import type { Edge, Node } from '@xyflow/react'
 import { useTheme } from 'next-themes'
 
-import type { RouteGraphNode, RouteVisualizationNode } from '@/types'
+import type { RouteGraphNode, RouteVisualizationNode, VendorSource } from '@/types'
 import {
     buildPredictionDiffOverlayGraph,
     buildPredictionSideBySideGraph,
@@ -20,11 +20,19 @@ const nodeTypes = {
     molecule: MoleculeNode,
 }
 
+type BuyableMetadata = {
+    ppg: number | null
+    source: VendorSource | null
+    leadTime: string | null
+    link: string | null
+}
+
 interface PredictionComparisonProps {
     prediction1Route: RouteVisualizationNode
     prediction2Route: RouteVisualizationNode
     mode: 'side-by-side' | 'diff-overlay'
     inStockInchiKeys: Set<string>
+    buyableMetadataMap?: Map<string, BuyableMetadata>
     model1Label?: string
     model2Label?: string
 }
@@ -124,6 +132,7 @@ export function PredictionComparison({
     prediction2Route,
     mode,
     inStockInchiKeys,
+    buyableMetadataMap,
     model1Label = 'Model 1 Prediction',
     model2Label = 'Model 2 Prediction',
 }: PredictionComparisonProps) {
@@ -151,7 +160,8 @@ export function PredictionComparison({
                     pred2InchiKeys,
                     true,
                     'pred1_',
-                    inStockInchiKeys
+                    inStockInchiKeys,
+                    buyableMetadataMap
                 ),
                 pred2Graph: buildPredictionSideBySideGraph(
                     prediction2Route,
@@ -160,7 +170,8 @@ export function PredictionComparison({
                     pred2InchiKeys,
                     false,
                     'pred2_',
-                    inStockInchiKeys
+                    inStockInchiKeys,
+                    buyableMetadataMap
                 ),
                 diffGraph: null,
             }
@@ -168,10 +179,15 @@ export function PredictionComparison({
             return {
                 pred1Graph: null,
                 pred2Graph: null,
-                diffGraph: buildPredictionDiffOverlayGraph(prediction1Route, prediction2Route, inStockInchiKeys),
+                diffGraph: buildPredictionDiffOverlayGraph(
+                    prediction1Route,
+                    prediction2Route,
+                    inStockInchiKeys,
+                    buyableMetadataMap
+                ),
             }
         }
-    }, [prediction1Route, prediction2Route, pred1InchiKeys, pred2InchiKeys, mode, inStockInchiKeys])
+    }, [prediction1Route, prediction2Route, pred1InchiKeys, pred2InchiKeys, mode, inStockInchiKeys, buyableMetadataMap])
 
     if (mode === 'side-by-side' && pred1Graph && pred2Graph) {
         return (

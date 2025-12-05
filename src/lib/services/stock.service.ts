@@ -935,3 +935,64 @@ export async function checkMoleculesInStockByInchiKey(inchikeyArray: string[], s
     // Return as Set for O(1) lookup
     return new Set(moleculesInStock.map((mol) => mol.inchikey))
 }
+
+/**
+ * Buyable metadata for a molecule in a stock.
+ * Includes commercial information (vendor, price, lead time, link).
+ */
+export interface BuyableMetadata {
+    ppg: number | null
+    source: VendorSource | null
+    leadTime: string | null
+    link: string | null
+}
+
+/**
+ * Batch fetches buyable metadata for molecules (by InChiKey) in a specific stock.
+ * Returns a Map of InChiKey → metadata for molecules that exist in the stock.
+ * Used for enriching route visualizations with commercial availability information.
+ *
+ * @param inchikeyArray - Array of InChiKey strings to fetch metadata for
+ * @param stockId - The stock ID to query
+ * @returns Map of InChiKey → BuyableMetadata for molecules in stock
+ */
+export async function getBuyableMetadataForInchiKeys(
+    inchikeyArray: string[],
+    stockId: string
+): Promise<Map<string, BuyableMetadata>> {
+    if (inchikeyArray.length === 0) {
+        return new Map()
+    }
+
+    // Query stock items with molecule and metadata
+    const stockItems = await prisma.stockItem.findMany({
+        where: {
+            stockId,
+            molecule: {
+                inchikey: { in: inchikeyArray },
+            },
+        },
+        select: {
+            ppg: true,
+            source: true,
+            leadTime: true,
+            link: true,
+            molecule: {
+                select: { inchikey: true },
+            },
+        },
+    })
+
+    // Build map for O(1) lookup
+    const metadataMap = new Map<string, BuyableMetadata>()
+    for (const item of stockItems) {
+        metadataMap.set(item.molecule.inchikey, {
+            ppg: item.ppg,
+            source: item.source,
+            leadTime: item.leadTime,
+            link: item.link,
+        })
+    }
+
+    return metadataMap
+}

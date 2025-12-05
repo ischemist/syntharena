@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 
+import type { VendorSource } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkService from '@/lib/services/benchmark.service'
 import * as routeService from '@/lib/services/route.service'
@@ -8,6 +9,13 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 import { RouteJsonViewer } from '../client/route-json-viewer'
 import { RouteVisualizationWrapper } from '../client/route-visualization-wrapper'
+
+type BuyableMetadata = {
+    ppg: number | null
+    source: VendorSource | null
+    leadTime: string | null
+    link: string | null
+}
 
 interface RouteDisplayProps {
     targetId: string
@@ -58,16 +66,24 @@ async function RouteVisualizationContent({ routeId, benchmarkId }: { routeId: st
 
     // Phase 9: Check stock availability using direct stock relation (no fuzzy matching)
     let inStockInchiKeys = new Set<string>()
+    let buyableMetadataMap = new Map<string, BuyableMetadata>()
     if (benchmark.stock) {
         try {
             inStockInchiKeys = await stockService.checkMoleculesInStockByInchiKey(allInchiKeys, benchmark.stock.id)
+            buyableMetadataMap = await stockService.getBuyableMetadataForInchiKeys(allInchiKeys, benchmark.stock.id)
             console.log(`[Route Visualization] Checking stock availability for "${benchmark.stock.name}"`)
         } catch (error) {
             console.warn('Failed to check stock availability:', error)
         }
     }
 
-    return <RouteVisualizationWrapper routeTree={routeTree} inStockInchiKeys={inStockInchiKeys} />
+    return (
+        <RouteVisualizationWrapper
+            routeTree={routeTree}
+            inStockInchiKeys={inStockInchiKeys}
+            buyableMetadataMap={buyableMetadataMap}
+        />
+    )
 }
 
 /**

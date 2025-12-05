@@ -5,7 +5,7 @@ import { Background, Controls, ReactFlow, useEdgesState, useNodesState } from '@
 import type { Edge, Node } from '@xyflow/react'
 import { useTheme } from 'next-themes'
 
-import type { RouteGraphNode, RouteVisualizationNode } from '@/types'
+import type { RouteGraphNode, RouteVisualizationNode, VendorSource } from '@/types'
 import { buildRouteGraph } from '@/lib/route-visualization'
 
 import { MoleculeNode } from './molecule-node'
@@ -16,9 +16,17 @@ const nodeTypes = {
     molecule: MoleculeNode,
 }
 
+type BuyableMetadata = {
+    ppg: number | null
+    source: VendorSource | null
+    leadTime: string | null
+    link: string | null
+}
+
 interface RouteGraphProps {
     route?: RouteVisualizationNode
     inStockInchiKeys: Set<string>
+    buyableMetadataMap?: Map<string, BuyableMetadata>
     idPrefix?: string
     // Pre-calculated layout from server (Phase 3 optimization)
     preCalculatedNodes?: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }>
@@ -43,6 +51,7 @@ interface RouteGraphProps {
 export function RouteGraph({
     route,
     inStockInchiKeys,
+    buyableMetadataMap,
     idPrefix = 'route-',
     preCalculatedNodes,
     preCalculatedEdges,
@@ -55,14 +64,20 @@ export function RouteGraph({
         if (preCalculatedNodes && preCalculatedEdges) {
             const nodes: Node<RouteGraphNode>[] = preCalculatedNodes.map((n) => {
                 const inStock = inStockInchiKeys.has(n.inchikey)
+                const metadata = buyableMetadataMap?.get(n.inchikey)
                 return {
                     id: n.id,
                     type: 'molecule',
                     position: { x: n.x, y: n.y },
                     data: {
                         smiles: n.smiles,
+                        inchikey: n.inchikey,
                         status: inStock ? 'in-stock' : 'default',
                         inStock,
+                        ppg: metadata?.ppg,
+                        source: metadata?.source,
+                        leadTime: metadata?.leadTime,
+                        link: metadata?.link,
                     },
                 }
             })
@@ -83,12 +98,12 @@ export function RouteGraph({
             throw new Error('RouteGraph requires either route or preCalculatedNodes/preCalculatedEdges')
         }
 
-        const { nodes, edges } = buildRouteGraph(route, inStockInchiKeys, idPrefix)
+        const { nodes, edges } = buildRouteGraph(route, inStockInchiKeys, idPrefix, buyableMetadataMap)
         return {
             initialNodes: nodes as Node<RouteGraphNode>[],
             initialEdges: edges as Edge[],
         }
-    }, [route, inStockInchiKeys, idPrefix, preCalculatedNodes, preCalculatedEdges])
+    }, [route, inStockInchiKeys, buyableMetadataMap, idPrefix, preCalculatedNodes, preCalculatedEdges])
 
     const [nodes, , onNodesChange] = useNodesState(initialNodes)
     const [edges, , onEdgesChange] = useEdgesState(initialEdges)

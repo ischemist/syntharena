@@ -1,12 +1,19 @@
 import { AlertCircle } from 'lucide-react'
 
-import type { RouteNodeWithDetails, RouteVisualizationNode } from '@/types'
+import type { RouteNodeWithDetails, RouteVisualizationNode, VendorSource } from '@/types'
 import { getTargetPredictions } from '@/lib/services/prediction.service'
 import * as routeService from '@/lib/services/route.service'
-import { checkMoleculesInStockByInchiKey } from '@/lib/services/stock.service'
+import { checkMoleculesInStockByInchiKey, getBuyableMetadataForInchiKeys } from '@/lib/services/stock.service'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 import { RouteDisplayCard } from '../client/route-display-card'
+
+type BuyableMetadata = {
+    ppg: number | null
+    source: VendorSource | null
+    leadTime: string | null
+    link: string | null
+}
 
 /**
  * Convert RouteNodeWithDetails to RouteVisualizationNode (client-ready format).
@@ -83,6 +90,7 @@ export async function TargetRouteGraphDisplay({
 
     // Get stock items if stockId provided (for route visualization)
     let inStockInchiKeys = new Set<string>()
+    let buyableMetadataMap = new Map<string, BuyableMetadata>()
     let stockName: string | undefined
 
     // Validate rank first to get the route
@@ -112,6 +120,9 @@ export async function TargetRouteGraphDisplay({
             // Check which molecules from the route are in stock
             inStockInchiKeys = await checkMoleculesInStockByInchiKey(Array.from(allInchiKeys), stockId)
 
+            // Fetch buyable metadata for molecules in stock
+            buyableMetadataMap = await getBuyableMetadataForInchiKeys(Array.from(allInchiKeys), stockId)
+
             // Get stock name from solvability data
             const solvabilityForStock = routeDetail.solvability.find((s) => s.stockId === stockId)
             stockName = solvabilityForStock?.stockName
@@ -134,6 +145,7 @@ export async function TargetRouteGraphDisplay({
             isSolvable={solvability?.isSolvable}
             matchesAcceptable={solvability?.matchesAcceptable}
             inStockInchiKeys={inStockInchiKeys}
+            buyableMetadataMap={buyableMetadataMap}
             stockName={stockName}
             viewMode={viewMode}
             currentRank={requestedRank}

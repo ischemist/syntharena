@@ -355,13 +355,19 @@ export interface RouteVisualizationNode {
 
 /**
  * React Flow node data with visualization metadata.
- * Includes position, status, stock availability, and leaf status.
+ * Includes position, status, stock availability, leaf status, and optional buyable metadata.
  */
 export interface RouteGraphNode {
     smiles: string
+    inchikey: string
     status: NodeStatus
     inStock?: boolean
     isLeaf?: boolean
+    // Buyable metadata (when molecule is in stock with commercial data)
+    ppg?: number | null
+    source?: VendorSource | null
+    leadTime?: string | null
+    link?: string | null
     [key: string]: unknown
 }
 
