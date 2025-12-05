@@ -19,8 +19,8 @@ const data = {
     },
     navLinks: [
         {
-            title: 'Dashboard',
-            url: '/dashboard',
+            title: 'Home',
+            url: '/',
             icon: LayoutDashboard,
         },
         {

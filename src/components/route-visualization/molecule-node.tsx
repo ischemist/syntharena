@@ -1,11 +1,14 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import type { Node, NodeProps } from '@xyflow/react'
-import { Package } from 'lucide-react'
+import { Check, Copy, Info, Package } from 'lucide-react'
 
 import type { NodeStatus, RouteGraphNode } from '@/types'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
+import { Button } from '@/components/ui/button'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 
 /**
  * Custom React Flow node for displaying molecules in routes.
@@ -20,6 +23,7 @@ import { SmileDrawerSvg } from '@/components/smile-drawer'
  */
 export function MoleculeNode({ data }: NodeProps<Node<RouteGraphNode>>) {
     const { smiles, status, inStock } = data
+    const [copied, setCopied] = useState(false)
 
     // Status-based styling - borders only, no background fills
     const statusClasses: Record<NodeStatus, string> = {
@@ -45,9 +49,46 @@ export function MoleculeNode({ data }: NodeProps<Node<RouteGraphNode>>) {
         status === 'pred-1-only' ||
         status === 'pred-2-only'
 
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(smiles)
+            setCopied(true)
+        } catch (error) {
+            console.error('Failed to copy:', error)
+        }
+    }
+
+    useEffect(() => {
+        if (!copied) return
+        const timer = setTimeout(() => setCopied(false), 2000)
+        return () => clearTimeout(timer)
+    }, [copied])
+
     return (
-        <div className={`relative rounded-lg border-2 shadow-sm ${nodeClass}`}>
+        <div className={`group relative rounded-lg border-2 shadow-sm ${nodeClass}`}>
             <Handle type="target" position={Position.Top} className="!bg-gray-400 dark:!bg-gray-600" />
+
+            {/* Info button with hover card */}
+            <HoverCard>
+                <HoverCardTrigger asChild>
+                    <button className="absolute top-1 right-1 z-10 opacity-0 transition-opacity group-hover:opacity-100">
+                        <Info className="text-muted-foreground h-4 w-4" />
+                    </button>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-80" side="left">
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="text-muted-foreground text-xs font-semibold">SMILES</span>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={handleCopy}>
+                                {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                            </Button>
+                        </div>
+                        <p className="text-foreground line-clamp-3 font-mono text-xs break-all hover:line-clamp-none">
+                            {smiles}
+                        </p>
+                    </div>
+                </HoverCardContent>
+            </HoverCard>
 
             {/* Molecule visualization */}
             <div className="flex flex-col items-center p-2">
