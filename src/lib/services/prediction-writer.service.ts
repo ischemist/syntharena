@@ -569,14 +569,18 @@ export async function createRouteFromPython(
 
 /**
  * Creates or updates a RouteSolvability record.
- * Links a PREDICTION ROUTE (not a route) to a stock with solvability status.
+ * Links a PREDICTION ROUTE to a stock with solvability status and stratification data.
  * NOTE: Solvability is per-prediction, not per-route structure.
  *
  * @param predictionRouteId - PredictionRoute ID
  * @param stockId - Stock ID
  * @param isSolvable - Can this route be solved with the stock?
  * @param matchesAcceptable - Does this route match any acceptable route?
- * @param matchedAcceptableIndex - Index of matched acceptable route (0-based), or null if no match
+ * @param matchedAcceptableIndex - Index of matched acceptable route (0-based), or null
+ * @param stratificationLength - Route length for stratification (from Python TargetEvaluation)
+ * @param stratificationIsConvergent - Is route convergent for stratification
+ * @param wallTime - Wall time for this evaluation (seconds)
+ * @param cpuTime - CPU time for this evaluation (seconds)
  * @returns Created or updated RouteSolvability
  * @throws Error if predictionRoute or stock not found
  */
@@ -585,7 +589,11 @@ export async function createRouteSolvability(
     stockId: string,
     isSolvable: boolean,
     matchesAcceptable: boolean,
-    matchedAcceptableIndex: number | null
+    matchedAcceptableIndex: number | null,
+    stratificationLength: number | null,
+    stratificationIsConvergent: boolean | null,
+    wallTime: number | null,
+    cpuTime: number | null
 ): Promise<{ id: string; predictionRouteId: string; stockId: string }> {
     // Verify predictionRoute exists
     const predictionRoute = await prisma.predictionRoute.findUnique({
@@ -617,6 +625,10 @@ export async function createRouteSolvability(
             isSolvable,
             matchesAcceptable,
             matchedAcceptableIndex,
+            stratificationLength,
+            stratificationIsConvergent,
+            wallTime,
+            cpuTime,
         },
         create: {
             predictionRouteId,
@@ -624,6 +636,10 @@ export async function createRouteSolvability(
             isSolvable,
             matchesAcceptable,
             matchedAcceptableIndex,
+            stratificationLength,
+            stratificationIsConvergent,
+            wallTime,
+            cpuTime,
         },
         select: { id: true, predictionRouteId: true, stockId: true },
     })
@@ -737,6 +753,11 @@ export async function createModelStatistics(
                 benchmarkSetId,
                 stockId,
                 statisticsJson: JSON.stringify(pythonStatistics),
+                // Store runtime metrics at top level for easy querying
+                totalWallTime: pythonStatistics.totalWallTime ?? null,
+                totalCpuTime: pythonStatistics.totalCpuTime ?? null,
+                meanWallTime: pythonStatistics.meanWallTime ?? null,
+                meanCpuTime: pythonStatistics.meanCpuTime ?? null,
             },
             select: { id: true, predictionRunId: true, stockId: true },
         })

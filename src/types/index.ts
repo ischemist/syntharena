@@ -423,6 +423,11 @@ export interface ModelStatistics {
         probability: number
     }[]
     expectedRank?: number // Optional: expected rank for best solution
+    // Runtime metrics (in seconds) from Python ModelStatistics
+    totalWallTime?: number | null
+    totalCpuTime?: number | null
+    meanWallTime?: number | null
+    meanCpuTime?: number | null
 }
 
 // ============================================================================
