@@ -415,60 +415,54 @@ export const getStockByName = cache(_getStockByName)
 
 /**
  * Retrieves filter statistics for a stock's molecules.
- * Used to populate filter controls with available vendors, price ranges, and counts.
+ * Used to populate filter controls with available vendors and counts.
  *
  * @param stockId - The stock ID
- * @returns Filter statistics including available vendors, price range, and counts
+ * @returns Filter statistics including available vendors and buyable counts
  * @throws Error if stock not found
  */
 export async function getStockMoleculeFilters(stockId: string): Promise<StockMoleculeFilters> {
-    // Verify stock exists
+    // Verify stock exists and get total count
     const stock = await prisma.stock.findUnique({
         where: { id: stockId },
-        select: { id: true },
+        select: {
+            _count: {
+                select: { items: true },
+            },
+        },
     })
 
     if (!stock) {
         throw new Error('Stock not found')
     }
 
-    // Get all stock items for this stock
-    const stockItems = await prisma.stockItem.findMany({
-        where: { stockId },
-        select: {
-            source: true,
-            ppg: true,
+    // Get unique vendors and count buyable items efficiently
+    const vendorAggregation = await prisma.stockItem.groupBy({
+        by: ['source'],
+        where: {
+            stockId,
+            source: { not: null },
+            ppg: { not: null },
         },
+        _count: true,
     })
 
-    // Extract unique vendors (filtering out nulls)
-    const vendorSet = new Set<VendorSource>()
-    const prices: number[] = []
+    // Extract unique vendors
+    const availableVendors = vendorAggregation
+        .map((item) => item.source as VendorSource)
+        .filter(Boolean)
+        .sort()
 
-    stockItems.forEach((item) => {
-        if (item.source) {
-            vendorSet.add(item.source as VendorSource)
-        }
-        if (item.ppg !== null) {
-            prices.push(item.ppg)
-        }
-    })
-
-    const availableVendors = Array.from(vendorSet).sort()
-
-    // Calculate price range
-    const priceRange = {
-        min: prices.length > 0 ? Math.min(...prices) : null,
-        max: prices.length > 0 ? Math.max(...prices) : null,
-    }
-
-    // Count buyable vs non-buyable
-    const buyableCount = stockItems.filter((item) => item.source !== null && item.ppg !== null).length
-    const total = stockItems.length
+    // Count buyable items
+    const buyableCount = vendorAggregation.reduce((sum, item) => sum + item._count, 0)
+    const total = stock._count.items
 
     return {
         availableVendors,
-        priceRange,
+        priceRange: {
+            min: null,
+            max: null,
+        },
         counts: {
             total,
             buyable: buyableCount,
@@ -567,33 +561,61 @@ export async function searchStockMolecules(
  * @param stockId - The stock ID to browse
  * @param limit - Max results (default 24)
  * @param offset - Pagination offset
+ * @param filters - Optional filters (vendors, price range, buyable only)
  * @returns Molecules in the stock with pagination metadata
  */
 export async function getStockMolecules(
     stockId: string,
     limit: number = 24,
-    offset: number = 0
+    offset: number = 0,
+    filters?: {
+        vendors?: VendorSource[]
+        minPpg?: number
+        maxPpg?: number
+        buyableOnly?: boolean
+    }
 ): Promise<{ molecules: MoleculeWithStocks[]; total: number; hasMore: boolean }> {
     // Sanitize and validate inputs
     const validLimit = Math.min(Math.max(1, limit), 1000)
     const validOffset = Math.max(0, offset)
 
-    // 1. Get total from metadata (instant)
-    const stock = await prisma.stock.findUnique({
-        where: { id: stockId },
-        select: {
-            _count: {
-                select: { items: true },
-            },
-        },
-    })
+    // Build filter conditions
+    const whereClause: Prisma.StockItemWhereInput = {
+        stockId,
+    }
 
-    if (!stock) throw new Error('Stock not found')
-    const total = stock._count.items
+    // Apply vendor filter
+    if (filters?.vendors && filters.vendors.length > 0) {
+        whereClause.source = { in: filters.vendors }
+    }
 
-    // 2. Efficient Index Walk on StockItem
+    // Apply price range filters
+    if (filters?.minPpg !== undefined || filters?.maxPpg !== undefined) {
+        whereClause.ppg = {}
+        if (filters.minPpg !== undefined) {
+            whereClause.ppg.gte = filters.minPpg
+        }
+        if (filters.maxPpg !== undefined) {
+            whereClause.ppg.lte = filters.maxPpg
+        }
+    }
+
+    // Apply buyable only filter
+    if (filters?.buyableOnly) {
+        whereClause.source = { not: null }
+        whereClause.ppg = { not: null }
+    }
+
+    // 1. Get total count with filters
+    const total = await prisma.stockItem.count({ where: whereClause })
+
+    if (!total) {
+        return { molecules: [], total: 0, hasMore: false }
+    }
+
+    // 2. Efficient Index Walk on StockItem with filters
     const stockItems = await prisma.stockItem.findMany({
-        where: { stockId },
+        where: whereClause,
         take: validLimit + 1,
         skip: validOffset,
         orderBy: { moleculeId: 'asc' }, // Stable sort using index
@@ -647,21 +669,64 @@ export async function getStockMolecules(
  * @param stockId - Optional stock ID to filter results
  * @param limit - Max results (default 24)
  * @param offset - Pagination offset
+ * @param filters - Optional filters (vendors, price range, buyable only)
  * @returns Search results with pagination metadata
  */
 export async function searchMolecules(
     query: string,
     stockId?: string,
     limit: number = 24,
-    offset: number = 0
+    offset: number = 0,
+    filters?: {
+        vendors?: VendorSource[]
+        minPpg?: number
+        maxPpg?: number
+        buyableOnly?: boolean
+    }
 ): Promise<{ molecules: MoleculeWithStocks[]; total: number; hasMore: boolean }> {
     // Sanitize and validate inputs
     const sanitizedQuery = query.trim()
     const validLimit = Math.min(Math.max(1, limit), 1000)
     const validOffset = Math.max(0, offset)
 
-    // Build filters
-    const baseFilter = stockId ? { stockItems: { some: { stockId } } } : {}
+    // Build base filter (stock filtering)
+    const baseFilter: Prisma.MoleculeWhereInput = {}
+
+    if (
+        stockId ||
+        filters?.vendors ||
+        filters?.minPpg !== undefined ||
+        filters?.maxPpg !== undefined ||
+        filters?.buyableOnly
+    ) {
+        const stockItemFilter: Prisma.StockItemWhereInput = {}
+
+        if (stockId) {
+            stockItemFilter.stockId = stockId
+        }
+
+        if (filters?.vendors && filters.vendors.length > 0) {
+            stockItemFilter.source = { in: filters.vendors }
+        }
+
+        if (filters?.minPpg !== undefined || filters?.maxPpg !== undefined) {
+            stockItemFilter.ppg = {}
+            if (filters.minPpg !== undefined) {
+                stockItemFilter.ppg.gte = filters.minPpg
+            }
+            if (filters.maxPpg !== undefined) {
+                stockItemFilter.ppg.lte = filters.maxPpg
+            }
+        }
+
+        if (filters?.buyableOnly) {
+            stockItemFilter.source = { not: null }
+            stockItemFilter.ppg = { not: null }
+        }
+
+        baseFilter.stockItems = { some: stockItemFilter }
+    }
+
     const searchFilter = {
         OR: [{ smiles: { contains: sanitizedQuery } }, { inchikey: { startsWith: sanitizedQuery.toUpperCase() } }],
     }

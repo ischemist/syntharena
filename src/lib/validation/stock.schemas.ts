@@ -47,3 +47,16 @@ export const DeleteStockSchema = z.object({
 })
 
 export type DeleteStockInput = z.infer<typeof DeleteStockSchema>
+
+/**
+ * Schema for filtering stock molecules by commercial metadata.
+ * Used for client-side filter controls validation.
+ */
+export const StockMoleculeFiltersSchema = z.object({
+    vendors: z.array(z.enum(['MC', 'LN', 'EM', 'SA', 'CB'])).optional(),
+    minPpg: z.number().min(0, 'Minimum price must be non-negative').optional(),
+    maxPpg: z.number().min(0, 'Maximum price must be non-negative').optional(),
+    buyableOnly: z.boolean().optional(),
+})
+
+export type StockMoleculeFiltersInput = z.infer<typeof StockMoleculeFiltersSchema>
