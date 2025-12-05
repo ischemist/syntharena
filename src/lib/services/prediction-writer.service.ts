@@ -194,7 +194,7 @@ export async function createOrUpdatePredictionRun(
         retrocastVersion?: string
         commandParams?: Record<string, unknown>
         executedAt?: Date
-        totalTimeMs?: number
+        hourlyCost?: number
     }
 ): Promise<{ id: string; benchmarkSetId: string; modelInstanceId: string }> {
     // Verify benchmark exists

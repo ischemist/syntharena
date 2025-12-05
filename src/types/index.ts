@@ -498,7 +498,8 @@ export interface PredictionRunWithStats {
     modelInstance: ModelInstance
     benchmarkSet: BenchmarkSet & { hasAcceptableRoutes: boolean }
     totalRoutes: number
-    totalTimeMs?: number | null // Total execution time in milliseconds
+    hourlyCost?: number | null // USD per hour (user-specified)
+    totalCost?: number | null // Pre-calculated: hourlyCost * (totalWallTime / 3600)
     avgRouteLength?: number | null
     solvabilitySummary?: Record<string, number> // stockId -> solvability percentage
     executedAt: Date

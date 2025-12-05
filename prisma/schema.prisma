@@ -130,8 +130,11 @@ model PredictionRun {
   commandParams    String? // JSON of args
   executedAt       DateTime @default(now())
 
+  // Cost tracking
+  hourlyCost Float? // USD per hour (user-specified)
+  totalCost  Float? // Pre-calculated: hourlyCost * (totalWallTime / 3600)
+
   // Stats from RunStatistics
-  totalTimeMs    Float? // Wall time
   totalRoutes    Int // final_unique_routes_saved (now counts PredictionRoutes)
   avgRouteLength Float? // Average route length across all routes
 
