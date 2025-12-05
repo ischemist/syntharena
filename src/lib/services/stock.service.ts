@@ -2,7 +2,14 @@ import * as fs from 'fs/promises'
 import { cache } from 'react'
 import { Prisma } from '@prisma/client'
 
-import type { Molecule, MoleculeSearchResult, MoleculeWithStocks, StockListItem } from '@/types'
+import type {
+    Molecule,
+    MoleculeSearchResult,
+    MoleculeWithStocks,
+    StockListItem,
+    StockMoleculeFilters,
+    VendorSource,
+} from '@/types'
 import prisma from '@/lib/db'
 
 // ============================================================================
@@ -181,6 +188,138 @@ export async function loadStockFromFile(
     }
 }
 
+/**
+ * Updates commercial metadata for a stock item.
+ * Used by load-buyables-metadata script to populate vendor information.
+ *
+ * @param stockId - The stock ID
+ * @param inchikey - The molecule's InChiKey
+ * @param metadata - Commercial metadata to update
+ * @returns Updated stock item or null if not found
+ */
+export async function updateStockItemMetadata(
+    stockId: string,
+    inchikey: string,
+    metadata: {
+        ppg?: number | null
+        source?: VendorSource | null
+        leadTime?: string | null
+        link?: string | null
+    }
+): Promise<{ id: string } | null> {
+    // Find molecule by inchikey
+    const molecule = await prisma.molecule.findUnique({
+        where: { inchikey },
+        select: { id: true },
+    })
+
+    if (!molecule) {
+        return null
+    }
+
+    // Update stock item if it exists
+    try {
+        const stockItem = await prisma.stockItem.update({
+            where: {
+                stockId_moleculeId: {
+                    stockId,
+                    moleculeId: molecule.id,
+                },
+            },
+            data: {
+                ppg: metadata.ppg,
+                source: metadata.source,
+                leadTime: metadata.leadTime,
+                link: metadata.link,
+            },
+            select: { id: true },
+        })
+        return stockItem
+    } catch (error) {
+        // Stock item doesn't exist
+        return null
+    }
+}
+
+/**
+ * Batch updates commercial metadata for multiple stock items.
+ * Optimized for bulk loading from buyables-meta.json.gz.
+ *
+ * @param stockId - The stock ID
+ * @param updates - Array of updates (inchikey -> metadata)
+ * @returns Statistics about the update operation
+ */
+export async function batchUpdateStockItemMetadata(
+    stockId: string,
+    updates: Array<{
+        inchikey: string
+        ppg?: number | null
+        source?: VendorSource | null
+        leadTime?: string | null
+        link?: string | null
+    }>
+): Promise<{ updated: number; notFound: number }> {
+    let updated = 0
+    let notFound = 0
+
+    // Process in batches to avoid overwhelming the database
+    const BATCH_SIZE = 100
+
+    for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+        const batch = updates.slice(i, i + BATCH_SIZE)
+
+        await prisma.$transaction(
+            async (tx) => {
+                for (const update of batch) {
+                    // Find molecule by inchikey
+                    const molecule = await tx.molecule.findUnique({
+                        where: { inchikey: update.inchikey },
+                        select: { id: true },
+                    })
+
+                    if (!molecule) {
+                        notFound++
+                        continue
+                    }
+
+                    // Update stock item if it exists
+                    try {
+                        await tx.stockItem.update({
+                            where: {
+                                stockId_moleculeId: {
+                                    stockId,
+                                    moleculeId: molecule.id,
+                                },
+                            },
+                            data: {
+                                ppg: update.ppg,
+                                source: update.source,
+                                leadTime: update.leadTime,
+                                link: update.link,
+                            },
+                        })
+                        updated++
+                    } catch (error) {
+                        // Stock item doesn't exist in this stock
+                        notFound++
+                    }
+                }
+            },
+            {
+                timeout: 30000, // 30 second timeout for large batches
+            }
+        )
+
+        // Log progress (skip during tests)
+        if (process.env.NODE_ENV !== 'test') {
+            const processed = Math.min(i + BATCH_SIZE, updates.length)
+            console.log(`Processed ${processed}/${updates.length} metadata updates...`)
+        }
+    }
+
+    return { updated, notFound }
+}
+
 // ============================================================================
 // Stock Query Functions
 // ============================================================================
@@ -273,6 +412,70 @@ async function _getStockByName(stockName: string): Promise<StockListItem | null>
 }
 
 export const getStockByName = cache(_getStockByName)
+
+/**
+ * Retrieves filter statistics for a stock's molecules.
+ * Used to populate filter controls with available vendors, price ranges, and counts.
+ *
+ * @param stockId - The stock ID
+ * @returns Filter statistics including available vendors, price range, and counts
+ * @throws Error if stock not found
+ */
+export async function getStockMoleculeFilters(stockId: string): Promise<StockMoleculeFilters> {
+    // Verify stock exists
+    const stock = await prisma.stock.findUnique({
+        where: { id: stockId },
+        select: { id: true },
+    })
+
+    if (!stock) {
+        throw new Error('Stock not found')
+    }
+
+    // Get all stock items for this stock
+    const stockItems = await prisma.stockItem.findMany({
+        where: { stockId },
+        select: {
+            source: true,
+            ppg: true,
+        },
+    })
+
+    // Extract unique vendors (filtering out nulls)
+    const vendorSet = new Set<VendorSource>()
+    const prices: number[] = []
+
+    stockItems.forEach((item) => {
+        if (item.source) {
+            vendorSet.add(item.source as VendorSource)
+        }
+        if (item.ppg !== null) {
+            prices.push(item.ppg)
+        }
+    })
+
+    const availableVendors = Array.from(vendorSet).sort()
+
+    // Calculate price range
+    const priceRange = {
+        min: prices.length > 0 ? Math.min(...prices) : null,
+        max: prices.length > 0 ? Math.max(...prices) : null,
+    }
+
+    // Count buyable vs non-buyable
+    const buyableCount = stockItems.filter((item) => item.source !== null && item.ppg !== null).length
+    const total = stockItems.length
+
+    return {
+        availableVendors,
+        priceRange,
+        counts: {
+            total,
+            buyable: buyableCount,
+            nonBuyable: total - buyableCount,
+        },
+    }
+}
 
 /**
  * Searches for molecules by SMILES or InChiKey with optional stock filtering.
@@ -418,6 +621,14 @@ export async function getStockMolecules(
             id: si.stock.id,
             name: si.stock.name,
         })),
+        // Include buyable metadata from the current stock item
+        stockItem: {
+            id: item.id,
+            ppg: item.ppg,
+            source: item.source,
+            leadTime: item.leadTime,
+            link: item.link,
+        },
     }))
 
     return { molecules, total, hasMore }
@@ -477,15 +688,30 @@ export async function searchMolecules(
     const hasMore = molecules.length > validLimit
     const resultMolecules = hasMore ? molecules.slice(0, validLimit) : molecules
 
-    const transformedMolecules = resultMolecules.map((molecule) => ({
-        id: molecule.id,
-        smiles: molecule.smiles,
-        inchikey: molecule.inchikey,
-        stocks: molecule.stockItems.map((item) => ({
-            id: item.stock.id,
-            name: item.stock.name,
-        })),
-    }))
+    const transformedMolecules = resultMolecules.map((molecule) => {
+        // Find the stock item for the current stock filter (if applicable)
+        const currentStockItem = stockId ? molecule.stockItems.find((item) => item.stock.id === stockId) : undefined
+
+        return {
+            id: molecule.id,
+            smiles: molecule.smiles,
+            inchikey: molecule.inchikey,
+            stocks: molecule.stockItems.map((item) => ({
+                id: item.stock.id,
+                name: item.stock.name,
+            })),
+            // Include buyable metadata from the filtered stock item (if searching within a specific stock)
+            stockItem: currentStockItem
+                ? {
+                      id: currentStockItem.id,
+                      ppg: currentStockItem.ppg,
+                      source: currentStockItem.source,
+                      leadTime: currentStockItem.leadTime,
+                      link: currentStockItem.link,
+                  }
+                : undefined,
+        }
+    })
 
     return { molecules: transformedMolecules, total, hasMore }
 }
