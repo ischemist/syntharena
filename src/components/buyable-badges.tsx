@@ -84,28 +84,40 @@ function VendorBadge({ source, showFullName = false, variant = 'ghost', classNam
  * Price range color coding:
  * < $10/g: Green (affordable)
  * $10-100/g: Blue (moderate)
- * > $100/g: Amber (expensive)
+ * $100-1k/g: Amber (expensive)
+ * $1k-10k/g: Orange (very expensive)
+ * > $10k/g: Red (extremely expensive)
  */
 function getPriceColorClass(ppg: number): string {
     if (ppg < 10) {
         return 'bg-green-500/15 text-green-700 dark:text-green-300 border-green-500/30'
-    } else if (ppg <= 100) {
+    } else if (ppg < 100) {
         return 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30'
-    } else {
+    } else if (ppg < 1000) {
         return 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
+    } else if (ppg < 10000) {
+        return 'bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30'
+    } else {
+        return 'bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30'
     }
 }
 
 /**
- * Format price for display - adds appropriate precision
+ * Format price for display - adds appropriate precision and shortens large numbers
  */
 function formatPrice(ppg: number): string {
     if (ppg < 1) {
-        return `$${ppg.toFixed(3)}/g`
-    } else if (ppg < 100) {
         return `$${ppg.toFixed(2)}/g`
-    } else {
+    } else if (ppg < 100) {
+        return `$${ppg.toFixed(1)}/g`
+    } else if (ppg < 1000) {
         return `$${ppg.toFixed(0)}/g`
+    } else if (ppg < 10000) {
+        // Format as X.Xk/g (e.g., 3400 -> 3.4k/g)
+        return `$${(ppg / 1000).toFixed(1)}k/g`
+    } else {
+        // Format as XXk/g or XXXk/g (e.g., 15000 -> 15k/g, 123000 -> 123k/g)
+        return `$${Math.round(ppg / 1000)}k/g`
     }
 }
 
@@ -117,7 +129,16 @@ interface PriceBadgeProps extends Omit<BuyableBadgeProps, 'children'> {
 }
 
 function PriceBadge({ ppg, variant = 'ghost', className, ...props }: PriceBadgeProps) {
-    const priceRange = ppg < 10 ? 'Affordable (< $10/g)' : ppg <= 100 ? 'Moderate ($10-100/g)' : 'Expensive (> $100/g)'
+    const priceRange =
+        ppg < 10
+            ? 'Affordable (< $10/g)'
+            : ppg < 100
+              ? 'Moderate ($10-100/g)'
+              : ppg < 1000
+                ? 'Expensive ($100-1k/g)'
+                : ppg < 10000
+                  ? 'Very Expensive ($1k-10k/g)'
+                  : 'Extremely Expensive (> $10k/g)'
 
     return (
         <Tooltip>

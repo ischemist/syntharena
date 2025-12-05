@@ -17,7 +17,6 @@ export async function MoleculeFilterBar({ stockId }: MoleculeFilterBarProps) {
     return (
         <MoleculeSearchBar
             availableVendors={filters.availableVendors}
-            priceRange={filters.priceRange}
             totalCount={filters.counts.total}
             buyableCount={filters.counts.buyable}
         />

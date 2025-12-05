@@ -21,10 +21,6 @@ import { Label } from '@/components/ui/label'
 
 interface MoleculeSearchBarProps {
     availableVendors: VendorSource[]
-    priceRange: {
-        min: number | null
-        max: number | null
-    }
     totalCount: number
     buyableCount: number
 }

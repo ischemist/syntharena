@@ -270,14 +270,18 @@ export async function batchUpdateStockItemMetadata(
 
         await prisma.$transaction(
             async (tx) => {
-                for (const update of batch) {
-                    // Find molecule by inchikey
-                    const molecule = await tx.molecule.findUnique({
-                        where: { inchikey: update.inchikey },
-                        select: { id: true },
-                    })
+                // Batch fetch all molecules for this batch (avoid N+1 query problem)
+                const inchikeysInBatch = batch.map((u) => u.inchikey)
+                const molecules = await tx.molecule.findMany({
+                    where: { inchikey: { in: inchikeysInBatch } },
+                    select: { id: true, inchikey: true },
+                })
+                const inchikeyToIdMap = new Map(molecules.map((m) => [m.inchikey, m.id]))
 
-                    if (!molecule) {
+                for (const update of batch) {
+                    const moleculeId = inchikeyToIdMap.get(update.inchikey)
+
+                    if (!moleculeId) {
                         notFound++
                         continue
                     }
@@ -288,7 +292,7 @@ export async function batchUpdateStockItemMetadata(
                             where: {
                                 stockId_moleculeId: {
                                     stockId,
-                                    moleculeId: molecule.id,
+                                    moleculeId,
                                 },
                             },
                             data: {
@@ -459,10 +463,6 @@ export async function getStockMoleculeFilters(stockId: string): Promise<StockMol
 
     return {
         availableVendors,
-        priceRange: {
-            min: null,
-            max: null,
-        },
         counts: {
             total,
             buyable: buyableCount,

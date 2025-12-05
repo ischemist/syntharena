@@ -126,10 +126,6 @@ export interface MoleculeSearchResult {
  */
 export interface StockMoleculeFilters {
     availableVendors: VendorSource[]
-    priceRange: {
-        min: number | null
-        max: number | null
-    }
     counts: {
         total: number
         buyable: number
