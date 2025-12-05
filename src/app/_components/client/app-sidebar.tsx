@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { BarChart3, Beaker, FlaskConical, LayoutDashboard, LifeBuoy, Send, Settings2, Trophy, Zap } from 'lucide-react'
+import { BarChart3, Beaker, FlaskConical, LayoutDashboard, Trophy, Zap } from 'lucide-react'
 
 import { ModeToggle } from '@/components/mode-toggle'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar'
@@ -45,29 +45,29 @@ const data = {
         },
     ],
     navDropdowns: [
-        {
-            title: 'Dev',
-            url: '#',
-            icon: Settings2,
-            items: [
-                {
-                    title: 'Badges',
-                    url: '/design/badges',
-                },
-            ],
-        },
+        // {
+        //     title: 'Dev',
+        //     url: '#',
+        //     icon: Settings2,
+        //     items: [
+        //         {
+        //             title: 'Badges',
+        //             url: '/design/badges',
+        //         },
+        //     ],
+        // },
     ],
     navSecondary: [
-        {
-            title: 'Support',
-            url: '#',
-            icon: LifeBuoy,
-        },
-        {
-            title: 'Feedback',
-            url: '#',
-            icon: Send,
-        },
+        // {
+        //     title: 'Support',
+        //     url: '#',
+        //     icon: LifeBuoy,
+        // },
+        // {
+        //     title: 'Feedback',
+        //     url: '#',
+        //     icon: Send,
+        // },
     ],
 }
 
@@ -82,7 +82,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         </div>
                         <div className="grid flex-1 text-left text-sm leading-tight">
                             <span className="truncate font-medium">SynthArena</span>
-                            <span className="truncate text-xs">v0.1.0</span>
+                            <span className="truncate text-xs">v0.2.0</span>
                         </div>
                     </div>
                     <ModeToggle />
