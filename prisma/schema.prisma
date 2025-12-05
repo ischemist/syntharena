@@ -221,6 +221,14 @@ enum ReliabilityCode {
   EXTREME_P // Probability near boundary (p very close to 0 or 1)
 }
 
+enum VendorSource {
+  MC // Mcule
+  LN // LabNetwork
+  EM // eMolecules
+  SA // Sigma Aldrich
+  CB // ChemBridge
+}
+
 model ModelRunStatistics {
   id              String   @id @default(cuid())
   predictionRunId String
@@ -291,6 +299,12 @@ model StockItem {
   id         String @id @default(cuid(2))
   stockId    String
   moleculeId String
+
+  // Commercial metadata (from buyables-meta.json.gz)
+  ppg        Float?         // Price per gram in USD
+  source     VendorSource?  // Vendor source
+  leadTime   String?        // Lead time for delivery (e.g., '7-21days', '1week')
+  link       String?        // URL to vendor product page
 
   stock    Stock    @relation(fields: [stockId], references: [id])
   molecule Molecule @relation(fields: [moleculeId], references: [id])

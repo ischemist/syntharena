@@ -5,7 +5,7 @@ import { Background, Controls, ReactFlow, useEdgesState, useNodesState } from '@
 import type { Edge, Node } from '@xyflow/react'
 import { useTheme } from 'next-themes'
 
-import type { RouteGraphNode, RouteVisualizationNode } from '@/types'
+import type { BuyableMetadata, RouteGraphNode, RouteVisualizationNode } from '@/types'
 import { buildDiffOverlayGraph, buildSideBySideGraph, collectInchiKeys } from '@/lib/route-visualization'
 
 import { MoleculeNode } from './molecule-node'
@@ -21,6 +21,7 @@ interface RouteComparisonProps {
     predictionRoute: RouteVisualizationNode
     mode: 'side-by-side' | 'diff-overlay'
     inStockInchiKeys: Set<string>
+    buyableMetadataMap?: Map<string, BuyableMetadata>
     modelName?: string
     acceptableRouteLabel?: string // e.g., "Acceptable Route 1" or "Acceptable Route 2 of 3"
 }
@@ -119,6 +120,7 @@ export function RouteComparison({
     predictionRoute,
     mode,
     inStockInchiKeys,
+    buyableMetadataMap,
     modelName,
     acceptableRouteLabel,
 }: RouteComparisonProps) {
@@ -146,7 +148,8 @@ export function RouteComparison({
                     predInchiKeys,
                     true,
                     'acceptable_',
-                    inStockInchiKeys
+                    inStockInchiKeys,
+                    buyableMetadataMap
                 ),
                 predGraph: buildSideBySideGraph(
                     predictionRoute,
@@ -155,7 +158,8 @@ export function RouteComparison({
                     predInchiKeys,
                     false,
                     'pred_',
-                    inStockInchiKeys
+                    inStockInchiKeys,
+                    buyableMetadataMap
                 ),
                 diffGraph: null,
             }
@@ -163,10 +167,23 @@ export function RouteComparison({
             return {
                 acceptableGraph: null,
                 predGraph: null,
-                diffGraph: buildDiffOverlayGraph(acceptableRoute, predictionRoute, inStockInchiKeys),
+                diffGraph: buildDiffOverlayGraph(
+                    acceptableRoute,
+                    predictionRoute,
+                    inStockInchiKeys,
+                    buyableMetadataMap
+                ),
             }
         }
-    }, [acceptableRoute, predictionRoute, acceptableInchiKeys, predInchiKeys, mode, inStockInchiKeys])
+    }, [
+        acceptableRoute,
+        predictionRoute,
+        acceptableInchiKeys,
+        predInchiKeys,
+        mode,
+        inStockInchiKeys,
+        buyableMetadataMap,
+    ])
 
     if (mode === 'side-by-side' && acceptableGraph && predGraph) {
         return (

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Check, Copy, Info } from 'lucide-react'
 
 import type { MoleculeWithStocks } from '@/types'
+import { BuyableInfoSection, BuyableMetadataStrip } from '@/components/buyable-badges'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -23,6 +24,7 @@ const RENDER_DELAY_MS = 30
 /**
  * Client component that displays a single molecule card with structure visualization.
  * Shows SMILES and InChiKey in a hover card with copy-to-clipboard functionality.
+ * Displays buyable metadata (vendor, price) when available.
  */
 export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
     const [copiedField, setCopiedField] = useState<'smiles' | 'inchikey' | null>(null)
@@ -58,9 +60,13 @@ export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
         return () => clearTimeout(timer)
     }, [copiedField])
 
+    // Check if buyable metadata exists (both stockItem AND required fields must be present)
+    const hasBuyableData = molecule.stockItem?.source != null && molecule.stockItem?.ppg != null
+
     return (
-        <Card className="group relative aspect-square overflow-hidden transition-all hover:shadow-lg">
-            <div className="flex h-full w-full items-center justify-center p-4">
+        <Card className="group relative aspect-4/5 overflow-hidden transition-all hover:shadow-lg">
+            {/* Molecule container - takes up space but leaves room for metadata */}
+            <div className="absolute inset-x-0 top-4 bottom-12 flex items-center justify-center p-4">
                 {isReady ? (
                     <div className="animate-in fade-in duration-500">
                         <SmileDrawerSvg smilesStr={molecule.smiles} width={100} height={100} />
@@ -70,6 +76,19 @@ export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
                     <Skeleton className="h-[200px] w-[200px] rounded-full opacity-10" />
                 )}
             </div>
+
+            {/* Buyable metadata strip - only shown when data exists */}
+            {isReady && hasBuyableData && molecule.stockItem && (
+                <div className="absolute right-2 bottom-2 left-2 flex items-center justify-center">
+                    <div className="bg-background/80 rounded-lg px-2 py-1.5 backdrop-blur-sm">
+                        <BuyableMetadataStrip
+                            source={molecule.stockItem.source!}
+                            ppg={molecule.stockItem.ppg!}
+                            variant="soft"
+                        />
+                    </div>
+                </div>
+            )}
 
             {/*
                Only render the interactive overlay if ready.
@@ -124,6 +143,16 @@ export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
                                 </div>
                                 <p className="text-foreground font-mono text-xs break-all">{molecule.inchikey}</p>
                             </div>
+
+                            {/* Buyable information section - new */}
+                            {hasBuyableData && molecule.stockItem && (
+                                <BuyableInfoSection
+                                    source={molecule.stockItem.source!}
+                                    ppg={molecule.stockItem.ppg!}
+                                    leadTime={molecule.stockItem.leadTime}
+                                    link={molecule.stockItem.link}
+                                />
+                            )}
 
                             {molecule.stocks.length > 0 && (
                                 <div className="space-y-2 border-t pt-3">

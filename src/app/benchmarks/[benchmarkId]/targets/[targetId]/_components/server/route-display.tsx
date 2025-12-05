@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 
+import type { BuyableMetadata } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkService from '@/lib/services/benchmark.service'
 import * as routeService from '@/lib/services/route.service'
@@ -58,16 +59,24 @@ async function RouteVisualizationContent({ routeId, benchmarkId }: { routeId: st
 
     // Phase 9: Check stock availability using direct stock relation (no fuzzy matching)
     let inStockInchiKeys = new Set<string>()
+    let buyableMetadataMap = new Map<string, BuyableMetadata>()
     if (benchmark.stock) {
         try {
             inStockInchiKeys = await stockService.checkMoleculesInStockByInchiKey(allInchiKeys, benchmark.stock.id)
+            buyableMetadataMap = await stockService.getBuyableMetadataForInchiKeys(allInchiKeys, benchmark.stock.id)
             console.log(`[Route Visualization] Checking stock availability for "${benchmark.stock.name}"`)
         } catch (error) {
             console.warn('Failed to check stock availability:', error)
         }
     }
 
-    return <RouteVisualizationWrapper routeTree={routeTree} inStockInchiKeys={inStockInchiKeys} />
+    return (
+        <RouteVisualizationWrapper
+            routeTree={routeTree}
+            inStockInchiKeys={inStockInchiKeys}
+            buyableMetadataMap={buyableMetadataMap}
+        />
+    )
 }
 
 /**

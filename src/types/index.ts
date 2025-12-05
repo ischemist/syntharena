@@ -34,11 +34,36 @@ export interface Molecule {
 }
 
 /**
+ * Vendor source enumeration for buyable molecules.
+ */
+export const VENDOR_SOURCES = ['MC', 'LN', 'EM', 'SA', 'CB'] as const
+export type VendorSource = (typeof VENDOR_SOURCES)[number]
+
+/**
+ * Human-readable vendor names mapping.
+ */
+export const VENDOR_NAMES: Record<VendorSource, string> = {
+    MC: 'Mcule',
+    LN: 'LabNetwork',
+    EM: 'eMolecules',
+    SA: 'Sigma Aldrich',
+    CB: 'ChemBridge',
+}
+
+/**
  * Extended molecule information including stocks in which it appears.
  * Used for displaying cross-stock information in the UI.
  */
 export interface MoleculeWithStocks extends Molecule {
     stocks: Array<{ id: string; name: string }>
+    // Optional: includes buyable metadata when querying specific stock
+    stockItem?: {
+        id: string
+        ppg?: number | null
+        source?: VendorSource | null
+        leadTime?: string | null
+        link?: string | null
+    }
 }
 
 /**
@@ -62,11 +87,17 @@ export interface StockListItem extends Stock {
 /**
  * Represents the junction table entry linking a Stock to a Molecule.
  * Ensures no duplicate molecules within a stock (unique constraint).
+ * Includes optional commercial metadata for buyable stocks.
  */
 export interface StockItem {
     id: string
     stockId: string
     moleculeId: string
+    // Commercial metadata (optional, only for buyable stocks)
+    ppg?: number | null // Price per gram in USD
+    source?: VendorSource | null // Vendor source
+    leadTime?: string | null // Lead time (e.g., '7-21days', '1week')
+    link?: string | null // Vendor product page URL
 }
 
 /**
@@ -87,6 +118,19 @@ export interface MoleculeSearchResult {
     molecules: Molecule[]
     total: number
     hasMore: boolean
+}
+
+/**
+ * Filter statistics for a stock's molecules.
+ * Used to populate filter dropdowns with available options.
+ */
+export interface StockMoleculeFilters {
+    availableVendors: VendorSource[]
+    counts: {
+        total: number
+        buyable: number
+        nonBuyable: number
+    }
 }
 
 // ============================================================================
@@ -307,14 +351,31 @@ export interface RouteVisualizationNode {
 
 /**
  * React Flow node data with visualization metadata.
- * Includes position, status, stock availability, and leaf status.
+ * Includes position, status, stock availability, leaf status, and optional buyable metadata.
  */
 export interface RouteGraphNode {
     smiles: string
+    inchikey: string
     status: NodeStatus
     inStock?: boolean
     isLeaf?: boolean
+    // Buyable metadata (when molecule is in stock with commercial data)
+    ppg?: number | null
+    source?: VendorSource | null
+    leadTime?: string | null
+    link?: string | null
     [key: string]: unknown
+}
+
+/**
+ * Commercial metadata for buyable molecules.
+ * Used in Maps to associate InChiKeys with vendor information.
+ */
+export type BuyableMetadata = {
+    ppg: number | null
+    source: VendorSource | null
+    leadTime: string | null
+    link: string | null
 }
 
 /**

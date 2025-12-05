@@ -6,6 +6,7 @@ import type { Node, NodeProps } from '@xyflow/react'
 import { Check, Copy, Info, Package } from 'lucide-react'
 
 import type { NodeStatus, RouteGraphNode } from '@/types'
+import { BuyableInfoSection } from '@/components/buyable-badges'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Button } from '@/components/ui/button'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
@@ -22,8 +23,8 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/h
  * - "ghost": Only in acceptable route, missing from prediction (gray border, dashed)
  */
 export function MoleculeNode({ data }: NodeProps<Node<RouteGraphNode>>) {
-    const { smiles, status, inStock } = data
-    const [copied, setCopied] = useState(false)
+    const { smiles, inchikey, status, inStock, ppg, source, leadTime, link } = data
+    const [copiedField, setCopiedField] = useState<'smiles' | 'inchikey' | null>(null)
 
     // Status-based styling - borders only, no background fills
     const statusClasses: Record<NodeStatus, string> = {
@@ -49,20 +50,23 @@ export function MoleculeNode({ data }: NodeProps<Node<RouteGraphNode>>) {
         status === 'pred-1-only' ||
         status === 'pred-2-only'
 
-    const handleCopy = async () => {
+    const handleCopy = async (text: string, field: 'smiles' | 'inchikey') => {
         try {
-            await navigator.clipboard.writeText(smiles)
-            setCopied(true)
+            await navigator.clipboard.writeText(text)
+            setCopiedField(field)
         } catch (error) {
             console.error('Failed to copy:', error)
         }
     }
 
     useEffect(() => {
-        if (!copied) return
-        const timer = setTimeout(() => setCopied(false), 2000)
+        if (!copiedField) return
+        const timer = setTimeout(() => setCopiedField(null), 2000)
         return () => clearTimeout(timer)
-    }, [copied])
+    }, [copiedField])
+
+    // Check if buyable metadata exists (both source AND ppg must be present)
+    const hasBuyableData = source != null && ppg != null
 
     return (
         <div className={`group relative rounded-lg border-2 shadow-sm ${nodeClass}`}>
@@ -71,21 +75,58 @@ export function MoleculeNode({ data }: NodeProps<Node<RouteGraphNode>>) {
             {/* Info button with hover card */}
             <HoverCard>
                 <HoverCardTrigger asChild>
-                    <button className="absolute top-1 right-1 z-10 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button className="absolute top-1 right-1 z-10">
                         <Info className="text-muted-foreground h-4 w-4" />
                     </button>
                 </HoverCardTrigger>
-                <HoverCardContent className="w-80" side="left">
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                            <span className="text-muted-foreground text-xs font-semibold">SMILES</span>
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={handleCopy}>
-                                {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-                            </Button>
+                <HoverCardContent className="w-80" side="right">
+                    <div className="space-y-3">
+                        {/* SMILES */}
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="text-muted-foreground text-xs font-semibold">SMILES</span>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0"
+                                    onClick={() => handleCopy(smiles, 'smiles')}
+                                >
+                                    {copiedField === 'smiles' ? (
+                                        <Check className="h-3 w-3 text-green-500" />
+                                    ) : (
+                                        <Copy className="h-3 w-3" />
+                                    )}
+                                </Button>
+                            </div>
+                            <p className="text-foreground line-clamp-3 font-mono text-xs break-all hover:line-clamp-none">
+                                {smiles}
+                            </p>
                         </div>
-                        <p className="text-foreground line-clamp-3 font-mono text-xs break-all hover:line-clamp-none">
-                            {smiles}
-                        </p>
+
+                        {/* InChiKey */}
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="text-muted-foreground text-xs font-semibold">InChiKey</span>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0"
+                                    onClick={() => handleCopy(inchikey, 'inchikey')}
+                                >
+                                    {copiedField === 'inchikey' ? (
+                                        <Check className="h-3 w-3 text-green-500" />
+                                    ) : (
+                                        <Copy className="h-3 w-3" />
+                                    )}
+                                </Button>
+                            </div>
+                            <p className="text-foreground font-mono text-xs break-all">{inchikey}</p>
+                        </div>
+
+                        {/* Buyable information section - only shown when data exists */}
+                        {hasBuyableData && (
+                            <BuyableInfoSection source={source!} ppg={ppg!} leadTime={leadTime} link={link} />
+                        )}
                     </div>
                 </HoverCardContent>
             </HoverCard>

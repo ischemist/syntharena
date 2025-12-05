@@ -1,11 +1,12 @@
 'use client'
 
-import type { RouteVisualizationNode } from '@/types'
+import type { BuyableMetadata, RouteVisualizationNode } from '@/types'
 import { RouteGraph, RouteLegend } from '@/components/route-visualization'
 
 interface RouteVisualizationWrapperProps {
     routeTree: RouteVisualizationNode
     inStockInchiKeys: Set<string>
+    buyableMetadataMap?: Map<string, BuyableMetadata>
 }
 
 /**
@@ -18,7 +19,11 @@ interface RouteVisualizationWrapperProps {
  * - Stock availability indicators (using InChiKeys for reliable comparison)
  * - Interactive pan/zoom
  */
-export function RouteVisualizationWrapper({ routeTree, inStockInchiKeys }: RouteVisualizationWrapperProps) {
+export function RouteVisualizationWrapper({
+    routeTree,
+    inStockInchiKeys,
+    buyableMetadataMap,
+}: RouteVisualizationWrapperProps) {
     return (
         <div className="space-y-4">
             {/* Legend */}
@@ -28,7 +33,12 @@ export function RouteVisualizationWrapper({ routeTree, inStockInchiKeys }: Route
 
             {/* Visualization - tall for better tree exploration */}
             <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-                <RouteGraph route={routeTree} inStockInchiKeys={inStockInchiKeys} idPrefix="target-route-" />
+                <RouteGraph
+                    route={routeTree}
+                    inStockInchiKeys={inStockInchiKeys}
+                    buyableMetadataMap={buyableMetadataMap}
+                    idPrefix="target-route-"
+                />
             </div>
 
             {/* Info */}

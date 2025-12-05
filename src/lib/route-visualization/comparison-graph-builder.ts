@@ -5,7 +5,7 @@
 
 import type { Edge, Node } from '@xyflow/react'
 
-import type { MergedRouteNode, NodeStatus, RouteGraphNode, RouteVisualizationNode } from '@/types'
+import type { BuyableMetadata, MergedRouteNode, NodeStatus, RouteGraphNode, RouteVisualizationNode } from '@/types'
 
 import { assignPositions, calculateSubtreeWidth, collectInchiKeys, layoutTree } from './layout'
 
@@ -37,6 +37,7 @@ interface LayoutNodeWithStatus {
  * @param isAcceptableRoute - Whether this is the acceptable route (true) or prediction (false)
  * @param idPrefix - Prefix for node IDs
  * @param inStockInchiKeys - Set of InChiKeys that are in stock (optional)
+ * @param buyableMetadataMap - Optional map of InChiKey → buyable metadata
  * @returns React Flow nodes and edges with comparison status
  */
 export function buildSideBySideGraph(
@@ -46,7 +47,8 @@ export function buildSideBySideGraph(
     predInchiKeys: Set<string>,
     isAcceptableRoute: boolean,
     idPrefix: string,
-    inStockInchiKeys?: Set<string>
+    inStockInchiKeys?: Set<string>,
+    buyableMetadataMap?: Map<string, BuyableMetadata>
 ): { nodes: Node<RouteGraphNode>[]; edges: Edge[] } {
     if (isAcceptableRoute) {
         // Acceptable route side: show the acceptable route with all nodes as "match" and stock info on leaf nodes
@@ -64,17 +66,25 @@ export function buildSideBySideGraph(
             }
         })
 
-        const nodes: Node<RouteGraphNode>[] = layoutNodes.map((n) => ({
-            id: n.id,
-            type: 'molecule',
-            position: { x: n.x, y: n.y },
-            data: {
-                smiles: n.smiles,
-                status: 'match' as NodeStatus,
-                isLeaf: leafNodeIds.has(n.id),
-                inStock: inStockInchiKeys?.has(n.inchikey),
-            },
-        }))
+        const nodes: Node<RouteGraphNode>[] = layoutNodes.map((n) => {
+            const metadata = buyableMetadataMap?.get(n.inchikey)
+            return {
+                id: n.id,
+                type: 'molecule',
+                position: { x: n.x, y: n.y },
+                data: {
+                    smiles: n.smiles,
+                    inchikey: n.inchikey,
+                    status: 'match' as NodeStatus,
+                    isLeaf: leafNodeIds.has(n.id),
+                    inStock: inStockInchiKeys?.has(n.inchikey),
+                    ppg: metadata?.ppg,
+                    source: metadata?.source,
+                    leadTime: metadata?.leadTime,
+                    link: metadata?.link,
+                },
+            }
+        })
 
         const edges: Edge[] = layoutEdges.map((e, idx) => ({
             id: `${idPrefix}edge-${idx}`,
@@ -104,15 +114,21 @@ export function buildSideBySideGraph(
         const nodes: Node<RouteGraphNode>[] = layoutNodes.map((n) => {
             // Determine status based on whether it's in acceptable route
             const status: NodeStatus = acceptableInchiKeys.has(n.inchikey) ? 'match' : 'extension'
+            const metadata = buyableMetadataMap?.get(n.inchikey)
             return {
                 id: n.id,
                 type: 'molecule',
                 position: { x: n.x, y: n.y },
                 data: {
                     smiles: n.smiles,
+                    inchikey: n.inchikey,
                     status,
                     isLeaf: leafNodeIds.has(n.id),
                     inStock: inStockInchiKeys?.has(n.inchikey),
+                    ppg: metadata?.ppg,
+                    source: metadata?.source,
+                    leadTime: metadata?.leadTime,
+                    link: metadata?.link,
                 },
             }
         })
@@ -255,12 +271,14 @@ function flattenMergedLayoutTree(
  * @param acceptableRoute - Acceptable route
  * @param predRoute - Predicted route
  * @param inStockInchiKeys - Set of InChiKeys that are in stock (optional)
+ * @param buyableMetadataMap - Optional map of InChiKey → buyable metadata
  * @returns React Flow nodes and edges with diff highlighting
  */
 export function buildDiffOverlayGraph(
     acceptableRoute: RouteVisualizationNode,
     predRoute: RouteVisualizationNode,
-    inStockInchiKeys?: Set<string>
+    inStockInchiKeys?: Set<string>,
+    buyableMetadataMap?: Map<string, BuyableMetadata>
 ): { nodes: Node<RouteGraphNode>[]; edges: Edge[] } {
     // Collect all InChiKeys from both trees
     const acceptableInchiKeys = new Set<string>()
@@ -291,17 +309,25 @@ export function buildDiffOverlayGraph(
     flattenMergedLayoutTree(layoutRoot, layoutNodes, layoutEdges, null, false)
 
     // Build React Flow nodes
-    const nodes: Node<RouteGraphNode>[] = layoutNodes.map((n) => ({
-        id: n.id,
-        type: 'molecule',
-        position: { x: n.x, y: n.y },
-        data: {
-            smiles: n.smiles,
-            status: n.status,
-            isLeaf: n.isLeaf,
-            inStock: inStockInchiKeys?.has(n.inchikey),
-        },
-    }))
+    const nodes: Node<RouteGraphNode>[] = layoutNodes.map((n) => {
+        const metadata = buyableMetadataMap?.get(n.inchikey)
+        return {
+            id: n.id,
+            type: 'molecule',
+            position: { x: n.x, y: n.y },
+            data: {
+                smiles: n.smiles,
+                inchikey: n.inchikey,
+                status: n.status,
+                isLeaf: n.isLeaf,
+                inStock: inStockInchiKeys?.has(n.inchikey),
+                ppg: metadata?.ppg,
+                source: metadata?.source,
+                leadTime: metadata?.leadTime,
+                link: metadata?.link,
+            },
+        }
+    })
 
     // Build React Flow edges with ghost styling
     const edges: Edge[] = layoutEdges.map((e, idx) => ({
@@ -328,6 +354,7 @@ export function buildDiffOverlayGraph(
  * @param isFirstRoute - Whether this is the first route (true) or second (false)
  * @param idPrefix - Prefix for node IDs
  * @param inStockInchiKeys - Set of InChiKeys that are in stock (optional)
+ * @param buyableMetadataMap - Optional map of InChiKey → buyable metadata
  * @returns React Flow nodes and edges with comparison status
  */
 export function buildPredictionSideBySideGraph(
@@ -337,7 +364,8 @@ export function buildPredictionSideBySideGraph(
     pred2InchiKeys: Set<string>,
     isFirstRoute: boolean,
     idPrefix: string,
-    inStockInchiKeys?: Set<string>
+    inStockInchiKeys?: Set<string>,
+    buyableMetadataMap?: Map<string, BuyableMetadata>
 ): { nodes: Node<RouteGraphNode>[]; edges: Edge[] } {
     const { nodes: layoutNodes, edges: layoutEdges } = layoutTree(route, idPrefix)
 
@@ -365,15 +393,21 @@ export function buildPredictionSideBySideGraph(
         } else {
             status = isFirstRoute ? 'pred-1-only' : 'pred-2-only'
         }
+        const metadata = buyableMetadataMap?.get(n.inchikey)
         return {
             id: n.id,
             type: 'molecule',
             position: { x: n.x, y: n.y },
             data: {
                 smiles: n.smiles,
+                inchikey: n.inchikey,
                 status,
                 isLeaf: leafNodeIds.has(n.id),
                 inStock: inStockInchiKeys?.has(n.inchikey),
+                ppg: metadata?.ppg,
+                source: metadata?.source,
+                leadTime: metadata?.leadTime,
+                link: metadata?.link,
             },
         }
     })
@@ -454,12 +488,14 @@ function mergeTreesForPredDiff(
  * @param pred1Route - First prediction route
  * @param pred2Route - Second prediction route
  * @param inStockInchiKeys - Set of InChiKeys that are in stock (optional)
+ * @param buyableMetadataMap - Optional map of InChiKey → buyable metadata
  * @returns React Flow nodes and edges with diff highlighting
  */
 export function buildPredictionDiffOverlayGraph(
     pred1Route: RouteVisualizationNode,
     pred2Route: RouteVisualizationNode,
-    inStockInchiKeys?: Set<string>
+    inStockInchiKeys?: Set<string>,
+    buyableMetadataMap?: Map<string, BuyableMetadata>
 ): { nodes: Node<RouteGraphNode>[]; edges: Edge[] } {
     // Collect all InChiKeys from both trees
     const pred1InchiKeys = new Set<string>()
@@ -490,17 +526,25 @@ export function buildPredictionDiffOverlayGraph(
     flattenMergedLayoutTree(layoutRoot, layoutNodes, layoutEdges, null, false)
 
     // Build React Flow nodes
-    const nodes: Node<RouteGraphNode>[] = layoutNodes.map((n) => ({
-        id: n.id,
-        type: 'molecule',
-        position: { x: n.x, y: n.y },
-        data: {
-            smiles: n.smiles,
-            status: n.status,
-            isLeaf: n.isLeaf,
-            inStock: inStockInchiKeys?.has(n.inchikey),
-        },
-    }))
+    const nodes: Node<RouteGraphNode>[] = layoutNodes.map((n) => {
+        const metadata = buyableMetadataMap?.get(n.inchikey)
+        return {
+            id: n.id,
+            type: 'molecule',
+            position: { x: n.x, y: n.y },
+            data: {
+                smiles: n.smiles,
+                inchikey: n.inchikey,
+                status: n.status,
+                isLeaf: n.isLeaf,
+                inStock: inStockInchiKeys?.has(n.inchikey),
+                ppg: metadata?.ppg,
+                source: metadata?.source,
+                leadTime: metadata?.leadTime,
+                link: metadata?.link,
+            },
+        }
+    })
 
     // Build React Flow edges with ghost styling
     const edges: Edge[] = layoutEdges.map((e, idx) => ({

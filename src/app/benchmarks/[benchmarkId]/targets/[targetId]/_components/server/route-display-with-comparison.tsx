@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-import type { RouteNodeWithDetails, RouteVisualizationNode } from '@/types'
+import type { BuyableMetadata, RouteNodeWithDetails, RouteVisualizationNode } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkService from '@/lib/services/benchmark.service'
 import * as routeService from '@/lib/services/route.service'
@@ -79,6 +79,7 @@ export async function RouteDisplayWithComparison({
     let model2RouteTree: RouteVisualizationNode | undefined
     let hasError = false
     let inStockInchiKeys = new Set<string>()
+    let buyableMetadataMap = new Map<string, BuyableMetadata>()
     let availableRuns: Array<{
         id: string
         modelName: string
@@ -172,7 +173,7 @@ export async function RouteDisplayWithComparison({
         model1Name = model1Run ? `${model1Run.modelName} (${model1Run.algorithmName})` : ''
         model2Name = model2Run ? `${model2Run.modelName} (${model2Run.algorithmName})` : ''
 
-        // Collect InChiKeys and check stock (only if we have stock data)
+        // Collect InChiKeys and check stock + fetch buyable metadata (only if we have stock data)
         if (stockData) {
             const allInchiKeys = new Set<string>()
             if (acceptableRouteTree) {
@@ -186,12 +187,14 @@ export async function RouteDisplayWithComparison({
             }
 
             try {
-                inStockInchiKeys = await stockService.checkMoleculesInStockByInchiKey(
-                    Array.from(allInchiKeys),
-                    stockData.id
-                )
+                const [inStockSet, metadataMap] = await Promise.all([
+                    stockService.checkMoleculesInStockByInchiKey(Array.from(allInchiKeys), stockData.id),
+                    stockService.getBuyableMetadataForInchiKeys(Array.from(allInchiKeys), stockData.id),
+                ])
+                inStockInchiKeys = inStockSet
+                buyableMetadataMap = metadataMap
             } catch (error) {
-                console.warn('Failed to check stock availability:', error)
+                console.warn('Failed to check stock availability or fetch buyable metadata:', error)
             }
         }
     } catch (error) {
@@ -262,6 +265,7 @@ export async function RouteDisplayWithComparison({
                                         <RouteGraph
                                             route={acceptableRouteTree}
                                             inStockInchiKeys={inStockInchiKeys}
+                                            buyableMetadataMap={buyableMetadataMap}
                                             idPrefix="acceptable-route-"
                                             preCalculatedNodes={acceptableRouteLayout?.nodes}
                                             preCalculatedEdges={acceptableRouteLayout?.edges}
@@ -408,6 +412,7 @@ export async function RouteDisplayWithComparison({
                                                 predictionRoute={model1RouteTree}
                                                 mode={viewMode}
                                                 inStockInchiKeys={inStockInchiKeys}
+                                                buyableMetadataMap={buyableMetadataMap}
                                                 modelName={model1Name}
                                                 acceptableRouteLabel={
                                                     hasMultipleAcceptableRoutes
@@ -550,6 +555,7 @@ export async function RouteDisplayWithComparison({
                                             prediction2Route={model2RouteTree}
                                             mode={viewMode}
                                             inStockInchiKeys={inStockInchiKeys}
+                                            buyableMetadataMap={buyableMetadataMap}
                                             model1Label={model1Name}
                                             model2Label={model2Name}
                                         />

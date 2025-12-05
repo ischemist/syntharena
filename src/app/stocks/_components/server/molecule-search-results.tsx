@@ -1,5 +1,6 @@
 import { AlertCircle } from 'lucide-react'
 
+import type { VendorSource } from '@/types'
 import * as stockService from '@/lib/services/stock.service'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
@@ -11,22 +12,42 @@ interface MoleculeSearchResultsProps {
     stockId: string
     page?: number
     limit?: number
+    vendors?: VendorSource[]
+    minPpg?: number
+    maxPpg?: number
+    buyableOnly?: boolean
 }
 
 /**
  * Server component that fetches and displays molecule search results.
- * Shows all molecules by default, optionally filtered by search query.
+ * Shows all molecules by default, optionally filtered by search query and metadata filters.
  * Shows molecules in a responsive grid layout with pagination.
  * Uses optimized search function to fetch molecules with stocks in single query.
  */
-export async function MoleculeSearchResults({ query = '', stockId, page = 1, limit = 50 }: MoleculeSearchResultsProps) {
+export async function MoleculeSearchResults({
+    query = '',
+    stockId,
+    page = 1,
+    limit = 50,
+    vendors,
+    minPpg,
+    maxPpg,
+    buyableOnly,
+}: MoleculeSearchResultsProps) {
     const offset = (page - 1) * limit
     // Use optimized function that fetches molecules with stocks in a single query
     const isSearching = query.trim().length > 0
 
+    const filters = {
+        vendors,
+        minPpg,
+        maxPpg,
+        buyableOnly,
+    }
+
     const result = isSearching
-        ? await stockService.searchMolecules(query, stockId, limit, offset)
-        : await stockService.getStockMolecules(stockId, limit, offset)
+        ? await stockService.searchMolecules(query, stockId, limit, offset, filters)
+        : await stockService.getStockMolecules(stockId, limit, offset, filters)
 
     const moleculesWithStocks = result.molecules
 
@@ -46,14 +67,13 @@ export async function MoleculeSearchResults({ query = '', stockId, page = 1, lim
         )
     }
 
-    const isFiltering = query && query.trim().length > 0
     const totalPages = Math.ceil(result.total / limit)
 
     return (
         <div className="space-y-4">
             <div className="flex items-center gap-2">
                 <p className="text-muted-foreground text-sm">
-                    {isFiltering ? (
+                    {query ? (
                         <>
                             Found {result.total.toLocaleString()} {result.total === 1 ? 'molecule' : 'molecules'}{' '}
                             matching &quot;{query}&quot;

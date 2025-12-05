@@ -18,8 +18,13 @@ describe('buildRouteGraph', () => {
         expect(node.type).toBe('molecule')
         expect(node.data).toEqual({
             smiles: 'C',
+            inchikey: 'VNWKTOKETHGBQD-UHFFFAOYSA-N',
             status: 'default',
             inStock: false,
+            ppg: undefined,
+            source: undefined,
+            leadTime: undefined,
+            link: undefined,
         })
         expect(node.position).toEqual({ x: 0, y: 0 })
     })
