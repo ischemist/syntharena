@@ -17,6 +17,7 @@
  *   --routes-only            Only load routes, skip evaluations and statistics
  *   --algorithm-paper <url>  Paper URL for algorithm (optional)
  *   --model-version <ver>    Model version string (optional)
+ *   --hourly-cost <usd>      Compute cost in USD per hour (optional)
  *
  * Examples:
  *   # Load only routes
@@ -59,6 +60,7 @@ import {
     createRouteFromPython,
     createRouteSolvability,
     transformPythonStatistics,
+    updatePredictionRunCost,
     updatePredictionRunStats,
     type PythonModelStatistics,
     type PythonRoute,
@@ -123,6 +125,7 @@ function parseArgs(args: string[]): {
     stockPathName: string | null
     stockDbName: string | null
     routesOnly: boolean
+    hourlyCost: number | null
 } {
     if (args.length < 2) {
         throw new Error('Missing required arguments: <benchmark-name> <model-name>')
@@ -136,6 +139,7 @@ function parseArgs(args: string[]): {
     let algorithmName: string | null = null
     let algorithmPaper: string | null = null
     let modelVersion: string | null = null
+    let hourlyCost: number | null = null
 
     // Parse options
     for (let i = 2; i < args.length; i++) {
@@ -156,6 +160,12 @@ function parseArgs(args: string[]): {
             i++
         } else if (args[i] === '--model-version' && i + 1 < args.length) {
             modelVersion = args[i + 1]
+            i++
+        } else if (args[i] === '--hourly-cost' && i + 1 < args.length) {
+            hourlyCost = parseFloat(args[i + 1])
+            if (isNaN(hourlyCost) || hourlyCost < 0) {
+                throw new Error('--hourly-cost must be a positive number')
+            }
             i++
         } else if (args[i] === '--routes-only') {
             routesOnly = true
@@ -183,6 +193,7 @@ function parseArgs(args: string[]): {
         stockPathName,
         stockDbName,
         routesOnly,
+        hourlyCost,
     }
 }
 
@@ -243,6 +254,7 @@ async function main() {
         console.error('  --routes-only            Only load routes, skip evaluations and statistics')
         console.error('  --algorithm-paper <url>  Paper URL for algorithm (optional)')
         console.error('  --model-version <ver>    Model version string (optional)')
+        console.error('  --hourly-cost <usd>      Compute cost in USD per hour (optional)')
         console.error('')
         console.error('Examples:')
         console.error(
@@ -272,6 +284,7 @@ async function main() {
         stockPathName,
         stockDbName,
         routesOnly,
+        hourlyCost,
     } = options
 
     console.log('='.repeat(70))
@@ -284,6 +297,7 @@ async function main() {
     console.log(`Data Directory:   ${dataDir}`)
     console.log(`Stock (path):     ${stockPathName ?? '(none - routes only)'}`)
     console.log(`Stock (DB):       ${stockDbName ?? '(none - routes only)'}`)
+    console.log(`Hourly Cost:      ${hourlyCost !== null ? `$${hourlyCost.toFixed(2)}/hr` : '(none)'}`)
     console.log(`Mode:             ${routesOnly ? 'Routes Only' : 'Full Load'}`)
     console.log('='.repeat(70))
     console.log('')
@@ -402,6 +416,7 @@ async function main() {
         const predictionRun = await createOrUpdatePredictionRun(benchmark.id, model.id, {
             retrocastVersion: manifest?.retrocast_version ?? undefined,
             executedAt: manifest?.created_at ? new Date(manifest.created_at) : new Date(),
+            hourlyCost: hourlyCost ?? undefined,
         })
 
         console.log(`  Prediction Run ID: ${predictionRun.id}`)
@@ -574,6 +589,21 @@ async function main() {
 
             console.log(`  Statistics loaded successfully`)
             console.log('')
+
+            // ================================================================
+            // Step 6.5: Calculate and update total cost if hourly cost specified
+            // ================================================================
+            if (hourlyCost !== null) {
+                console.log('Calculating total cost...')
+                const costResult = await updatePredictionRunCost(predictionRun.id)
+                if (costResult) {
+                    console.log(`  Hourly cost:  $${costResult.hourlyCost.toFixed(2)}/hr`)
+                    console.log(`  Total cost:   $${costResult.totalCost.toFixed(2)}`)
+                } else {
+                    console.log(`  Could not calculate cost (missing runtime statistics)`)
+                }
+                console.log('')
+            }
         }
 
         // ====================================================================

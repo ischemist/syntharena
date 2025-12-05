@@ -43,6 +43,21 @@ declare -A MODEL_VERSIONS=(
     ["dms-explorer-xl"]="1.0"
 )
 
+# Define hourly costs in USD (for cost tracking)
+declare -A HOURLY_COSTS=(
+    ["dms-explorer-xl"]="1.0"
+    ["aizynthfinder-retro-star"]="1.0"
+    ["aizynthfinder-mcts"]="1.0"
+    ["aizynthfinder-retro-star-high"]="1.0"
+    ["aizynthfinder-mcts-high"]="1.0"
+    ["retro-star"]="1.0"
+    ["retro-star-high"]="1.0"
+    ["askcos"]="1.0"
+    ["syntheseus-retro0-local-retro"]="1.0"
+    ["synplanner-mcts"]="1.0"
+    ["synplanner-eval"]="1.0"
+)
+
 # Define datasets with their stock configurations
 # Format: "dataset:stock-path:stock-db-name"
 DATASET_CONFIGS=(
@@ -151,6 +166,9 @@ for model in "${MODELS[@]}"; do
         fi
         if [[ -n "${MODEL_VERSIONS[$model]}" ]]; then
             cmd_args+=(--model-version "${MODEL_VERSIONS[$model]}")
+        fi
+        if [[ -n "${HOURLY_COSTS[$model]}" ]]; then
+            cmd_args+=(--hourly-cost "${HOURLY_COSTS[$model]}")
         fi
 
         # Increment step counter

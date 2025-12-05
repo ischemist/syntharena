@@ -227,7 +227,7 @@ export async function createOrUpdatePredictionRun(
             retrocastVersion: metadata?.retrocastVersion,
             commandParams: metadata?.commandParams ? JSON.stringify(metadata.commandParams) : undefined,
             executedAt: metadata?.executedAt,
-            totalTimeMs: metadata?.totalTimeMs,
+            hourlyCost: metadata?.hourlyCost,
         },
         create: {
             modelInstanceId,
@@ -235,7 +235,7 @@ export async function createOrUpdatePredictionRun(
             retrocastVersion: metadata?.retrocastVersion,
             commandParams: metadata?.commandParams ? JSON.stringify(metadata.commandParams) : undefined,
             executedAt: metadata?.executedAt ?? new Date(),
-            totalTimeMs: metadata?.totalTimeMs,
+            hourlyCost: metadata?.hourlyCost,
             totalRoutes: 0, // Will be updated later
         },
         select: { id: true, benchmarkSetId: true, modelInstanceId: true },
@@ -789,6 +789,69 @@ export async function createModelStatistics(
 }
 
 /**
+ * Calculates and updates the total cost for a PredictionRun.
+ * Call this after loading statistics to populate totalCost based on hourlyCost and totalWallTime.
+ *
+ * Formula: totalCost = hourlyCost * (totalWallTime / 3600)
+ *
+ * @param predictionRunId - PredictionRun ID
+ * @returns Updated PredictionRun with totalCost, or null if cost cannot be calculated
+ * @throws Error if run not found
+ */
+export async function updatePredictionRunCost(predictionRunId: string): Promise<{
+    id: string
+    hourlyCost: number
+    totalCost: number
+} | null> {
+    // Get the run with its hourly cost
+    const run = await prisma.predictionRun.findUnique({
+        where: { id: predictionRunId },
+        select: { id: true, hourlyCost: true },
+    })
+
+    if (!run) {
+        throw new Error(`Prediction run not found: ${predictionRunId}`)
+    }
+
+    // If no hourly cost specified, can't calculate total cost
+    if (!run.hourlyCost) {
+        return null
+    }
+
+    // Get the totalWallTime from ModelRunStatistics (should only be one record per run)
+    const statistics = await prisma.modelRunStatistics.findFirst({
+        where: { predictionRunId },
+        select: { totalWallTime: true },
+    })
+
+    // If no statistics or no wall time, can't calculate total cost
+    if (!statistics?.totalWallTime) {
+        return null
+    }
+
+    // Calculate total cost: hourlyCost * (totalWallTime / 60)
+    // totalWallTime is in seconds, convert to hours
+    const totalCost = run.hourlyCost * (statistics.totalWallTime / 60)
+
+    // Update the run with calculated cost
+    const updatedRun = await prisma.predictionRun.update({
+        where: { id: predictionRunId },
+        data: { totalCost },
+        select: {
+            id: true,
+            hourlyCost: true,
+            totalCost: true,
+        },
+    })
+
+    return {
+        id: updatedRun.id,
+        hourlyCost: updatedRun.hourlyCost!,
+        totalCost: updatedRun.totalCost!,
+    }
+}
+
+/**
  * Updates aggregate statistics for a PredictionRun.
  * Call this after loading all predictions for a run.
  * NOTE: Now counts PredictionRoutes, not Routes (deduplication is enabled).
@@ -817,7 +880,7 @@ export async function updatePredictionRunStats(predictionRunId: string): Promise
     // Compute aggregate stats using raw SQL to avoid loading all routes into memory
     // This query counts predictions and calculates average route length in the database
     const result = await prisma.$queryRaw<[{ totalRoutes: number; avgRouteLength: number | null }]>`
-        SELECT 
+        SELECT
             COUNT(*) as totalRoutes,
             AVG(r.length) as avgRouteLength
         FROM PredictionRoute pr
