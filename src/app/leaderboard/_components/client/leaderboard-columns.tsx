@@ -29,9 +29,8 @@ export function createLeaderboardColumns(displayedTopK: string[]): ColumnDef<Lea
             header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Solvability" />,
             cell: ({ row }) => {
                 const metric = row.original.metrics.solvability
-                const isLastColumn = displayedTopK.length === 0
                 return (
-                    <div className={isLastColumn ? 'flex justify-center pr-24' : 'flex justify-center'}>
+                    <div className="flex justify-center">
                         <MetricCell metric={metric} showBadge />
                     </div>
                 )
@@ -45,9 +44,7 @@ export function createLeaderboardColumns(displayedTopK: string[]): ColumnDef<Lea
     ]
 
     // Add Top-K accuracy columns dynamically
-    displayedTopK.forEach((metricName, idx) => {
-        const isLastColumn = idx === displayedTopK.length - 1
-
+    displayedTopK.forEach((metricName) => {
         columns.push({
             id: metricName,
             accessorFn: (row) => row.metrics.topKAccuracy?.[metricName]?.value,
@@ -55,9 +52,7 @@ export function createLeaderboardColumns(displayedTopK: string[]): ColumnDef<Lea
             cell: ({ row }) => {
                 const metric = row.original.metrics.topKAccuracy?.[metricName]
                 return (
-                    <div className={isLastColumn ? 'flex justify-center pr-24' : 'flex justify-center'}>
-                        {metric ? <MetricCell metric={metric} showBadge /> : '-'}
-                    </div>
+                    <div className="flex justify-center">{metric ? <MetricCell metric={metric} showBadge /> : '-'}</div>
                 )
             },
             sortingFn: (rowA, rowB) => {
@@ -66,6 +61,41 @@ export function createLeaderboardColumns(displayedTopK: string[]): ColumnDef<Lea
                 return a - b
             },
         })
+    })
+
+    // Add Duration column (wall time in minutes)
+    columns.push({
+        accessorKey: 'totalWallTime',
+        id: 'duration',
+        header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Duration" />,
+        cell: ({ row }) => {
+            const wallTime = row.original.totalWallTime
+            if (wallTime == null) return <div className="text-muted-foreground flex justify-center">-</div>
+            const minutes = (wallTime / 60).toFixed(1)
+            return <div className="flex justify-center font-mono text-sm">{minutes} min</div>
+        },
+        sortingFn: (rowA, rowB) => {
+            const a = rowA.original.totalWallTime ?? -1
+            const b = rowB.original.totalWallTime ?? -1
+            return a - b
+        },
+    })
+
+    // Add Cost column (USD)
+    columns.push({
+        accessorKey: 'totalCost',
+        id: 'cost',
+        header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Cost" />,
+        cell: ({ row }) => {
+            const cost = row.original.totalCost
+            if (cost == null) return <div className="text-muted-foreground flex justify-center pr-24">-</div>
+            return <div className="flex justify-center pr-24 font-mono text-sm">${cost.toFixed(2)}</div>
+        },
+        sortingFn: (rowA, rowB) => {
+            const a = rowA.original.totalCost ?? -1
+            const b = rowB.original.totalCost ?? -1
+            return a - b
+        },
     })
 
     return columns

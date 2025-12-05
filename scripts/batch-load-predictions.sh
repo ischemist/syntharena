@@ -11,13 +11,13 @@ MODELS=(
     # "aizynthfinder-retro-star"
     # "aizynthfinder-mcts"
     # "aizynthfinder-retro-star-high"
-    "aizynthfinder-mcts-high"
+    # "aizynthfinder-mcts-high"
     # "retro-star"
     # "retro-star-high"
     # "syntheseus-retro0-local-retro"
     # "synplanner-mcts"
     # "synplanner-eval"
-    # "askcos"
+    "askcos"
 )
 
 # Define model metadata (algorithm names, papers, versions)
@@ -43,17 +43,32 @@ declare -A MODEL_VERSIONS=(
     ["dms-explorer-xl"]="1.0"
 )
 
+# Define hourly costs in USD (for cost tracking)
+declare -A HOURLY_COSTS=(
+    ["dms-explorer-xl"]="1.29"
+    ["aizynthfinder-retro-star"]="0.1785"
+    ["aizynthfinder-mcts"]="0.1785"
+    ["aizynthfinder-retro-star-high"]="0.1785"
+    ["aizynthfinder-mcts-high"]="0.1785"
+    ["retro-star"]="0.1785"
+    ["retro-star-high"]="0.1785"
+    ["askcos"]="0.714"
+    ["syntheseus-retro0-local-retro"]="0.1785"
+    ["synplanner-mcts"]="0.1785"
+    ["synplanner-eval"]="0.1785"
+)
+
 # Define datasets with their stock configurations
 # Format: "dataset:stock-path:stock-db-name"
 DATASET_CONFIGS=(
     "mkt-lin-500:buyables-stock:ASKCOS Buyables Stock"
-    # "mkt-cnv-160:buyables-stock:ASKCOS Buyables Stock"
+    "mkt-cnv-160:buyables-stock:ASKCOS Buyables Stock"
     "mkt-lin-500-single-gt:buyables-stock:ASKCOS Buyables Stock"
-    # "mkt-cnv-160-single-gt:buyables-stock:ASKCOS Buyables Stock"
-    # "ref-lin-600:n5-stock:n5 Stock"
-    # "ref-cnv-400:n5-stock:n5 Stock"
-    # "ref-lng-84:n1-n5-stock:n1+n5 Stock"
-    # "uspto-190:buyables-stock:ASKCOS Buyables Stock"
+    "mkt-cnv-160-single-gt:buyables-stock:ASKCOS Buyables Stock"
+    "ref-lin-600:n5-stock:n5 Stock"
+    "ref-cnv-400:n5-stock:n5 Stock"
+    "ref-lng-84:n1-n5-stock:n1+n5 Stock"
+    "uspto-190:buyables-stock:ASKCOS Buyables Stock"
 )
 
 # Progress bar function with ETA and elapsed time
@@ -151,6 +166,9 @@ for model in "${MODELS[@]}"; do
         fi
         if [[ -n "${MODEL_VERSIONS[$model]}" ]]; then
             cmd_args+=(--model-version "${MODEL_VERSIONS[$model]}")
+        fi
+        if [[ -n "${HOURLY_COSTS[$model]}" ]]; then
+            cmd_args+=(--hourly-cost "${HOURLY_COSTS[$model]}")
         fi
 
         # Increment step counter

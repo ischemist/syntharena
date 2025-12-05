@@ -61,6 +61,11 @@ export interface PythonModelStatistics {
         probability: number
     }[]
     expected_rank?: number
+    // Runtime metrics (in seconds) from Python ModelStatistics
+    total_wall_time?: number | null
+    total_cpu_time?: number | null
+    mean_wall_time?: number | null
+    mean_cpu_time?: number | null
 }
 
 // ============================================================================
@@ -151,6 +156,20 @@ export function transformPythonStatistics(pythonStats: PythonModelStatistics): M
         result.expectedRank = pythonStats.expected_rank
     }
 
+    // Transform runtime metrics (in seconds)
+    if (pythonStats.total_wall_time !== undefined && pythonStats.total_wall_time !== null) {
+        result.totalWallTime = pythonStats.total_wall_time
+    }
+    if (pythonStats.total_cpu_time !== undefined && pythonStats.total_cpu_time !== null) {
+        result.totalCpuTime = pythonStats.total_cpu_time
+    }
+    if (pythonStats.mean_wall_time !== undefined && pythonStats.mean_wall_time !== null) {
+        result.meanWallTime = pythonStats.mean_wall_time
+    }
+    if (pythonStats.mean_cpu_time !== undefined && pythonStats.mean_cpu_time !== null) {
+        result.meanCpuTime = pythonStats.mean_cpu_time
+    }
+
     return result
 }
 
@@ -175,7 +194,7 @@ export async function createOrUpdatePredictionRun(
         retrocastVersion?: string
         commandParams?: Record<string, unknown>
         executedAt?: Date
-        totalTimeMs?: number
+        hourlyCost?: number
     }
 ): Promise<{ id: string; benchmarkSetId: string; modelInstanceId: string }> {
     // Verify benchmark exists
@@ -208,7 +227,7 @@ export async function createOrUpdatePredictionRun(
             retrocastVersion: metadata?.retrocastVersion,
             commandParams: metadata?.commandParams ? JSON.stringify(metadata.commandParams) : undefined,
             executedAt: metadata?.executedAt,
-            totalTimeMs: metadata?.totalTimeMs,
+            hourlyCost: metadata?.hourlyCost,
         },
         create: {
             modelInstanceId,
@@ -216,7 +235,7 @@ export async function createOrUpdatePredictionRun(
             retrocastVersion: metadata?.retrocastVersion,
             commandParams: metadata?.commandParams ? JSON.stringify(metadata.commandParams) : undefined,
             executedAt: metadata?.executedAt ?? new Date(),
-            totalTimeMs: metadata?.totalTimeMs,
+            hourlyCost: metadata?.hourlyCost,
             totalRoutes: 0, // Will be updated later
         },
         select: { id: true, benchmarkSetId: true, modelInstanceId: true },
@@ -550,14 +569,18 @@ export async function createRouteFromPython(
 
 /**
  * Creates or updates a RouteSolvability record.
- * Links a PREDICTION ROUTE (not a route) to a stock with solvability status.
+ * Links a PREDICTION ROUTE to a stock with solvability status and stratification data.
  * NOTE: Solvability is per-prediction, not per-route structure.
  *
  * @param predictionRouteId - PredictionRoute ID
  * @param stockId - Stock ID
  * @param isSolvable - Can this route be solved with the stock?
  * @param matchesAcceptable - Does this route match any acceptable route?
- * @param matchedAcceptableIndex - Index of matched acceptable route (0-based), or null if no match
+ * @param matchedAcceptableIndex - Index of matched acceptable route (0-based), or null
+ * @param stratificationLength - Route length for stratification (from Python TargetEvaluation)
+ * @param stratificationIsConvergent - Is route convergent for stratification
+ * @param wallTime - Wall time for this evaluation (seconds)
+ * @param cpuTime - CPU time for this evaluation (seconds)
  * @returns Created or updated RouteSolvability
  * @throws Error if predictionRoute or stock not found
  */
@@ -566,7 +589,11 @@ export async function createRouteSolvability(
     stockId: string,
     isSolvable: boolean,
     matchesAcceptable: boolean,
-    matchedAcceptableIndex: number | null
+    matchedAcceptableIndex: number | null,
+    stratificationLength: number | null,
+    stratificationIsConvergent: boolean | null,
+    wallTime: number | null,
+    cpuTime: number | null
 ): Promise<{ id: string; predictionRouteId: string; stockId: string }> {
     // Verify predictionRoute exists
     const predictionRoute = await prisma.predictionRoute.findUnique({
@@ -598,6 +625,10 @@ export async function createRouteSolvability(
             isSolvable,
             matchesAcceptable,
             matchedAcceptableIndex,
+            stratificationLength,
+            stratificationIsConvergent,
+            wallTime,
+            cpuTime,
         },
         create: {
             predictionRouteId,
@@ -605,6 +636,10 @@ export async function createRouteSolvability(
             isSolvable,
             matchesAcceptable,
             matchedAcceptableIndex,
+            stratificationLength,
+            stratificationIsConvergent,
+            wallTime,
+            cpuTime,
         },
         select: { id: true, predictionRouteId: true, stockId: true },
     })
@@ -718,6 +753,11 @@ export async function createModelStatistics(
                 benchmarkSetId,
                 stockId,
                 statisticsJson: JSON.stringify(pythonStatistics),
+                // Store runtime metrics at top level for easy querying
+                totalWallTime: pythonStatistics.totalWallTime ?? null,
+                totalCpuTime: pythonStatistics.totalCpuTime ?? null,
+                meanWallTime: pythonStatistics.meanWallTime ?? null,
+                meanCpuTime: pythonStatistics.meanCpuTime ?? null,
             },
             select: { id: true, predictionRunId: true, stockId: true },
         })
@@ -749,6 +789,69 @@ export async function createModelStatistics(
 }
 
 /**
+ * Calculates and updates the total cost for a PredictionRun.
+ * Call this after loading statistics to populate totalCost based on hourlyCost and totalWallTime.
+ *
+ * Formula: totalCost = hourlyCost * (totalWallTime / 3600)
+ *
+ * @param predictionRunId - PredictionRun ID
+ * @returns Updated PredictionRun with totalCost, or null if cost cannot be calculated
+ * @throws Error if run not found
+ */
+export async function updatePredictionRunCost(predictionRunId: string): Promise<{
+    id: string
+    hourlyCost: number
+    totalCost: number
+} | null> {
+    // Get the run with its hourly cost
+    const run = await prisma.predictionRun.findUnique({
+        where: { id: predictionRunId },
+        select: { id: true, hourlyCost: true },
+    })
+
+    if (!run) {
+        throw new Error(`Prediction run not found: ${predictionRunId}`)
+    }
+
+    // If no hourly cost specified, can't calculate total cost
+    if (!run.hourlyCost) {
+        return null
+    }
+
+    // Get the totalWallTime from ModelRunStatistics (should only be one record per run)
+    const statistics = await prisma.modelRunStatistics.findFirst({
+        where: { predictionRunId },
+        select: { totalWallTime: true },
+    })
+
+    // If no statistics or no wall time, can't calculate total cost
+    if (!statistics?.totalWallTime) {
+        return null
+    }
+
+    // Calculate total cost: hourlyCost * (totalWallTime / 3600)
+    // totalWallTime is in seconds, convert to hours
+    const totalCost = run.hourlyCost * (statistics.totalWallTime / 3600)
+
+    // Update the run with calculated cost
+    const updatedRun = await prisma.predictionRun.update({
+        where: { id: predictionRunId },
+        data: { totalCost },
+        select: {
+            id: true,
+            hourlyCost: true,
+            totalCost: true,
+        },
+    })
+
+    return {
+        id: updatedRun.id,
+        hourlyCost: updatedRun.hourlyCost!,
+        totalCost: updatedRun.totalCost!,
+    }
+}
+
+/**
  * Updates aggregate statistics for a PredictionRun.
  * Call this after loading all predictions for a run.
  * NOTE: Now counts PredictionRoutes, not Routes (deduplication is enabled).
@@ -777,7 +880,7 @@ export async function updatePredictionRunStats(predictionRunId: string): Promise
     // Compute aggregate stats using raw SQL to avoid loading all routes into memory
     // This query counts predictions and calculates average route length in the database
     const result = await prisma.$queryRaw<[{ totalRoutes: number; avgRouteLength: number | null }]>`
-        SELECT 
+        SELECT
             COUNT(*) as totalRoutes,
             AVG(r.length) as avgRouteLength
         FROM PredictionRoute pr

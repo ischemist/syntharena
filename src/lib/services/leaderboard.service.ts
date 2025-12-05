@@ -90,6 +90,9 @@ async function _getLeaderboard(benchmarkId?: string, stockId?: string): Promise<
                 solvability: getMetricResult(solvabilityMetric),
                 ...(Object.keys(topKAccuracy).length > 0 && { topKAccuracy }),
             },
+            // Runtime metrics from ModelRunStatistics
+            totalWallTime: stat.totalWallTime,
+            totalCost: stat.predictionRun.totalCost,
         }
     })
 }

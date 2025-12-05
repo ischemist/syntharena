@@ -30,10 +30,16 @@ export function RunDetailHeader({ run }: RunDetailHeaderProps) {
                     <div className="text-muted-foreground text-sm">Executed</div>
                     <div className="text-lg font-medium">{format(new Date(run.executedAt), 'PPP')}</div>
                 </div>
-                {run.totalTimeMs && (
+                {run.totalWallTime && (
                     <div>
                         <div className="text-muted-foreground text-sm">Duration</div>
-                        <div className="text-lg font-medium">{(run.totalTimeMs / 1000 / 60).toFixed(1)} min</div>
+                        <div className="text-lg font-medium">{(run.totalWallTime / 60).toFixed(1)} min</div>
+                    </div>
+                )}
+                {run.totalCost && (
+                    <div>
+                        <div className="text-muted-foreground text-sm">Total Cost</div>
+                        <div className="text-lg font-medium">${run.totalCost.toFixed(2)}</div>
                     </div>
                 )}
                 {run.benchmarkSet.hasAcceptableRoutes && (

@@ -77,6 +77,9 @@ async function _getPredictionRuns(benchmarkId?: string, modelId?: string): Promi
             }
         }
 
+        // Extract totalWallTime from first statistics record (same across all stocks for a given run)
+        const totalWallTime = run.statistics[0]?.totalWallTime ?? null
+
         return {
             id: run.id,
             modelInstanceId: run.modelInstanceId,
@@ -100,7 +103,9 @@ async function _getPredictionRuns(benchmarkId?: string, modelId?: string): Promi
                 hasAcceptableRoutes: run.benchmarkSet.hasAcceptableRoutes,
             },
             totalRoutes: run.totalRoutes,
-            totalTimeMs: run.totalTimeMs,
+            hourlyCost: run.hourlyCost,
+            totalCost: run.totalCost,
+            totalWallTime,
             avgRouteLength: run.avgRouteLength,
             solvabilitySummary,
             executedAt: run.executedAt,

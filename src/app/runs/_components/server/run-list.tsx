@@ -50,6 +50,7 @@ export async function RunList({ searchParams }: RunListProps) {
                                 <TableHead>Model</TableHead>
                                 <TableHead className="text-right">Routes</TableHead>
                                 <TableHead className="text-right">Duration</TableHead>
+                                <TableHead className="text-right">Cost</TableHead>
                                 <TableHead className="text-right">Executed</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -69,7 +70,10 @@ export async function RunList({ searchParams }: RunListProps) {
                                         <Badge variant="secondary">{run.totalRoutes.toLocaleString()}</Badge>
                                     </TableCell>
                                     <TableCell className="text-muted-foreground text-right">
-                                        {run.totalTimeMs ? `${(run.totalTimeMs / 1000 / 60).toFixed(1)} min` : '—'}
+                                        {run.totalWallTime ? `${(run.totalWallTime / 60).toFixed(1)} min` : '—'}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground text-right">
+                                        {run.totalCost ? `$${run.totalCost.toFixed(2)}` : '—'}
                                     </TableCell>
                                     <TableCell className="text-muted-foreground text-right">
                                         {formatDistanceToNow(new Date(run.executedAt), {
