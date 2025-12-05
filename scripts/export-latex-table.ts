@@ -77,7 +77,11 @@ async function exportLatexTable(benchmarkId: string) {
 }
 
 // Main execution
-const benchmarkId = process.argv[2] || 'cmiqphf550000baddsv4me1iy'
+const benchmarkId = process.argv[2]
+if (!benchmarkId) {
+    console.error('Usage: pnpm tsx scripts/export-latex-table.ts <benchmarkId>')
+    process.exit(1)
+}
 
 exportLatexTable(benchmarkId)
     .catch((e) => {

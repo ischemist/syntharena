@@ -68,8 +68,11 @@ async function exportStratifiedLatexTable(benchmarkId: string) {
 }
 
 // Main execution
-const benchmarkId = process.argv[2] || 'cmiqphzrc0000d4ddpepswpt7'
-
+const benchmarkId = process.argv[2]
+if (!benchmarkId) {
+    console.error('Usage: pnpm tsx scripts/export-stratified-latex-table.ts <benchmarkId>')
+    process.exit(1)
+}
 exportStratifiedLatexTable(benchmarkId)
     .catch((e) => {
         console.error('Error:', e)
