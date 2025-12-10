@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function ManifestoPage() {
     return (
-        <div className="mx-auto max-w-4xl py-12">
+        <div className="max-w-4xl py-4">
             <article className="prose prose-slate dark:prose-invert prose-lg mx-auto space-y-16">
                 <HeroSection />
                 <FrameworkSection />
@@ -29,14 +29,22 @@ export default function ManifestoPage() {
 
                 <footer className="text-muted-foreground not-prose border-t pt-8 text-sm">
                     <p>
-                        For technical details and empirical evidence, see our paper:{' '}
                         <a
                             href="https://arxiv.org/abs/2512.07079"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-foreground hover:underline"
                         >
-                            &quot;Procrustean Bed for AI-Driven Retrosynthesis&quot;
+                            Read the paper
+                        </a>
+                        {' · '}
+                        <a
+                            href="https://retrocast.ischemist.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-foreground hover:underline"
+                        >
+                            Read the technical docs
                         </a>
                     </p>
                 </footer>
