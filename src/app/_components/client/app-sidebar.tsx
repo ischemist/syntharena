@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { BarChart3, Beaker, FlaskConical, LayoutDashboard, Trophy, Zap } from 'lucide-react'
+import { BarChart3, Beaker, FlaskConical, LayoutDashboard, Lightbulb, Trophy, Zap } from 'lucide-react'
 
 import { ModeToggle } from '@/components/mode-toggle'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar'
@@ -58,11 +58,11 @@ const data = {
         // },
     ],
     navSecondary: [
-        // {
-        //     title: 'Support',
-        //     url: '#',
-        //     icon: LifeBuoy,
-        // },
+        {
+            title: 'Manifesto',
+            url: '/manifesto',
+            icon: Lightbulb,
+        },
         // {
         //     title: 'Feedback',
         //     url: '#',
@@ -93,9 +93,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <NavDropdowns items={data.navDropdowns} />
                 <NavSecondary items={data.navSecondary} className="mt-auto" />
             </SidebarContent>
-            <SidebarFooter>
-                <NavUser user={data.user} />
-            </SidebarFooter>
+            <SidebarFooter>{/*<NavUser user={data.user} />*/}</SidebarFooter>
         </Sidebar>
     )
 }
