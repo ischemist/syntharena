@@ -5,29 +5,32 @@ export function DrugDiscoverySection() {
 
             <p className="leading-relaxed">
                 One critical downstream application of retrosynthetic planning is synthesis-aware virtual screening.
-                Modern drug discovery generates millions of candidate molecules with promising predicted properties,
-                then filters them by synthetic accessibility before forwarding to medicinal chemists. This workflow
-                demands the transferable chemical knowledge that retrosynthesis mastery provides.
+                Modern drug discovery generates millions of candidate molecules, then filters them by synthetic
+                accessibility before forwarding to medicinal chemists. This workflow demands the transferable chemical
+                knowledge that retrosynthesis mastery provides.
             </p>
 
             <p className="leading-relaxed">
-                Current practice ranks candidates by synthetic accessibility scores (SAScore, RAscore, SCScore)—
-                reasonable heuristics for a fundamentally ill-defined problem. A molecule with an accessibility score of
-                0.85 tells you nothing about whether it requires 3 steps or 12, whether it needs expensive chiral
-                catalysts or commodity reagents, whether key intermediates are commercially available. The underlying
-                issue is that <em>synthetic accessibility is inherently conditional</em>: it depends on which reactions
-                you can execute, which stock compounds you&apos;re willing to use, what your budget constraints are,
-                what equipment and expertise you have access to. A decontextualized scalar score cannot capture this
-                complexity—not because these methods are inadequate, but because the problem they address resists
-                reduction to a single number.
+                Current practice relies on heuristics like SAScore, RAscore, or SCScore to rank these candidates. These
+                methods are valuable high-throughput filters, but they rest on a precarious assumption: that synthetic
+                accessibility is an <em>intrinsic property</em> of a molecule, akin to molecular weight or LogP.
             </p>
 
             <p className="leading-relaxed">
-                The path forward requires explicit route generation. To meaningfully assess synthetic feasibility, a
-                model must first generate a concrete pathway, then evaluate that pathway in context: step count, reagent
-                costs, stock availability, reaction reliability. Perhaps a sufficiently capable model could predict
-                difficulty labels before generating complete routes—analogous to chain-of-thought reasoning—but even
-                this requires the underlying capacity for route generation.
+                We posit that synthetic accessibility is not a scalar property, but a <strong>conditional state</strong>
+                . It relies entirely on context: which starting materials are in your stockroom? Do you have access to
+                high-pressure hydrogenation? What is your cost tolerance? A molecule that is &quot;easy&quot; (0.9) for
+                a well-stocked pharma lab may be &quot;impossible&quot; (0.1) for a budget-constrained startup. By
+                collapsing this complexity into a single number, we may be asking a fundamentally ill-posed question.
+            </p>
+
+            <p className="leading-relaxed">
+                The path forward requires explicit route generation. To meaningfully assess feasibility, a model must
+                first generate a concrete pathway, which can then be evaluated against local realities: step count,
+                reagent costs, reaction reliability, and stock availability. Perhaps a sufficiently capable model could
+                eventually predict difficulty scores directly (analogous to <em>chain-of-thought reasoning</em>
+                where the reasoning step is internal) but even this &quot;fast&quot; prediction requires the underlying
+                capacity to articulate the route.
             </p>
 
             <div className="border-primary border-l-4 py-2 pl-6">
@@ -38,7 +41,7 @@ export function DrugDiscoverySection() {
 
             <p className="leading-relaxed">
                 This is why retrosynthetic capability is foundational: it transforms an ill-defined ranking problem into
-                a well-defined generation and evaluation problem.
+                a transparent planning problem.
             </p>
         </section>
     )
