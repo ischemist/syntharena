@@ -1,7 +1,19 @@
 'use client'
 
 import * as React from 'react'
-import { BarChart3, Beaker, FlaskConical, LayoutDashboard, Trophy, Zap } from 'lucide-react'
+import {
+    BarChart3,
+    Beaker,
+    BookOpen,
+    FlaskConical,
+    History,
+    LayoutDashboard,
+    Lightbulb,
+    Map,
+    Trophy,
+    Upload,
+    Zap,
+} from 'lucide-react'
 
 import { ModeToggle } from '@/components/mode-toggle'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar'
@@ -9,7 +21,6 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/compone
 import { NavDropdowns } from './nav-dropdowns'
 import { NavLinks } from './nav-links'
 import { NavSecondary } from './nav-secondary'
-import { NavUser } from './nav-user'
 
 const data = {
     user: {
@@ -45,24 +56,48 @@ const data = {
         },
     ],
     navDropdowns: [
-        // {
-        //     title: 'Dev',
-        //     url: '#',
-        //     icon: Settings2,
-        //     items: [
-        //         {
-        //             title: 'Badges',
-        //             url: '/design/badges',
-        //         },
-        //     ],
-        // },
+        {
+            title: 'Docs',
+            url: '/docs',
+            icon: BookOpen,
+            isActive: true,
+            items: [
+                {
+                    title: 'How It Works',
+                    url: '/docs/how-it-works',
+                },
+                {
+                    title: 'Benchmarks',
+                    url: '/docs/benchmarks',
+                },
+                {
+                    title: 'Metrics',
+                    url: '/docs/metrics',
+                },
+            ],
+        },
     ],
     navSecondary: [
-        // {
-        //     title: 'Support',
-        //     url: '#',
-        //     icon: LifeBuoy,
-        // },
+        {
+            title: 'Manifesto',
+            url: '/manifesto',
+            icon: Lightbulb,
+        },
+        {
+            title: 'Changelog',
+            url: '/changelog',
+            icon: History,
+        },
+        {
+            title: 'Roadmap',
+            url: '/roadmap',
+            icon: Map,
+        },
+        {
+            title: 'Submit Results',
+            url: '/submit-results',
+            icon: Upload,
+        },
         // {
         //     title: 'Feedback',
         //     url: '#',
@@ -82,7 +117,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         </div>
                         <div className="grid flex-1 text-left text-sm leading-tight">
                             <span className="truncate font-medium">SynthArena</span>
-                            <span className="truncate text-xs">v0.2.0</span>
+                            <span className="truncate text-xs">v0.2.1</span>
                         </div>
                     </div>
                     <ModeToggle />
@@ -93,9 +128,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <NavDropdowns items={data.navDropdowns} />
                 <NavSecondary items={data.navSecondary} className="mt-auto" />
             </SidebarContent>
-            <SidebarFooter>
-                <NavUser user={data.user} />
-            </SidebarFooter>
+            <SidebarFooter>{/*<NavUser user={data.user} />*/}</SidebarFooter>
         </Sidebar>
     )
 }

@@ -11,7 +11,7 @@ export function ProblemSolutionSection() {
                     </p>
                     <p>
                         <strong className="text-foreground">Inconsistent Stocks:</strong> Starting material definitions
-                        vary by over 1000×—from curated catalogs of 300k molecules to speculative screening libraries of
+                        vary by over 1000×—from off-the-shelf catalogs of 300k molecules to made-to-order libraries of
                         230M+ compounds—making reported solvability scores incomparable.
                     </p>
                     <p>
