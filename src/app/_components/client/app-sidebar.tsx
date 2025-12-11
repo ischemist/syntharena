@@ -1,7 +1,17 @@
 'use client'
 
 import * as React from 'react'
-import { BarChart3, Beaker, BookOpen, FlaskConical, LayoutDashboard, Lightbulb, Trophy, Zap } from 'lucide-react'
+import {
+    BarChart3,
+    Beaker,
+    BookOpen,
+    FlaskConical,
+    LayoutDashboard,
+    Lightbulb,
+    Trophy,
+    Upload,
+    Zap,
+} from 'lucide-react'
 
 import { ModeToggle } from '@/components/mode-toggle'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar'
@@ -70,6 +80,11 @@ const data = {
             title: 'Manifesto',
             url: '/manifesto',
             icon: Lightbulb,
+        },
+        {
+            title: 'Submit Results',
+            url: '/submit-results',
+            icon: Upload,
         },
         // {
         //     title: 'Feedback',
