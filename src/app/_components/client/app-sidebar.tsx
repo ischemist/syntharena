@@ -79,8 +79,8 @@ const data = {
     ],
     navSecondary: [
         {
-            title: 'Manifesto',
-            url: '/manifesto',
+            title: 'Why This Exists?',
+            url: '/thesis',
             icon: Lightbulb,
         },
         {

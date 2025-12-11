@@ -62,10 +62,10 @@ export default function DocsPage() {
                 <section className="border-t pt-8">
                     <h2 className="mb-4 text-2xl font-semibold">Additional Resources</h2>
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <Link href="/manifesto" className="h-full">
+                        <Link href="/thesis" className="h-full">
                             <Card variant="clickable" className="h-full">
                                 <CardHeader>
-                                    <CardTitle>Manifesto</CardTitle>
+                                    <CardTitle>Why This Exists</CardTitle>
                                     <CardDescription>The vision and philosophy behind SynthArena</CardDescription>
                                 </CardHeader>
                             </Card>
