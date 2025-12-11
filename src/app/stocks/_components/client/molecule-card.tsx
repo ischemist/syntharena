@@ -69,7 +69,7 @@ export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
             <div className="absolute inset-x-0 top-4 bottom-12 flex items-center justify-center p-4">
                 {isReady ? (
                     <div className="animate-in fade-in duration-500">
-                        <SmileDrawerSvg smilesStr={molecule.smiles} width={100} height={100} />
+                        <SmileDrawerSvg smilesStr={molecule.smiles} width={80} height={80} />
                     </div>
                 ) : (
                     // While waiting in the queue, show a lighter skeleton
@@ -80,7 +80,7 @@ export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
             {/* Buyable metadata strip - only shown when data exists */}
             {isReady && hasBuyableData && molecule.stockItem && (
                 <div className="absolute right-2 bottom-2 left-2 flex items-center justify-center">
-                    <div className="bg-background/80 rounded-lg px-2 py-1.5 backdrop-blur-sm">
+                    <div className="rounded-lg px-2 py-1.5 backdrop-blur-sm">
                         <BuyableMetadataStrip
                             source={molecule.stockItem.source!}
                             ppg={molecule.stockItem.ppg!}
