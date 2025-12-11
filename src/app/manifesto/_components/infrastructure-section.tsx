@@ -57,6 +57,7 @@ export function InfrastructureSection() {
                     href="https://retrocast.ischemist.com"
                     className="hover:text-foreground underline"
                     target="_blank"
+                    rel="noopener noreferrer"
                 >
                     RetroCast Documentation
                 </Link>
@@ -65,6 +66,7 @@ export function InfrastructureSection() {
                     href="https://github.com/ischemist/project-procrustes"
                     className="hover:text-foreground underline"
                     target="_blank"
+                    rel="noopener noreferrer"
                 >
                     RetroCast Source Code
                 </Link>
@@ -73,6 +75,7 @@ export function InfrastructureSection() {
                     href="https://github.com/ischemist/syntharena"
                     className="hover:text-foreground underline"
                     target="_blank"
+                    rel="noopener noreferrer"
                 >
                     SynthArena Source Code
                 </Link>

@@ -1,8 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ArrowRight, BarChart3, FlaskConical, Github, Lightbulb, ScrollText, Workflow } from 'lucide-react'
 
-import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export const metadata: Metadata = {
     title: 'Documentation',
@@ -25,182 +24,92 @@ export default function DocsPage() {
                 {/* Main Documentation Topics */}
                 <section className="py-4">
                     <h2 className="mb-4 text-2xl font-semibold">Core Topics</h2>
-                    <Table>
-                        <TableBody>
-                            <TableRow className="hover:bg-muted/50">
-                                <TableCell className="w-12">
-                                    <div className="bg-primary/10 text-primary flex size-10 items-center justify-center rounded-lg">
-                                        <Workflow className="size-5" />
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <Link href="/docs/how-it-works" className="block">
-                                        <div className="font-semibold">How It Works</div>
-                                        <div className="text-muted-foreground text-sm">
-                                            Understand the evaluation framework and data pipeline
-                                        </div>
-                                    </Link>
-                                </TableCell>
-                                <TableCell className="w-8">
-                                    <Link href="/docs/how-it-works">
-                                        <ArrowRight className="text-muted-foreground hover:text-foreground size-4 transition-colors" />
-                                    </Link>
-                                </TableCell>
-                            </TableRow>
-                            <TableRow className="hover:bg-muted/50">
-                                <TableCell className="w-12">
-                                    <div className="bg-primary/10 text-primary flex size-10 items-center justify-center rounded-lg">
-                                        <FlaskConical className="size-5" />
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <Link href="/docs/benchmarks" className="block">
-                                        <div className="font-semibold">Benchmarks</div>
-                                        <div className="text-muted-foreground text-sm">
-                                            Choose the right dataset for your evaluation needs
-                                        </div>
-                                    </Link>
-                                </TableCell>
-                                <TableCell className="w-8">
-                                    <Link href="/docs/benchmarks">
-                                        <ArrowRight className="text-muted-foreground hover:text-foreground size-4 transition-colors" />
-                                    </Link>
-                                </TableCell>
-                            </TableRow>
-                            <TableRow className="hover:bg-muted/50">
-                                <TableCell className="w-12">
-                                    <div className="bg-primary/10 text-primary flex size-10 items-center justify-center rounded-lg">
-                                        <BarChart3 className="size-5" />
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <Link href="/docs/metrics" className="block">
-                                        <div className="font-semibold">Metrics</div>
-                                        <div className="text-muted-foreground text-sm">
-                                            Interpret performance measurements and confidence intervals
-                                        </div>
-                                    </Link>
-                                </TableCell>
-                                <TableCell className="w-8">
-                                    <Link href="/docs/metrics">
-                                        <ArrowRight className="text-muted-foreground hover:text-foreground size-4 transition-colors" />
-                                    </Link>
-                                </TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
+                    <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+                        <Link href="/docs/how-it-works" className="h-full">
+                            <Card variant="clickable" className="h-full">
+                                <CardHeader>
+                                    <CardTitle>How It Works</CardTitle>
+                                    <CardDescription>
+                                        Understand the evaluation framework and data pipeline
+                                    </CardDescription>
+                                </CardHeader>
+                            </Card>
+                        </Link>
+                        <Link href="/docs/benchmarks" className="h-full">
+                            <Card variant="clickable" className="h-full">
+                                <CardHeader>
+                                    <CardTitle>Benchmarks</CardTitle>
+                                    <CardDescription>
+                                        Choose the right dataset for your evaluation needs
+                                    </CardDescription>
+                                </CardHeader>
+                            </Card>
+                        </Link>
+                        <Link href="/docs/metrics" className="h-full">
+                            <Card variant="clickable" className="h-full">
+                                <CardHeader>
+                                    <CardTitle>Metrics</CardTitle>
+                                    <CardDescription>
+                                        Interpret performance measurements and confidence intervals
+                                    </CardDescription>
+                                </CardHeader>
+                            </Card>
+                        </Link>
+                    </div>
                 </section>
 
                 {/* Additional Resources */}
                 <section className="border-t pt-8">
                     <h2 className="mb-4 text-2xl font-semibold">Additional Resources</h2>
-                    <Table>
-                        <TableBody>
-                            <TableRow className="hover:bg-muted/50">
-                                <TableCell className="w-12">
-                                    <div className="bg-primary/10 text-primary flex size-10 items-center justify-center rounded-lg">
-                                        <Lightbulb className="size-5" />
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <Link href="/manifesto" className="block">
-                                        <div className="font-semibold">Manifesto</div>
-                                        <div className="text-muted-foreground text-sm">
-                                            The vision and philosophy behind SynthArena
-                                        </div>
-                                    </Link>
-                                </TableCell>
-                                <TableCell className="w-8">
-                                    <Link href="/manifesto">
-                                        <ArrowRight className="text-muted-foreground hover:text-foreground size-4 transition-colors" />
-                                    </Link>
-                                </TableCell>
-                            </TableRow>
-                            <TableRow className="hover:bg-muted/50">
-                                <TableCell className="w-12">
-                                    <div className="bg-muted flex size-10 items-center justify-center rounded-lg font-mono text-xs font-semibold">
-                                        RC
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <a
-                                        href="https://retrocast.ischemist.com"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="block"
-                                    >
-                                        <div className="font-semibold">RetroCast Docs</div>
-                                        <div className="text-muted-foreground text-sm">
-                                            Technical documentation and CLI reference
-                                        </div>
-                                    </a>
-                                </TableCell>
-                                <TableCell className="w-8">
-                                    <a href="https://retrocast.ischemist.com" target="_blank" rel="noopener noreferrer">
-                                        <ArrowRight className="text-muted-foreground hover:text-foreground size-4 transition-colors" />
-                                    </a>
-                                </TableCell>
-                            </TableRow>
-                            <TableRow className="hover:bg-muted/50">
-                                <TableCell className="w-12">
-                                    <div className="bg-primary/10 text-primary flex size-10 items-center justify-center rounded-lg">
-                                        <ScrollText className="size-5" />
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <a
-                                        href="https://arxiv.org/abs/2512.07079"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="block"
-                                    >
-                                        <div className="font-semibold">Research Paper</div>
-                                        <div className="text-muted-foreground text-sm">
-                                            Read the full academic publication
-                                        </div>
-                                    </a>
-                                </TableCell>
-                                <TableCell className="w-8">
-                                    <a
-                                        href="https://arxiv.org/abs/2512.07079"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        <ArrowRight className="text-muted-foreground hover:text-foreground size-4 transition-colors" />
-                                    </a>
-                                </TableCell>
-                            </TableRow>
-                            <TableRow className="hover:bg-muted/50">
-                                <TableCell className="w-12">
-                                    <div className="bg-primary/10 text-primary flex size-10 items-center justify-center rounded-lg">
-                                        <Github className="size-5" />
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <a
-                                        href="https://github.com/ischemist/retrocast"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="block"
-                                    >
-                                        <div className="font-semibold">GitHub Repository</div>
-                                        <div className="text-muted-foreground text-sm">
-                                            Access the source code and contribute
-                                        </div>
-                                    </a>
-                                </TableCell>
-                                <TableCell className="w-8">
-                                    <a
-                                        href="https://github.com/ischemist/retrocast"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        <ArrowRight className="text-muted-foreground hover:text-foreground size-4 transition-colors" />
-                                    </a>
-                                </TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <Link href="/manifesto" className="h-full">
+                            <Card variant="clickable" className="h-full">
+                                <CardHeader>
+                                    <CardTitle>Manifesto</CardTitle>
+                                    <CardDescription>The vision and philosophy behind SynthArena</CardDescription>
+                                </CardHeader>
+                            </Card>
+                        </Link>
+                        <a
+                            href="https://retrocast.ischemist.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="h-full"
+                        >
+                            <Card variant="clickable" className="h-full">
+                                <CardHeader>
+                                    <CardTitle>RetroCast Docs</CardTitle>
+                                    <CardDescription>Technical documentation and CLI reference</CardDescription>
+                                </CardHeader>
+                            </Card>
+                        </a>
+                        <a
+                            href="https://arxiv.org/abs/2512.07079"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="h-full"
+                        >
+                            <Card variant="clickable" className="h-full">
+                                <CardHeader>
+                                    <CardTitle>Research Paper</CardTitle>
+                                    <CardDescription>Read the full academic publication</CardDescription>
+                                </CardHeader>
+                            </Card>
+                        </a>
+                        <a
+                            href="https://github.com/ischemist/retrocast"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="h-full"
+                        >
+                            <Card variant="clickable" className="h-full">
+                                <CardHeader>
+                                    <CardTitle>GitHub Repository</CardTitle>
+                                    <CardDescription>Access the source code and contribute</CardDescription>
+                                </CardHeader>
+                            </Card>
+                        </a>
+                    </div>
                 </section>
             </div>
         </div>

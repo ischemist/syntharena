@@ -8,6 +8,7 @@ const cardVariants = cva('bg-card text-card-foreground flex flex-col gap-6 round
         variant: {
             default: 'shadow-sm',
             bordered: 'shadow-none border-border/60',
+            clickable: 'shadow-none border-border/60 transition-colors hover:border-primary cursor-pointer',
         },
     },
     defaultVariants: {

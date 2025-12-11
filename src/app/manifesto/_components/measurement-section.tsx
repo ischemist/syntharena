@@ -60,6 +60,7 @@ export function MeasurementSection() {
                     href="https://arxiv.org/abs/2512.07079"
                     className="hover:text-foreground underline"
                     target="_blank"
+                    rel="noopener noreferrer"
                 >
                     Figure 2 in the paper
                 </Link>
