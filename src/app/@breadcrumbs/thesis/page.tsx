@@ -1,11 +1,11 @@
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from '@/components/ui/breadcrumb'
 
-export default function ManifestoBreadcrumb() {
+export default function ThesisBreadcrumb() {
     return (
         <Breadcrumb>
             <BreadcrumbList>
                 <BreadcrumbItem>
-                    <BreadcrumbPage>Manifesto</BreadcrumbPage>
+                    <BreadcrumbPage>The Thesis</BreadcrumbPage>
                 </BreadcrumbItem>
             </BreadcrumbList>
         </Breadcrumb>

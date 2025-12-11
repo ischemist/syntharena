@@ -10,11 +10,11 @@ import { RetrosynthesisSection } from './_components/retrosynthesis-section'
 import { ValiditySection } from './_components/validity-section'
 
 export const metadata: Metadata = {
-    title: 'Manifesto',
+    title: 'The Thesis',
     description: 'On structural mastery in chemistry and the infrastructure needed to achieve it',
 }
 
-export default function ManifestoPage() {
+export default function ThesisPage() {
     return (
         <div className="max-w-4xl py-4">
             <article className="prose prose-slate dark:prose-invert prose-lg mx-auto space-y-16">

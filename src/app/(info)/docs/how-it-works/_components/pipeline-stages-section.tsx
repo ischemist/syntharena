@@ -181,9 +181,9 @@ export function PipelineStagesSection() {
 
             <div className="border-t pt-6">
                 <div className="flex flex-wrap gap-3">
-                    <Link href="/manifesto">
+                    <Link href="/thesis">
                         <Button variant="outline">
-                            Read the Manifesto
+                            Read Motivation for the Project
                             <ArrowRight className="ml-2 size-4" />
                         </Button>
                     </Link>

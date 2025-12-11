@@ -14,7 +14,7 @@ const versions = [
         changes: [
             {
                 type: ChangeType.DOCS,
-                description: 'Added manifesto, changelog, roadmap, submitting results informational pages and docs',
+                description: 'Added thesis, changelog, roadmap, submitting results informational pages and docs',
             },
         ],
     },
