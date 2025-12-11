@@ -6,8 +6,10 @@ import {
     Beaker,
     BookOpen,
     FlaskConical,
+    History,
     LayoutDashboard,
     Lightbulb,
+    Map,
     Trophy,
     Upload,
     Zap,
@@ -82,6 +84,16 @@ const data = {
             icon: Lightbulb,
         },
         {
+            title: 'Changelog',
+            url: '/changelog',
+            icon: History,
+        },
+        {
+            title: 'Roadmap',
+            url: '/roadmap',
+            icon: Map,
+        },
+        {
             title: 'Submit Results',
             url: '/submit-results',
             icon: Upload,
@@ -105,7 +117,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         </div>
                         <div className="grid flex-1 text-left text-sm leading-tight">
                             <span className="truncate font-medium">SynthArena</span>
-                            <span className="truncate text-xs">v0.2.0</span>
+                            <span className="truncate text-xs">v0.2.1</span>
                         </div>
                     </div>
                     <ModeToggle />
