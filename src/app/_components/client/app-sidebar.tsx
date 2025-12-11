@@ -48,6 +48,7 @@ const data = {
             title: 'Docs',
             url: '/docs',
             icon: BookOpen,
+            isActive: true,
             items: [
                 {
                     title: 'How It Works',
