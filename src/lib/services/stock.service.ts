@@ -46,68 +46,68 @@ const buildStockItemWhere = (filters?: {
 // 2. CORE READ OPERATIONS (Cached)
 // ============================================================================
 
-export const getStocks = cache(async (): Promise<StockListItem[]> => {
+async function _getStocks(): Promise<StockListItem[]> {
     const stocks = await prisma.stock.findMany({
         include: { _count: { select: { items: true } } },
         orderBy: { name: 'asc' },
     })
-
     return stocks.map((s) => ({
         id: s.id,
         name: s.name,
         description: s.description || undefined,
         itemCount: s._count.items,
     }))
-})
+}
+export const getStocks = unstable_cache(_getStocks, ['stocks-list'], { tags: ['stocks'], revalidate: 3600 })
 
-export const getStockById = cache(async (stockId: string): Promise<StockListItem> => {
+async function _getStockById(stockId: string): Promise<StockListItem> {
     const stock = await prisma.stock.findUnique({
         where: { id: stockId },
         include: { _count: { select: { items: true } } },
     })
-
     if (!stock) throw new Error('Stock not found')
-
     return {
         id: stock.id,
         name: stock.name,
         description: stock.description || undefined,
         itemCount: stock._count.items,
     }
-})
+}
+export const getStockById = unstable_cache(_getStockById, ['stock-by-id'], { tags: ['stocks'], revalidate: 3600 })
 
 // CACHING: this is expensive (groupBy) and rarely changes. cache it hard.
 // revalidate tag allows you to purge this when you upload a new csv.
-export const getStockMoleculeFilters = unstable_cache(
-    async (stockId: string): Promise<StockMoleculeFilters> => {
-        const [stockCount, vendorAgg] = await Promise.all([
-            prisma.stock.findUnique({
-                where: { id: stockId },
-                select: { _count: { select: { items: true } } },
-            }),
-            prisma.stockItem.groupBy({
-                by: ['source'],
-                where: { stockId, source: { not: null }, ppg: { not: null } },
-                _count: true,
-            }),
-        ])
+async function _getStockMoleculeFilters(stockId: string): Promise<StockMoleculeFilters> {
+    const [stockCount, vendorAgg] = await Promise.all([
+        prisma.stock.findUnique({
+            where: { id: stockId },
+            select: { _count: { select: { items: true } } },
+        }),
+        prisma.stockItem.groupBy({
+            by: ['source'],
+            where: { stockId, source: { not: null }, ppg: { not: null } },
+            _count: true,
+        }),
+    ])
 
-        if (!stockCount) throw new Error('Stock not found')
+    if (!stockCount) throw new Error('Stock not found')
 
-        const buyableCount = vendorAgg.reduce((sum, item) => sum + item._count, 0)
-        const total = stockCount._count.items
+    const buyableCount = vendorAgg.reduce((sum, item) => sum + item._count, 0)
+    const total = stockCount._count.items
 
-        return {
-            availableVendors: vendorAgg
-                .map((i) => i.source as VendorSource)
-                .filter(Boolean)
-                .sort(),
-            counts: { total, buyable: buyableCount, nonBuyable: total - buyableCount },
-        }
-    },
-    ['stock-filters'], // key parts
-    { tags: ['stocks'], revalidate: 3600 } // revalidate every hour or on tag invalidation
-)
+    return {
+        availableVendors: vendorAgg
+            .map((i) => i.source as VendorSource)
+            .filter(Boolean)
+            .sort(),
+        counts: { total, buyable: buyableCount, nonBuyable: total - buyableCount },
+    }
+}
+
+export const getStockMoleculeFilters = unstable_cache(_getStockMoleculeFilters, ['stock-filters'], {
+    tags: ['stocks'],
+    revalidate: 3600,
+})
 
 // ============================================================================
 // 3. OPTIMIZED SEARCH & BROWSE
