@@ -59,8 +59,8 @@ import * as zlib from 'zlib'
 import './env-loader'
 
 import { createBenchmark } from '../src/lib/services/benchmark.service'
-import { loadBenchmarkFromFile } from '../src/lib/services/route.service'
-import { getStockByName } from '../src/lib/services/stock.service'
+import { loadBenchmarkFromFile } from '../src/lib/services/loaders/benchmark-loader.service'
+import { getStockByName } from '../src/lib/services/loaders/stock-loader.service'
 
 interface BenchmarkMetadata {
     stock_name?: string | null

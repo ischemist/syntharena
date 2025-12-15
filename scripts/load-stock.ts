@@ -23,7 +23,7 @@ import * as path from 'path'
 
 import './env-loader'
 
-import { loadStockFromFile } from '../src/lib/services/stock.service'
+import { loadStockFromFile } from '../src/lib/services/loaders/stock-loader.service'
 
 async function main() {
     const args = process.argv.slice(2)
