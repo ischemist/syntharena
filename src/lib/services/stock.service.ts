@@ -2,14 +2,7 @@ import { cache } from 'react'
 import { unstable_cache } from 'next/cache' // next 15 primitive
 import { Prisma } from '@prisma/client'
 
-import type {
-    BuyableMetadata,
-    MoleculeSearchResult,
-    MoleculeWithStocks,
-    StockListItem,
-    StockMoleculeFilters,
-    VendorSource,
-} from '@/types'
+import type { BuyableMetadata, MoleculeSearchResult, StockListItem, StockMoleculeFilters, VendorSource } from '@/types'
 import prisma from '@/lib/db'
 
 // ============================================================================
@@ -17,53 +10,17 @@ import prisma from '@/lib/db'
 // ============================================================================
 
 // leaner selector: only fetch minimal data for the "other stocks" list
-const moleculeSelector = {
+const minimalMoleculeSelector = {
     id: true,
     smiles: true,
     inchikey: true,
+    // only fetch basic info for badges, no metadata
     stockItems: {
         select: {
-            id: true,
             stock: { select: { id: true, name: true } },
-            // we'll fetch full metadata only for the current context via specialized query
-            // or just eat the cost if we need to filter in JS (prisma limitation)
-            ppg: true,
-            source: true,
-            leadTime: true,
-            link: true,
         },
     },
 } satisfies Prisma.MoleculeSelect
-
-type MoleculeWithRelations = Prisma.MoleculeGetPayload<{
-    select: typeof moleculeSelector
-}>
-
-function transformMolecule(molecule: MoleculeWithRelations, currentStockId?: string): MoleculeWithStocks {
-    // fast lookup for the current stock's metadata
-    // complexity: O(N) where N is stocks per molecule (usually small)
-    const currentItem = currentStockId ? molecule.stockItems.find((si) => si.stock.id === currentStockId) : undefined
-
-    return {
-        id: molecule.id,
-        smiles: molecule.smiles,
-        inchikey: molecule.inchikey,
-        // map purely for the badge list
-        stocks: molecule.stockItems.map((si) => ({
-            id: si.stock.id,
-            name: si.stock.name,
-        })),
-        stockItem: currentItem
-            ? {
-                  id: currentItem.id,
-                  ppg: currentItem.ppg,
-                  source: currentItem.source,
-                  leadTime: currentItem.leadTime,
-                  link: currentItem.link,
-              }
-            : undefined,
-    }
-}
 
 // helper to build where clause for stock items
 const buildStockItemWhere = (filters?: {
@@ -169,15 +126,18 @@ async function browseStock(
         ...buildStockItemWhere(filters),
     }
 
+    // run count and data in parallel
     const [total, stockItems] = await Promise.all([
         prisma.stockItem.count({ where }),
         prisma.stockItem.findMany({
             where,
-            take: limit + 1, // fetch one extra to check hasMore
+            take: limit + 1,
             skip: offset,
-            orderBy: { moleculeId: 'asc' }, // consistent ordering
-            select: {
-                molecule: { select: moleculeSelector },
+            orderBy: { moleculeId: 'asc' },
+            include: {
+                molecule: {
+                    select: minimalMoleculeSelector,
+                },
             },
         }),
     ])
@@ -185,11 +145,25 @@ async function browseStock(
     const hasMore = stockItems.length > limit
     const items = hasMore ? stockItems.slice(0, limit) : stockItems
 
-    return {
-        total,
-        hasMore,
-        molecules: items.map((i) => transformMolecule(i.molecule, stockId)),
-    }
+    // direct mapping: O(1) per item instead of O(N) searching
+    const molecules = items.map((item) => ({
+        id: item.molecule.id,
+        smiles: item.molecule.smiles,
+        inchikey: item.molecule.inchikey,
+        stocks: item.molecule.stockItems.map((si) => ({
+            id: si.stock.id,
+            name: si.stock.name,
+        })),
+        stockItem: {
+            id: item.id,
+            ppg: item.ppg,
+            source: item.source,
+            leadTime: item.leadTime,
+            link: item.link,
+        },
+    }))
+
+    return { total, hasMore, molecules }
 }
 
 // separate function for text search (cross-stock or within stock)
@@ -203,15 +177,19 @@ async function queryMolecules(
 ): Promise<MoleculeSearchResult> {
     const sanitizedQuery = query.trim()
 
-    // build combined where clause
+    // perf: "contains" on smiles is slow in sqlite.
+    // nothing to do about it without fts5 or postgres, but ensure we limit the take.
     const where: Prisma.MoleculeWhereInput = {
-        OR: [{ smiles: { contains: sanitizedQuery } }, { inchikey: { startsWith: sanitizedQuery.toUpperCase() } }],
+        OR: [
+            { smiles: { contains: sanitizedQuery } },
+            { inchikey: { startsWith: sanitizedQuery.toUpperCase() } }, // startsWith uses index
+        ],
     }
 
-    // if filtering by stock or metadata, we need a relation filter
     const itemWhere = buildStockItemWhere(filters)
     const hasItemFilters = Object.keys(itemWhere).length > 0
 
+    // optimize relation filter
     if (stockId || hasItemFilters) {
         where.stockItems = {
             some: {
@@ -225,21 +203,47 @@ async function queryMolecules(
         prisma.molecule.count({ where }),
         prisma.molecule.findMany({
             where,
-            select: moleculeSelector,
+            // we have to use the heavier selector here because we don't know
+            // which stockItem belongs to the current context without looking
+            include: {
+                stockItems: {
+                    include: { stock: { select: { id: true, name: true } } },
+                },
+            },
             take: limit + 1,
             skip: offset,
-            orderBy: { smiles: 'asc' }, // usually what people want with text search
         }),
     ])
 
     const hasMore = molecules.length > limit
     const results = hasMore ? molecules.slice(0, limit) : molecules
 
-    return {
-        total,
-        hasMore,
-        molecules: results.map((m) => transformMolecule(m, stockId)),
-    }
+    // use the lookup logic only when necessary (text search mode)
+    const mapped = results.map((mol) => {
+        // find context-specific item if stockId is provided
+        const contextItem = stockId ? mol.stockItems.find((si) => si.stockId === stockId) : undefined
+
+        return {
+            id: mol.id,
+            smiles: mol.smiles,
+            inchikey: mol.inchikey,
+            stocks: mol.stockItems.map((si) => ({
+                id: si.stock.id,
+                name: si.stock.name,
+            })),
+            stockItem: contextItem
+                ? {
+                      id: contextItem.id,
+                      ppg: contextItem.ppg,
+                      source: contextItem.source,
+                      leadTime: contextItem.leadTime,
+                      link: contextItem.link,
+                  }
+                : undefined,
+        }
+    })
+
+    return { total, hasMore, molecules: mapped }
 }
 
 // unified entry point that dispatches to the optimized implementation

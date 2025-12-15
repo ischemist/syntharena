@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Check, Copy, Info } from 'lucide-react'
 
@@ -17,6 +17,9 @@ interface MoleculeCardProps {
     molecule: MoleculeWithStocks
     index?: number
 }
+
+// MEMOIZE THIS: calculating paths for chemical structures is expensive
+const MemoizedSmileDrawer = memo(SmileDrawerSvg)
 
 // reduced delay - rely on content-visibility for layout perf
 const ABOVE_THE_FOLD = 12
@@ -49,7 +52,7 @@ export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
             <div className="absolute inset-x-0 top-4 bottom-12 flex items-center justify-center p-4">
                 {isReady ? (
                     <div className="animate-in fade-in duration-500">
-                        <SmileDrawerSvg smilesStr={molecule.smiles} width={80} height={80} />
+                        <MemoizedSmileDrawer smilesStr={molecule.smiles} width={80} height={80} />
                     </div>
                 ) : (
                     <Skeleton className="h-[200px] w-[200px] rounded-full opacity-10" />

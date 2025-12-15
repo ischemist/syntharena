@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown, Search, X } from 'lucide-react'
 
@@ -38,57 +38,33 @@ export function MoleculeSearchBar({ availableVendors, totalCount, buyableCount }
 
     const currentQuery = searchParams.get('q') || ''
     const currentVendors = searchParams.get('vendors')?.split(',').filter(Boolean) || []
-    const currentMinPpg = searchParams.get('minPpg')
-    const currentMaxPpg = searchParams.get('maxPpg')
+    const currentMinPpg = searchParams.get('minPpg') || ''
+    const currentMaxPpg = searchParams.get('maxPpg') || ''
     const currentBuyableOnly = searchParams.get('buyableOnly') === 'true'
-
-    // Local state for controlled inputs - initialized from URL params
-    const [minPpgValue, setMinPpgValue] = useState(currentMinPpg || '')
-    const [maxPpgValue, setMaxPpgValue] = useState(currentMaxPpg || '')
-
-    // Reset local state when URL params change externally (e.g., reset button clears URL)
-    if ((currentMinPpg || '') !== minPpgValue && minPpgValue !== '' && !currentMinPpg) {
-        setMinPpgValue('')
-    }
-    if ((currentMaxPpg || '') !== maxPpgValue && maxPpgValue !== '' && !currentMaxPpg) {
-        setMaxPpgValue('')
-    }
 
     const updateSearchParams = useCallback(
         (updates: Partial<Record<string, string | null>>) => {
             const params = new URLSearchParams(searchParams)
 
-            // Apply updates
             Object.entries(updates).forEach(([key, value]) => {
-                if (value) {
-                    params.set(key, value)
-                } else {
-                    params.delete(key)
-                }
+                if (value) params.set(key, value)
+                else params.delete(key)
             })
 
-            // Reset to page 1 when filtering
             params.delete('page')
-
-            const query = params.toString()
-            const url = query ? `${pathname}?${query}` : pathname
-            router.push(url)
+            router.push(`${pathname}?${params.toString()}`)
         },
         [router, pathname, searchParams]
     )
 
-    const handleQueryChange = (newQuery: string) => {
+    const handleDebouncedChange = (key: 'q' | 'minPpg' | 'maxPpg', value: string) => {
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current)
         }
 
-        const timer = setTimeout(() => {
-            updateSearchParams({
-                q: newQuery.trim() || null,
-            })
+        debounceTimerRef.current = setTimeout(() => {
+            updateSearchParams({ [key]: value.trim() || null })
         }, 300)
-
-        debounceTimerRef.current = timer
     }
 
     const handleVendorToggle = (vendor: VendorSource) => {
@@ -101,27 +77,6 @@ export function MoleculeSearchBar({ availableVendors, totalCount, buyableCount }
         })
     }
 
-    const handlePriceChange = (type: 'min' | 'max', value: string) => {
-        // Update local state immediately for responsive UI
-        if (type === 'min') {
-            setMinPpgValue(value)
-        } else {
-            setMaxPpgValue(value)
-        }
-
-        if (debounceTimerRef.current) {
-            clearTimeout(debounceTimerRef.current)
-        }
-
-        const timer = setTimeout(() => {
-            updateSearchParams({
-                [type === 'min' ? 'minPpg' : 'maxPpg']: value || null,
-            })
-        }, 300)
-
-        debounceTimerRef.current = timer
-    }
-
     const handleBuyableOnlyChange = (checked: boolean) => {
         updateSearchParams({
             buyableOnly: checked ? 'true' : null,
@@ -129,10 +84,7 @@ export function MoleculeSearchBar({ availableVendors, totalCount, buyableCount }
     }
 
     const handleReset = () => {
-        if (debounceTimerRef.current) {
-            clearTimeout(debounceTimerRef.current)
-        }
-
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
         router.push(pathname)
     }
 
@@ -162,8 +114,9 @@ export function MoleculeSearchBar({ availableVendors, totalCount, buyableCount }
                 <Input
                     type="text"
                     placeholder="Search by SMILES or InChiKey..."
+                    key={`query-${currentQuery}`} // Reset when URL param changes
                     defaultValue={currentQuery}
-                    onChange={(e) => handleQueryChange(e.target.value)}
+                    onChange={(e) => handleDebouncedChange('q', e.target.value)}
                     className="h-8 pl-8"
                 />
             </div>
@@ -206,8 +159,9 @@ export function MoleculeSearchBar({ availableVendors, totalCount, buyableCount }
                         placeholder="Min"
                         min={0}
                         step="0.01"
-                        value={minPpgValue}
-                        onChange={(e) => handlePriceChange('min', e.target.value)}
+                        key={`minppg-${currentMinPpg}`} // Reset when URL param changes
+                        defaultValue={currentMinPpg}
+                        onChange={(e) => handleDebouncedChange('minPpg', e.target.value)}
                         className="h-6 w-20 border-0 bg-transparent px-1 text-center text-sm shadow-none focus-visible:ring-0"
                     />
                     <span className="text-muted-foreground">—</span>
@@ -216,8 +170,9 @@ export function MoleculeSearchBar({ availableVendors, totalCount, buyableCount }
                         placeholder="Max"
                         min={0}
                         step="0.01"
-                        value={maxPpgValue}
-                        onChange={(e) => handlePriceChange('max', e.target.value)}
+                        key={`maxppg-${currentMaxPpg}`} // Reset when URL param changes
+                        defaultValue={currentMaxPpg}
+                        onChange={(e) => handleDebouncedChange('maxPpg', e.target.value)}
                         className="h-6 w-20 border-0 bg-transparent px-1 text-center text-sm shadow-none focus-visible:ring-0"
                     />
                 </div>
