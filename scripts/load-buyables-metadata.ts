@@ -30,7 +30,7 @@ import * as zlib from 'zlib'
 
 import './env-loader'
 
-import { batchUpdateStockItemMetadata, getStockByName } from '../src/lib/services/stock.service'
+import { batchUpdateStockItemMetadata, getStockByName } from '../src/lib/services/loaders/stock-loader.service'
 import type { VendorSource } from '../src/types'
 
 // Vendor source mapping from Python enum values

@@ -64,7 +64,7 @@ import {
     updatePredictionRunStats,
     type PythonModelStatistics,
     type PythonRoute,
-} from '../src/lib/services/prediction-writer.service'
+} from '../src/lib/services/loaders/prediction-loader.service'
 
 // ============================================================================
 // Types for File Formats
