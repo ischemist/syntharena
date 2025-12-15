@@ -34,6 +34,7 @@ model Molecule {
   benchmarkTargets BenchmarkTarget[]
 
   @@index([smiles])
+  @@index([inchikey, smiles])
 }
 
 // =================================================================================
@@ -301,15 +302,18 @@ model StockItem {
   moleculeId String
 
   // Commercial metadata (from buyables-meta.json.gz)
-  ppg        Float?         // Price per gram in USD
-  source     VendorSource?  // Vendor source
-  leadTime   String?        // Lead time for delivery (e.g., '7-21days', '1week')
-  link       String?        // URL to vendor product page
+  ppg      Float? // Price per gram in USD
+  source   VendorSource? // Vendor source
+  leadTime String? // Lead time for delivery (e.g., '7-21days', '1week')
+  link     String? // URL to vendor product page
 
   stock    Stock    @relation(fields: [stockId], references: [id])
   molecule Molecule @relation(fields: [moleculeId], references: [id])
 
   @@unique([stockId, moleculeId])
+  @@index([stockId, source, ppg]) // covers vendor + price filtering
+  @@index([stockId, ppg]) // covers price-only filtering
+  @@index([stockId, moleculeId]) // optimize the join
 }
 
 // The result of `TargetEvaluation`
@@ -320,13 +324,13 @@ model RouteSolvability {
   predictionRouteId String // Changed from routeId - solvability is per prediction
   stockId           String
 
-  isSolvable            Boolean
-  matchesAcceptable     Boolean // "Does this route match ANY acceptable route?"
-  matchedAcceptableIndex Int?    // Which acceptable route was matched (0-based index, null if no match)
+  isSolvable             Boolean
+  matchesAcceptable      Boolean // "Does this route match ANY acceptable route?"
+  matchedAcceptableIndex Int? // Which acceptable route was matched (0-based index, null if no match)
 
   // Stratification properties from Python TargetEvaluation
   // Source priority: matched acceptable route > first solved predicted route > None
-  stratificationLength       Int?     // stratification_length from Python
+  stratificationLength       Int? // stratification_length from Python
   stratificationIsConvergent Boolean? // stratification_is_convergent from Python
 
   // Runtime metrics for this evaluation (in seconds)

@@ -35,8 +35,6 @@ export async function MoleculeSearchResults({
     buyableOnly,
 }: MoleculeSearchResultsProps) {
     const offset = (page - 1) * limit
-    // Use optimized function that fetches molecules with stocks in a single query
-    const isSearching = query.trim().length > 0
 
     const filters = {
         vendors,
@@ -45,9 +43,7 @@ export async function MoleculeSearchResults({
         buyableOnly,
     }
 
-    const result = isSearching
-        ? await stockService.searchMolecules(query, stockId, limit, offset, filters)
-        : await stockService.getStockMolecules(stockId, limit, offset, filters)
+    const result = await stockService.searchMolecules(query, stockId, limit, offset, filters)
 
     const moleculesWithStocks = result.molecules
 

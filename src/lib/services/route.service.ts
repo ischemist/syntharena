@@ -1,15 +1,6 @@
-import * as fs from 'fs'
-import * as zlib from 'zlib'
 import { cache } from 'react'
-import { Prisma } from '@prisma/client'
 
-import type {
-    LoadBenchmarkResult,
-    Route,
-    RouteNodeWithDetails,
-    RouteVisualizationData,
-    RouteVisualizationNode,
-} from '@/types'
+import type { Route, RouteNodeWithDetails, RouteVisualizationData, RouteVisualizationNode } from '@/types'
 import prisma from '@/lib/db'
 import { layoutTree } from '@/lib/route-visualization/layout'
 
