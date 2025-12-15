@@ -514,16 +514,14 @@ export async function loadBenchmarkFromFile(
                             routesCreated++
                         } catch (error) {
                             // Route already exists (unique constraint violation) - find and reuse it
-                            const existingRoute =
-                                signature && signature !== ''
-                                    ? await tx.route.findUnique({
-                                          where: { signature },
-                                          select: { id: true, length: true, isConvergent: true },
-                                      })
-                                    : await tx.route.findUnique({
-                                          where: { contentHash },
-                                          select: { id: true, length: true, isConvergent: true },
-                                      })
+                            const existingRoute = await tx.route.findUnique({
+                                where: { signature },
+                                select: {
+                                    id: true,
+                                    length: true,
+                                    isConvergent: true,
+                                },
+                            })
 
                             if (!existingRoute) {
                                 throw error // Not a duplicate key error, re-throw
