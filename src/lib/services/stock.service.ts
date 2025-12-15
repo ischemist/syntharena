@@ -1,4 +1,3 @@
-import { cache } from 'react'
 import { unstable_cache } from 'next/cache' // next 15 primitive
 import { Prisma } from '@prisma/client'
 
