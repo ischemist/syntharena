@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Check, Copy, Info } from 'lucide-react'
 
@@ -15,69 +15,50 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 interface MoleculeCardProps {
     molecule: MoleculeWithStocks
-    index?: number // Add this prop
+    index?: number
 }
 
-const ABOVE_THE_FOLD_COUNT = 12
-const RENDER_DELAY_MS = 30
+// MEMOIZE THIS: calculating paths for chemical structures is expensive
+const MemoizedSmileDrawer = memo(SmileDrawerSvg)
 
-/**
- * Client component that displays a single molecule card with structure visualization.
- * Shows SMILES and InChiKey in a hover card with copy-to-clipboard functionality.
- * Displays buyable metadata (vendor, price) when available.
- */
+// reduced delay - rely on content-visibility for layout perf
+const ABOVE_THE_FOLD = 12
+const RENDER_DELAY_MS = 10
+
 export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
     const [copiedField, setCopiedField] = useState<'smiles' | 'inchikey' | null>(null)
-
-    // TIME SLICING:
-    // If index < 12 (likely "above the fold"), render immediately.
-    // Otherwise, delay rendering to free up the main thread.
-    const [isReady, setIsReady] = useState(index < ABOVE_THE_FOLD_COUNT)
+    const [isReady, setIsReady] = useState(index < ABOVE_THE_FOLD)
 
     useEffect(() => {
         if (isReady) return
-
-        // Stagger calculation: 30ms per item
-        // Item 50 waits 1.5 seconds. The browser remains interactive.
-        const delay = (index - ABOVE_THE_FOLD_COUNT) * RENDER_DELAY_MS
-        const timer = setTimeout(() => setIsReady(true), delay)
-
+        const timer = setTimeout(() => setIsReady(true), (index - ABOVE_THE_FOLD) * RENDER_DELAY_MS)
         return () => clearTimeout(timer)
     }, [index, isReady])
 
     const handleCopy = async (text: string, field: 'smiles' | 'inchikey') => {
-        try {
-            await navigator.clipboard.writeText(text)
-            setCopiedField(field)
-        } catch (error) {
-            console.error('Failed to copy:', error)
-        }
+        await navigator.clipboard.writeText(text)
+        setCopiedField(field)
+        setTimeout(() => setCopiedField(null), 2000)
     }
 
-    useEffect(() => {
-        if (!copiedField) return
-        const timer = setTimeout(() => setCopiedField(null), 2000)
-        return () => clearTimeout(timer)
-    }, [copiedField])
-
-    // Check if buyable metadata exists (both stockItem AND required fields must be present)
     const hasBuyableData = molecule.stockItem?.source != null && molecule.stockItem?.ppg != null
 
     return (
-        <Card className="group relative aspect-4/5 overflow-hidden transition-all hover:shadow-lg">
-            {/* Molecule container - takes up space but leaves room for metadata */}
+        // OPTIMIZATION: content-visibility: auto skips rendering work for off-screen cards
+        <Card
+            className="group relative aspect-4/5 overflow-hidden transition-all hover:shadow-lg"
+            style={{ contentVisibility: 'auto', containIntrinsicSize: '200px 250px' }}
+        >
             <div className="absolute inset-x-0 top-4 bottom-12 flex items-center justify-center p-4">
                 {isReady ? (
                     <div className="animate-in fade-in duration-500">
-                        <SmileDrawerSvg smilesStr={molecule.smiles} width={80} height={80} />
+                        <MemoizedSmileDrawer smilesStr={molecule.smiles} width={80} height={80} />
                     </div>
                 ) : (
-                    // While waiting in the queue, show a lighter skeleton
                     <Skeleton className="h-[200px] w-[200px] rounded-full opacity-10" />
                 )}
             </div>
 
-            {/* Buyable metadata strip - only shown when data exists */}
             {isReady && hasBuyableData && molecule.stockItem && (
                 <div className="absolute right-2 bottom-2 left-2 flex items-center justify-center">
                     <div className="rounded-lg px-2 py-1.5 backdrop-blur-sm">
@@ -90,10 +71,6 @@ export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
                 </div>
             )}
 
-            {/*
-               Only render the interactive overlay if ready.
-               Prevents 50 HoverCards from hydrating at once.
-            */}
             {isReady && (
                 <HoverCard>
                     <HoverCardTrigger asChild>
@@ -102,7 +79,7 @@ export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
                         </button>
                     </HoverCardTrigger>
                     <HoverCardContent className="w-80" side="left">
-                        {/* Content stays the same... */}
+                        {/* ... keep content same ... */}
                         <div className="space-y-3">
                             <div className="space-y-1">
                                 <div className="flex items-center justify-between gap-2">
@@ -144,7 +121,6 @@ export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
                                 <p className="text-foreground font-mono text-xs break-all">{molecule.inchikey}</p>
                             </div>
 
-                            {/* Buyable information section - new */}
                             {hasBuyableData && molecule.stockItem && (
                                 <BuyableInfoSection
                                     source={molecule.stockItem.source!}

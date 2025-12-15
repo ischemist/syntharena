@@ -35,8 +35,6 @@ export async function MoleculeSearchResults({
     buyableOnly,
 }: MoleculeSearchResultsProps) {
     const offset = (page - 1) * limit
-    // Use optimized function that fetches molecules with stocks in a single query
-    const isSearching = query.trim().length > 0
 
     const filters = {
         vendors,
@@ -45,9 +43,7 @@ export async function MoleculeSearchResults({
         buyableOnly,
     }
 
-    const result = isSearching
-        ? await stockService.searchMolecules(query, stockId, limit, offset, filters)
-        : await stockService.getStockMolecules(stockId, limit, offset, filters)
+    const result = await stockService.searchMolecules(query, stockId, limit, offset, filters)
 
     const moleculesWithStocks = result.molecules
 
@@ -86,7 +82,7 @@ export async function MoleculeSearchResults({
                 </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-4">
                 {moleculesWithStocks.map((molecule, index) => (
                     <MoleculeCard key={molecule.id} molecule={molecule} index={index} />
                 ))}

@@ -115,7 +115,7 @@ export interface MoleculeSearchParams {
  * Result set from a molecule search query.
  */
 export interface MoleculeSearchResult {
-    molecules: Molecule[]
+    molecules: MoleculeWithStocks[]
     total: number
     hasMore: boolean
 }

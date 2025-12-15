@@ -72,7 +72,7 @@ export default function StockDetailPage(props: StockDetailPageProps) {
                     query={query}
                     stockId={stockId}
                     page={page}
-                    limit={50}
+                    limit={24}
                     vendors={vendors}
                     minPpg={minPpg}
                     maxPpg={maxPpg}
