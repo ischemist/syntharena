@@ -1,7 +1,0 @@
-# Ignore artifacts:
-build
-coverage
-pnpm-lock.json
-.next
-dist
-node_modules

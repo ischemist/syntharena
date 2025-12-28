@@ -1,4 +1,5 @@
 {
+    "$schema": "./node_modules/oxfmt/configuration_schema.json",
     "printWidth": 120,
     "tabWidth": 4,
     "useTabs": false,
@@ -7,7 +8,6 @@
     "trailingComma": "es5",
     "bracketSpacing": true,
     "arrowParens": "always",
-    "plugins": ["@ianvs/prettier-plugin-sort-imports", "prettier-plugin-tailwindcss"],
     "importOrder": [
         "^(react/(.*)$)|^(react$)",
         "^(next/(.*)$)|^(next$)",
@@ -22,5 +22,6 @@
         "^@/app(.*)$",
         "",
         "^[./]"
-    ]
+    ],
+    "ignorePatterns": ["build", "coverage", "pnpm-lock.json", ".next", "dist", "node_modules"]
 }
