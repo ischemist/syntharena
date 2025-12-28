@@ -57,7 +57,10 @@ async function _getStocks(): Promise<StockListItem[]> {
         itemCount: s._count.items,
     }))
 }
-export const getStocks = unstable_cache(_getStocks, ['stocks-list'], { tags: ['stocks'], revalidate: 3600 })
+export const getStocks = unstable_cache(_getStocks, ['stocks-list'], {
+    tags: ['stocks'],
+    revalidate: 3600,
+})
 
 async function _getStockById(stockId: string): Promise<StockListItem> {
     const stock = await prisma.stock.findUnique({
@@ -72,7 +75,10 @@ async function _getStockById(stockId: string): Promise<StockListItem> {
         itemCount: stock._count.items,
     }
 }
-export const getStockById = unstable_cache(_getStockById, ['stock-by-id'], { tags: ['stocks'], revalidate: 3600 })
+export const getStockById = unstable_cache(_getStockById, ['stock-by-id'], {
+    tags: ['stocks'],
+    revalidate: 3600,
+})
 
 // CACHING: this is expensive (groupBy) and rarely changes. cache it hard.
 // revalidate tag allows you to purge this when you upload a new csv.
@@ -98,7 +104,7 @@ async function _getStockMoleculeFilters(stockId: string): Promise<StockMoleculeF
         availableVendors: vendorAgg
             .map((i) => i.source as VendorSource)
             .filter(Boolean)
-            .sort(),
+            .sort((a, b) => a.localeCompare(b)),
         counts: { total, buyable: buyableCount, nonBuyable: total - buyableCount },
     }
 }
