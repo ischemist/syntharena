@@ -12,7 +12,9 @@
         "test:ui": "vitest --ui",
         "test:run": "vitest run",
         "test:coverage": "vitest run --coverage",
-        "prepare": "husky"
+        "prepare": "husky",
+        "format": "oxfmt",
+        "format:check": "oxfmt --check"
     },
     "dependencies": {
         "@prisma/adapter-better-sqlite3": "^7.0.0",
@@ -60,8 +62,6 @@
         "@vitest/coverage-v8": "4.0.14",
         "@vitest/ui": "^4.0.14",
         "babel-plugin-react-compiler": "1.0.0",
-        "eslint": "^9",
-        "eslint-config-next": "16.0.4",
         "husky": "^9.1.7",
         "lint-staged": "^16.2.7",
         "oxfmt": "^0.20.0",
@@ -77,6 +77,12 @@
         "vitest": "^4.0.14"
     },
     "lint-staged": {
-        "**/*": "oxfmt --no-error-on-unmatched-pattern"
+        "*.{js,jsx,ts,tsx}": [
+            "oxlint --fix",
+            "oxfmt --no-error-on-unmatched-pattern"
+        ],
+        "*.{json,css,md}": [
+            "oxfmt --no-error-on-unmatched-pattern"
+        ]
     }
 }

@@ -47,8 +47,7 @@ const reliabilityBadgeVariants = cva(
 type ReliabilityBadgeVariantProps = VariantProps<typeof reliabilityBadgeVariants>
 
 interface ReliabilityBadgeBaseProps
-    extends Omit<React.HTMLAttributes<HTMLSpanElement>, 'color'>,
-        Omit<ReliabilityBadgeVariantProps, 'code'> {
+    extends Omit<React.HTMLAttributes<HTMLSpanElement>, 'color'>, Omit<ReliabilityBadgeVariantProps, 'code'> {
     reliability: ReliabilityFlag
 }
 
