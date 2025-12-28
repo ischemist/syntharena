@@ -8,6 +8,17 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Safely formats an unknown error value to a string for logging/display.
+ * Handles Error objects, strings, and other types appropriately.
+ */
+export function formatError(error: unknown): string {
+    if (error instanceof Error) {
+        return error.message
+    }
+    return String(error)
+}
+
+/**
  * Extracts the k value from a Top-k metric name.
  * @example extractTopK("Top-10") => 10
  * @example extractTopK("Solvability") => null

@@ -171,4 +171,7 @@ async function main() {
     }
 }
 
-main()
+void main().catch((error) => {
+    console.error('Fatal error:', error instanceof Error ? error.message : String(error))
+    process.exit(1)
+})

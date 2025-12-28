@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 
 import type { Molecule, StockListItem, VendorSource } from '@/types'
 import prisma from '@/lib/db'
+import { formatError } from '@/lib/utils'
 
 /**
  * Retrieves a stock by name with case-insensitive exact matching.
@@ -57,7 +58,12 @@ export async function loadStockFromFile(
     filePath: string,
     stockName: string,
     stockDescription?: string
-): Promise<{ stockId: string; moleculesCreated: number; moleculesSkipped: number; itemsCreated: number }> {
+): Promise<{
+    stockId: string
+    moleculesCreated: number
+    moleculesSkipped: number
+    itemsCreated: number
+}> {
     // Validate file exists
     try {
         await fs.access(filePath)
@@ -89,7 +95,10 @@ export async function loadStockFromFile(
 
         const parts = line.split(',')
         if (parts.length < 2) {
-            skippedLines.push({ line: i + 1, reason: 'Invalid format (missing comma separator)' })
+            skippedLines.push({
+                line: i + 1,
+                reason: 'Invalid format (missing comma separator)',
+            })
             continue
         }
 
@@ -168,7 +177,7 @@ export async function loadStockFromFile(
                     } catch (error) {
                         // If molecule creation fails, skip it
                         if (process.env.NODE_ENV !== 'test') {
-                            console.warn(`Failed to process molecule ${inchikey}: ${error}`)
+                            console.warn(`Failed to process molecule ${inchikey}: ${formatError(error)}`)
                         }
                         moleculesSkipped++
                         continue
