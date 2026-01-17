@@ -1,7 +1,7 @@
 import { AlertCircle } from 'lucide-react'
 
 import type { StratifiedMetric } from '@/types'
-import { getRunStatistics } from '@/lib/services/prediction.service'
+import * as predictionView from '@/lib/services/view/prediction.view'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -20,7 +20,7 @@ export async function RunStatisticsStratified({ runId, searchParams }: RunStatis
         return null // Don't show stratified metrics without stock selection
     }
 
-    const statistics = await getRunStatistics(runId, stockId)
+    const statistics = await predictionView.getRunStatistics(runId, stockId)
 
     if (!statistics?.statistics) {
         return null // Don't show if no statistics available

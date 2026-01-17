@@ -51,3 +51,48 @@ async function _findStatisticsJson(runId: string, stockId: string) {
 export const findStatisticsJson = cache(_findStatisticsJson, ['stats-json-by-id'], {
     tags: ['statistics'],
 })
+
+/**
+ * fetches all stocks that have statistics for a given run.
+ * used to populate the stock selector on run detail pages.
+ */
+async function _findStocksWithStatsForRun(runId: string) {
+    return prisma.modelRunStatistics.findMany({
+        where: { predictionRunId: runId },
+        select: {
+            stock: {
+                select: {
+                    id: true,
+                    name: true,
+                    description: true,
+                    _count: { select: { items: true } },
+                },
+            },
+        },
+        orderBy: { stock: { name: 'asc' } },
+    })
+}
+export const findStocksWithStatsForRun = cache(_findStocksWithStatsForRun, ['stocks-with-stats-for-run'], {
+    tags: ['statistics', 'stocks'],
+})
+
+/**
+ * fetches full statistics for a run/stock combination with metrics.
+ * used for detailed statistics views.
+ */
+async function _findStatisticsForRun(runId: string, stockId: string) {
+    const stats = await prisma.modelRunStatistics.findUnique({
+        where: {
+            predictionRunId_stockId: { predictionRunId: runId, stockId },
+        },
+        include: {
+            stock: true,
+            metrics: true,
+        },
+    })
+    if (!stats) throw new Error('statistics not found for this run and stock.')
+    return stats
+}
+export const findStatisticsForRun = cache(_findStatisticsForRun, ['stats-for-run'], {
+    tags: ['statistics'],
+})

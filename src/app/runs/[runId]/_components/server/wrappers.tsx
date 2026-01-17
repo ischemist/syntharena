@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { notFound, redirect } from 'next/navigation'
 
-import { getPredictionRunById, getStocksForRun, getTargetIdsByRun } from '@/lib/services/prediction.service'
+import * as predictionView from '@/lib/services/view/prediction.view'
 
 import { StockSelector } from '../client/stock-selector'
 import { RouteDisplaySkeleton } from '../skeletons'
@@ -35,7 +35,7 @@ type SearchParamsProps = {
  */
 export async function RunDetailHeaderWrapper({ params }: ParamsProps) {
     const { runId } = await params
-    const run = await getPredictionRunById(runId)
+    const run = await predictionView.getPredictionRunById(runId)
 
     if (!run) {
         notFound()
@@ -56,7 +56,10 @@ export async function StockSelectorWrapper({ params, searchParams }: ParamsProps
         ? parseInt(searchParamsResolved.routeLength, 10)
         : undefined
 
-    const [stocks, targetIds] = await Promise.all([getStocksForRun(runId), getTargetIdsByRun(runId, routeLengthFilter)])
+    const [stocks, targetIds] = await Promise.all([
+        predictionView.getStocksForRun(runId),
+        predictionView.getTargetIdsByRun(runId, routeLengthFilter),
+    ])
 
     // Server-side auto-selection: If no stock param exists but stocks are available, redirect with first stock
     if (!searchParamsResolved.stock && stocks.length > 0) {

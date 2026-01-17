@@ -1,7 +1,7 @@
 import { AlertCircle } from 'lucide-react'
 
 import type { MetricResult } from '@/types'
-import { getRunStatistics } from '@/lib/services/prediction.service'
+import * as predictionView from '@/lib/services/view/prediction.view'
 import { MetricCell, MetricsViewToggle } from '@/components/metrics'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,7 +24,7 @@ export async function RunStatisticsSummary({ runId, searchParams }: RunStatistic
         )
     }
 
-    const statistics = await getRunStatistics(runId, stockId)
+    const statistics = await predictionView.getRunStatistics(runId, stockId)
 
     if (!statistics) {
         return (

@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 
-import { getPredictionRunById } from '@/lib/services/prediction.service'
+import * as predictionView from '@/lib/services/view/prediction.view'
 
 import { RunDetailHeaderWrapper, StockSelectorWrapper, TargetSearchSectionWrapper } from './_components/server/wrappers'
 import { RouteDisplaySkeleton, RunStatisticsSkeleton, StratifiedStatisticsSkeleton } from './_components/skeletons'
@@ -23,8 +23,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const { runId } = await params
 
     try {
-        const run = await getPredictionRunById(runId)
-        const modelName = run.modelInstance.name || run.modelInstance.algorithm.name
+        const run = await predictionView.getPredictionRunById(runId)
+        const modelName = run.modelInstance.name || run.modelInstance.algorithm?.name || 'Unknown Model'
         const benchmarkName = run.benchmarkSet.name
 
         return {

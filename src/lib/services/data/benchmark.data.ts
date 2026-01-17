@@ -180,3 +180,42 @@ export async function _computeBenchmarkStats(benchmarkId: string): Promise<Bench
 export const computeBenchmarkStats = cache(_computeBenchmarkStats, ['benchmark-stats'], {
     tags: ['benchmarks', 'targets'],
 })
+
+/**
+ * fetches ordered target IDs for a benchmark, optionally filtered by route length.
+ * used for target navigation on run detail pages.
+ */
+async function _findTargetIdsByBenchmark(benchmarkId: string, routeLength?: number) {
+    const targets = await prisma.benchmarkTarget.findMany({
+        where: {
+            benchmarkSetId: benchmarkId,
+            ...(routeLength !== undefined && { routeLength }),
+        },
+        select: { id: true },
+        orderBy: { targetId: 'asc' },
+    })
+    return targets.map((t) => t.id)
+}
+export const findTargetIdsByBenchmark = cache(_findTargetIdsByBenchmark, ['target-ids-by-benchmark'], {
+    tags: ['benchmarks', 'targets'],
+})
+
+/**
+ * fetches distinct route lengths for a benchmark.
+ * only returns values where targets exist with that route length.
+ */
+async function _findAvailableRouteLengths(benchmarkId: string) {
+    const targets = await prisma.benchmarkTarget.findMany({
+        where: {
+            benchmarkSetId: benchmarkId,
+            routeLength: { not: null },
+        },
+        select: { routeLength: true },
+        distinct: ['routeLength'],
+        orderBy: { routeLength: 'asc' },
+    })
+    return targets.map((t) => t.routeLength!).filter((l): l is number => l !== null)
+}
+export const findAvailableRouteLengths = cache(_findAvailableRouteLengths, ['available-route-lengths'], {
+    tags: ['benchmarks', 'targets'],
+})

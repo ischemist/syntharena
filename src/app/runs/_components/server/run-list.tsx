@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 
-import { getPredictionRuns } from '@/lib/services/prediction.service'
+import * as predictionView from '@/lib/services/view/prediction.view'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
@@ -15,7 +15,7 @@ type RunListProps = {
 
 export async function RunList({ searchParams }: RunListProps) {
     const params = await searchParams
-    const runs = await getPredictionRuns(params.benchmark, params.model)
+    const runs = await predictionView.getPredictionRuns(params.benchmark, params.model)
 
     if (runs.length === 0) {
         return (

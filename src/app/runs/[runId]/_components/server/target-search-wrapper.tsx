@@ -1,5 +1,5 @@
 import type { BenchmarkTargetWithMolecule } from '@/types'
-import { getAvailableRouteLengths, getTargetIdsByRun, searchTargets } from '@/lib/services/prediction.service'
+import * as predictionView from '@/lib/services/view/prediction.view'
 
 import { TargetSearch } from '../client/target-search'
 
@@ -15,10 +15,10 @@ export async function TargetSearchWrapper({ runId, stockId, currentTargetId, rou
     const routeLengthFilter = routeLength ? parseInt(routeLength, 10) : undefined
 
     // Get target IDs for this run (ordered) - filtered by route length if specified
-    const targetIds = await getTargetIdsByRun(runId, routeLengthFilter)
+    const targetIds = await predictionView.getTargetIdsByRun(runId, routeLengthFilter)
 
     // Get available route lengths (empty if no acceptable routes)
-    const availableRouteLengths = await getAvailableRouteLengths(runId)
+    const availableRouteLengths = await predictionView.getAvailableRouteLengths(runId)
 
     // Find current position
     let currentIndex = -1
@@ -42,7 +42,7 @@ export async function TargetSearchWrapper({ runId, stockId, currentTargetId, rou
     // Create a server action to pass to the client component
     async function handleSearch(query: string, selectedRouteLength?: number): Promise<BenchmarkTargetWithMolecule[]> {
         'use server'
-        return searchTargets(runId, query, stockId, selectedRouteLength, 20)
+        return predictionView.searchTargets(runId, query, stockId, selectedRouteLength, 20)
     }
 
     return (
