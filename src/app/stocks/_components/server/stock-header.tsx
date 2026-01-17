@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 
-import * as stockService from '@/lib/services/stock.service'
+import * as stockView from '@/lib/services/view/stock.view'
 import { Badge } from '@/components/ui/badge'
 
 /**
@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 export async function StockHeader({ stockId }: { stockId: string }) {
     let stock
     try {
-        stock = await stockService.getStockById(stockId)
+        stock = await stockView.getStockById(stockId)
     } catch {
         notFound()
     }
