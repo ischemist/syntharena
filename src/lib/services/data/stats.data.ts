@@ -1,50 +1,53 @@
 /**
- * view model composition layer for the home page.
- * aggregates data from multiple domains for the main dashboard.
+ * data access layer for statistics models.
+ * handles `ModelRunStatistics` and `StratifiedMetricGroup`.
  */
-import prisma from '@/lib/db' // ok to use here for simple counts not worth a data function
+import { unstable_cache as cache } from 'next/cache'
+import { Prisma } from '@prisma/client'
 
-import type { HomePageStats, BenchmarkOverview } from '@/types'
+import prisma from '@/lib/db'
 
-export async function getHomePageStats(): Promise<HomePageStats> {
-    const [algorithms, models, runs, routes, benchmarks, stocks] = await Promise.all([
-        prisma.algorithm.count(),
-        prisma.modelInstance.count(),
-        prisma.predictionRun.count(),
-        prisma.route.count(),
-        prisma.benchmarkSet.count(),
-        prisma.stock.findMany({ select: { name: true, _count: { select: { items: true } } } }),
-    ])
-
-    return {
-        totalAlgorithms: algorithms,
-        totalModelInstances: models,
-        totalPredictionRuns: runs,
-        totalUniqueRoutes: routes,
-        totalBenchmarks: benchmarks,
-        stockStats: stocks.map((s) => ({ name: s.name, moleculeCount: s._count.items })),
-    }
-}
-
-export async function getBenchmarkOverview(): Promise<BenchmarkOverview[]> {
-    const benchmarks = await prisma.benchmarkSet.findMany({
-        select: {
-            id: true,
-            name: true,
-            description: true,
-            hasAcceptableRoutes: true,
-            stock: { select: { name: true } },
-            _count: { select: { targets: true, runs: true } },
+/**
+ * fetches all statistics records matching the leaderboard filters.
+ * includes all relations needed to build the leaderboard view.
+ */
+async function _findStatisticsForLeaderboard(where: Prisma.ModelRunStatisticsWhereInput) {
+    return prisma.modelRunStatistics.findMany({
+        where,
+        include: {
+            stock: true,
+            predictionRun: {
+                include: {
+                    modelInstance: true,
+                    benchmarkSet: true,
+                },
+            },
+            metrics: true,
         },
-        orderBy: { name: 'asc' },
+        orderBy: [
+            { predictionRun: { benchmarkSet: { name: 'asc' } } },
+            { predictionRun: { modelInstance: { name: 'asc' } } },
+        ],
     })
-    return benchmarks.map((b) => ({
-        id: b.id,
-        name: b.name,
-        description: b.description,
-        targetCount: b._count.targets,
-        stockName: b.stock.name,
-        hasAcceptableRoutes: b.hasAcceptableRoutes,
-        runCount: b._count.runs,
-    }))
 }
+export const findStatisticsForLeaderboard = cache(_findStatisticsForLeaderboard, ['stats-for-leaderboard'], {
+    tags: ['statistics', 'leaderboard'],
+})
+
+/**
+ * fetches the raw JSON blob for a specific run/stock combination.
+ * used for detailed views like rank distribution plots.
+ */
+async function _findStatisticsJson(runId: string, stockId: string) {
+    const stats = await prisma.modelRunStatistics.findUnique({
+        where: {
+            predictionRunId_stockId: { predictionRunId: runId, stockId },
+        },
+        select: { statisticsJson: true },
+    })
+    if (!stats) throw new Error('statistics not found for this run and stock.')
+    return stats
+}
+export const findStatisticsJson = cache(_findStatisticsJson, ['stats-json-by-id'], {
+    tags: ['statistics'],
+})

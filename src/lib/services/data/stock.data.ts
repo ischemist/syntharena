@@ -1,7 +1,7 @@
 /**
  * data access layer for stock, stockitem, and molecule models.
  */
-import { unstable_cache as cache } from 'react'
+import { unstable_cache as cache } from 'next/cache'
 import { Prisma, type VendorSource } from '@prisma/client'
 
 import prisma from '@/lib/db'

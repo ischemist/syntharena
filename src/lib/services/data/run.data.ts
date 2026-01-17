@@ -2,7 +2,7 @@
  * data access layer for prediction run models.
  * handles `PredictionRun`, `ModelInstance`, and `Algorithm`.
  */
-import { unstable_cache as cache } from 'react'
+import { unstable_cache as cache } from 'next/cache'
 import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/db'
@@ -27,9 +27,10 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput)
             modelInstance: {
                 select: {
                     id: true,
+                    algorithmId: true,
                     name: true,
                     version: true,
-                    algorithm: { select: { name: true } },
+                    algorithm: { select: { id: true, name: true } },
                 },
             },
             benchmarkSet: {
