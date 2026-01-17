@@ -2,7 +2,7 @@ import { Suspense, use } from 'react'
 import type { Metadata } from 'next'
 
 import type { VendorSource } from '@/types'
-import { getStockById } from '@/lib/services/stock.service'
+import { getStockById } from '@/lib/services/view/stock.view'
 
 import { MoleculeFilterBar } from '../_components/server/molecule-filter-bar'
 import { MoleculeSearchResults } from '../_components/server/molecule-search-results'

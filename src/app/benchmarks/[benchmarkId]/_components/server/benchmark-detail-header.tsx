@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 
-import * as benchmarkService from '@/lib/services/benchmark.service'
+import * as benchmarkView from '@/lib/services/view/benchmark.view'
 import { Badge } from '@/components/ui/badge'
 
 /**
@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 export async function BenchmarkDetailHeader({ benchmarkId }: { benchmarkId: string }) {
     let benchmark
     try {
-        benchmark = await benchmarkService.getBenchmarkById(benchmarkId)
+        benchmark = await benchmarkView.getBenchmarkById(benchmarkId)
     } catch {
         notFound()
     }

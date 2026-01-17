@@ -1,6 +1,6 @@
 import { AlertCircle } from 'lucide-react'
 
-import { getTargetPredictions } from '@/lib/services/prediction.service'
+import * as predictionView from '@/lib/services/view/prediction.view'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 import { TargetInfoCard } from '../client/target-info-card'
@@ -16,7 +16,7 @@ type TargetInfoDisplayProps = {
  * This component renders immediately while route graph loads separately.
  */
 export async function TargetInfoDisplay({ runId, targetId, stockId }: TargetInfoDisplayProps) {
-    const targetDetail = await getTargetPredictions(targetId, runId, stockId)
+    const targetDetail = await predictionView.getTargetPredictions(targetId, runId, stockId)
 
     if (!targetDetail) {
         return (

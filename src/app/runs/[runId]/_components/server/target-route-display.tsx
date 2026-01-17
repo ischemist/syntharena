@@ -1,9 +1,8 @@
 import { AlertCircle } from 'lucide-react'
 
 import type { RouteNodeWithDetails, RouteVisualizationNode } from '@/types'
-import { getTargetPredictions } from '@/lib/services/prediction.service'
-import * as routeService from '@/lib/services/route.service'
-import { checkMoleculesInStockByInchiKey } from '@/lib/services/stock.service'
+import * as stockData from '@/lib/services/data/stock.data'
+import * as predictionView from '@/lib/services/view/prediction.view'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 import { RouteDisplayCard } from '../client/route-display-card'
@@ -40,7 +39,7 @@ type TargetRouteDisplayProps = {
 
 export async function TargetRouteDisplay({ runId, targetId, rank, stockId, viewMode }: TargetRouteDisplayProps) {
     // Fetch target predictions
-    const targetDetail = await getTargetPredictions(targetId, runId, stockId)
+    const targetDetail = await predictionView.getTargetPredictions(targetId, runId, stockId)
 
     if (!targetDetail) {
         return (
@@ -62,7 +61,7 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId, viewM
     let acceptableRouteNode: RouteNodeWithDetails | undefined
     if (targetDetail.acceptableRoutes && targetDetail.acceptableRoutes.length > 0) {
         const primaryRoute = targetDetail.acceptableRoutes[0] // Primary route is at index 0
-        acceptableRouteNode = (await routeService.getAcceptableRouteWithNodes(primaryRoute.id)) ?? undefined
+        acceptableRouteNode = (await predictionView.getAcceptableRouteWithNodes(primaryRoute.id)) ?? undefined
     }
 
     if (hasRoutes && stockId && stockId !== 'all') {
@@ -77,7 +76,7 @@ export async function TargetRouteDisplay({ runId, targetId, rank, stockId, viewM
                 collectInchiKeysFromRouteNode(routeDetail.routeNode, allInchiKeys)
 
                 // Check which molecules from the route are in stock
-                inStockInchiKeys = await checkMoleculesInStockByInchiKey(Array.from(allInchiKeys), stockId)
+                inStockInchiKeys = await stockData.findInchiKeysInStock(Array.from(allInchiKeys), stockId)
 
                 // Get stock name from solvability data
                 const solvabilityForStock = routeDetail.solvability.find((s) => s.stockId === stockId)

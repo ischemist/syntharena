@@ -1,9 +1,9 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 
-import { getBenchmarkSets } from '@/lib/services/benchmark.service'
-import { getLeaderboard, getStratifiedMetrics } from '@/lib/services/leaderboard.service'
-import { getStocks } from '@/lib/services/stock.service'
+import { getBenchmarkSets } from '@/lib/services/view/benchmark.view'
+import { getLeaderboard, getStratifiedMetrics } from '@/lib/services/view/leaderboard.view'
+import { getStocks } from '@/lib/services/view/stock.view'
 
 import { PageLevelTopKSelector } from './_components/client/page-level-top-k-selector'
 import { StratifiedMetricsFilter } from './_components/client/stratified-metrics-filter'

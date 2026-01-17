@@ -8,7 +8,7 @@ import { PrismaClient } from '@prisma/client'
 
 import './env-loader'
 
-import { deleteBenchmark as deleteBenchmarkFromService } from '../src/lib/services/benchmark.service'
+import { deleteBenchmarkAndDeps } from '../src/lib/services/data/benchmark.data'
 
 const adapter = new PrismaBetterSqlite3({
     url: process.env.DATABASE_URL,
@@ -32,8 +32,8 @@ async function deleteBenchmark(benchmarkName: string) {
 
     console.log(`Found benchmark: ${benchmark.name} (ID: ${benchmark.id})`)
 
-    // Use the transactional service function for deletion
-    await deleteBenchmarkFromService(benchmark.id)
+    // Use the transactional data function for deletion
+    await deleteBenchmarkAndDeps(benchmark.id)
 
     console.log('Benchmark deleted successfully!')
 }

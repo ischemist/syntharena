@@ -1,4 +1,4 @@
-import { getBenchmarkById } from '@/lib/services/benchmark.service'
+import { getBenchmarkById } from '@/lib/services/view/benchmark.view'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 

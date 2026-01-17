@@ -1,4 +1,4 @@
-import { getStockById } from '@/lib/services/stock.service'
+import { getStockById } from '@/lib/services/view/stock.view'
 import { BreadcrumbShell } from '@/components/breadcrumb-shell'
 
 export default async function StockDetailBreadcrumb({ params }: { params: Promise<{ stockId: string }> }) {

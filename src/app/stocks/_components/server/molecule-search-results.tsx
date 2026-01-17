@@ -1,7 +1,7 @@
 import { AlertCircle } from 'lucide-react'
 
 import type { VendorSource } from '@/types'
-import * as stockService from '@/lib/services/stock.service'
+import * as stockView from '@/lib/services/view/stock.view'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
 import { MoleculeCard } from '../client/molecule-card'
@@ -43,7 +43,7 @@ export async function MoleculeSearchResults({
         buyableOnly,
     }
 
-    const result = await stockService.searchMolecules(query, stockId, limit, offset, filters)
+    const result = await stockView.searchMolecules(query, stockId, limit, offset, filters)
 
     const moleculesWithStocks = result.molecules
 

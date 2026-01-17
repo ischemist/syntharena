@@ -1,9 +1,9 @@
 import { AlertCircle } from 'lucide-react'
 
 import type { BuyableMetadata, RouteNodeWithDetails, RouteVisualizationNode } from '@/types'
-import { getTargetPredictions } from '@/lib/services/prediction.service'
-import * as routeService from '@/lib/services/route.service'
-import { checkMoleculesInStockByInchiKey, getBuyableMetadataForInchiKeys } from '@/lib/services/stock.service'
+import * as stockData from '@/lib/services/data/stock.data'
+import * as predictionView from '@/lib/services/view/prediction.view'
+import * as stockView from '@/lib/services/view/stock.view'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 import { RouteDisplayCard } from '../client/route-display-card'
@@ -51,7 +51,7 @@ export async function TargetRouteGraphDisplay({
     acceptableIndex: acceptableIndexProp,
 }: TargetRouteGraphDisplayProps) {
     // Fetch target predictions (cached from target-info-display)
-    const targetDetail = await getTargetPredictions(targetId, runId, stockId)
+    const targetDetail = await predictionView.getTargetPredictions(targetId, runId, stockId)
 
     if (!targetDetail) {
         return (
@@ -78,7 +78,7 @@ export async function TargetRouteGraphDisplay({
         // Validate and clamp acceptableIndex to valid range
         acceptableIndex = Math.min(Math.max(0, acceptableIndexProp ?? 0), Math.max(0, totalAcceptableRoutes - 1))
         const selectedRoute = targetDetail.acceptableRoutes[acceptableIndex]
-        acceptableRouteNode = (await routeService.getAcceptableRouteWithNodes(selectedRoute.id)) ?? undefined
+        acceptableRouteNode = (await predictionView.getAcceptableRouteWithNodes(selectedRoute.id)) ?? undefined
     }
 
     // Get stock items if stockId provided (for route visualization)
@@ -111,10 +111,10 @@ export async function TargetRouteGraphDisplay({
             }
 
             // Check which molecules from the route are in stock
-            inStockInchiKeys = await checkMoleculesInStockByInchiKey(Array.from(allInchiKeys), stockId)
+            inStockInchiKeys = await stockData.findInchiKeysInStock(Array.from(allInchiKeys), stockId)
 
             // Fetch buyable metadata for molecules in stock
-            buyableMetadataMap = await getBuyableMetadataForInchiKeys(Array.from(allInchiKeys), stockId)
+            buyableMetadataMap = await stockView.getBuyableMetadataMap(Array.from(allInchiKeys), stockId)
 
             // Get stock name from solvability data
             const solvabilityForStock = routeDetail.solvability.find((s) => s.stockId === stockId)

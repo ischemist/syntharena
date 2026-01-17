@@ -58,7 +58,7 @@ import * as zlib from 'zlib'
 
 import './env-loader'
 
-import { createBenchmark } from '../src/lib/services/benchmark.service'
+import { createBenchmark } from '../src/lib/services/data/benchmark.data'
 import { loadBenchmarkFromFile } from '../src/lib/services/loaders/benchmark-loader.service'
 import { getStockByName } from '../src/lib/services/loaders/stock-loader.service'
 

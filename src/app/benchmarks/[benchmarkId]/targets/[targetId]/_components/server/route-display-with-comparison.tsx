@@ -2,9 +2,11 @@ import Link from 'next/link'
 
 import type { BuyableMetadata, RouteNodeWithDetails, RouteVisualizationNode } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
-import * as benchmarkService from '@/lib/services/benchmark.service'
-import * as routeService from '@/lib/services/route.service'
-import * as stockService from '@/lib/services/stock.service'
+import * as stockData from '@/lib/services/data/stock.data'
+import * as benchmarkView from '@/lib/services/view/benchmark.view'
+import * as predictionView from '@/lib/services/view/prediction.view'
+import * as routeView from '@/lib/services/view/route.view'
+import * as stockView from '@/lib/services/view/stock.view'
 import { RoutePagination } from '@/components/route-pagination'
 import { PredictionComparison, RouteComparison, RouteGraph, RouteLegend } from '@/components/route-visualization'
 import { Button } from '@/components/ui/button'
@@ -110,15 +112,15 @@ export async function RouteDisplayWithComparison({
     // OPTIMIZATION: Batch 1 - Initial parallel fetch (independent queries)
     try {
         const [benchmarkResult, availableRunsResult] = await Promise.all([
-            benchmarkService.getBenchmarkById(benchmarkId),
-            benchmarkService.getPredictionRunsForTarget(targetId),
+            benchmarkView.getBenchmarkById(benchmarkId),
+            predictionView.getPredictionRunsForTarget(targetId),
         ])
         const benchmark = benchmarkResult
         availableRuns = availableRunsResult
 
         // OPTIMIZATION: Batch 2 - Acceptable route data (fetch selected route by index)
         // Phase 3: Fetch pre-calculated layout instead of just tree
-        const acceptableRoutes = await routeService.getAcceptableRoutesForTarget(targetId)
+        const acceptableRoutes = await routeView.getAcceptableRoutesForTarget(targetId)
 
         // Validate and clamp acceptableIndex to valid range
         acceptableIndex = Math.min(Math.max(0, acceptableIndexProp ?? 0), Math.max(0, acceptableRoutes.length - 1))
@@ -130,21 +132,21 @@ export async function RouteDisplayWithComparison({
 
         const acceptableRoutePromises = selectedAcceptableRouteId
             ? Promise.all([
-                  routeService.getAcceptableRouteData(selectedAcceptableRouteId, targetId),
-                  routeService.getRouteTreeForVisualization(selectedAcceptableRouteId),
-                  routeService.getRouteTreeWithLayout(selectedAcceptableRouteId, 'acceptable-route-'),
+                  routeView.getAcceptableRouteData(selectedAcceptableRouteId, targetId),
+                  routeView.getRouteTreeForVisualization(selectedAcceptableRouteId),
+                  routeView.getRouteTreeWithLayout(selectedAcceptableRouteId, 'acceptable-route-'),
               ])
             : Promise.resolve([null, null, null] as const)
 
         // OPTIMIZATION: Batch 3 - Model predictions (parallel)
         const predictionPromises = Promise.all([
-            model1Id ? benchmarkService.getPredictedRouteForTarget(targetId, model1Id, rank1) : Promise.resolve(null),
-            model2Id ? benchmarkService.getPredictedRouteForTarget(targetId, model2Id, rank2) : Promise.resolve(null),
+            model1Id ? predictionView.getPredictedRouteForTarget(targetId, model1Id, rank1) : Promise.resolve(null),
+            model2Id ? predictionView.getPredictedRouteForTarget(targetId, model2Id, rank2) : Promise.resolve(null),
         ])
 
         // OPTIMIZATION: Batch 4 - Stock data (already loaded in benchmark relation)
         // Phase 9: No runtime lookup needed - stock is already included
-        const stockData = benchmark.stock
+        const benchmarkStock = benchmark.stock
 
         // Await all parallel batches
         const [[acceptableData, acceptableTree, acceptableLayout], [model1Result, model2Result]] = await Promise.all([
@@ -174,7 +176,7 @@ export async function RouteDisplayWithComparison({
         model2Name = model2Run ? `${model2Run.modelName} (${model2Run.algorithmName})` : ''
 
         // Collect InChiKeys and check stock + fetch buyable metadata (only if we have stock data)
-        if (stockData) {
+        if (benchmarkStock) {
             const allInchiKeys = new Set<string>()
             if (acceptableRouteTree) {
                 getAllRouteInchiKeysSet(acceptableRouteTree).forEach((key) => allInchiKeys.add(key))
@@ -188,8 +190,8 @@ export async function RouteDisplayWithComparison({
 
             try {
                 const [inStockSet, metadataMap] = await Promise.all([
-                    stockService.checkMoleculesInStockByInchiKey(Array.from(allInchiKeys), stockData.id),
-                    stockService.getBuyableMetadataForInchiKeys(Array.from(allInchiKeys), stockData.id),
+                    stockData.findInchiKeysInStock(Array.from(allInchiKeys), benchmarkStock.id),
+                    stockView.getBuyableMetadataMap(Array.from(allInchiKeys), benchmarkStock.id),
                 ])
                 inStockInchiKeys = inStockSet
                 buyableMetadataMap = metadataMap

@@ -1,4 +1,4 @@
-import * as stockService from '@/lib/services/stock.service'
+import * as stockView from '@/lib/services/view/stock.view'
 
 import { MoleculeSearchBar } from '../client/molecule-search-bar'
 
@@ -12,7 +12,7 @@ interface MoleculeFilterBarProps {
  * Handles data fetching so client component can focus on interactivity.
  */
 export async function MoleculeFilterBar({ stockId }: MoleculeFilterBarProps) {
-    const filters = await stockService.getStockMoleculeFilters(stockId)
+    const filters = await stockView.getStockMoleculeFilters(stockId)
 
     return (
         <MoleculeSearchBar

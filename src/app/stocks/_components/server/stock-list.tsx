@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-import * as stockService from '@/lib/services/stock.service'
+import * as stockView from '@/lib/services/view/stock.view'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  * Each stock row is clickable and navigates to the stock detail page.
  */
 export async function StockList() {
-    const stocks = await stockService.getStocks()
+    const stocks = await stockView.getStocks()
 
     if (stocks.length === 0) {
         return (

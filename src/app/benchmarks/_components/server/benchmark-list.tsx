@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-import * as benchmarkService from '@/lib/services/benchmark.service'
+import * as benchmarkView from '@/lib/services/view/benchmark.view'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  * Each benchmark row is clickable and navigates to the benchmark detail page.
  */
 export async function BenchmarkList() {
-    const benchmarks = await benchmarkService.getBenchmarkSets()
+    const benchmarks = await benchmarkView.getBenchmarkSets()
 
     if (benchmarks.length === 0) {
         return (

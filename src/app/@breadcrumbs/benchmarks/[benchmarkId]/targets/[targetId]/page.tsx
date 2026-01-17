@@ -1,4 +1,4 @@
-import { getBenchmarkById, getTargetById } from '@/lib/services/benchmark.service'
+import { getBenchmarkById, getTargetById } from '@/lib/services/view/benchmark.view'
 import { BreadcrumbShell } from '@/components/breadcrumb-shell'
 
 export default async function TargetDetailBreadcrumb({
