@@ -34,7 +34,7 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput)
                 },
             },
             benchmarkSet: {
-                select: { id: true, name: true, hasAcceptableRoutes: true },
+                select: { id: true, name: true, stockId: true, createdAt: true, hasAcceptableRoutes: true },
             },
             statistics: {
                 select: {

@@ -2,7 +2,7 @@
  * data access layer for stock, stockitem, and molecule models.
  */
 import { unstable_cache as cache } from 'next/cache'
-import { Prisma, type VendorSource } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/db'
 
@@ -87,7 +87,7 @@ export async function findInchiKeysInStock(inchikeyArray: string[], stockId: str
 
 /** fetches buyable metadata for a set of inchikeys in a stock. */
 export async function findBuyableMetadata(inchikeyArray: string[], stockId: string) {
-    if (inchikeyArray.length === 0) return new Map()
+    if (inchikeyArray.length === 0) return []
     return prisma.stockItem.findMany({
         where: {
             stockId,
