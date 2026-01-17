@@ -1,7 +1,7 @@
 import { Suspense, use } from 'react'
 import type { Metadata } from 'next'
 
-import { getBenchmarkById } from '@/lib/services/benchmark.service'
+import { getBenchmarkById } from '@/lib/services/view/benchmark.view'
 
 import { BenchmarkDetailHeader } from './_components/server/benchmark-detail-header'
 import { TargetFilterBar } from './_components/server/target-filter-bar'

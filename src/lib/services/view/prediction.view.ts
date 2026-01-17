@@ -7,13 +7,13 @@
 
 import type {
     PredictionRunWithStats,
+    RouteNodeWithDetails,
     RouteVisualizationNode,
     TargetPredictionDetail,
-    RouteNodeWithDetails,
 } from '@/types'
-import * as runData from '@/lib/services/data/run.data'
-import * as routeData from '@/lib/services/data/route.data'
 import * as benchmarkData from '@/lib/services/data/benchmark.data'
+import * as routeData from '@/lib/services/data/route.data'
+import * as runData from '@/lib/services/data/run.data'
 import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 
 /** transforms a detailed route node tree into a lightweight format for visualization. */
@@ -123,4 +123,48 @@ export async function getPredictedRouteForTarget(targetId: string, runId: string
         return null
     }
     return buildRouteTree(predictionRoute.route.nodes)
+}
+
+/** DTO for prediction run summary used in model selectors. */
+export interface PredictionRunSummary {
+    id: string
+    modelName: string
+    modelVersion?: string
+    algorithmName: string
+    executedAt: Date
+    routeCount: number
+    maxRank: number
+}
+
+/** aggregates prediction routes into run summaries for a target. */
+export async function getPredictionRunsForTarget(targetId: string): Promise<PredictionRunSummary[]> {
+    const predictionRoutes = await routeData.findPredictionRunsForTarget(targetId)
+
+    // aggregate by run ID
+    const runMap = new Map<
+        string,
+        {
+            run: (typeof predictionRoutes)[0]['predictionRun']
+            ranks: number[]
+        }
+    >()
+
+    for (const pr of predictionRoutes) {
+        const existing = runMap.get(pr.predictionRun.id)
+        if (existing) {
+            existing.ranks.push(pr.rank)
+        } else {
+            runMap.set(pr.predictionRun.id, { run: pr.predictionRun, ranks: [pr.rank] })
+        }
+    }
+
+    return Array.from(runMap.values()).map(({ run, ranks }) => ({
+        id: run.id,
+        modelName: run.modelInstance.name,
+        modelVersion: run.modelInstance.version || undefined,
+        algorithmName: run.modelInstance.algorithm.name,
+        executedAt: run.executedAt,
+        routeCount: ranks.length,
+        maxRank: Math.max(...ranks),
+    }))
 }

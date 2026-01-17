@@ -1,4 +1,4 @@
-import * as benchmarkService from '@/lib/services/benchmark.service'
+import { computeBenchmarkStats } from '@/lib/services/data/benchmark.data'
 
 import { TargetSearchBar } from '../client/target-search-bar'
 
@@ -12,7 +12,7 @@ interface TargetFilterBarProps {
  * Handles data fetching so client component can focus on interactivity.
  */
 export async function TargetFilterBar({ benchmarkId }: TargetFilterBarProps) {
-    const stats = await benchmarkService.getBenchmarkStats(benchmarkId)
+    const stats = await computeBenchmarkStats(benchmarkId)
 
     const hasAcceptableRoutes = stats.targetsWithAcceptableRoutes > 0
     const minLength = stats.minRouteLength

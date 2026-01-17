@@ -1,7 +1,7 @@
 import { Suspense, use } from 'react'
 import type { Metadata } from 'next'
 
-import { getBenchmarkById, getTargetById } from '@/lib/services/benchmark.service'
+import { getBenchmarkById, getTargetById } from '@/lib/services/view/benchmark.view'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { RouteDisplayWithComparison } from './_components/server/route-display-with-comparison'

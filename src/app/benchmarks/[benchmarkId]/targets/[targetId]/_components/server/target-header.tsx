@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 
-import * as benchmarkService from '@/lib/services/benchmark.service'
 import * as routeService from '@/lib/services/route.service'
+import * as benchmarkView from '@/lib/services/view/benchmark.view'
 import { RouteLengthBadge, RouteTypeBadge } from '@/components/route-badges'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Badge } from '@/components/ui/badge'
@@ -22,7 +22,7 @@ interface TargetHeaderProps {
 export async function TargetHeader({ targetId }: TargetHeaderProps) {
     let target
     try {
-        target = await benchmarkService.getTargetById(targetId)
+        target = await benchmarkView.getTargetById(targetId)
     } catch {
         notFound()
     }

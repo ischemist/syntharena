@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-import * as benchmarkService from '@/lib/services/benchmark.service'
+import * as benchmarkView from '@/lib/services/view/benchmark.view'
 import { RouteLengthBadge, RouteTypeBadge } from '@/components/route-badges'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -33,7 +33,7 @@ export async function TargetGrid({
     minRouteLength,
     maxRouteLength,
 }: TargetGridProps) {
-    const result = await benchmarkService.getBenchmarkTargets(
+    const result = await benchmarkView.getBenchmarkTargets(
         benchmarkId,
         page,
         limit,

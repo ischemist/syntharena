@@ -2,9 +2,10 @@ import { Suspense } from 'react'
 
 import type { BuyableMetadata } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
-import * as benchmarkService from '@/lib/services/benchmark.service'
+import * as stockData from '@/lib/services/data/stock.data'
 import * as routeService from '@/lib/services/route.service'
-import * as stockService from '@/lib/services/stock.service'
+import * as benchmarkView from '@/lib/services/view/benchmark.view'
+import * as stockView from '@/lib/services/view/stock.view'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { RouteJsonViewer } from '../client/route-json-viewer'
@@ -52,7 +53,7 @@ async function RouteVisualizationContent({ routeId, benchmarkId }: { routeId: st
     const routeTree = await routeService.getRouteTreeForVisualization(routeId)
 
     // Get benchmark to find stock ID if available
-    const benchmark = await benchmarkService.getBenchmarkById(benchmarkId)
+    const benchmark = await benchmarkView.getBenchmarkById(benchmarkId)
 
     // Collect all InChiKeys from route for stock checking
     const allInchiKeys = Array.from(getAllRouteInchiKeysSet(routeTree))
@@ -62,8 +63,8 @@ async function RouteVisualizationContent({ routeId, benchmarkId }: { routeId: st
     let buyableMetadataMap = new Map<string, BuyableMetadata>()
     if (benchmark.stock) {
         try {
-            inStockInchiKeys = await stockService.checkMoleculesInStockByInchiKey(allInchiKeys, benchmark.stock.id)
-            buyableMetadataMap = await stockService.getBuyableMetadataForInchiKeys(allInchiKeys, benchmark.stock.id)
+            inStockInchiKeys = await stockData.findInchiKeysInStock(allInchiKeys, benchmark.stock.id)
+            buyableMetadataMap = await stockView.getBuyableMetadataMap(allInchiKeys, benchmark.stock.id)
             console.log(`[Route Visualization] Checking stock availability for "${benchmark.stock.name}"`)
         } catch (error) {
             console.warn('Failed to check stock availability:', error)
@@ -91,7 +92,7 @@ export async function RouteDisplay({ targetId }: RouteDisplayProps) {
 
     // Fetch data outside of JSX construction
     try {
-        target = await benchmarkService.getTargetById(targetId)
+        target = await benchmarkView.getTargetById(targetId)
 
         // Fetch acceptable routes to get the primary route (index 0)
         const acceptableRoutes = await routeService.getAcceptableRoutesForTarget(targetId)
