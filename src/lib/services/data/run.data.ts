@@ -1,0 +1,100 @@
+/**
+ * data access layer for prediction run models.
+ * handles `PredictionRun`, `ModelInstance`, and `Algorithm`.
+ */
+import { cache } from 'react'
+import { Prisma } from '@prisma/client'
+
+import prisma from '@/lib/db'
+
+// ============================================================================
+// reads
+// ============================================================================
+
+/** returns data needed for the main prediction run list. */
+async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput) {
+    return prisma.predictionRun.findMany({
+        where,
+        select: {
+            id: true,
+            modelInstanceId: true,
+            benchmarkSetId: true,
+            totalRoutes: true,
+            hourlyCost: true,
+            totalCost: true,
+            avgRouteLength: true,
+            executedAt: true,
+            modelInstance: {
+                select: {
+                    id: true,
+                    name: true,
+                    version: true,
+                    algorithm: { select: { name: true } },
+                },
+            },
+            benchmarkSet: {
+                select: { id: true, name: true, hasAcceptableRoutes: true },
+            },
+            statistics: {
+                select: {
+                    stockId: true,
+                    totalWallTime: true,
+                    metrics: {
+                        where: { metricName: 'Solvability', groupKey: null },
+                        select: { value: true },
+                    },
+                },
+            },
+        },
+        orderBy: { executedAt: 'desc' },
+    })
+}
+export const findPredictionRunsForList = cache(_findPredictionRunsForList, ['prediction-run-list'], {
+    tags: ['runs'],
+})
+export type PredictionRunListItemPayload = Prisma.PromiseReturnType<typeof _findPredictionRunsForList>[0]
+
+/** returns all data for a single prediction run detail page. */
+async function _findPredictionRunDetailsById(runId: string) {
+    const run = await prisma.predictionRun.findUnique({
+        where: { id: runId },
+        include: {
+            modelInstance: { include: { algorithm: true } },
+            benchmarkSet: true,
+            statistics: {
+                include: { stock: true, metrics: true },
+            },
+        },
+    })
+    if (!run) throw new Error('prediction run not found.')
+    return run
+}
+export const findPredictionRunDetailsById = cache(_findPredictionRunDetailsById, ['prediction-run-details-by-id'], {
+    tags: ['runs'],
+})
+
+/** finds all runs for a specific benchmark, used in dropdowns. */
+async function _findPredictionRunsForBenchmark(benchmarkId: string) {
+    return prisma.predictionRun.findMany({
+        where: { benchmarkSetId: benchmarkId },
+        select: {
+            id: true,
+            totalRoutes: true,
+            avgRouteLength: true,
+            executedAt: true,
+            modelInstance: {
+                select: {
+                    name: true,
+                    version: true,
+                    algorithm: { select: { name: true } },
+                },
+            },
+        },
+        orderBy: { executedAt: 'desc' },
+    })
+}
+export const findPredictionRunsForBenchmark = cache(
+    _findPredictionRunsForBenchmark,
+    ['prediction-runs-for-benchmark'],
+    { tags: ['runs', 'benchmarks'] }
+)
