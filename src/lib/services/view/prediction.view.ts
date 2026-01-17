@@ -12,7 +12,6 @@ import type {
     PredictionRunWithStats,
     ReliabilityCode,
     RouteNodeWithDetails,
-    RouteVisualizationNode,
     RunStatistics,
     StockListItem,
     StratifiedMetric,
@@ -24,14 +23,7 @@ import * as runData from '@/lib/services/data/run.data'
 import * as statsData from '@/lib/services/data/stats.data'
 import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 
-/** transforms a detailed route node tree into a lightweight format for visualization. */
-function toVisualizationNode(node: RouteNodeWithDetails): RouteVisualizationNode {
-    return {
-        smiles: node.molecule.smiles,
-        inchikey: node.molecule.inchikey,
-        children: node.children.length > 0 ? node.children.map(toVisualizationNode) : undefined,
-    }
-}
+import { toVisualizationNode } from './route.view'
 
 /** prepares the DTO for the main prediction run list page. */
 export async function getPredictionRuns(benchmarkId?: string, modelId?: string): Promise<PredictionRunWithStats[]> {

@@ -1,11 +1,11 @@
 import { connection } from 'next/server'
 
-import * as homeService from '@/lib/services/home.service'
+import * as homeView from '@/lib/services/view/home.view'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 export async function LiveStatsSection() {
     await connection()
-    const stats = await homeService.getHomePageStats()
+    const stats = await homeView.getHomePageStats()
 
     return (
         <section className="py-8">

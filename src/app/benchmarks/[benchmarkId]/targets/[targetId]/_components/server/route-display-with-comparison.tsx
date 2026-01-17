@@ -3,9 +3,9 @@ import Link from 'next/link'
 import type { BuyableMetadata, RouteNodeWithDetails, RouteVisualizationNode } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as stockData from '@/lib/services/data/stock.data'
-import * as routeService from '@/lib/services/route.service'
 import * as benchmarkView from '@/lib/services/view/benchmark.view'
 import * as predictionView from '@/lib/services/view/prediction.view'
+import * as routeView from '@/lib/services/view/route.view'
 import * as stockView from '@/lib/services/view/stock.view'
 import { RoutePagination } from '@/components/route-pagination'
 import { PredictionComparison, RouteComparison, RouteGraph, RouteLegend } from '@/components/route-visualization'
@@ -120,7 +120,7 @@ export async function RouteDisplayWithComparison({
 
         // OPTIMIZATION: Batch 2 - Acceptable route data (fetch selected route by index)
         // Phase 3: Fetch pre-calculated layout instead of just tree
-        const acceptableRoutes = await routeService.getAcceptableRoutesForTarget(targetId)
+        const acceptableRoutes = await routeView.getAcceptableRoutesForTarget(targetId)
 
         // Validate and clamp acceptableIndex to valid range
         acceptableIndex = Math.min(Math.max(0, acceptableIndexProp ?? 0), Math.max(0, acceptableRoutes.length - 1))
@@ -132,9 +132,9 @@ export async function RouteDisplayWithComparison({
 
         const acceptableRoutePromises = selectedAcceptableRouteId
             ? Promise.all([
-                  routeService.getAcceptableRouteData(selectedAcceptableRouteId, targetId),
-                  routeService.getRouteTreeForVisualization(selectedAcceptableRouteId),
-                  routeService.getRouteTreeWithLayout(selectedAcceptableRouteId, 'acceptable-route-'),
+                  routeView.getAcceptableRouteData(selectedAcceptableRouteId, targetId),
+                  routeView.getRouteTreeForVisualization(selectedAcceptableRouteId),
+                  routeView.getRouteTreeWithLayout(selectedAcceptableRouteId, 'acceptable-route-'),
               ])
             : Promise.resolve([null, null, null] as const)
 

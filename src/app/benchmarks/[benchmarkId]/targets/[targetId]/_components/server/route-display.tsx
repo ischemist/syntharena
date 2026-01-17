@@ -3,8 +3,8 @@ import { Suspense } from 'react'
 import type { BuyableMetadata } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as stockData from '@/lib/services/data/stock.data'
-import * as routeService from '@/lib/services/route.service'
 import * as benchmarkView from '@/lib/services/view/benchmark.view'
+import * as routeView from '@/lib/services/view/route.view'
 import * as stockView from '@/lib/services/view/stock.view'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -50,7 +50,7 @@ function NoAcceptableRoute() {
 
 async function RouteVisualizationContent({ routeId, benchmarkId }: { routeId: string; benchmarkId: string }) {
     // Fetch visualization tree
-    const routeTree = await routeService.getRouteTreeForVisualization(routeId)
+    const routeTree = await routeView.getRouteTreeForVisualization(routeId)
 
     // Get benchmark to find stock ID if available
     const benchmark = await benchmarkView.getBenchmarkById(benchmarkId)
@@ -95,13 +95,13 @@ export async function RouteDisplay({ targetId }: RouteDisplayProps) {
         target = await benchmarkView.getTargetById(targetId)
 
         // Fetch acceptable routes to get the primary route (index 0)
-        const acceptableRoutes = await routeService.getAcceptableRoutesForTarget(targetId)
+        const acceptableRoutes = await routeView.getAcceptableRoutesForTarget(targetId)
         const primaryRoute = acceptableRoutes.find((ar) => ar.routeIndex === 0)
         primaryAcceptableRouteId = primaryRoute?.route.id
 
         // Fetch complete route data for JSON viewer
         if (primaryAcceptableRouteId) {
-            routeData = await routeService.getAcceptableRouteData(primaryAcceptableRouteId, targetId)
+            routeData = await routeView.getAcceptableRouteData(primaryAcceptableRouteId, targetId)
         }
     } catch (error) {
         console.error('Failed to load route display:', error)

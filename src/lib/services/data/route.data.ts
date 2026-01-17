@@ -108,3 +108,15 @@ async function _findPredictionsForTarget(targetId: string, runId: string, stockI
 export const findPredictionsForTarget = cache(_findPredictionsForTarget, ['predictions-for-target'], {
     tags: ['routes', 'targets', 'runs', 'stocks'],
 })
+
+/** fetches a route by id with its metadata. */
+async function _findRouteById(routeId: string) {
+    const route = await prisma.route.findUnique({
+        where: { id: routeId },
+    })
+    if (!route) throw new Error('route not found.')
+    return route
+}
+export const findRouteById = cache(_findRouteById, ['route-by-id'], {
+    tags: ['routes'],
+})

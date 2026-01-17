@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 
-import * as routeService from '@/lib/services/route.service'
 import * as benchmarkView from '@/lib/services/view/benchmark.view'
+import * as routeView from '@/lib/services/view/route.view'
 import { RouteLengthBadge, RouteTypeBadge } from '@/components/route-badges'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Badge } from '@/components/ui/badge'
@@ -33,7 +33,7 @@ export async function TargetHeader({ targetId }: TargetHeaderProps) {
         route: { id: string; contentHash: string | null; signature: string | null }
     }> = []
     try {
-        const routes = await routeService.getAcceptableRoutesForTarget(targetId)
+        const routes = await routeView.getAcceptableRoutesForTarget(targetId)
         acceptableRoutes = routes
     } catch {
         // If route fetch fails, continue without route data

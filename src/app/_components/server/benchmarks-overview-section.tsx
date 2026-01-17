@@ -1,12 +1,12 @@
 import Link from 'next/link'
 import { connection } from 'next/server'
 
-import * as homeService from '@/lib/services/home.service'
+import * as homeView from '@/lib/services/view/home.view'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 export async function BenchmarksOverviewSection() {
     await connection()
-    const benchmarks = await homeService.getBenchmarkOverview()
+    const benchmarks = await homeView.getBenchmarkOverview()
 
     // Split into two series, exclude -single-gt benchmarks
     const mktBenchmarks = benchmarks.filter((b) => b.name.startsWith('mkt-') && !b.name.endsWith('-single-gt'))
