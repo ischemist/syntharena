@@ -2,7 +2,7 @@
  * data access layer for prediction run models.
  * handles `PredictionRun`, `ModelInstance`, and `Algorithm`.
  */
-import { cache } from 'react'
+import { unstable_cache as cache } from 'react'
 import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/db'

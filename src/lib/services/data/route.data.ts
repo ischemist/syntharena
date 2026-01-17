@@ -3,7 +3,7 @@
  * handles `Route`, `RouteNode`, `PredictionRoute`, and `AcceptableRoute`.
  * these functions retrieve the raw components of a synthesis graph.
  */
-import { cache } from 'react'
+import { unstable_cache as cache } from 'react'
 import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/db'

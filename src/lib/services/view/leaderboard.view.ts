@@ -4,7 +4,7 @@
  */
 
 import type { LeaderboardEntry, MetricResult, ReliabilityCode, StratifiedMetric } from '@/types'
-import * as statsData from '@/lib/services/data/stats.data.ts'
+import * as statsData from '@/lib/services/data/stats.data'
 
 // helper to transform a raw metric record into a MetricResult DTO
 function toMetricResult(

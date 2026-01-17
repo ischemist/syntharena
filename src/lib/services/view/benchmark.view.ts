@@ -8,7 +8,7 @@ import { Prisma } from '@prisma/client'
 
 import type { BenchmarkListItem, BenchmarkTargetSearchResult, BenchmarkTargetWithMolecule } from '@/types'
 
-import * as data from '../data/benchmark.data.ts'
+import * as data from '../data/benchmark.data'
 
 /** prepares the DTO for the main benchmark list page. */
 export async function getBenchmarkSets(): Promise<BenchmarkListItem[]> {

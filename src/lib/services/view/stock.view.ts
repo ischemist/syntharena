@@ -5,7 +5,7 @@
 import { Prisma, type VendorSource } from '@prisma/client'
 
 import type { BuyableMetadata, MoleculeSearchResult, StockListItem, StockMoleculeFilters } from '@/types'
-import * as stockData from '@/lib/services/data/stock.data.ts'
+import * as stockData from '@/lib/services/data/stock.data'
 
 // ============================================================================
 // DTO builders

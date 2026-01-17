@@ -11,9 +11,9 @@ import type {
     TargetPredictionDetail,
     RouteNodeWithDetails,
 } from '@/types'
-import * as runData from '@/lib/services/data/run.data.ts'
-import * as routeData from '@/lib/services/data/route.data.ts'
-import * as benchmarkData from '@/lib/services/data/benchmark.data.ts'
+import * as runData from '@/lib/services/data/run.data'
+import * as routeData from '@/lib/services/data/route.data'
+import * as benchmarkData from '@/lib/services/data/benchmark.data'
 import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 
 /** transforms a detailed route node tree into a lightweight format for visualization. */
@@ -46,7 +46,10 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
             modelInstanceId: run.modelInstanceId,
             benchmarkSetId: run.benchmarkSetId,
             modelInstance: {
-                ...run.modelInstance,
+                id: run.modelInstance.id,
+                algorithmId: run.modelInstance.algorithmId,
+                name: run.modelInstance.name,
+                version: run.modelInstance.version,
                 algorithm: { name: run.modelInstance.algorithm.name },
             },
             benchmarkSet: run.benchmarkSet,

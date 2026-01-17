@@ -642,3 +642,25 @@ export interface LeaderboardEntry {
     totalWallTime?: number | null // Total wall time in seconds
     totalCost?: number | null // Total cost in USD
 }
+
+export interface HomePageStats {
+    totalAlgorithms: number
+    totalModelInstances: number
+    totalPredictionRuns: number
+    totalUniqueRoutes: number
+    totalBenchmarks: number
+    stockStats: Array<{
+        name: string
+        moleculeCount: number
+    }>
+}
+
+export interface BenchmarkOverview {
+    id: string
+    name: string
+    description: string | null
+    targetCount: number
+    stockName: string
+    hasAcceptableRoutes: boolean
+    runCount: number
+}

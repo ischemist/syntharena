@@ -5,7 +5,7 @@
  * caching is applied at this layer.
  */
 
-import { cache } from 'react'
+import { unstable_cache as cache } from 'react'
 import { Prisma } from '@prisma/client'
 
 import type { BenchmarkSet, BenchmarkStats } from '@/types'
