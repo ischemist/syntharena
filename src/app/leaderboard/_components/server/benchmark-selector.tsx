@@ -1,4 +1,4 @@
-import { getBenchmarkSets } from '@/lib/services/benchmark.service'
+import { getBenchmarkSets } from '@/lib/services/view/benchmark.view'
 
 import { BenchmarkCombobox } from '../client/benchmark-combobox'
 
