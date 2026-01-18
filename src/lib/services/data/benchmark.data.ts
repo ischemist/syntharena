@@ -65,7 +65,7 @@ async function _findBenchmarkListItems() {
             hasAcceptableRoutes: true,
             createdAt: true,
             stock: { select: { id: true, name: true, description: true } },
-            _count: { select: { targets: true } },
+            _count: { select: { targets: true, runs: true } },
         },
         orderBy: { createdAt: 'desc' },
     })
@@ -87,7 +87,7 @@ async function _findBenchmarkListItemById(benchmarkId: string) {
             hasAcceptableRoutes: true,
             createdAt: true,
             stock: { select: { id: true, name: true, description: true } },
-            _count: { select: { targets: true } },
+            _count: { select: { targets: true, runs: true } },
         },
     })
     if (!benchmark) throw new Error('benchmark not found.')

@@ -26,6 +26,7 @@ import * as routeData from '@/lib/services/data/route.data'
 import * as runData from '@/lib/services/data/run.data'
 import * as statsData from '@/lib/services/data/stats.data'
 import * as stockData from '@/lib/services/data/stock.data'
+import * as predictionData from '@/lib/services/data/prediction.data'
 import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 
 import { toVisualizationNode } from './route.view'
@@ -63,23 +64,6 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
     })
 }
 
-/** fetches fast, flat metadata for the target info card. */
-export async function getTargetInfo(targetId: string, runId: string, stockId?: string): Promise<TargetInfo> {
-    const [targetPayload, acceptableMatchRank] = await Promise.all([
-        benchmarkData.findTargetWithDetailsById(targetId),
-        stockId ? routeData.findFirstAcceptableMatchRank(targetId, runId, stockId) : Promise.resolve(undefined),
-    ])
-
-    return {
-        targetId: targetPayload.targetId,
-        molecule: targetPayload.molecule,
-        routeLength: targetPayload.routeLength,
-        isConvergent: targetPayload.isConvergent,
-        hasAcceptableRoutes: targetPayload.acceptableRoutesCount > 0,
-        acceptableMatchRank: acceptableMatchRank ?? undefined,
-    }
-}
-
 /** DTO for prediction summaries, used for navigation. FAST. */
 export interface PredictionSummary {
     rank: number
@@ -89,25 +73,6 @@ export interface PredictionSummary {
 /** fetches a lightweight list of prediction summaries for a target. */
 export async function getPredictionSummaries(targetId: string, runId: string): Promise<PredictionSummary[]> {
     return routeData.findPredictionSummaries(targetId, runId)
-}
-
-/** fetches the full data for a SINGLE predicted route by rank. SLOW. */
-export async function getSinglePrediction(targetId: string, runId: string, rank: number, stockId?: string) {
-    const prediction = await routeData.findSinglePredictionForTarget(targetId, runId, rank, stockId)
-    if (!prediction) return null
-
-    const solvability = prediction.solvabilityStatus.map((s) => ({
-        stockId: s.stockId,
-        stockName: s.stock.name,
-        isSolvable: s.isSolvable,
-        matchesAcceptable: s.matchesAcceptable,
-    }))
-
-    return {
-        predictionRoute: prediction,
-        route: prediction.route,
-        solvability,
-    }
 }
 
 /** DTO for prediction run summary used in model selectors. */
@@ -123,86 +88,28 @@ export interface PredictionRunSummary {
 
 /** aggregates prediction routes into run summaries for a target. */
 export async function getPredictionRunsForTarget(targetId: string): Promise<PredictionRunSummary[]> {
-    const predictionRoutes = await routeData.findPredictionRunsForTarget(targetId)
-
-    // aggregate by run ID
-    const runMap = new Map<
-        string,
-        {
-            run: (typeof predictionRoutes)[0]['predictionRun']
-            ranks: number[]
-        }
-    >()
-
-    for (const pr of predictionRoutes) {
-        const existing = runMap.get(pr.predictionRun.id)
-        if (existing) {
-            existing.ranks.push(pr.rank)
-        } else {
-            runMap.set(pr.predictionRun.id, { run: pr.predictionRun, ranks: [pr.rank] })
-        }
-    }
-
-    return Array.from(runMap.values()).map(({ run, ranks }) => ({
-        id: run.id,
-        modelName: run.modelInstance.name,
-        modelVersion: run.modelInstance.version || undefined,
-        algorithmName: run.modelInstance.algorithm.name,
-        executedAt: run.executedAt,
-        routeCount: ranks.length,
-        maxRank: Math.max(...ranks),
-    }))
+    // this now calls the much more efficient function from prediction.data
+    return predictionData.findPredictionRunsForTarget(targetId)
 }
 
 // ============================================================================
 // Run Detail Page Functions
 // ============================================================================
 
-/** prepares the DTO for a single prediction run detail page. */
-export async function getPredictionRunById(runId: string): Promise<PredictionRunWithStats> {
-    const run = await runData.findPredictionRunDetailsById(runId)
+/** DTO for the run detail page breadcrumb. */
+export interface RunDetailBreadcrumbData {
+    modelName: string
+    benchmarkId: string
+    benchmarkName: string
+}
 
-    // Calculate solvability summary across stocks
-    const solvabilitySummary: Record<string, number> = {}
-    for (const stat of run.statistics) {
-        const overallMetric = stat.metrics.find((m) => m.metricName === 'Solvability' && m.groupKey === null)
-        if (overallMetric) {
-            solvabilitySummary[stat.stockId] = overallMetric.value
-        }
-    }
-
-    // Extract totalWallTime from first statistics record
-    const totalWallTime = run.statistics[0]?.totalWallTime ?? null
-
+/** Prepares the DTO for the run detail page breadcrumb. FAST. */
+export async function getPredictionRunBreadcrumbData(runId: string): Promise<RunDetailBreadcrumbData> {
+    const run = await runData.findPredictionRunBreadcrumbData(runId)
     return {
-        id: run.id,
-        modelInstanceId: run.modelInstanceId,
-        benchmarkSetId: run.benchmarkSetId,
-        modelInstance: {
-            id: run.modelInstance.id,
-            algorithmId: run.modelInstance.algorithmId,
-            name: run.modelInstance.name,
-            version: run.modelInstance.version,
-            metadata: run.modelInstance.metadata,
-            algorithm: run.modelInstance.algorithm
-                ? {
-                      id: run.modelInstance.algorithm.id,
-                      name: run.modelInstance.algorithm.name,
-                      paper: run.modelInstance.algorithm.paper,
-                  }
-                : undefined,
-        },
-        benchmarkSet: {
-            ...run.benchmarkSet,
-            hasAcceptableRoutes: run.benchmarkSet.hasAcceptableRoutes,
-        },
-        totalRoutes: run.totalRoutes,
-        hourlyCost: run.hourlyCost,
-        totalCost: run.totalCost,
-        totalWallTime,
-        avgRouteLength: run.avgRouteLength,
-        solvabilitySummary,
-        executedAt: run.executedAt,
+        modelName: run.modelInstance.name,
+        benchmarkId: run.benchmarkSet.id,
+        benchmarkName: run.benchmarkSet.name,
     }
 }
 

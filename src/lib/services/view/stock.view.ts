@@ -4,7 +4,7 @@
  */
 import { Prisma, type VendorSource } from '@prisma/client'
 
-import type { BuyableMetadata, MoleculeSearchResult, StockListItem, StockMoleculeFilters } from '@/types'
+import type { MoleculeSearchResult, StockListItem, StockMoleculeFilters } from '@/types'
 import * as stockData from '@/lib/services/data/stock.data'
 
 // ============================================================================
@@ -109,24 +109,4 @@ export async function searchMolecules(
         }))
         return { total, hasMore, molecules: mapped }
     }
-}
-
-// ============================================================================
-// utilities
-// ============================================================================
-
-/**
- * @deprecated use findStockDataForInchiKeys in the data layer and process the result in the calling view function.
- * this function exists for other potential use cases but should not be used alongside findInchiKeysInStock.
- */
-export async function getBuyableMetadataMap(
-    inchikeyArray: string[],
-    stockId: string
-): Promise<Map<string, BuyableMetadata>> {
-    const items = await stockData.findBuyableMetadata(inchikeyArray, stockId)
-    const map = new Map<string, BuyableMetadata>()
-    for (const item of items) {
-        map.set(item.molecule.inchikey, item)
-    }
-    return map
 }

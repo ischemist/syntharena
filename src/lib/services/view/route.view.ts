@@ -163,7 +163,7 @@ export async function getTargetComparisonData(
     // --- Wave 1: Fetch base contextual data in parallel ---
     const [benchmark, availableRunsResult, acceptableRoutes] = await Promise.all([
         benchmarkData.findBenchmarkListItemById(benchmarkId),
-        predictionData.findPredictionRunsForTarget(targetId), // New function, see below
+        predictionData.findPredictionRunsForTarget(targetId),
         routeData.findAcceptableRoutesForTarget(targetId),
     ])
 
@@ -174,19 +174,19 @@ export async function getTargetComparisonData(
     const selectedAcceptable = totalAcceptableRoutes > 0 ? acceptableRoutes[currentAcceptableIndex] : undefined
 
     // --- Wave 2: Fetch specific route data based on URL params ---
-    const [acceptableRouteData, acceptableRouteLayout, model1Tree, model2Tree] = await Promise.all([
+    const [acceptableRouteData, acceptableRouteLayout, model1Nodes, model2Nodes] = await Promise.all([
         selectedAcceptable ? getAcceptableRouteData(selectedAcceptable.route.id, targetId) : Promise.resolve(undefined),
         selectedAcceptable
             ? getRouteTreeWithLayout(selectedAcceptable.route.id, 'acceptable-route-')
             : Promise.resolve(undefined),
-        model1Id ? predictionData.getPredictedRouteForTarget(targetId, model1Id, rank1) : Promise.resolve(undefined),
-        model2Id ? predictionData.getPredictedRouteForTarget(targetId, model2Id, rank2) : Promise.resolve(undefined),
+        model1Id ? predictionData.findPredictedRouteNodes(targetId, model1Id, rank1) : Promise.resolve(undefined),
+        model2Id ? predictionData.findPredictedRouteNodes(targetId, model2Id, rank2) : Promise.resolve(undefined),
     ])
 
-    // --- Process Wave 2 and Prepare for Wave 3 ---
+    // --- Process Wave 2: Build trees and Prepare for Wave 3 ---
     const acceptableRouteTree = acceptableRouteData ? toVisualizationNode(acceptableRouteData.rootNode) : undefined
-    const model1RouteTree = model1Tree ? toVisualizationNode(model1Tree) : undefined
-    const model2RouteTree = model2Tree ? toVisualizationNode(model2Tree) : undefined
+    const model1RouteTree = model1Nodes ? toVisualizationNode(buildRouteTree(model1Nodes)) : undefined
+    const model2RouteTree = model2Nodes ? toVisualizationNode(buildRouteTree(model2Nodes)) : undefined
 
     const allInchiKeys = new Set<string>()
     if (acceptableRouteTree) getAllRouteInchiKeysSet(acceptableRouteTree).forEach((key) => allInchiKeys.add(key))
