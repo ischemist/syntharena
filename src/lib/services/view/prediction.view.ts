@@ -96,51 +96,20 @@ export async function getPredictionRunsForTarget(targetId: string): Promise<Pred
 // Run Detail Page Functions
 // ============================================================================
 
-/** prepares the DTO for a single prediction run detail page. */
-export async function getPredictionRunById(runId: string): Promise<PredictionRunWithStats> {
-    const run = await runData.findPredictionRunDetailsById(runId)
+/** DTO for the run detail page breadcrumb. */
+export interface RunDetailBreadcrumbData {
+    modelName: string
+    benchmarkId: string
+    benchmarkName: string
+}
 
-    // Calculate solvability summary across stocks
-    const solvabilitySummary: Record<string, number> = {}
-    for (const stat of run.statistics) {
-        const overallMetric = stat.metrics.find((m) => m.metricName === 'Solvability' && m.groupKey === null)
-        if (overallMetric) {
-            solvabilitySummary[stat.stockId] = overallMetric.value
-        }
-    }
-
-    // Extract totalWallTime from first statistics record
-    const totalWallTime = run.statistics[0]?.totalWallTime ?? null
-
+/** Prepares the DTO for the run detail page breadcrumb. FAST. */
+export async function getPredictionRunBreadcrumbData(runId: string): Promise<RunDetailBreadcrumbData> {
+    const run = await runData.findPredictionRunBreadcrumbData(runId)
     return {
-        id: run.id,
-        modelInstanceId: run.modelInstanceId,
-        benchmarkSetId: run.benchmarkSetId,
-        modelInstance: {
-            id: run.modelInstance.id,
-            algorithmId: run.modelInstance.algorithmId,
-            name: run.modelInstance.name,
-            version: run.modelInstance.version,
-            metadata: run.modelInstance.metadata,
-            algorithm: run.modelInstance.algorithm
-                ? {
-                      id: run.modelInstance.algorithm.id,
-                      name: run.modelInstance.algorithm.name,
-                      paper: run.modelInstance.algorithm.paper,
-                  }
-                : undefined,
-        },
-        benchmarkSet: {
-            ...run.benchmarkSet,
-            hasAcceptableRoutes: run.benchmarkSet.hasAcceptableRoutes,
-        },
-        totalRoutes: run.totalRoutes,
-        hourlyCost: run.hourlyCost,
-        totalCost: run.totalCost,
-        totalWallTime,
-        avgRouteLength: run.avgRouteLength,
-        solvabilitySummary,
-        executedAt: run.executedAt,
+        modelName: run.modelInstance.name,
+        benchmarkId: run.benchmarkSet.id,
+        benchmarkName: run.benchmarkSet.name,
     }
 }
 

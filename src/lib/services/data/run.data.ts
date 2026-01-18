@@ -120,3 +120,21 @@ export const findPredictionRunsForBenchmark = cache(
     ['prediction-runs-for-benchmark'],
     { tags: ['runs', 'benchmarks'] }
 )
+
+/** returns only the data needed for the run detail breadcrumb. */
+async function _findPredictionRunBreadcrumbData(runId: string) {
+    const run = await prisma.predictionRun.findUnique({
+        where: { id: runId },
+        select: {
+            modelInstance: { select: { name: true } },
+            benchmarkSet: { select: { id: true, name: true } },
+        },
+    })
+    if (!run) throw new Error('prediction run not found for breadcrumb.')
+    return run
+}
+export const findPredictionRunBreadcrumbData = cache(
+    _findPredictionRunBreadcrumbData,
+    ['prediction-run-breadcrumb-data'],
+    { tags: ['runs', 'benchmarks'] }
+)
