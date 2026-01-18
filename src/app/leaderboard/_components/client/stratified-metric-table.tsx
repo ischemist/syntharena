@@ -41,7 +41,6 @@ export function StratifiedMetricTable({
     const columns = useMemo(() => createStratifiedColumns(routeLengths), [routeLengths])
 
     // Initialize TanStack Table
-    // eslint-disable-next-line react-hooks/incompatible-library
     const table = useReactTable({
         data,
         columns,
@@ -64,8 +63,7 @@ export function StratifiedMetricTable({
                     <TableHeader>
                         {table.getHeaderGroups().map((headerGroup) => (
                             <TableRow key={headerGroup.id}>
-                                {headerGroup.headers.map((header, idx) => {
-                                    const isLastColumn = idx === headerGroup.headers.length - 1
+                                {headerGroup.headers.map((header) => {
                                     const isModelName = header.id === 'modelName'
                                     return (
                                         <TableHead key={header.id} className={cn(!isModelName && 'min-w-[220px]')}>

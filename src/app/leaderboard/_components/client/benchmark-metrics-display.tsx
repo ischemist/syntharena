@@ -124,7 +124,6 @@ export function BenchmarkMetricsDisplay({
     )
 
     // Initialize TanStack Table
-    // eslint-disable-next-line react-hooks/incompatible-library
     const table = useReactTable({
         data: entries,
         columns,
@@ -145,11 +144,9 @@ export function BenchmarkMetricsDisplay({
                         <TableHeader>
                             {table.getHeaderGroups().map((headerGroup) => (
                                 <TableRow key={headerGroup.id}>
-                                    {headerGroup.headers.map((header, idx) => {
-                                        const isLastColumn = idx === headerGroup.headers.length - 1
-                                        const isModelName = header.id === 'modelName'
+                                    {headerGroup.headers.map((header) => {
                                         return (
-                                            <TableHead key={header.id} className={cn(!isModelName && 'min-w-[220px]')}>
+                                            <TableHead key={header.id} className={cn('px-2')}>
                                                 {header.isPlaceholder
                                                     ? null
                                                     : flexRender(header.column.columnDef.header, header.getContext())}
@@ -164,7 +161,7 @@ export function BenchmarkMetricsDisplay({
                                 table.getRowModel().rows.map((row) => (
                                     <TableRow key={row.id}>
                                         {row.getVisibleCells().map((cell) => (
-                                            <TableCell key={cell.id}>
+                                            <TableCell key={cell.id} className="px-2">
                                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                             </TableCell>
                                         ))}

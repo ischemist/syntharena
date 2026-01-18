@@ -44,8 +44,6 @@ const submissionConfig = {
     },
 } as const
 
-const retrainingCaveat = `Warning: This result uses a pre-trained model and does not adhere to the standardized training protocol for this Reference benchmark. Its performance may not be directly comparable to retrained models.`
-
 export function SubmissionBadge({
     submissionType,
     isRetrained,
@@ -57,8 +55,6 @@ export function SubmissionBadge({
     const Icon = config.icon
     const showCaveat = isRetrained === false
     const colorClass = config.colors[badgeStyle]
-
-    const tooltipContent = showCaveat ? `${config.tooltip}\n\n${retrainingCaveat}` : config.tooltip
 
     const badgeContent = (
         <Badge
