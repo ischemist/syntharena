@@ -2,18 +2,20 @@
  * view model composition layer for the home page.
  * aggregates data from multiple domains for the main dashboard.
  */
-import prisma from '@/lib/db' // ok to use here for simple counts not worth a data function
-
 import type { HomePageStats, BenchmarkOverview } from '@/types'
+
+import * as benchmarkData from '../data/benchmark.data'
+import * as metaData from '../data/meta.data'
+import * as runData from '../data/run.data'
 
 export async function getHomePageStats(): Promise<HomePageStats> {
     const [algorithms, models, runs, routes, benchmarks, stocks] = await Promise.all([
-        prisma.algorithm.count(),
-        prisma.modelInstance.count(),
-        prisma.predictionRun.count(),
-        prisma.route.count(),
-        prisma.benchmarkSet.count(),
-        prisma.stock.findMany({ select: { name: true, _count: { select: { items: true } } } }),
+        metaData.countAlgorithms(),
+        metaData.countModelInstances(),
+        metaData.countPredictionRuns(),
+        metaData.countRoutes(),
+        metaData.countBenchmarks(),
+        metaData.getStockStats(),
     ])
 
     return {
@@ -27,17 +29,16 @@ export async function getHomePageStats(): Promise<HomePageStats> {
 }
 
 export async function getBenchmarkOverview(): Promise<BenchmarkOverview[]> {
-    const benchmarks = await prisma.benchmarkSet.findMany({
-        select: {
-            id: true,
-            name: true,
-            description: true,
-            hasAcceptableRoutes: true,
-            stock: { select: { name: true } },
-            _count: { select: { targets: true, runs: true } },
-        },
-        orderBy: { name: 'asc' },
-    })
+    const benchmarks = await benchmarkData.findBenchmarkListItems()
+    // this data function already gets most of what we need. we just need run counts.
+    // instead of a new data function, let's just get the benchmarks and compose here.
+    const runCounts = await Promise.all(
+        benchmarks.map((b) =>
+            runData.findPredictionRunsForBenchmark(b.id).then((runs) => ({ id: b.id, count: runs.length }))
+        )
+    )
+    const runCountMap = new Map(runCounts.map((rc) => [rc.id, rc.count]))
+
     return benchmarks.map((b) => ({
         id: b.id,
         name: b.name,
@@ -45,6 +46,6 @@ export async function getBenchmarkOverview(): Promise<BenchmarkOverview[]> {
         targetCount: b._count.targets,
         stockName: b.stock.name,
         hasAcceptableRoutes: b.hasAcceptableRoutes,
-        runCount: b._count.runs,
+        runCount: runCountMap.get(b.id) || 0,
     }))
 }
