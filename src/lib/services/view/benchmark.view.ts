@@ -6,7 +6,12 @@
  */
 import { Prisma } from '@prisma/client'
 
-import type { BenchmarkListItem, BenchmarkTargetSearchResult, BenchmarkTargetWithMolecule } from '@/types'
+import type {
+    BenchmarkDetailPageData,
+    BenchmarkListItem,
+    BenchmarkTargetSearchResult,
+    BenchmarkTargetWithMolecule,
+} from '@/types'
 
 import * as data from '../data/benchmark.data'
 
@@ -37,6 +42,92 @@ export async function getBenchmarkById(benchmarkId: string): Promise<BenchmarkLi
         hasAcceptableRoutes: b.hasAcceptableRoutes,
         createdAt: b.createdAt,
         targetCount: b._count.targets,
+    }
+}
+
+/**
+ * The "page-level DTO" orchestrator for the benchmark detail page.
+ * Fetches and composes ALL data needed for this page in a single, parallel operation.
+ */
+export async function getBenchmarkDetailPageData(
+    benchmarkId: string,
+    page: number = 1,
+    limit: number = 24,
+    searchQuery?: string,
+    searchType: 'smiles' | 'inchikey' | 'targetId' | 'all' = 'all',
+    minRouteLength?: number,
+    maxRouteLength?: number,
+    isConvergent?: boolean
+): Promise<BenchmarkDetailPageData> {
+    const where: Prisma.BenchmarkTargetWhereInput = { benchmarkSetId: benchmarkId }
+
+    // build where clause for target search
+    if (searchQuery?.trim()) {
+        const query = searchQuery.trim()
+        const conditions: Prisma.BenchmarkTargetWhereInput[] = []
+        if (searchType === 'smiles' || searchType === 'all')
+            conditions.push({ molecule: { smiles: { contains: query } } })
+        if (searchType === 'inchikey' || searchType === 'all')
+            conditions.push({ molecule: { inchikey: { contains: query } } })
+        if (searchType === 'targetId' || searchType === 'all') conditions.push({ targetId: { contains: query } })
+        if (conditions.length > 0) where.OR = conditions
+    }
+    if (minRouteLength !== undefined || maxRouteLength !== undefined) {
+        where.routeLength = {
+            ...(minRouteLength !== undefined && { gte: minRouteLength }),
+            ...(maxRouteLength !== undefined && { lte: maxRouteLength }),
+        }
+    }
+    if (isConvergent !== undefined) where.isConvergent = isConvergent
+
+    const validLimit = Math.min(Math.max(1, limit), 100)
+    const offset = (page - 1) * validLimit
+
+    // --- Fire all data fetches in parallel ---
+    const [benchmarkPayload, stats, paginatedTargetsPayload] = await Promise.all([
+        data.findBenchmarkListItemById(benchmarkId),
+        data.computeBenchmarkStats(benchmarkId),
+        data.findBenchmarkTargetsPaginated(benchmarkId, where, validLimit, offset),
+    ])
+
+    // --- Process and assemble the DTO ---
+    const benchmark: BenchmarkListItem = {
+        id: benchmarkPayload.id,
+        name: benchmarkPayload.name,
+        description: benchmarkPayload.description || undefined,
+        stockId: benchmarkPayload.stockId,
+        stock: benchmarkPayload.stock,
+        hasAcceptableRoutes: benchmarkPayload.hasAcceptableRoutes,
+        createdAt: benchmarkPayload.createdAt,
+        targetCount: benchmarkPayload._count.targets,
+    }
+
+    const { targets, total, counts } = paginatedTargetsPayload
+    const countMap = new Map(counts.map((c) => [c.benchmarkTargetId, c._count._all]))
+    const hasMore = targets.length > validLimit
+    const resultTargets = hasMore ? targets.slice(0, validLimit) : targets
+
+    const targetsWithCounts: BenchmarkTargetWithMolecule[] = resultTargets.map((target) => {
+        const acceptableRoutesCount = countMap.get(target.id) || 0
+        return {
+            ...target,
+            hasAcceptableRoutes: acceptableRoutesCount > 0,
+            acceptableRoutesCount,
+        }
+    })
+
+    const targetsResult: BenchmarkTargetSearchResult = {
+        targets: targetsWithCounts,
+        total,
+        hasMore,
+        page,
+        limit: validLimit,
+    }
+
+    return {
+        benchmark,
+        stats,
+        targetsResult,
     }
 }
 

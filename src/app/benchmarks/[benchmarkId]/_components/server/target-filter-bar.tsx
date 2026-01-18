@@ -1,19 +1,15 @@
-import { computeBenchmarkStats } from '@/lib/services/data/benchmark.data'
+import type { BenchmarkStats } from '@/types'
 
 import { TargetSearchBar } from '../client/target-search-bar'
 
 interface TargetFilterBarProps {
-    benchmarkId: string
+    stats: BenchmarkStats
 }
 
 /**
- * Server component that fetches benchmark stats and renders compact filter toolbar.
- * Displays search and filter controls in a single row, shadcn datatable style.
- * Handles data fetching so client component can focus on interactivity.
+ * Synchronous component that passes pre-fetched benchmark stats to the client-side filter toolbar.
  */
-export async function TargetFilterBar({ benchmarkId }: TargetFilterBarProps) {
-    const stats = await computeBenchmarkStats(benchmarkId)
-
+export function TargetFilterBar({ stats }: TargetFilterBarProps) {
     const hasAcceptableRoutes = stats.targetsWithAcceptableRoutes > 0
     const minLength = stats.minRouteLength
     const maxLength = stats.maxRouteLength

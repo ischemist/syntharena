@@ -323,6 +323,16 @@ export interface BenchmarkTargetSearchResult {
 }
 
 /**
+ * DTO for the entire benchmark detail page.
+ * Contains all pre-fetched data needed for rendering, eliminating horizontal waterfalls.
+ */
+export interface BenchmarkDetailPageData {
+    benchmark: BenchmarkListItem
+    stats: BenchmarkStats
+    targetsResult: BenchmarkTargetSearchResult
+}
+
+/**
  * Result from loading a benchmark file.
  */
 export interface LoadBenchmarkResult {
