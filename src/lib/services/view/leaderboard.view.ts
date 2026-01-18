@@ -5,7 +5,15 @@
  * transform it into all necessary DTOs in a single pass.
  */
 
-import type { LeaderboardEntry, MetricResult, ReliabilityCode, StockListItem, StratifiedMetric } from '@/types'
+import type {
+    BenchmarkListItem,
+    LeaderboardEntry,
+    MetricResult,
+    ReliabilityCode,
+    StockListItem,
+    StratifiedMetric,
+} from '@/types'
+import * as benchmarkData from '@/lib/services/data/benchmark.data' // new import
 import * as statsData from '@/lib/services/data/stats.data'
 
 /** the comprehensive DTO for the entire leaderboard page. */
@@ -21,6 +29,9 @@ export interface LeaderboardPageData {
         hasAcceptableRoutes: boolean
         availableTopKMetrics: string[]
     }
+    // [NEW] Add context for the entire page
+    allBenchmarks: Array<{ id: string; name: string }>
+    selectedBenchmark: BenchmarkListItem
 }
 
 // helper to transform a raw metric record into a MetricResult DTO
@@ -56,16 +67,54 @@ function toMetricResult(
 }
 
 /**
- * [OPTIMIZED] fetches and composes all data for the leaderboard page in one go.
+ * [REFACTORED] fetches and composes all data for the leaderboard page in one go.
  * this is the single entry point for this route's data.
  */
-export async function getLeaderboardPageData(benchmarkId: string): Promise<LeaderboardPageData | null> {
-    const rawStats = await statsData.findStatisticsForLeaderboard({
-        predictionRun: { benchmarkSetId: benchmarkId },
-    })
+export async function getLeaderboardPageData(benchmarkId?: string): Promise<LeaderboardPageData | null> {
+    // wave 1: fetch all benchmarks to determine the effective id and populate the dropdown.
+    const allBenchmarksRaw = await benchmarkData.findBenchmarkListItems()
+    if (allBenchmarksRaw.length === 0) return null
 
-    if (rawStats.length === 0) return null
+    // sort for a stable default
+    allBenchmarksRaw.sort((a, b) => a.name.localeCompare(b.name))
+    const allBenchmarks = allBenchmarksRaw.map((b) => ({ id: b.id, name: b.name }))
 
+    const effectiveBenchmarkId =
+        benchmarkId && allBenchmarks.some((b) => b.id === benchmarkId) ? benchmarkId : allBenchmarks[0].id
+
+    // wave 2: fetch all data for the effective benchmark in parallel.
+    const [rawStats, selectedBenchmarkRaw] = await Promise.all([
+        statsData.findStatisticsForLeaderboard({
+            predictionRun: { benchmarkSetId: effectiveBenchmarkId },
+        }),
+        benchmarkData.findBenchmarkListItemById(effectiveBenchmarkId),
+    ])
+
+    // transform selected benchmark data into DTO
+    const selectedBenchmark: BenchmarkListItem = {
+        id: selectedBenchmarkRaw.id,
+        name: selectedBenchmarkRaw.name,
+        description: selectedBenchmarkRaw.description || undefined,
+        stockId: selectedBenchmarkRaw.stockId,
+        stock: selectedBenchmarkRaw.stock,
+        hasAcceptableRoutes: selectedBenchmarkRaw.hasAcceptableRoutes,
+        createdAt: selectedBenchmarkRaw.createdAt,
+        targetCount: selectedBenchmarkRaw._count.targets,
+    }
+
+    if (rawStats.length === 0) {
+        // we have a benchmark, but no stats. return a partial payload.
+        return {
+            leaderboardEntries: [],
+            stratifiedMetricsByStock: new Map(),
+            stocks: [],
+            metadata: { hasAcceptableRoutes: false, availableTopKMetrics: [] },
+            allBenchmarks,
+            selectedBenchmark,
+        }
+    }
+
+    // --- existing transformation logic for rawStats ---
     const leaderboardEntries: LeaderboardEntry[] = []
     const stratifiedMetricsByStock = new Map<
         string,
@@ -77,6 +126,7 @@ export async function getLeaderboardPageData(benchmarkId: string): Promise<Leade
     const hasAcceptableRoutes = rawStats.some((stat) => stat.predictionRun.benchmarkSet.hasAcceptableRoutes)
 
     for (const stat of rawStats) {
+        // ... (the entire for-loop for processing stats remains IDENTICAL to your original code) ...
         const { stock, predictionRun, metrics } = stat
         const modelName = predictionRun.modelInstance.name
 
@@ -145,6 +195,7 @@ export async function getLeaderboardPageData(benchmarkId: string): Promise<Leade
             })
         }
     }
+    // --- end of identical transformation logic ---
 
     const sortedTopKNames = Array.from(topKMetricNames).sort((a, b) => {
         const aNum = parseInt(a.replace(/^\D+/, ''))
@@ -160,5 +211,7 @@ export async function getLeaderboardPageData(benchmarkId: string): Promise<Leade
             hasAcceptableRoutes,
             availableTopKMetrics: sortedTopKNames,
         },
+        allBenchmarks,
+        selectedBenchmark,
     }
 }

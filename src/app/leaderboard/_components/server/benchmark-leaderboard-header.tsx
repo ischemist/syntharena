@@ -1,22 +1,19 @@
-import { getBenchmarkById } from '@/lib/services/view/benchmark.view'
+import type { BenchmarkListItem } from '@/types' // new import
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 import { BenchmarkCombobox } from '../client/benchmark-combobox'
 
 type BenchmarkLeaderboardHeaderProps = {
-    benchmarkId: string
-    benchmarks: Array<{ id: string; name: string }>
+    benchmark: BenchmarkListItem // receives the full object
+    benchmarks: Array<{ id: string; name: string }> // receives the list for the combobox
 }
 
 /**
- * Server component that displays benchmark leaderboard header information.
- * Shows the benchmark selector and metadata in a bordered card.
- * Layout inspired by run-detail-header and target-header components.
+ * [REFACTORED] Server component that displays benchmark leaderboard header information.
+ * This is now a "dumb" component that receives all its data via props.
  */
-export async function BenchmarkLeaderboardHeader({ benchmarkId, benchmarks }: BenchmarkLeaderboardHeaderProps) {
-    const benchmark = await getBenchmarkById(benchmarkId)
-
+export function BenchmarkLeaderboardHeader({ benchmark, benchmarks }: BenchmarkLeaderboardHeaderProps) {
     return (
         <Card variant="bordered">
             <CardHeader>
@@ -29,7 +26,7 @@ export async function BenchmarkLeaderboardHeader({ benchmarkId, benchmarks }: Be
                         <label htmlFor="benchmark-select" className="text-muted-foreground text-sm font-medium">
                             Benchmark:
                         </label>
-                        <BenchmarkCombobox benchmarks={benchmarks} selectedId={benchmarkId} />
+                        <BenchmarkCombobox benchmarks={benchmarks} selectedId={benchmark.id} />
                     </div>
                 </div>
             </CardHeader>
