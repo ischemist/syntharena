@@ -11,6 +11,7 @@ type BenchmarkLeaderboardOverallProps = {
     entries: LeaderboardEntry[]
     hasAcceptableRoutes: boolean
     stockName: string
+    topKMetricNames: string[] // now receives this directly
 }
 
 /**
@@ -25,22 +26,8 @@ export function BenchmarkLeaderboardOverall({
     entries,
     hasAcceptableRoutes,
     stockName,
+    topKMetricNames,
 }: BenchmarkLeaderboardOverallProps) {
-    // Determine which Top-K metrics to show (collect all unique keys)
-    const topKMetricNames = new Set<string>()
-    entries.forEach((entry) => {
-        if (entry.metrics.topKAccuracy) {
-            Object.keys(entry.metrics.topKAccuracy).forEach((k) => topKMetricNames.add(k))
-        }
-    })
-
-    // Sort Top-K metric names numerically (Top-1, Top-5, Top-10, etc.)
-    const sortedTopKNames = Array.from(topKMetricNames).sort((a, b) => {
-        const aNum = parseInt(a.replace(/^\D+/, ''))
-        const bNum = parseInt(b.replace(/^\D+/, ''))
-        return aNum - bNum
-    })
-
     return (
         <MetricsViewProvider>
             <Card variant="bordered">
@@ -55,7 +42,7 @@ export function BenchmarkLeaderboardOverall({
                     </CardAction>
                 </CardHeader>
                 <CardContent>
-                    <BenchmarkMetricsDisplay entries={entries} topKMetricNames={sortedTopKNames} />
+                    <BenchmarkMetricsDisplay entries={entries} topKMetricNames={topKMetricNames} />
                 </CardContent>
             </Card>
         </MetricsViewProvider>
