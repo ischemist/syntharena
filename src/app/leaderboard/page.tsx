@@ -1,9 +1,7 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 
-import { getBenchmarkSets } from '@/lib/services/view/benchmark.view'
-import { getLeaderboard, getStratifiedMetrics } from '@/lib/services/view/leaderboard.view'
-import { getStocks } from '@/lib/services/view/stock.view'
+import { getLeaderboardPageData, type LeaderboardPageData } from '@/lib/services/view/leaderboard.view' // only view import needed
 
 import { PageLevelTopKSelector } from './_components/client/page-level-top-k-selector'
 import { StratifiedMetricsFilter } from './_components/client/stratified-metrics-filter'
@@ -22,62 +20,28 @@ type LeaderboardPageProps = {
 }
 
 /**
- * Leaderboard page for comparing model performance across benchmarks.
- * Uses URL state (searchParams) to show selected benchmark.
- *
- * Following App Router Manifesto:
- * - Page is NOT async - defines structure and Suspense boundaries only
- * - All data fetching pushed to child server components
- * - URL state for benchmark selection (shareable, refresh-safe)
- * - searchParams is async in Next.js 15+
+ * [REFACTORED] Leaderboard page for comparing model performance across benchmarks.
+ * Uses a single, unified data fetch to prevent waterfalls.
+ * The page itself is async, calling the orchestrator and passing data down.
  */
 export default function LeaderboardPage({ searchParams }: LeaderboardPageProps) {
     return (
         <div className="flex flex-col gap-6">
-            {/* Benchmark Header with Selector */}
             <Suspense fallback={<LeaderboardCardSkeleton />}>
-                <BenchmarkHeaderWrapper searchParams={searchParams} />
-            </Suspense>
-
-            {/* Page-Level Top-K Selector + Content */}
-            <Suspense fallback={<LeaderboardCardSkeleton />}>
-                <LeaderboardContent searchParams={searchParams} />
+                <LeaderboardContentWrapper searchParams={searchParams} />
             </Suspense>
         </div>
     )
 }
 
 /**
- * Helper function to get the effective benchmark ID (from URL or default).
+ * Async component that performs the single data fetch for the page.
  */
-async function getEffectiveBenchmarkId(searchParams: Promise<{ benchmarkId?: string }>): Promise<string | null> {
+async function LeaderboardContentWrapper({ searchParams }: { searchParams: Promise<{ benchmarkId?: string }> }) {
     const params = await searchParams
+    const pageData = await getLeaderboardPageData(params.benchmarkId)
 
-    // If benchmark is specified in URL, use it
-    if (params.benchmarkId) {
-        return params.benchmarkId
-    }
-
-    // Otherwise, get the first available benchmark
-    const benchmarks = await getBenchmarkSets()
-    if (benchmarks.length === 0) {
-        return null
-    }
-
-    // Sort benchmarks by name to ensure a stable default
-    benchmarks.sort((a, b) => a.name.localeCompare(b.name))
-    return benchmarks[0].id
-}
-
-/**
- * Wrapper to display benchmark header with selector.
- */
-async function BenchmarkHeaderWrapper({ searchParams }: { searchParams: Promise<{ benchmarkId?: string }> }) {
-    const benchmarkId = await getEffectiveBenchmarkId(searchParams)
-    const benchmarks = await getBenchmarkSets()
-
-    // Handle no benchmarks available
-    if (!benchmarkId || benchmarks.length === 0) {
+    if (!pageData) {
         return (
             <div className="text-muted-foreground rounded-lg border border-dashed p-8 text-center">
                 <p>No benchmarks available.</p>
@@ -86,131 +50,106 @@ async function BenchmarkHeaderWrapper({ searchParams }: { searchParams: Promise<
         )
     }
 
-    // Transform to simpler format for combobox
-    const benchmarkOptions = benchmarks.map((b) => ({
-        id: b.id,
-        name: b.name,
-    }))
+    const { leaderboardEntries, stratifiedMetricsByStock, stocks, metadata, allBenchmarks, selectedBenchmark } =
+        pageData
+    const { hasAcceptableRoutes, availableTopKMetrics } = metadata
 
-    return <BenchmarkLeaderboardHeader benchmarkId={benchmarkId} benchmarks={benchmarkOptions} />
+    return (
+        <>
+            <BenchmarkLeaderboardHeader benchmark={selectedBenchmark} benchmarks={allBenchmarks} />
+
+            {leaderboardEntries.length === 0 ? (
+                <div className="text-muted-foreground rounded-lg border border-dashed p-8 text-center">
+                    <p>No leaderboard data available for this benchmark.</p>
+                    <p className="mt-2 text-sm">Load model predictions and statistics to see comparisons.</p>
+                </div>
+            ) : (
+                <LeaderboardMetrics
+                    leaderboardEntries={leaderboardEntries}
+                    stratifiedMetricsByStock={stratifiedMetricsByStock}
+                    stocks={stocks}
+                    hasAcceptableRoutes={hasAcceptableRoutes}
+                    availableTopKMetrics={availableTopKMetrics}
+                />
+            )}
+        </>
+    )
 }
 
-/**
- * Server component that wraps all metrics content with page-level Top-K selector.
- * Optimized: Fetches leaderboard and stocks in parallel to eliminate waterfall.
- */
-async function LeaderboardContent({ searchParams }: { searchParams: Promise<{ benchmarkId?: string }> }) {
-    const benchmarkId = await getEffectiveBenchmarkId(searchParams)
+// Separate component for metrics to logically group them. It's not async.
+function LeaderboardMetrics({
+    leaderboardEntries,
+    stratifiedMetricsByStock,
+    stocks,
+    hasAcceptableRoutes,
+    availableTopKMetrics,
+}: Omit<LeaderboardPageData, 'allBenchmarks' | 'selectedBenchmark' | 'metadata'> & LeaderboardPageData['metadata']) {
+    const stockName = leaderboardEntries[0].stockName
 
-    // Handle no benchmarks available
-    if (!benchmarkId) {
-        return null
-    }
-
-    // OPTIMIZATION: Fetch leaderboard and stocks in parallel
-    const [entries, stocks] = await Promise.all([getLeaderboard(benchmarkId), getStocks()])
-
-    if (entries.length === 0) {
-        return (
-            <div className="text-muted-foreground rounded-lg border border-dashed p-8 text-center">
-                <p>No leaderboard data available for this benchmark.</p>
-                <p className="mt-2 text-sm">Load model predictions and statistics to see comparisons.</p>
-            </div>
-        )
-    }
-
-    // Get stock name from first entry (all entries share same stock)
-    const stockName = entries[0].stockName
-
-    // Check if benchmark has acceptable routes (based on presence of topKAccuracy)
-    const hasAcceptableRoutes = entries.some((entry) => entry.metrics.topKAccuracy !== undefined)
-
-    // Determine which Top-K metrics to show (collect all unique keys)
-    const topKMetricNames = new Set<string>()
-    entries.forEach((entry) => {
-        if (entry.metrics.topKAccuracy) {
-            Object.keys(entry.metrics.topKAccuracy).forEach((k) => topKMetricNames.add(k))
-        }
-    })
-
-    // Sort Top-K metric names numerically (Top-1, Top-5, Top-10, etc.)
-    const sortedTopKNames = Array.from(topKMetricNames).sort((a, b) => {
-        const aNum = parseInt(a.replace(/^\D+/, ''))
-        const bNum = parseInt(b.replace(/^\D+/, ''))
-        return aNum - bNum
-    })
-
-    // If no acceptable routes, render without Top-K selector
-    if (!hasAcceptableRoutes || sortedTopKNames.length === 0) {
+    if (!hasAcceptableRoutes || availableTopKMetrics.length === 0) {
         return (
             <div className="flex flex-col gap-6">
                 <BenchmarkLeaderboardOverall
-                    entries={entries}
+                    entries={leaderboardEntries}
                     hasAcceptableRoutes={hasAcceptableRoutes}
                     stockName={stockName}
+                    topKMetricNames={[]}
                 />
-                <Suspense fallback={<LeaderboardCardSkeleton />}>
-                    <StratifiedMetricsWrapper benchmarkId={benchmarkId} stocks={stocks} metricNames={['Solvability']} />
-                </Suspense>
+                <StratifiedMetricsWrapper
+                    metricsByStock={stratifiedMetricsByStock}
+                    stocks={stocks}
+                    metricNames={['Solvability']}
+                />
             </div>
         )
     }
 
     return (
-        <PageLevelTopKSelector topKMetricNames={sortedTopKNames}>
+        <PageLevelTopKSelector topKMetricNames={availableTopKMetrics}>
             <div className="flex flex-col gap-6">
-                {/* Overall Metrics */}
                 <BenchmarkLeaderboardOverall
-                    entries={entries}
+                    entries={leaderboardEntries}
                     hasAcceptableRoutes={hasAcceptableRoutes}
                     stockName={stockName}
+                    topKMetricNames={availableTopKMetrics}
                 />
-
-                {/* Stratified Metrics by Route Length */}
-                <Suspense fallback={<LeaderboardCardSkeleton />}>
-                    <StratifiedMetricsWrapper
-                        benchmarkId={benchmarkId}
-                        stocks={stocks}
-                        metricNames={['Solvability', ...sortedTopKNames]}
-                    />
-                </Suspense>
+                <StratifiedMetricsWrapper
+                    metricsByStock={stratifiedMetricsByStock}
+                    stocks={stocks}
+                    metricNames={['Solvability', ...availableTopKMetrics]}
+                />
             </div>
         </PageLevelTopKSelector>
     )
 }
 
 /**
- * Server component that renders stratified metric cards for each metric/stock combination.
- * OPTIMIZED: Fetches all stratified metrics in one query, eliminating N+1 pattern.
+ * Stratified metrics renderer - remains unchanged but is now called from a different parent.
  */
-async function StratifiedMetricsWrapper({
-    benchmarkId,
+function StratifiedMetricsWrapper({
+    metricsByStock,
     stocks,
     metricNames,
 }: {
-    benchmarkId: string
-    stocks: Awaited<ReturnType<typeof getStocks>>
+    metricsByStock: LeaderboardPageData['stratifiedMetricsByStock']
+    stocks: LeaderboardPageData['stocks']
     metricNames: string[]
 }) {
     if (stocks.length === 0) {
         return null
     }
 
-    // OPTIMIZATION: Single query for all stocks' stratified metrics
-    const stockIds = stocks.map((s) => s.id)
-    const stratifiedMetricsArray = await getStratifiedMetrics(benchmarkId, stockIds)
-    const stratifiedMetricsMap = new Map(
-        stratifiedMetricsArray.map(([stockId, modelMapArray]) => [stockId, new Map(modelMapArray)])
-    )
-
     return (
         <>
             {stocks.map((stock) => {
-                const stockMetrics = stratifiedMetricsMap.get(stock.id)
+                const stockMetrics = metricsByStock.get(stock.id)
                 if (!stockMetrics) return null
 
                 return (
                     <div key={stock.id} className="flex flex-col gap-6">
+                        {/* If multiple stocks, add a header here */}
+                        {stocks.length > 1 && <h2 className="text-xl font-semibold">{stock.name} Metrics</h2>}
+
                         {metricNames.map((metricName) => (
                             <StratifiedMetricsFilter key={`${stock.id}-${metricName}`} metricName={metricName}>
                                 <StratifiedMetricCard metricName={metricName} metricsMap={stockMetrics} />
