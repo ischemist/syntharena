@@ -121,12 +121,20 @@ export async function getLeaderboardPageData(benchmarkId?: string): Promise<Lead
         Map<string, { solvability: StratifiedMetric; topKAccuracy?: Record<string, StratifiedMetric> }>
     >()
     const stocksMap = new Map<string, StockListItem>()
-    const topKMetricNames = new Set<string>()
 
     const hasAcceptableRoutes = rawStats.some((stat) => stat.predictionRun.benchmarkSet.hasAcceptableRoutes)
 
+    const topKMetricNames = new Set<string>()
+    if (hasAcceptableRoutes) {
+        rawStats.forEach((stat) => {
+            stat.metrics.forEach((metric) => {
+                if (metric.metricName.startsWith('Top-')) {
+                    topKMetricNames.add(metric.metricName)
+                }
+            })
+        })
+    }
     for (const stat of rawStats) {
-        // ... (the entire for-loop for processing stats remains IDENTICAL to your original code) ...
         const { stock, predictionRun, metrics } = stat
         const modelName = predictionRun.modelInstance.name
 
@@ -139,7 +147,6 @@ export async function getLeaderboardPageData(benchmarkId?: string): Promise<Lead
         const topKAccuracy: Record<string, MetricResult> = {}
         for (const metric of topKMetrics) {
             topKAccuracy[metric.metricName] = toMetricResult(metric)
-            topKMetricNames.add(metric.metricName) // collect available metric names
         }
 
         leaderboardEntries.push({
