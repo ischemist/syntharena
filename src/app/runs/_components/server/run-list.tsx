@@ -1,32 +1,21 @@
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 
-import * as predictionView from '@/lib/services/view/prediction.view'
+import type { PredictionRunWithStats } from '@/types'
+import { SubmissionBadge } from '@/components/badges/submission'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-type RunListProps = {
-    searchParams: Promise<{
-        benchmark?: string
-        model?: string
-        page?: string
-    }>
-}
-
-export async function RunList({ searchParams }: RunListProps) {
-    const params = await searchParams
-    const runs = await predictionView.getPredictionRuns(params.benchmark, params.model)
-
+export function RunList({ runs }: { runs: PredictionRunWithStats[] }) {
     if (runs.length === 0) {
         return (
             <div className="text-muted-foreground py-12 text-center">
-                <p>No prediction runs found.</p>
+                <p>No prediction runs found for this series.</p>
                 <p className="mt-2 text-sm">Load prediction data using the data loading scripts.</p>
             </div>
         )
     }
 
-    // Group runs by benchmark
     const runsByBenchmark = runs.reduce(
         (acc, run) => {
             const benchmarkName = run.benchmarkSet.name
@@ -52,6 +41,7 @@ export async function RunList({ searchParams }: RunListProps) {
                                 <TableHead className="text-right">Duration</TableHead>
                                 <TableHead className="text-right">Cost</TableHead>
                                 <TableHead className="text-right">Executed</TableHead>
+                                <TableHead className="text-right">Submission</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -66,6 +56,7 @@ export async function RunList({ searchParams }: RunListProps) {
                                             {run.modelInstance.name}
                                         </Link>
                                     </TableCell>
+
                                     <TableCell className="text-right">
                                         <Badge variant="secondary">{run.totalRoutes.toLocaleString()}</Badge>
                                     </TableCell>
@@ -79,6 +70,14 @@ export async function RunList({ searchParams }: RunListProps) {
                                         {formatDistanceToNow(new Date(run.executedAt), {
                                             addSuffix: true,
                                         })}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <SubmissionBadge
+                                            submissionType={run.submissionType}
+                                            isRetrained={run.isRetrained}
+                                            size="sm"
+                                            badgeStyle="soft"
+                                        />
                                     </TableCell>
                                 </TableRow>
                             ))}

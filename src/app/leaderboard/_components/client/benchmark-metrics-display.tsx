@@ -19,6 +19,7 @@ import { useSelectedTopK } from './page-level-top-k-selector'
 
 type BenchmarkMetricsDisplayProps = {
     entries: LeaderboardEntry[]
+    benchmarkSeries: LeaderboardEntry['benchmarkSeries']
     topKMetricNames: string[]
     selectedTopK?: string[] // Optional - will use context if not provided
 }
@@ -98,6 +99,7 @@ export function MetricsViewToggleButtons() {
  */
 export function BenchmarkMetricsDisplay({
     entries,
+    benchmarkSeries,
     topKMetricNames,
     selectedTopK: propSelectedTopK,
 }: BenchmarkMetricsDisplayProps) {
@@ -116,7 +118,10 @@ export function BenchmarkMetricsDisplay({
     const [sorting, setSorting] = useState<SortingState>([])
 
     // Create columns based on displayed Top-K metrics
-    const columns = useMemo(() => createLeaderboardColumns(displayedTopK), [displayedTopK])
+    const columns = useMemo(
+        () => createLeaderboardColumns(benchmarkSeries, displayedTopK),
+        [benchmarkSeries, displayedTopK]
+    )
 
     // Initialize TanStack Table
     // eslint-disable-next-line react-hooks/incompatible-library
@@ -144,10 +149,7 @@ export function BenchmarkMetricsDisplay({
                                         const isLastColumn = idx === headerGroup.headers.length - 1
                                         const isModelName = header.id === 'modelName'
                                         return (
-                                            <TableHead
-                                                key={header.id}
-                                                className={cn(!isModelName && 'min-w-[220px]', isLastColumn && 'pr-24')}
-                                            >
+                                            <TableHead key={header.id} className={cn(!isModelName && 'min-w-[220px]')}>
                                                 {header.isPlaceholder
                                                     ? null
                                                     : flexRender(header.column.columnDef.header, header.getContext())}

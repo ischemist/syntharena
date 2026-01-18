@@ -1,9 +1,12 @@
 'use client'
 
 import { ColumnDef } from '@tanstack/react-table'
+import { Check, X } from 'lucide-react'
 
 import type { LeaderboardEntry } from '@/types'
+import { SubmissionBadge } from '@/components/badges/submission'
 import { MetricCell } from '@/components/metrics'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 import { DataTableColumnHeader } from './data-table-column-header'
 
@@ -13,7 +16,10 @@ import { DataTableColumnHeader } from './data-table-column-header'
  *
  * @param displayedTopK - Filtered list of Top-K metrics to actually show (based on user selection)
  */
-export function createLeaderboardColumns(displayedTopK: string[]): ColumnDef<LeaderboardEntry>[] {
+export function createLeaderboardColumns(
+    benchmarkSeries: LeaderboardEntry['benchmarkSeries'],
+    displayedTopK: string[]
+): ColumnDef<LeaderboardEntry>[] {
     const columns: ColumnDef<LeaderboardEntry>[] = [
         // Model Name Column
         {
@@ -62,6 +68,66 @@ export function createLeaderboardColumns(displayedTopK: string[]): ColumnDef<Lea
             },
         })
     })
+    console.log(benchmarkSeries)
+    if (benchmarkSeries === 'REFERENCE') {
+        columns.push({
+            id: 'training',
+            header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Training" />,
+            cell: ({ row }) => {
+                const { isRetrained } = row.original
+                const tooltipText =
+                    isRetrained === true
+                        ? 'Model was retrained on the standardized corpus.'
+                        : isRetrained === false
+                          ? 'Model uses pre-trained weights, not the standardized corpus.'
+                          : 'Training status not applicable.'
+
+                return (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <div className="flex justify-center">
+                                    {isRetrained === true && <Check className="h-4 w-4 text-green-500" />}
+                                    {isRetrained === false && <X className="h-4 w-4 text-red-500" />}
+                                    {isRetrained === null && <span className="text-muted-foreground">-</span>}
+                                </div>
+                            </TooltipTrigger>
+                            <TooltipContent>{tooltipText}</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                )
+            },
+            sortingFn: (rowA, rowB) => {
+                const a = rowA.original.isRetrained
+                const b = rowB.original.isRetrained
+                if (a === b) return 0
+                if (a === true) return 1 // true > false > null
+                if (b === true) return -1
+                if (a === false) return 1 // false > null
+                if (b === false) return -1
+                return 0
+            },
+        })
+    }
+    columns.push({
+        accessorKey: 'submissionType',
+        id: 'submission',
+        header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Submission" />,
+        cell: ({ row }) => {
+            const { submissionType, isRetrained } = row.original
+            return (
+                <div className="flex justify-center">
+                    <SubmissionBadge
+                        submissionType={submissionType}
+                        isRetrained={isRetrained}
+                        badgeStyle="soft"
+                        size="sm"
+                    />
+                </div>
+            )
+        },
+        // Note: Custom sorting for submission type is likely not needed, but can be added here if required.
+    })
 
     // Add Duration column (wall time in minutes)
     columns.push({
@@ -88,8 +154,8 @@ export function createLeaderboardColumns(displayedTopK: string[]): ColumnDef<Lea
         header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Cost" />,
         cell: ({ row }) => {
             const cost = row.original.totalCost
-            if (cost == null) return <div className="text-muted-foreground flex justify-center pr-24">-</div>
-            return <div className="flex justify-center pr-24 font-mono text-sm">${cost.toFixed(2)}</div>
+            if (cost == null) return <div className="text-muted-foreground flex justify-center">-</div>
+            return <div className="flex justify-center font-mono text-sm">${cost.toFixed(2)}</div>
         },
         sortingFn: (rowA, rowB) => {
             const a = rowA.original.totalCost ?? -1

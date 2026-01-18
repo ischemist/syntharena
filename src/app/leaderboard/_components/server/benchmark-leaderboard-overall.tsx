@@ -9,6 +9,7 @@ import {
 
 type BenchmarkLeaderboardOverallProps = {
     entries: LeaderboardEntry[]
+    benchmarkSeries: LeaderboardEntry['benchmarkSeries']
     hasAcceptableRoutes: boolean
     stockName: string
     topKMetricNames: string[] // now receives this directly
@@ -24,6 +25,7 @@ type BenchmarkLeaderboardOverallProps = {
  */
 export function BenchmarkLeaderboardOverall({
     entries,
+    benchmarkSeries,
     hasAcceptableRoutes,
     stockName,
     topKMetricNames,
@@ -42,7 +44,11 @@ export function BenchmarkLeaderboardOverall({
                     </CardAction>
                 </CardHeader>
                 <CardContent>
-                    <BenchmarkMetricsDisplay entries={entries} topKMetricNames={topKMetricNames} />
+                    <BenchmarkMetricsDisplay
+                        entries={entries}
+                        benchmarkSeries={benchmarkSeries}
+                        topKMetricNames={topKMetricNames}
+                    />
                 </CardContent>
             </Card>
         </MetricsViewProvider>

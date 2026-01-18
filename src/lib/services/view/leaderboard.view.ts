@@ -29,7 +29,6 @@ export interface LeaderboardPageData {
         hasAcceptableRoutes: boolean
         availableTopKMetrics: string[]
     }
-    // [NEW] Add context for the entire page
     allBenchmarks: Array<{ id: string; name: string }>
     selectedBenchmark: BenchmarkListItem
 }

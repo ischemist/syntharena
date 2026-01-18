@@ -68,10 +68,7 @@ export function StratifiedMetricTable({
                                     const isLastColumn = idx === headerGroup.headers.length - 1
                                     const isModelName = header.id === 'modelName'
                                     return (
-                                        <TableHead
-                                            key={header.id}
-                                            className={cn(!isModelName && 'min-w-[220px]', isLastColumn && 'pr-24')}
-                                        >
+                                        <TableHead key={header.id} className={cn(!isModelName && 'min-w-[220px]')}>
                                             {header.isPlaceholder
                                                 ? null
                                                 : flexRender(header.column.columnDef.header, header.getContext())}

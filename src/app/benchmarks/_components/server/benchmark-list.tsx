@@ -1,20 +1,14 @@
 import Link from 'next/link'
 
-import * as benchmarkView from '@/lib/services/view/benchmark.view'
+import type { BenchmarkListItem } from '@/types'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-/**
- * Server component that displays all available benchmarks with their target counts.
- * Each benchmark row is clickable and navigates to the benchmark detail page.
- */
-export async function BenchmarkList() {
-    const benchmarks = await benchmarkView.getBenchmarkSets()
-
+export function BenchmarkList({ benchmarks }: { benchmarks: BenchmarkListItem[] }) {
     if (benchmarks.length === 0) {
         return (
             <div className="text-muted-foreground py-12 text-center">
-                <p>No benchmarks available. Load a benchmark using the CLI script.</p>
+                <p>No benchmarks found in this series.</p>
             </div>
         )
     }
@@ -26,7 +20,6 @@ export async function BenchmarkList() {
                     <TableHead>Name</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead className="text-right">Targets</TableHead>
-                    <TableHead className="text-right">Stock</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -44,9 +37,6 @@ export async function BenchmarkList() {
                         <TableCell className="text-muted-foreground">{benchmark.description || '—'}</TableCell>
                         <TableCell className="text-right">
                             <Badge variant="secondary">{benchmark.targetCount.toLocaleString()}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                            <Badge variant="outline">{benchmark.stock.name}</Badge>
                         </TableCell>
                     </TableRow>
                 ))}
