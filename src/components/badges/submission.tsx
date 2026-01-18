@@ -1,11 +1,10 @@
-import * as React from 'react'
 import { AlertTriangle, BadgeCheck, Users } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 
-export type BadgeStyle = 'default' | 'soft' | 'pill' | 'outline'
+export type BadgeStyle = 'soft' | 'outline'
 
 export interface SubmissionBadgeProps {
     submissionType: 'MAINTAINER_VERIFIED' | 'COMMUNITY_SUBMITTED'
@@ -18,37 +17,41 @@ export interface SubmissionBadgeProps {
 const submissionConfig = {
     MAINTAINER_VERIFIED: {
         label: 'Verified',
-        tooltip:
-            'Verified by Maintainer: The SynthArena team attests to the hardware, runtime, and configuration used for this run.',
+        title: 'Maintainer Verified',
+        subtitle: 'Official Submission',
+        description:
+            'The SynthArena team has independently verified the hardware specifications, runtime environment, and configuration used for this benchmark run.',
         icon: BadgeCheck,
         colors: {
-            default:
-                'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800',
             soft: 'bg-indigo-50 text-indigo-700 border-transparent dark:bg-indigo-950/40 dark:text-indigo-400',
-            pill: 'bg-indigo-500 text-white border-transparent dark:bg-indigo-600',
             outline: 'bg-transparent text-indigo-700 border-indigo-400 dark:text-indigo-400 dark:border-indigo-600',
         },
     },
     COMMUNITY_SUBMITTED: {
         label: 'Community',
-        tooltip:
-            "Community Submission: Results submitted by the model's authors. Scores are computationally verified against the provided route data.",
+        title: 'Community Submission',
+        subtitle: 'Author-Reported Results',
+        description:
+            "Results submitted by the model's authors or community members. Scores have been computationally verified against the provided route data, but hardware and runtime details are self-reported.",
         icon: Users,
         colors: {
-            default:
-                'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800',
             soft: 'bg-amber-50 text-amber-700 border-transparent dark:bg-amber-950/40 dark:text-amber-400',
-            pill: 'bg-amber-500 text-white border-transparent dark:bg-amber-600',
             outline: 'bg-transparent text-amber-700 border-amber-400 dark:text-amber-400 dark:border-amber-600',
         },
     },
 } as const
 
+const retrainingCaveat = {
+    title: 'Training Protocol Caveat',
+    description:
+        "This result uses the author's official weights and was not retrained on the standardized corpus for this Reference benchmark. Its performance may not be directly comparable to retrained models",
+}
+
 export function SubmissionBadge({
     submissionType,
     isRetrained,
     size = 'md',
-    badgeStyle = 'default',
+    badgeStyle = 'soft',
     className,
 }: SubmissionBadgeProps) {
     const config = submissionConfig[submissionType]
@@ -61,7 +64,6 @@ export function SubmissionBadge({
             variant="outline"
             className={cn(
                 colorClass,
-                badgeStyle === 'pill' && 'rounded-full',
                 showCaveat && 'border-dashed',
                 size === 'sm' ? 'px-1.5 py-0.5' : 'px-2 py-0.5',
                 'relative',
@@ -80,20 +82,33 @@ export function SubmissionBadge({
     )
 
     return (
-        <TooltipProvider>
-            <Tooltip>
-                <TooltipTrigger asChild>{badgeContent}</TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                    <p>{config.tooltip}</p>
+        <HoverCard openDelay={200} closeDelay={100}>
+            <HoverCardTrigger asChild>{badgeContent}</HoverCardTrigger>
+            <HoverCardContent className="w-80">
+                <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                        <Icon className="size-4 shrink-0" />
+                        <div>
+                            <p className="text-sm font-semibold">{config.title}</p>
+                            <p className="text-muted-foreground text-xs">{config.subtitle}</p>
+                        </div>
+                    </div>
+                    <p className="text-muted-foreground text-sm leading-relaxed">{config.description}</p>
                     {showCaveat && (
-                        <p className="mt-2 font-medium text-amber-200">
-                            <strong>Warning:</strong> This result uses a pre-trained model and does not adhere to the
-                            standardized training protocol for this Reference benchmark. Its performance may not be
-                            directly comparable to retrained models.
-                        </p>
+                        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-950/30">
+                            <div className="mb-1 flex items-center gap-2">
+                                <AlertTriangle className="size-3.5 text-amber-600 dark:text-amber-400" />
+                                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                                    {retrainingCaveat.title}
+                                </p>
+                            </div>
+                            <p className="text-xs leading-relaxed text-amber-700 dark:text-amber-400">
+                                {retrainingCaveat.description}
+                            </p>
+                        </div>
                     )}
-                </TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
+                </div>
+            </HoverCardContent>
+        </HoverCard>
     )
 }

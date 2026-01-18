@@ -68,20 +68,20 @@ export function createLeaderboardColumns(
             },
         })
     })
-    console.log(benchmarkSeries)
+
     if (benchmarkSeries === 'REFERENCE') {
         columns.push({
             id: 'training',
             accessorFn: (row) => row.isRetrained,
-            header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Training" />,
+            header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Re-Training" />,
             cell: ({ row }) => {
                 const { isRetrained } = row.original
                 const tooltipText =
                     isRetrained === true
-                        ? 'Model was retrained on the standardized corpus.'
+                        ? 'Model was retrained on the standardized corpus for this benchmark.'
                         : isRetrained === false
-                          ? 'Model uses pre-trained weights, not the standardized corpus.'
-                          : 'Training status not applicable.'
+                          ? "Model uses the author's official weights and was not retrained."
+                          : 'Training status not applicable for this benchmark series.'
 
                 return (
                     <TooltipProvider>
