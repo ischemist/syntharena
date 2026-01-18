@@ -13,8 +13,8 @@ export function TargetDisplaySection({ data }: TargetDisplaySectionProps) {
             {/* Target metadata renders from the DTO */}
             <TargetInfoDisplay data={data} />
 
-            {/* Graph display renders if a prediction exists in the DTO */}
-            {data.currentPrediction && <TargetRouteGraphDisplay data={data} />}
+            {/* Graph display renders if predictions exist, even if current rank is not found */}
+            {data.totalPredictions > 0 && <TargetRouteGraphDisplay data={data} />}
         </div>
     )
 }

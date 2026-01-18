@@ -17,11 +17,8 @@ import type {
     StratifiedMetric,
     TargetDisplayData,
     TargetInfo,
-    TargetPredictionDetail,
     RouteVisualizationNode,
     BuyableMetadata,
-    PredictionRoute,
-    Route,
 } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkData from '@/lib/services/data/benchmark.data'
@@ -29,7 +26,6 @@ import * as routeData from '@/lib/services/data/route.data'
 import * as runData from '@/lib/services/data/run.data'
 import * as statsData from '@/lib/services/data/stats.data'
 import * as stockData from '@/lib/services/data/stock.data'
-import * as stockView from '@/lib/services/view/stock.view'
 import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 
 import { toVisualizationNode } from './route.view'

@@ -9,8 +9,8 @@ import { TargetFilterBar } from './_components/server/target-filter-bar'
 import { TargetGrid } from './_components/server/target-grid'
 
 interface BenchmarkDetailPageProps {
-    params: { benchmarkId: string }
-    searchParams: { [key: string]: string | string[] | undefined }
+    params: Promise<{ benchmarkId: string }>
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
 export async function generateMetadata({ params }: BenchmarkDetailPageProps): Promise<Metadata> {
@@ -71,7 +71,7 @@ export default async function BenchmarkDetailPage({ params, searchParams }: Benc
             maxRouteLength,
             isConvergent
         )
-    } catch (error) {
+    } catch {
         notFound()
     }
 

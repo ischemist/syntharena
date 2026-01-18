@@ -11,13 +11,13 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { RouteViewToggle } from './route-view-toggle'
 
 type RouteDisplayCardProps = {
-    route: Route
-    predictionRoute: PredictionRoute
-    visualizationNode: RouteVisualizationNode
+    route?: Route
+    predictionRoute?: PredictionRoute
+    visualizationNode?: RouteVisualizationNode
     acceptableRouteVisualizationNode?: RouteVisualizationNode
     isSolvable?: boolean
     matchesAcceptable?: boolean
-    inStockInchiKeys: Set<string>
+    inStockInchiKeys?: Set<string>
     buyableMetadataMap?: Map<string, BuyableMetadata>
     stockName?: string
     viewMode?: string
@@ -45,6 +45,7 @@ export function RouteDisplayCard({
     acceptableIndex = 0,
     totalAcceptableRoutes = 0,
 }: RouteDisplayCardProps) {
+    const hasRoute = !!route && !!predictionRoute && !!visualizationNode
     const hasAcceptableRoute = !!acceptableRouteVisualizationNode
     const hasNavigation = currentRank !== undefined && totalPredictions !== undefined && targetId !== undefined
     const hasMultipleAcceptableRoutes = totalAcceptableRoutes > 1
@@ -62,45 +63,53 @@ export function RouteDisplayCard({
                 <div>
                     <CardTitle className="text-lg">Prediction Route</CardTitle>
                     <CardDescription>
-                        Rank {predictionRoute.rank} • Length: {route.length} steps •{' '}
-                        {route.isConvergent ? 'Convergent' : 'Linear'}
+                        {hasRoute ? (
+                            <>
+                                Rank {predictionRoute.rank} • Length: {route.length} steps •{' '}
+                                {route.isConvergent ? 'Convergent' : 'Linear'}
+                            </>
+                        ) : (
+                            <>Rank {currentRank} not found</>
+                        )}
                     </CardDescription>
                 </div>
                 <CardAction>
-                    {/* Badges */}
-                    <div className="flex items-center gap-2">
-                        {isSolvable !== undefined && (
-                            <>
-                                {isSolvable ? (
-                                    <Badge variant="default" className="gap-1">
-                                        <CheckCircle className="h-3 w-3" />
-                                        Solved
-                                    </Badge>
-                                ) : (
-                                    <Badge variant="destructive" className="gap-1">
-                                        <XCircle className="h-3 w-3" />
-                                        Unsolved
-                                    </Badge>
-                                )}
-                            </>
-                        )}
-                        {matchesAcceptable && (
-                            <Badge variant="secondary" className="gap-1">
-                                ⭐ Acceptable Match
-                            </Badge>
-                        )}
-                    </div>
+                    {/* Badges - only show when route exists */}
+                    {hasRoute && (
+                        <div className="flex items-center gap-2">
+                            {isSolvable !== undefined && (
+                                <>
+                                    {isSolvable ? (
+                                        <Badge variant="default" className="gap-1">
+                                            <CheckCircle className="h-3 w-3" />
+                                            Solved
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="destructive" className="gap-1">
+                                            <XCircle className="h-3 w-3" />
+                                            Unsolved
+                                        </Badge>
+                                    )}
+                                </>
+                            )}
+                            {matchesAcceptable && (
+                                <Badge variant="secondary" className="gap-1">
+                                    ⭐ Acceptable Match
+                                </Badge>
+                            )}
+                        </div>
+                    )}
                 </CardAction>
             </CardHeader>
             <CardContent className="space-y-4">
-                {stockName && (
+                {hasRoute && stockName && (
                     <div className="text-muted-foreground text-sm">
                         Solvability evaluated against: <span className="font-medium">{stockName}</span>
                     </div>
                 )}
 
-                {/* View mode toggle */}
-                <RouteViewToggle viewMode={viewMode} hasAcceptableRoute={hasAcceptableRoute} />
+                {/* View mode toggle - only show when route exists */}
+                {hasRoute && <RouteViewToggle viewMode={viewMode} hasAcceptableRoute={hasAcceptableRoute} />}
 
                 {/* Navigation controls - two-column layout */}
                 {(hasNavigation ||
@@ -169,21 +178,30 @@ export function RouteDisplayCard({
 
                 {/* Route visualization */}
                 <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-                    {viewMode === 'prediction-only' && (
+                    {!hasRoute && (
+                        <div className="flex h-full items-center justify-center">
+                            <p className="text-muted-foreground text-sm">
+                                No prediction route exists at rank {currentRank}. Use the navigation above to browse
+                                other ranks.
+                            </p>
+                        </div>
+                    )}
+                    {hasRoute && viewMode === 'prediction-only' && (
                         <RouteGraph
                             route={visualizationNode}
-                            inStockInchiKeys={inStockInchiKeys}
+                            inStockInchiKeys={inStockInchiKeys ?? new Set()}
                             buyableMetadataMap={buyableMetadataMap}
                             idPrefix="run-route-"
                         />
                     )}
-                    {(viewMode === 'side-by-side' || viewMode === 'diff-overlay') &&
+                    {hasRoute &&
+                        (viewMode === 'side-by-side' || viewMode === 'diff-overlay') &&
                         acceptableRouteVisualizationNode && (
                             <RouteComparison
                                 acceptableRoute={acceptableRouteVisualizationNode}
                                 predictionRoute={visualizationNode}
                                 mode={viewMode}
-                                inStockInchiKeys={inStockInchiKeys}
+                                inStockInchiKeys={inStockInchiKeys ?? new Set()}
                                 buyableMetadataMap={buyableMetadataMap}
                                 acceptableRouteLabel={
                                     hasMultipleAcceptableRoutes
@@ -194,20 +212,22 @@ export function RouteDisplayCard({
                         )}
                 </div>
 
-                {/* Legend */}
-                <RouteLegend viewMode={viewMode} />
+                {/* Legend - only show when route exists */}
+                {hasRoute && <RouteLegend viewMode={viewMode} />}
 
-                {/* Info */}
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {viewMode === 'prediction-only'
-                        ? 'Scroll to zoom. Drag to pan. Nodes marked in green are in stock.'
-                        : viewMode === 'side-by-side'
-                          ? 'Scroll to zoom. Drag to pan. Green = matches acceptable route, amber = extension (not in acceptable route).'
-                          : 'Scroll to zoom. Drag to pan. Green = matches acceptable route, amber = extension, dashed gray = missing from prediction.'}
-                </p>
+                {/* Info - only show when route exists */}
+                {hasRoute && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {viewMode === 'prediction-only'
+                            ? 'Scroll to zoom. Drag to pan. Nodes marked in green are in stock.'
+                            : viewMode === 'side-by-side'
+                              ? 'Scroll to zoom. Drag to pan. Green = matches acceptable route, amber = extension (not in acceptable route).'
+                              : 'Scroll to zoom. Drag to pan. Green = matches acceptable route, amber = extension, dashed gray = missing from prediction.'}
+                    </p>
+                )}
 
-                {/* Route metadata */}
-                {route.contentHash && (
+                {/* Route metadata - only show when route exists */}
+                {hasRoute && route.contentHash && (
                     <div className="text-muted-foreground truncate border-t pt-4 font-mono text-xs">
                         Hash: {route.contentHash}
                     </div>

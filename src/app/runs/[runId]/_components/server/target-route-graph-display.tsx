@@ -1,7 +1,4 @@
-import { AlertCircle } from 'lucide-react'
-
 import type { TargetDisplayData } from '@/types'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 
 import { RouteDisplayCard } from '../client/route-display-card'
 
@@ -12,6 +9,8 @@ type TargetRouteGraphDisplayProps = {
 /**
  * Dumb component: Passes pre-fetched, pre-computed data to the client component.
  * This component is now synchronous and has no data-fetching logic.
+ * Renders RouteDisplayCard regardless of whether currentPrediction exists -
+ * the card handles the empty state internally to maintain consistent layout.
  */
 export function TargetRouteGraphDisplay({ data }: TargetRouteGraphDisplayProps) {
     const {
@@ -26,22 +25,13 @@ export function TargetRouteGraphDisplay({ data }: TargetRouteGraphDisplayProps) 
         viewMode,
     } = data
 
-    if (!currentPrediction) {
-        return (
-            <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>Prediction rank {currentRank} not found.</AlertDescription>
-            </Alert>
-        )
-    }
-
-    const solvability = currentPrediction.solvability
+    const solvability = currentPrediction?.solvability
 
     return (
         <RouteDisplayCard
-            route={currentPrediction.route}
-            predictionRoute={currentPrediction.predictionRoute}
-            visualizationNode={currentPrediction.visualizationNode}
+            route={currentPrediction?.route}
+            predictionRoute={currentPrediction?.predictionRoute}
+            visualizationNode={currentPrediction?.visualizationNode}
             acceptableRouteVisualizationNode={acceptableRoute?.visualizationNode}
             isSolvable={solvability?.isSolvable}
             matchesAcceptable={solvability?.matchesAcceptable}

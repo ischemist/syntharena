@@ -12,7 +12,7 @@ import { TargetDetailSkeleton } from './_components/skeletons'
 
 interface TargetDetailPageProps {
     params: Promise<{ benchmarkId: string; targetId: string }>
-    searchParams: {
+    searchParams: Promise<{
         mode?: string
         model1?: string
         model2?: string
@@ -20,7 +20,7 @@ interface TargetDetailPageProps {
         rank2?: string
         view?: string
         acceptableIndex?: string
-    }
+    }>
 }
 
 export async function generateMetadata({ params }: TargetDetailPageProps): Promise<Metadata> {

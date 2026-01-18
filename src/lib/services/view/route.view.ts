@@ -24,7 +24,7 @@ import * as benchmarkData from '@/lib/services/data/benchmark.data'
 import * as predictionData from '@/lib/services/data/prediction.data'
 import * as routeData from '@/lib/services/data/route.data'
 import * as stockData from '@/lib/services/data/stock.data'
-import * as stockView from '@/lib/services/view/stock.view'
+
 import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 
 // ============================================================================
@@ -197,19 +197,17 @@ export async function getTargetComparisonData(
     let inStockInchiKeys = new Set<string>()
     let buyableMetadataMap = new Map<string, BuyableMetadata>()
     if (benchmark.stock && allInchiKeys.size > 0) {
-        const [keysInStock, metadata] = await Promise.all([
-            stockData.findStockDataForInchiKeys(Array.from(allInchiKeys), benchmark.stock.id),
-        ]).then(([stockItems]) => {
-            const keys = new Set<string>()
-            const meta = new Map<string, BuyableMetadata>()
-            for (const item of stockItems) {
-                keys.add(item.molecule.inchikey)
-                meta.set(item.molecule.inchikey, item)
-            }
-            return [keys, meta] as [Set<string>, Map<string, BuyableMetadata>]
-        })
-        inStockInchiKeys = keysInStock
-        buyableMetadataMap = metadata
+        const stockItems = await stockData.findStockDataForInchiKeys(Array.from(allInchiKeys), benchmark.stock.id)
+
+        // Process the result directly
+        const keys = new Set<string>()
+        const meta = new Map<string, BuyableMetadata>()
+        for (const item of stockItems) {
+            keys.add(item.molecule.inchikey)
+            meta.set(item.molecule.inchikey, item)
+        }
+        inStockInchiKeys = keys
+        buyableMetadataMap = meta
     }
     // --- Final Assembly: Business logic and DTO construction ---
     const model1Run = availableRunsResult.find((run) => run.id === model1Id)
