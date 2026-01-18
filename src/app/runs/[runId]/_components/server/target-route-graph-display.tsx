@@ -1,76 +1,75 @@
 import { AlertCircle } from 'lucide-react'
 
-import type { BuyableMetadata, RouteNodeWithDetails, RouteVisualizationNode, TargetPredictionDetail } from '@/types'
+import type { BuyableMetadata } from '@/types'
+import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as stockData from '@/lib/services/data/stock.data'
 import * as predictionView from '@/lib/services/view/prediction.view'
+import * as routeView from '@/lib/services/view/route.view'
 import * as stockView from '@/lib/services/view/stock.view'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 import { RouteDisplayCard } from '../client/route-display-card'
 
-function toVisualizationNode(node: RouteNodeWithDetails): RouteVisualizationNode {
-    return {
-        smiles: node.molecule.smiles,
-        inchikey: node.molecule.inchikey,
-        children: node.children.length > 0 ? node.children.map(toVisualizationNode) : undefined,
-    }
-}
-
-function collectInchiKeysFromRouteNode(node: RouteNodeWithDetails, set: Set<string>): void {
-    set.add(node.molecule.inchikey)
-    node.children.forEach((child) => collectInchiKeysFromRouteNode(child, set))
-}
-
 type TargetRouteGraphDisplayProps = {
-    targetDetail: TargetPredictionDetail
     runId: string
+    targetId: string
     rank: number
+    totalPredictions: number
     stockId?: string
     viewMode?: string
     acceptableIndex?: number
 }
 
 export async function TargetRouteGraphDisplay({
-    targetDetail,
+    runId,
+    targetId,
     rank,
+    totalPredictions,
     stockId,
     viewMode,
     acceptableIndex: acceptableIndexProp,
 }: TargetRouteGraphDisplayProps) {
-    const hasRoutes = targetDetail.routes.length > 0
-    if (!hasRoutes) return null // No routes to display
+    // --- Data fetching specific to this component ---
+    const prediction = await predictionView.getSinglePrediction(targetId, runId, rank, stockId)
 
-    // --- Additional data fetching specific to this component ---
-    let acceptableRouteNode: RouteNodeWithDetails | undefined
-    let acceptableIndex = 0
-    let totalAcceptableRoutes = 0
-    if (targetDetail.acceptableRoutes && targetDetail.acceptableRoutes.length > 0) {
-        totalAcceptableRoutes = targetDetail.acceptableRoutes.length
-        acceptableIndex = Math.min(Math.max(0, acceptableIndexProp ?? 0), totalAcceptableRoutes - 1)
-        const selectedRoute = targetDetail.acceptableRoutes[acceptableIndex]
-        acceptableRouteNode = (await predictionView.getAcceptableRouteWithNodes(selectedRoute.id)) ?? undefined
-    }
-
-    const requestedRank = Math.max(1, Math.min(rank, targetDetail.routes.length))
-    const routeDetail = targetDetail.routes.find((r) => r.predictionRoute.rank === requestedRank)
-    if (!routeDetail) {
+    if (!prediction) {
         return (
             <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>Prediction rank {requestedRank} not found.</AlertDescription>
+                <AlertDescription>Prediction rank {rank} not found.</AlertDescription>
             </Alert>
         )
     }
 
+    // Fetch visualization tree for the predicted route
+    const visualizationNode = await routeView.getRouteTreeForVisualization(prediction.route.id)
+
+    // Fetch acceptable routes for comparison, if needed
+    let acceptableRouteVisualizationNode
+    let acceptableIndex = 0
+    let totalAcceptableRoutes = 0
+
+    const acceptableRoutes = await routeView.getAcceptableRoutesForTarget(targetId)
+    totalAcceptableRoutes = acceptableRoutes.length
+
+    if (totalAcceptableRoutes > 0) {
+        acceptableIndex = Math.min(Math.max(0, acceptableIndexProp ?? 0), totalAcceptableRoutes - 1)
+        const selectedAcceptable = acceptableRoutes[acceptableIndex]
+        if (selectedAcceptable) {
+            acceptableRouteVisualizationNode = await routeView.getRouteTreeForVisualization(selectedAcceptable.route.id)
+        }
+    }
+
+    // Fetch stock availability and metadata
     let inStockInchiKeys = new Set<string>()
     let buyableMetadataMap = new Map<string, BuyableMetadata>()
     let stockName: string | undefined
 
     if (stockId) {
         const allInchiKeys = new Set<string>()
-        collectInchiKeysFromRouteNode(routeDetail.routeNode, allInchiKeys)
-        if (acceptableRouteNode) {
-            collectInchiKeysFromRouteNode(acceptableRouteNode, allInchiKeys)
+        getAllRouteInchiKeysSet(visualizationNode).forEach((key) => allInchiKeys.add(key))
+        if (acceptableRouteVisualizationNode) {
+            getAllRouteInchiKeysSet(acceptableRouteVisualizationNode).forEach((key) => allInchiKeys.add(key))
         }
 
         const [keysInStock, metadata] = await Promise.all([
@@ -79,29 +78,27 @@ export async function TargetRouteGraphDisplay({
         ])
         inStockInchiKeys = keysInStock
         buyableMetadataMap = metadata
+        stockName = prediction.solvability.find((s) => s.stockId === stockId)?.stockName
     }
-    // --- End additional fetching ---
+    // --- End data fetching ---
 
-    const solvability = stockId ? routeDetail.solvability.find((s) => s.stockId === stockId) : undefined
-    stockName = solvability?.stockName
+    const solvability = stockId ? prediction.solvability.find((s) => s.stockId === stockId) : undefined
 
     return (
         <RouteDisplayCard
-            route={routeDetail.route}
-            predictionRoute={routeDetail.predictionRoute}
-            visualizationNode={routeDetail.visualizationNode}
-            acceptableRouteVisualizationNode={
-                acceptableRouteNode ? toVisualizationNode(acceptableRouteNode) : undefined
-            }
+            route={prediction.route}
+            predictionRoute={prediction.predictionRoute}
+            visualizationNode={visualizationNode}
+            acceptableRouteVisualizationNode={acceptableRouteVisualizationNode}
             isSolvable={solvability?.isSolvable}
             matchesAcceptable={solvability?.matchesAcceptable}
             inStockInchiKeys={inStockInchiKeys}
             buyableMetadataMap={buyableMetadataMap}
             stockName={stockName}
             viewMode={viewMode}
-            currentRank={requestedRank}
-            totalPredictions={targetDetail.routes.length}
-            targetId={targetDetail.targetId}
+            currentRank={rank}
+            totalPredictions={totalPredictions}
+            targetId={targetId}
             acceptableIndex={acceptableIndex}
             totalAcceptableRoutes={totalAcceptableRoutes}
         />

@@ -1,4 +1,3 @@
-// src/app/runs/[runId]/page.tsx
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 
@@ -10,7 +9,7 @@ import { RunStatisticsStratified } from './_components/server/run-statistics-str
 import { RunStatisticsSummary } from './_components/server/run-statistics-summary'
 import { TargetDisplaySection } from './_components/server/target-display-section'
 import { TargetSearchWrapper } from './_components/server/target-search-wrapper'
-import { RouteDisplaySkeleton, RunStatisticsSkeleton, StratifiedStatisticsSkeleton } from './_components/skeletons'
+import { RunStatisticsSkeleton, StratifiedStatisticsSkeleton } from './_components/skeletons'
 
 type PageProps = {
     // These are now promises
@@ -58,8 +57,6 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
     const headerPromise = predictionView.getPredictionRunHeader(runId)
     const stocksPromise = predictionView.getStocksForRun(runId)
     const statsPromise = stockId ? predictionView.getRunStatistics(runId, stockId) : Promise.resolve(null)
-    const targetDetailPromise =
-        targetId && stockId ? predictionView.getTargetPredictions(targetId, runId, stockId) : Promise.resolve(null)
 
     return (
         <div className="flex flex-col gap-6">
@@ -82,19 +79,14 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
             <TargetSearchWrapper runId={runId} stockId={stockId} currentTargetId={targetId} routeLength={routeLength} />
 
             {targetId && (
-                <Suspense
-                    key={`${targetId}-${rank}-${viewMode}-${acceptableIndex}`} // Key ensures suspense resets on navigation
-                    fallback={<RouteDisplaySkeleton />}
-                >
-                    <TargetDisplaySection
-                        targetDetailPromise={targetDetailPromise}
-                        runId={runId}
-                        rank={rank}
-                        stockId={stockId}
-                        viewMode={viewMode}
-                        acceptableIndex={acceptableIndex}
-                    />
-                </Suspense>
+                <TargetDisplaySection
+                    runId={runId}
+                    targetId={targetId}
+                    rank={rank}
+                    stockId={stockId}
+                    viewMode={viewMode}
+                    acceptableIndex={acceptableIndex}
+                />
             )}
         </div>
     )

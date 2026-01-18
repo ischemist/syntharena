@@ -40,7 +40,10 @@ export async function RunStatisticsStratified({ dataPromise, stockId }: RunStati
             (a, b) => parseInt(a.replace(/^\D+/, '')) - parseInt(b.replace(/^\D+/, ''))
         ) // prettier-ignore
         for (const key of topKKeys) {
-            stratifiedMetrics.push({ name: `Top-${key}`, stratified: parsedStats.topKAccuracy[key] })
+            stratifiedMetrics.push({
+                name: key.startsWith('Top-') ? key : `Top-${key}`,
+                stratified: parsedStats.topKAccuracy[key],
+            })
         }
     }
 

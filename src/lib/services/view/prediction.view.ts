@@ -58,51 +58,22 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
     })
 }
 
-/** prepares the DTO for the target detail/comparison page. this is a beast. */
-export async function getTargetPredictions(
-    targetId: string,
-    runId: string,
-    stockId?: string
-): Promise<TargetPredictionDetail> {
-    // parallelize data fetching from different domains
-    const [targetPayload, predictionPayload] = await Promise.all([
+/** DTO for the target info card. FAST. */
+export interface TargetInfo {
+    targetId: string
+    molecule: TargetPredictionDetail['molecule']
+    routeLength: number | null
+    isConvergent: boolean | null
+    hasAcceptableRoutes: boolean
+    acceptableMatchRank?: number
+}
+
+/** fetches fast, flat metadata for the target info card. */
+export async function getTargetInfo(targetId: string, runId: string, stockId?: string): Promise<TargetInfo> {
+    const [targetPayload, acceptableMatchRank] = await Promise.all([
         benchmarkData.findTargetWithDetailsById(targetId),
-        routeData.findPredictionsForTarget(targetId, runId, stockId),
+        stockId ? routeData.findFirstAcceptableMatchRank(targetId, runId, stockId) : Promise.resolve(undefined),
     ])
-
-    const acceptableRoutesRaw = await routeData.findAcceptableRoutesForTarget(targetId)
-    const acceptableRoutes = acceptableRoutesRaw.map((ar) => ({
-        ...ar.route,
-        id: ar.route.id,
-        routeIndex: ar.routeIndex,
-        // placeholder values until full route is fetched, if needed
-        length: -1,
-        isConvergent: false,
-        signature: ar.route.signature || '',
-        contentHash: ar.route.contentHash || '',
-    }))
-
-    const routesWithTrees = predictionPayload.map((pr) => {
-        const routeTree = buildRouteTree(pr.route.nodes)
-        const solvability = pr.solvabilityStatus.map((s) => ({
-            stockId: s.stockId,
-            stockName: s.stock.name,
-            isSolvable: s.isSolvable,
-            matchesAcceptable: s.matchesAcceptable,
-            matchedAcceptableIndex: s.matchedAcceptableIndex,
-        }))
-
-        return {
-            route: pr.route,
-            predictionRoute: pr,
-            routeNode: routeTree,
-            visualizationNode: toVisualizationNode(routeTree),
-            solvability,
-        }
-    })
-
-    const acceptableMatchRank = routesWithTrees.find((r) => r.solvability.some((s) => s.matchesAcceptable))
-        ?.predictionRoute.rank
 
     return {
         targetId: targetPayload.targetId,
@@ -110,19 +81,38 @@ export async function getTargetPredictions(
         routeLength: targetPayload.routeLength,
         isConvergent: targetPayload.isConvergent,
         hasAcceptableRoutes: targetPayload.acceptableRoutesCount > 0,
-        acceptableRoutes,
-        acceptableMatchRank,
-        routes: routesWithTrees,
+        acceptableMatchRank: acceptableMatchRank ?? undefined,
     }
 }
 
-/** gets a specific predicted route and builds its visualization tree. */
-export async function getPredictedRouteForTarget(targetId: string, runId: string, rank: number) {
-    const predictionRoute = await routeData.findPredictedRouteForTarget(targetId, runId, rank)
-    if (!predictionRoute || predictionRoute.route.nodes.length === 0) {
-        return null
+/** DTO for prediction summaries, used for navigation. FAST. */
+export interface PredictionSummary {
+    rank: number
+    routeId: string
+}
+
+/** fetches a lightweight list of prediction summaries for a target. */
+export async function getPredictionSummaries(targetId: string, runId: string): Promise<PredictionSummary[]> {
+    return routeData.findPredictionSummaries(targetId, runId)
+}
+
+/** fetches the full data for a SINGLE predicted route by rank. SLOW. */
+export async function getSinglePrediction(targetId: string, runId: string, rank: number, stockId?: string) {
+    const prediction = await routeData.findSinglePredictionForTarget(targetId, runId, rank, stockId)
+    if (!prediction) return null
+
+    const solvability = prediction.solvabilityStatus.map((s) => ({
+        stockId: s.stockId,
+        stockName: s.stock.name,
+        isSolvable: s.isSolvable,
+        matchesAcceptable: s.matchesAcceptable,
+    }))
+
+    return {
+        predictionRoute: prediction,
+        route: prediction.route,
+        solvability,
     }
-    return buildRouteTree(predictionRoute.route.nodes)
 }
 
 /** DTO for prediction run summary used in model selectors. */
