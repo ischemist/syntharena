@@ -64,23 +64,6 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
     })
 }
 
-/** fetches fast, flat metadata for the target info card. */
-export async function getTargetInfo(targetId: string, runId: string, stockId?: string): Promise<TargetInfo> {
-    const [targetPayload, acceptableMatchRank] = await Promise.all([
-        benchmarkData.findTargetWithDetailsById(targetId),
-        stockId ? routeData.findFirstAcceptableMatchRank(targetId, runId, stockId) : Promise.resolve(undefined),
-    ])
-
-    return {
-        targetId: targetPayload.targetId,
-        molecule: targetPayload.molecule,
-        routeLength: targetPayload.routeLength,
-        isConvergent: targetPayload.isConvergent,
-        hasAcceptableRoutes: targetPayload.acceptableRoutesCount > 0,
-        acceptableMatchRank: acceptableMatchRank ?? undefined,
-    }
-}
-
 /** DTO for prediction summaries, used for navigation. FAST. */
 export interface PredictionSummary {
     rank: number
@@ -90,25 +73,6 @@ export interface PredictionSummary {
 /** fetches a lightweight list of prediction summaries for a target. */
 export async function getPredictionSummaries(targetId: string, runId: string): Promise<PredictionSummary[]> {
     return routeData.findPredictionSummaries(targetId, runId)
-}
-
-/** fetches the full data for a SINGLE predicted route by rank. SLOW. */
-export async function getSinglePrediction(targetId: string, runId: string, rank: number, stockId?: string) {
-    const prediction = await routeData.findSinglePredictionForTarget(targetId, runId, rank, stockId)
-    if (!prediction) return null
-
-    const solvability = prediction.solvabilityStatus.map((s) => ({
-        stockId: s.stockId,
-        stockName: s.stock.name,
-        isSolvable: s.isSolvable,
-        matchesAcceptable: s.matchesAcceptable,
-    }))
-
-    return {
-        predictionRoute: prediction,
-        route: prediction.route,
-        solvability,
-    }
 }
 
 /** DTO for prediction run summary used in model selectors. */
