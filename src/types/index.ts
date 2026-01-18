@@ -732,3 +732,65 @@ export interface TargetDisplayData {
     // Pass-through UI state from URL
     viewMode?: string
 }
+
+/**
+ * Mega-DTO for the entire target comparison page (`/benchmarks/[benchmarkId]/targets/[targetId]`).
+ * Contains all pre-fetched and pre-computed data needed for rendering the comparison UI,
+ * eliminating component-level waterfalls.
+ */
+export interface TargetComparisonData {
+    benchmarkId: string
+    targetId: string
+
+    // All available prediction runs for this target, used to populate model selectors.
+    availableRuns: Array<{
+        id: string
+        modelName: string
+        modelVersion?: string
+        algorithmName: string
+        executedAt: Date
+        routeCount: number
+        maxRank: number
+    }>
+
+    // Information about the selected acceptable route for comparison.
+    acceptableRoute?: {
+        route: Route
+        data: RouteVisualizationData
+        visualizationNode: RouteVisualizationNode
+        layout?: {
+            nodes: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }>
+            edges: Array<{ source: string; target: string }>
+        }
+    }
+    totalAcceptableRoutes: number
+    currentAcceptableIndex: number
+
+    // Information about the first selected model prediction.
+    model1?: {
+        runId: string
+        rank: number
+        maxRank: number
+        name: string
+        routeTree: RouteVisualizationNode
+    }
+
+    // Information about the second selected model prediction.
+    model2?: {
+        runId: string
+        rank: number
+        maxRank: number
+        name: string
+        routeTree: RouteVisualizationNode
+    }
+
+    // Fully resolved stock and buyable metadata for all molecules in view.
+    stockInfo: {
+        inStockInchiKeys: Set<string>
+        buyableMetadataMap: Map<string, BuyableMetadata>
+    }
+
+    // UI state derived from URL params.
+    currentMode: 'gt-only' | 'gt-vs-pred' | 'pred-vs-pred'
+    viewMode: 'side-by-side' | 'diff-overlay'
+}
