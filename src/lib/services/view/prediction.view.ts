@@ -26,6 +26,7 @@ import * as routeData from '@/lib/services/data/route.data'
 import * as runData from '@/lib/services/data/run.data'
 import * as statsData from '@/lib/services/data/stats.data'
 import * as stockData from '@/lib/services/data/stock.data'
+import * as predictionData from '@/lib/services/data/prediction.data'
 import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 
 import { toVisualizationNode } from './route.view'
@@ -123,35 +124,8 @@ export interface PredictionRunSummary {
 
 /** aggregates prediction routes into run summaries for a target. */
 export async function getPredictionRunsForTarget(targetId: string): Promise<PredictionRunSummary[]> {
-    const predictionRoutes = await routeData.findPredictionRunsForTarget(targetId)
-
-    // aggregate by run ID
-    const runMap = new Map<
-        string,
-        {
-            run: (typeof predictionRoutes)[0]['predictionRun']
-            ranks: number[]
-        }
-    >()
-
-    for (const pr of predictionRoutes) {
-        const existing = runMap.get(pr.predictionRun.id)
-        if (existing) {
-            existing.ranks.push(pr.rank)
-        } else {
-            runMap.set(pr.predictionRun.id, { run: pr.predictionRun, ranks: [pr.rank] })
-        }
-    }
-
-    return Array.from(runMap.values()).map(({ run, ranks }) => ({
-        id: run.id,
-        modelName: run.modelInstance.name,
-        modelVersion: run.modelInstance.version || undefined,
-        algorithmName: run.modelInstance.algorithm.name,
-        executedAt: run.executedAt,
-        routeCount: ranks.length,
-        maxRank: Math.max(...ranks),
-    }))
+    // this now calls the much more efficient function from prediction.data
+    return predictionData.findPredictionRunsForTarget(targetId)
 }
 
 // ============================================================================

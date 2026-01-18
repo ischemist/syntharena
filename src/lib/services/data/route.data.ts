@@ -58,39 +58,6 @@ export const findAcceptableRoutesForTarget = cache(_findAcceptableRoutesForTarge
     tags: ['routes', 'targets'],
 })
 
-/**
- * fetches prediction run info for a target, aggregated from its prediction routes.
- * used to populate the model selector on the target page.
- */
-async function _findPredictionRunsForTarget(targetId: string) {
-    const predictionRoutes = await prisma.predictionRoute.findMany({
-        where: { targetId },
-        select: {
-            rank: true,
-            predictionRun: {
-                select: {
-                    id: true,
-                    executedAt: true,
-                    modelInstance: {
-                        select: {
-                            name: true,
-                            version: true,
-                            algorithm: { select: { name: true } },
-                        },
-                    },
-                },
-            },
-        },
-        orderBy: {
-            predictionRun: { executedAt: 'desc' },
-        },
-    })
-    return predictionRoutes
-}
-export const findPredictionRunsForTarget = cache(_findPredictionRunsForTarget, ['runs-for-target'], {
-    tags: ['runs', 'targets', 'routes'],
-})
-
 /** fetches a route by id with its metadata. */
 async function _findRouteById(routeId: string) {
     const route = await prisma.route.findUnique({
