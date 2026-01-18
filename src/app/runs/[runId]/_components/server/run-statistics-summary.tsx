@@ -1,21 +1,17 @@
 import { AlertCircle } from 'lucide-react'
 
-import type { MetricResult } from '@/types'
-import * as predictionView from '@/lib/services/view/prediction.view'
+import type { RunStatistics } from '@/types'
 import { MetricCell, MetricsViewToggle } from '@/components/metrics'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 type RunStatisticsSummaryProps = {
-    runId: string
-    searchParams: Promise<{ stock?: string }>
+    dataPromise: Promise<RunStatistics | null>
+    stockId?: string
 }
 
-export async function RunStatisticsSummary({ runId, searchParams }: RunStatisticsSummaryProps) {
-    const params = await searchParams
-    const stockId = params.stock
-
-    if (!stockId || stockId === 'all') {
+export async function RunStatisticsSummary({ dataPromise, stockId }: RunStatisticsSummaryProps) {
+    if (!stockId) {
         return (
             <Alert>
                 <AlertCircle className="h-4 w-4" />
@@ -24,7 +20,7 @@ export async function RunStatisticsSummary({ runId, searchParams }: RunStatistic
         )
     }
 
-    const statistics = await predictionView.getRunStatistics(runId, stockId)
+    const statistics = await dataPromise
 
     if (!statistics) {
         return (
@@ -37,7 +33,6 @@ export async function RunStatisticsSummary({ runId, searchParams }: RunStatistic
         )
     }
 
-    // Get overall metrics
     const parsedStats = statistics.statistics
     if (!parsedStats) {
         return (
@@ -51,31 +46,18 @@ export async function RunStatisticsSummary({ runId, searchParams }: RunStatistic
     const solvability = parsedStats.solvability.overall
     const hasTopK = parsedStats.topKAccuracy && Object.keys(parsedStats.topKAccuracy).length > 0
 
-    // Build metrics columns data
-    const metricsColumns: Array<{
-        name: string
-        metric: MetricResult
-    }> = [{ name: 'Solvability', metric: solvability }]
-
+    const metricsColumns = [{ name: 'Solvability', metric: solvability }]
     if (hasTopK && parsedStats.topKAccuracy) {
-        // Add Top-K metrics in order
         const topKKeys = Object.keys(parsedStats.topKAccuracy).sort((a, b) => {
             const aNum = parseInt(a.replace(/^\D+/, ''))
             const bNum = parseInt(b.replace(/^\D+/, ''))
             return aNum - bNum
         })
-
         for (const key of topKKeys) {
             const displayName = key.startsWith('Top-') ? key : `Top-${key}`
-            metricsColumns.push({
-                name: displayName,
-                metric: parsedStats.topKAccuracy[key].overall,
-            })
+            metricsColumns.push({ name: displayName, metric: parsedStats.topKAccuracy[key].overall })
         }
     }
-
-    // Get n from any metric (they should all be the same)
-    const nSamples = solvability.nSamples
 
     return (
         <Card variant="bordered">
@@ -87,7 +69,11 @@ export async function RunStatisticsSummary({ runId, searchParams }: RunStatistic
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <MetricsViewToggle metrics={metricsColumns} nSamples={nSamples} MetricCellComponent={MetricCell} />
+                <MetricsViewToggle
+                    metrics={metricsColumns}
+                    nSamples={solvability.nSamples}
+                    MetricCellComponent={MetricCell}
+                />
             </CardContent>
         </Card>
     )

@@ -1,25 +1,27 @@
 import Link from 'next/link'
 import { format } from 'date-fns'
 
-import type { PredictionRunWithStats } from '@/types'
+import type { RunDetailHeaderData } from '@/lib/services/view/prediction.view'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 type RunDetailHeaderProps = {
-    run: PredictionRunWithStats
+    dataPromise: Promise<RunDetailHeaderData>
 }
 
-export function RunDetailHeader({ run }: RunDetailHeaderProps) {
+export async function RunDetailHeader({ dataPromise }: RunDetailHeaderProps) {
+    const run = await dataPromise
+
     return (
         <Card variant="bordered">
             <CardHeader>
-                <CardTitle className="text-2xl">{run.modelInstance.name}</CardTitle>
+                <CardTitle className="text-2xl">{run.modelName}</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <div>
                     <div className="text-muted-foreground text-sm">Benchmark</div>
-                    <Link href={`/benchmarks/${run.benchmarkSet.id}`} className="text-lg font-medium hover:underline">
-                        {run.benchmarkSet.name}
+                    <Link href={`/benchmarks/${run.benchmarkId}`} className="text-lg font-medium hover:underline">
+                        {run.benchmarkName}
                     </Link>
                 </div>
                 <div>
@@ -42,7 +44,7 @@ export function RunDetailHeader({ run }: RunDetailHeaderProps) {
                         <div className="text-lg font-medium">${run.totalCost.toFixed(2)}</div>
                     </div>
                 )}
-                {run.benchmarkSet.hasAcceptableRoutes && (
+                {run.hasAcceptableRoutes && (
                     <div>
                         <div className="text-muted-foreground text-sm">Acceptable Routes</div>
                         <Badge variant="secondary" className="mt-1">

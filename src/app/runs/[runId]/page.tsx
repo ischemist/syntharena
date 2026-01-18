@@ -1,16 +1,22 @@
+// src/app/runs/[runId]/page.tsx
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 
 import * as predictionView from '@/lib/services/view/prediction.view'
 
-import { RunDetailHeaderWrapper, StockSelectorWrapper, TargetSearchSectionWrapper } from './_components/server/wrappers'
+import { StockSelector } from './_components/client/stock-selector'
+import { RunDetailHeader } from './_components/server/run-detail-header'
+import { RunStatisticsStratified } from './_components/server/run-statistics-stratified'
+import { RunStatisticsSummary } from './_components/server/run-statistics-summary'
+import { TargetDisplaySection } from './_components/server/target-display-section'
+import { TargetSearchWrapper } from './_components/server/target-search-wrapper'
 import { RouteDisplaySkeleton, RunStatisticsSkeleton, StratifiedStatisticsSkeleton } from './_components/skeletons'
 
 type PageProps = {
+    // These are now promises
     params: Promise<{ runId: string }>
     searchParams: Promise<{
         stock?: string
-        search?: string
         target?: string
         rank?: string
         view?: string
@@ -20,79 +26,90 @@ type PageProps = {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-    const { runId } = await params
-
+    const { runId } = await params // <-- FIX: await the params promise
     try {
-        const run = await predictionView.getPredictionRunById(runId)
-        const modelName = run.modelInstance.name || run.modelInstance.algorithm?.name || 'Unknown Model'
-        const benchmarkName = run.benchmarkSet.name
-
+        const run = await predictionView.getPredictionRunHeader(runId)
         return {
-            title: `${modelName} on ${benchmarkName}`,
-            description: `View statistics and routes for ${modelName} predictions on ${benchmarkName}.`,
+            title: `${run.modelName} on ${run.benchmarkName}`,
+            description: `View statistics and routes for ${run.modelName} predictions on ${run.benchmarkName}.`,
         }
     } catch {
-        return {
-            title: 'Run Not Found',
-            description: 'The requested prediction run could not be found.',
-        }
+        return { title: 'Run Not Found', description: 'The requested prediction run could not be found.' }
     }
 }
 
-export default function RunDetailPage({ params, searchParams }: PageProps) {
+export default async function RunDetailPage({ params, searchParams }: PageProps) {
+    // --- FIX: Await promises at the top level ---
+    const { runId } = await params
+    const searchParamsValues = await searchParams
+
+    // --- Data Orchestration ---
+    const defaults = await predictionView.getRunDefaults(runId, searchParamsValues.stock, searchParamsValues.target)
+    const stockId = searchParamsValues.stock ?? defaults.stockId
+    const targetId = searchParamsValues.target ?? defaults.targetId
+    const rank = parseInt(searchParamsValues.rank || '1', 10)
+    const viewMode = searchParamsValues.view
+    const routeLength = searchParamsValues.routeLength
+    const acceptableIndex = searchParamsValues.acceptableIndex
+        ? parseInt(searchParamsValues.acceptableIndex, 10)
+        : undefined
+
+    // Initiate all data fetches concurrently. Do NOT await them here.
+    const headerPromise = predictionView.getPredictionRunHeader(runId)
+    const stocksPromise = predictionView.getStocksForRun(runId)
+    const statsPromise = stockId ? predictionView.getRunStatistics(runId, stockId) : Promise.resolve(null)
+    const targetDetailPromise =
+        targetId && stockId ? predictionView.getTargetPredictions(targetId, runId, stockId) : Promise.resolve(null)
+
     return (
         <div className="flex flex-col gap-6">
-            {/* Header - fast render */}
             <Suspense fallback={<div className="h-48 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />}>
-                <RunDetailHeaderWrapper params={params} />
+                <RunDetailHeader dataPromise={headerPromise} />
             </Suspense>
 
-            {/* Stock Selector - fast render */}
             <Suspense fallback={<div className="h-12 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />}>
-                <StockSelectorWrapper params={params} searchParams={searchParams} />
+                <StockSelectorWrapper stocksPromise={stocksPromise} currentStockId={stockId} />
             </Suspense>
 
-            {/* Statistics - stream independently */}
             <Suspense fallback={<RunStatisticsSkeleton />}>
-                <RunStatisticsSummaryWrapper params={params} searchParams={searchParams} />
+                <RunStatisticsSummary dataPromise={statsPromise} stockId={stockId} />
             </Suspense>
 
             <Suspense fallback={<StratifiedStatisticsSkeleton />}>
-                <RunStatisticsStratifiedWrapper params={params} searchParams={searchParams} />
+                <RunStatisticsStratified dataPromise={statsPromise} stockId={stockId} />
             </Suspense>
 
-            {/* Target search and route display - stream independently */}
-            <Suspense fallback={<RouteDisplaySkeleton />}>
-                <TargetSearchSectionWrapper params={params} searchParams={searchParams} />
-            </Suspense>
+            <TargetSearchWrapper runId={runId} stockId={stockId} currentTargetId={targetId} routeLength={routeLength} />
+
+            {targetId && (
+                <Suspense
+                    key={`${targetId}-${rank}-${viewMode}-${acceptableIndex}`} // Key ensures suspense resets on navigation
+                    fallback={<RouteDisplaySkeleton />}
+                >
+                    <TargetDisplaySection
+                        targetDetailPromise={targetDetailPromise}
+                        runId={runId}
+                        rank={rank}
+                        stockId={stockId}
+                        viewMode={viewMode}
+                        acceptableIndex={acceptableIndex}
+                    />
+                </Suspense>
+            )}
         </div>
     )
 }
 
-// ============================================================================
-// Wrapper Components - Self-Fetch Their Data
-// ============================================================================
-
-async function RunStatisticsSummaryWrapper({
-    params,
-    searchParams,
+// Wrapper to handle promise for StockSelector
+async function StockSelectorWrapper({
+    stocksPromise,
+    currentStockId,
 }: {
-    params: Promise<{ runId: string }>
-    searchParams: Promise<{ stock?: string; routeLength?: string }>
+    stocksPromise: Promise<Awaited<ReturnType<typeof predictionView.getStocksForRun>>>
+    currentStockId?: string
 }) {
-    const { runId } = await params
-    const { RunStatisticsSummary } = await import('./_components/server/run-statistics-summary')
-    return <RunStatisticsSummary runId={runId} searchParams={searchParams} />
-}
-
-async function RunStatisticsStratifiedWrapper({
-    params,
-    searchParams,
-}: {
-    params: Promise<{ runId: string }>
-    searchParams: Promise<{ stock?: string; routeLength?: string }>
-}) {
-    const { runId } = await params
-    const { RunStatisticsStratified } = await import('./_components/server/run-statistics-stratified')
-    return <RunStatisticsStratified runId={runId} searchParams={searchParams} />
+    const stocks = await stocksPromise
+    if (stocks.length <= 1) return null
+    // Pass the resolved currentStockId, not the searchParams object
+    return <StockSelector stocks={stocks} currentStockId={currentStockId} />
 }

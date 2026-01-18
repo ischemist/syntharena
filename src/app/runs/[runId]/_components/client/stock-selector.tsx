@@ -8,15 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 interface StockSelectorProps {
     stocks: StockListItem[]
-    hasStock: boolean
-    hasTarget: boolean
-    firstTargetId?: string
+    currentStockId?: string
 }
 
-export function StockSelector({ stocks }: StockSelectorProps) {
+export function StockSelector({ stocks, currentStockId }: StockSelectorProps) {
     const router = useRouter()
     const searchParams = useSearchParams()
-    const currentStock = searchParams.get('stock')
 
     const handleStockChange = (value: string) => {
         const params = new URLSearchParams(searchParams)
@@ -26,15 +23,15 @@ export function StockSelector({ stocks }: StockSelectorProps) {
         router.replace(`?${params.toString()}`)
     }
 
-    // Should not render if no stocks or stock not selected (server handles auto-selection)
-    if (stocks.length === 0 || !currentStock) {
+    // Should not render if no stocks or stock not selected
+    if (stocks.length === 0 || !currentStockId) {
         return null
     }
 
     return (
         <div className="flex items-center gap-4">
             <Label htmlFor="stock-select">Stock</Label>
-            <Select value={currentStock} onValueChange={handleStockChange}>
+            <Select value={currentStockId} onValueChange={handleStockChange}>
                 <SelectTrigger id="stock-select" className="w-[200px]">
                     <SelectValue placeholder="Select stock" />
                 </SelectTrigger>

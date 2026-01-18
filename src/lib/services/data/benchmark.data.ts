@@ -125,9 +125,7 @@ async function _findBenchmarkTargetsPaginated(
               })
             : []
 
-    const countMap = new Map(counts.map((c) => [c.benchmarkTargetId, c._count._all]))
-
-    return { targets, total, countMap }
+    return { targets, total, counts }
 }
 export const findBenchmarkTargetsPaginated = cache(_findBenchmarkTargetsPaginated, ['benchmark-targets-paginated'], {
     tags: ['benchmarks', 'targets'],

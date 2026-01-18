@@ -81,12 +81,8 @@ export async function getBenchmarkTargets(
     const offset = (page - 1) * validLimit
 
     // call the data layer
-    const { targets, total, countMap } = await data.findBenchmarkTargetsPaginated(
-        benchmarkId,
-        where,
-        validLimit,
-        offset
-    )
+    const { targets, total, counts } = await data.findBenchmarkTargetsPaginated(benchmarkId, where, validLimit, offset)
+    const countMap = new Map(counts.map((c) => [c.benchmarkTargetId, c._count._all]))
 
     const hasMore = targets.length > validLimit
     const resultTargets = hasMore ? targets.slice(0, validLimit) : targets

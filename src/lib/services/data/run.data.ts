@@ -74,6 +74,27 @@ export const findPredictionRunDetailsById = cache(_findPredictionRunDetailsById,
     tags: ['runs'],
 })
 
+/** returns only the data needed for the run detail page header. */
+async function _findPredictionRunHeaderById(runId: string) {
+    const run = await prisma.predictionRun.findUnique({
+        where: { id: runId },
+        select: {
+            id: true,
+            totalRoutes: true,
+            executedAt: true,
+            totalCost: true,
+            modelInstance: { select: { name: true } },
+            benchmarkSet: { select: { id: true, name: true, hasAcceptableRoutes: true } },
+            statistics: { select: { totalWallTime: true }, take: 1 }, // only need one stat record for wall time
+        },
+    })
+    if (!run) throw new Error('prediction run not found.')
+    return run
+}
+export const findPredictionRunHeaderById = cache(_findPredictionRunHeaderById, ['prediction-run-header-by-id'], {
+    tags: ['runs'],
+})
+
 /** finds all runs for a specific benchmark, used in dropdowns. */
 async function _findPredictionRunsForBenchmark(benchmarkId: string) {
     return prisma.predictionRun.findMany({
