@@ -160,15 +160,12 @@ export async function getTargetComparisonData(
     viewModeProp?: string,
     acceptableIndexProp: number = 0
 ): Promise<TargetComparisonData> {
-    console.time('getTargetComparisonData')
-    console.time('wave1_base')
     // --- Wave 1: Fetch base contextual data in parallel ---
     const [benchmark, availableRunsResult, acceptableRoutes] = await Promise.all([
         benchmarkData.findBenchmarkListItemById(benchmarkId),
         predictionData.findPredictionRunsForTarget(targetId), // New function, see below
         routeData.findAcceptableRoutesForTarget(targetId),
     ])
-    console.timeEnd('wave1_base')
 
     // --- Process Wave 1 and Prepare for Wave 2 ---
     const totalAcceptableRoutes = acceptableRoutes.length
@@ -176,7 +173,6 @@ export async function getTargetComparisonData(
         totalAcceptableRoutes > 0 ? Math.min(Math.max(0, acceptableIndexProp), totalAcceptableRoutes - 1) : 0
     const selectedAcceptable = totalAcceptableRoutes > 0 ? acceptableRoutes[currentAcceptableIndex] : undefined
 
-    console.time('wave2_route')
     // --- Wave 2: Fetch specific route data based on URL params ---
     const [acceptableRouteData, acceptableRouteLayout, model1Tree, model2Tree] = await Promise.all([
         selectedAcceptable ? getAcceptableRouteData(selectedAcceptable.route.id, targetId) : Promise.resolve(undefined),
@@ -186,9 +182,7 @@ export async function getTargetComparisonData(
         model1Id ? predictionData.getPredictedRouteForTarget(targetId, model1Id, rank1) : Promise.resolve(undefined),
         model2Id ? predictionData.getPredictedRouteForTarget(targetId, model2Id, rank2) : Promise.resolve(undefined),
     ])
-    console.timeEnd('wave2_route')
 
-    console.time('build_routes')
     // --- Process Wave 2 and Prepare for Wave 3 ---
     const acceptableRouteTree = acceptableRouteData ? toVisualizationNode(acceptableRouteData.rootNode) : undefined
     const model1RouteTree = model1Tree ? toVisualizationNode(model1Tree) : undefined
@@ -198,9 +192,7 @@ export async function getTargetComparisonData(
     if (acceptableRouteTree) getAllRouteInchiKeysSet(acceptableRouteTree).forEach((key) => allInchiKeys.add(key))
     if (model1RouteTree) getAllRouteInchiKeysSet(model1RouteTree).forEach((key) => allInchiKeys.add(key))
     if (model2RouteTree) getAllRouteInchiKeysSet(model2RouteTree).forEach((key) => allInchiKeys.add(key))
-    console.timeEnd('build_routes')
 
-    console.time('wave3_fetch_stock')
     // --- Wave 3: Fetch all stock data in one shot ---
     let inStockInchiKeys = new Set<string>()
     let buyableMetadataMap = new Map<string, BuyableMetadata>()
@@ -214,12 +206,11 @@ export async function getTargetComparisonData(
                 keys.add(item.molecule.inchikey)
                 meta.set(item.molecule.inchikey, item)
             }
-            return [keys, meta]
+            return [keys, meta] as [Set<string>, Map<string, BuyableMetadata>]
         })
         inStockInchiKeys = keysInStock
         buyableMetadataMap = metadata
     }
-    console.timeEnd('wave3_fetch_stock')
     // --- Final Assembly: Business logic and DTO construction ---
     const model1Run = availableRunsResult.find((run) => run.id === model1Id)
     const model2Run = availableRunsResult.find((run) => run.id === model2Id)
@@ -230,8 +221,6 @@ export async function getTargetComparisonData(
 
     const validViewModes = ['side-by-side', 'diff-overlay']
     const viewMode = viewModeProp && validViewModes.includes(viewModeProp) ? (viewModeProp as any) : 'side-by-side'
-
-    console.timeEnd('getTargetComparisonData')
 
     return {
         benchmarkId,
