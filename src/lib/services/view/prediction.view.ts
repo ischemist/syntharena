@@ -551,15 +551,22 @@ export async function getTargetDisplayData(
     let buyableMetadataMap = new Map<string, BuyableMetadata>()
     let stockName: string | undefined
 
-    if (stockId && allInchiKeys.size > 0) {
-        const [keysInStock, metadata, stockNameResult] = await Promise.all([
-            stockData.findInchiKeysInStock(Array.from(allInchiKeys), stockId),
-            stockView.getBuyableMetadataMap(Array.from(allInchiKeys), stockId),
+    if (stockId) {
+        // We still fetch stock name in parallel with the main data query
+        const [stockItems, stockNameResult] = await Promise.all([
+            allInchiKeys.size > 0
+                ? stockData.findStockDataForInchiKeys(Array.from(allInchiKeys), stockId)
+                : Promise.resolve([]),
             stockData.findStockNameById(stockId),
         ])
-        inStockInchiKeys = keysInStock
-        buyableMetadataMap = metadata
+
         stockName = stockNameResult?.name
+
+        // Process the single result array into both the Set and the Map
+        for (const item of stockItems) {
+            inStockInchiKeys.add(item.molecule.inchikey)
+            buyableMetadataMap.set(item.molecule.inchikey, item)
+        }
     }
 
     // --- Final Assembly: Construct the mega-DTO ---

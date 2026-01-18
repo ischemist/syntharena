@@ -115,6 +115,10 @@ export async function searchMolecules(
 // utilities
 // ============================================================================
 
+/**
+ * @deprecated use findStockDataForInchiKeys in the data layer and process the result in the calling view function.
+ * this function exists for other potential use cases but should not be used alongside findInchiKeysInStock.
+ */
 export async function getBuyableMetadataMap(
     inchikeyArray: string[],
     stockId: string

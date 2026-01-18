@@ -103,6 +103,30 @@ export async function findBuyableMetadata(inchikeyArray: string[], stockId: stri
     })
 }
 
+/**
+ * [OPTIMIZED] fetches all relevant stock data for a set of inchikeys in a single query.
+ * this function replaces `findInchiKeysInStock` and `findBuyableMetadata` to prevent redundant queries.
+ */
+async function _findStockDataForInchiKeys(inchikeyArray: string[], stockId: string) {
+    if (inchikeyArray.length === 0) return []
+    return prisma.stockItem.findMany({
+        where: {
+            stockId,
+            molecule: { inchikey: { in: inchikeyArray } },
+        },
+        select: {
+            ppg: true,
+            source: true,
+            leadTime: true,
+            link: true,
+            molecule: { select: { inchikey: true } },
+        },
+    })
+}
+export const findStockDataForInchiKeys = cache(_findStockDataForInchiKeys, ['stock-data-for-inchikeys'], {
+    tags: ['stocks', 'molecules'],
+})
+
 /** browses a stock without a text query. optimized to use the stockitem table first. */
 export async function browseStockItems(where: Prisma.StockItemWhereInput, limit: number, offset: number) {
     const [total, stockItems] = await Promise.all([
