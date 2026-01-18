@@ -27,6 +27,7 @@ export async function getBenchmarkSets(): Promise<BenchmarkListItem[]> {
         hasAcceptableRoutes: b.hasAcceptableRoutes,
         createdAt: b.createdAt,
         targetCount: b._count.targets,
+        series: b.series,
     }))
 }
 
@@ -42,6 +43,7 @@ export async function getBenchmarkById(benchmarkId: string): Promise<BenchmarkLi
         hasAcceptableRoutes: b.hasAcceptableRoutes,
         createdAt: b.createdAt,
         targetCount: b._count.targets,
+        series: b.series,
     }
 }
 
@@ -100,6 +102,7 @@ export async function getBenchmarkDetailPageData(
         hasAcceptableRoutes: benchmarkPayload.hasAcceptableRoutes,
         createdAt: benchmarkPayload.createdAt,
         targetCount: benchmarkPayload._count.targets,
+        series: benchmarkPayload.series,
     }
 
     const { targets, total, counts } = paginatedTargetsPayload

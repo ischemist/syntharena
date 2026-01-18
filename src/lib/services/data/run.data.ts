@@ -24,6 +24,8 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput)
             totalCost: true,
             avgRouteLength: true,
             executedAt: true,
+            submissionType: true,
+            isRetrained: true,
             modelInstance: {
                 select: {
                     id: true,
@@ -34,7 +36,14 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput)
                 },
             },
             benchmarkSet: {
-                select: { id: true, name: true, stockId: true, createdAt: true, hasAcceptableRoutes: true },
+                select: {
+                    id: true,
+                    name: true,
+                    stockId: true,
+                    createdAt: true,
+                    hasAcceptableRoutes: true,
+                    series: true,
+                },
             },
             statistics: {
                 select: {

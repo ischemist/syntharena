@@ -34,7 +34,10 @@ import { toVisualizationNode } from './route.view'
 /** prepares the DTO for the main prediction run list page. */
 export async function getPredictionRuns(benchmarkId?: string, modelId?: string): Promise<PredictionRunWithStats[]> {
     const runs = await runData.findPredictionRunsForList({
-        ...(benchmarkId && { benchmarkSetId: benchmarkId }),
+        benchmarkSet: {
+            isListed: true,
+            ...(benchmarkId && { id: benchmarkId }),
+        },
         ...(modelId && { modelInstanceId: modelId }),
     })
 
@@ -60,6 +63,8 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
             avgRouteLength: run.avgRouteLength,
             solvabilitySummary,
             executedAt: run.executedAt,
+            submissionType: run.submissionType,
+            isRetrained: run.isRetrained,
         }
     })
 }
