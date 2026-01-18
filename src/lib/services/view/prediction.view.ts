@@ -15,12 +15,21 @@ import type {
     RunStatistics,
     StockListItem,
     StratifiedMetric,
+    TargetDisplayData,
+    TargetInfo,
     TargetPredictionDetail,
+    RouteVisualizationNode,
+    BuyableMetadata,
+    PredictionRoute,
+    Route,
 } from '@/types'
+import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkData from '@/lib/services/data/benchmark.data'
 import * as routeData from '@/lib/services/data/route.data'
 import * as runData from '@/lib/services/data/run.data'
 import * as statsData from '@/lib/services/data/stats.data'
+import * as stockData from '@/lib/services/data/stock.data'
+import * as stockView from '@/lib/services/view/stock.view'
 import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 
 import { toVisualizationNode } from './route.view'
@@ -56,16 +65,6 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
             executedAt: run.executedAt,
         }
     })
-}
-
-/** DTO for the target info card. FAST. */
-export interface TargetInfo {
-    targetId: string
-    molecule: TargetPredictionDetail['molecule']
-    routeLength: number | null
-    isConvergent: boolean | null
-    hasAcceptableRoutes: boolean
-    acceptableMatchRank?: number
 }
 
 /** fetches fast, flat metadata for the target info card. */
@@ -480,4 +479,124 @@ export async function getRunDefaults(
     const defaultStockId = stocks[0].id
     const targetIds = await getTargetIdsByRun(runId)
     return { stockId: defaultStockId, targetId: targetIds[0] }
+}
+
+/**
+ * The "mega-dto" orchestrator for the target display section.
+ * Fetches and composes ALL data needed for this UI section in parallel waves
+ * to eliminate component-level request waterfalls.
+ */
+export async function getTargetDisplayData(
+    runId: string,
+    targetId: string,
+    rank: number,
+    stockId?: string,
+    acceptableIndexProp?: number,
+    viewMode?: string
+): Promise<TargetDisplayData> {
+    // --- Wave 1: Fetch all independent base data in parallel ---
+    const [targetPayload, predictionSummaries, acceptableRoutes, prediction, firstMatchRank] = await Promise.all([
+        benchmarkData.findTargetWithDetailsById(targetId),
+        routeData.findPredictionSummaries(targetId, runId),
+        routeData.findAcceptableRoutesForTarget(targetId),
+        routeData.findSinglePredictionForTarget(targetId, runId, rank, stockId),
+        stockId ? routeData.findFirstAcceptableMatchRank(targetId, runId, stockId) : Promise.resolve(undefined),
+    ])
+
+    // --- Process Wave 1 results and prepare for Wave 2 ---
+    const totalPredictions = predictionSummaries.length
+    const hasPredictions = totalPredictions > 0
+    const totalAcceptableRoutes = acceptableRoutes.length
+    const currentAcceptableIndex =
+        totalAcceptableRoutes > 0 ? Math.min(Math.max(0, acceptableIndexProp ?? 0), totalAcceptableRoutes - 1) : 0
+    const selectedAcceptable = totalAcceptableRoutes > 0 ? acceptableRoutes[currentAcceptableIndex] : undefined
+
+    const targetInfo: TargetInfo = {
+        targetId: targetPayload.targetId,
+        molecule: targetPayload.molecule,
+        routeLength: targetPayload.routeLength,
+        isConvergent: targetPayload.isConvergent,
+        hasAcceptableRoutes: targetPayload.acceptableRoutesCount > 0,
+        acceptableMatchRank: firstMatchRank ?? undefined,
+    }
+
+    // --- Wave 2: Fetch route node data based on IDs from Wave 1 ---
+    const nodePromises = []
+    if (prediction) {
+        nodePromises.push(routeData.findNodesForRoute(prediction.route.id))
+    }
+    if (selectedAcceptable) {
+        nodePromises.push(routeData.findNodesForRoute(selectedAcceptable.route.id))
+    }
+    const [predictedNodes, acceptableNodes] = await Promise.all(nodePromises)
+
+    // --- Process Wave 2: Build trees and collect all molecules ---
+    const allInchiKeys = new Set<string>()
+    let predictedVizNode: RouteVisualizationNode | null = null
+    let acceptableVizNode: RouteVisualizationNode | null = null
+
+    if (predictedNodes && predictedNodes.length > 0) {
+        const tree = buildRouteTree(predictedNodes)
+        predictedVizNode = toVisualizationNode(tree)
+        getAllRouteInchiKeysSet(predictedVizNode).forEach((key) => allInchiKeys.add(key))
+    }
+    if (acceptableNodes && acceptableNodes.length > 0) {
+        const tree = buildRouteTree(acceptableNodes)
+        acceptableVizNode = toVisualizationNode(tree)
+        getAllRouteInchiKeysSet(acceptableVizNode).forEach((key) => allInchiKeys.add(key))
+    }
+
+    // --- Wave 3: Fetch stock data for all collected molecules ---
+    let inStockInchiKeys = new Set<string>()
+    let buyableMetadataMap = new Map<string, BuyableMetadata>()
+    let stockName: string | undefined
+
+    if (stockId && allInchiKeys.size > 0) {
+        const [keysInStock, metadata, stockNameResult] = await Promise.all([
+            stockData.findInchiKeysInStock(Array.from(allInchiKeys), stockId),
+            stockView.getBuyableMetadataMap(Array.from(allInchiKeys), stockId),
+            stockData.findStockNameById(stockId),
+        ])
+        inStockInchiKeys = keysInStock
+        buyableMetadataMap = metadata
+        stockName = stockNameResult?.name
+    }
+
+    // --- Final Assembly: Construct the mega-DTO ---
+    const currentPrediction = prediction
+        ? (() => {
+              // create a scope to safely handle the nullable 'prediction'
+              const solvabilityRecord = prediction.solvabilityStatus.find((s) => s.stockId === stockId)
+              return {
+                  predictionRoute: prediction,
+                  route: prediction.route,
+                  visualizationNode: predictedVizNode!,
+                  solvability: solvabilityRecord
+                      ? {
+                            stockId: solvabilityRecord.stockId,
+                            stockName: solvabilityRecord.stock.name,
+                            isSolvable: solvabilityRecord.isSolvable,
+                            matchesAcceptable: solvabilityRecord.matchesAcceptable,
+                        }
+                      : undefined,
+              }
+          })()
+        : null
+
+    return {
+        targetInfo: { ...targetInfo, hasNoPredictions: !hasPredictions },
+        totalPredictions,
+        currentRank: rank,
+        currentPrediction,
+        acceptableRoute: acceptableVizNode ? { visualizationNode: acceptableVizNode } : null,
+        totalAcceptableRoutes,
+        currentAcceptableIndex,
+        stockInfo: {
+            stockId,
+            stockName,
+            inStockInchiKeys,
+            buyableMetadataMap,
+        },
+        viewMode,
+    }
 }

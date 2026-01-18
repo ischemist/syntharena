@@ -664,3 +664,61 @@ export interface BenchmarkOverview {
     hasAcceptableRoutes: boolean
     runCount: number
 }
+
+/**
+ * DTO for the target info card. FAST.
+ */
+export interface TargetInfo {
+    targetId: string
+    molecule: TargetPredictionDetail['molecule']
+    routeLength: number | null
+    isConvergent: boolean | null
+    hasAcceptableRoutes: boolean
+    acceptableMatchRank?: number
+}
+
+/**
+ * Mega-DTO for the entire target display section on the run detail page.
+ * Contains all pre-fetched and pre-computed data needed for rendering,
+ * eliminating component-level waterfalls.
+ */
+export interface TargetDisplayData {
+    // Core target metadata
+    targetInfo: TargetInfo & { hasNoPredictions: boolean }
+
+    // Navigation and summary data
+    totalPredictions: number
+    currentRank: number
+
+    // Data for the currently selected prediction
+    currentPrediction: {
+        predictionRoute: PredictionRoute
+        route: Route
+        visualizationNode: RouteVisualizationNode
+        // We include the specific solvability record for the selected stock
+        solvability?: {
+            stockId: string
+            stockName: string
+            isSolvable: boolean
+            matchesAcceptable: boolean
+        }
+    } | null
+
+    // Data for the currently selected acceptable route (if any)
+    acceptableRoute: {
+        visualizationNode: RouteVisualizationNode
+    } | null
+    totalAcceptableRoutes: number
+    currentAcceptableIndex: number
+
+    // Stock-related data for visualization
+    stockInfo: {
+        stockId?: string
+        stockName?: string
+        inStockInchiKeys: Set<string>
+        buyableMetadataMap: Map<string, BuyableMetadata>
+    }
+
+    // Pass-through UI state from URL
+    viewMode?: string
+}

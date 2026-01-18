@@ -131,3 +131,14 @@ export async function searchMoleculesByText(where: Prisma.MoleculeWhereInput, li
     ])
     return { total, molecules }
 }
+
+/** fetches just the name of a stock by its id. */
+async function _findStockNameById(stockId: string) {
+    return prisma.stock.findUnique({
+        where: { id: stockId },
+        select: { name: true },
+    })
+}
+export const findStockNameById = cache(_findStockNameById, ['stock-name-by-id'], {
+    tags: ['stocks'],
+})
