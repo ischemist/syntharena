@@ -85,7 +85,7 @@ function LeaderboardMetrics({
     stocks,
     hasAcceptableRoutes,
     availableTopKMetrics,
-}: Omit<LeaderboardPageData, 'allBenchmarks' | 'selectedBenchmark' | 'metadata'> & LeaderboardPageData['metadata']) {
+}: Omit<LeaderboardPageData, 'allBenchmarks' | 'metadata'> & LeaderboardPageData['metadata']) {
     const stockName = leaderboardEntries[0].stockName
 
     if (!hasAcceptableRoutes || availableTopKMetrics.length === 0) {
@@ -93,7 +93,7 @@ function LeaderboardMetrics({
             <div className="flex flex-col gap-6">
                 <BenchmarkLeaderboardOverall
                     entries={leaderboardEntries}
-                    benchmarkSeries={selectedBenchmark.benchmarkSeries}
+                    benchmarkSeries={selectedBenchmark.series}
                     hasAcceptableRoutes={hasAcceptableRoutes}
                     stockName={stockName}
                     topKMetricNames={[]}
@@ -112,7 +112,7 @@ function LeaderboardMetrics({
             <div className="flex flex-col gap-6">
                 <BenchmarkLeaderboardOverall
                     entries={leaderboardEntries}
-                    benchmarkSeries={selectedBenchmark.benchmarkSeries}
+                    benchmarkSeries={selectedBenchmark.series}
                     hasAcceptableRoutes={hasAcceptableRoutes}
                     stockName={stockName}
                     topKMetricNames={availableTopKMetrics}

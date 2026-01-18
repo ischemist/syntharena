@@ -1,5 +1,4 @@
-import type { BenchmarkListItem } from '@/types' // new import
-
+import type { BenchmarkListItem, BenchmarkSeries } from '@/types'
 import { BenchmarkSeriesBadge } from '@/components/badges/benchmark-series'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,7 +7,7 @@ import { BenchmarkCombobox } from '../client/benchmark-combobox'
 
 type BenchmarkLeaderboardHeaderProps = {
     benchmark: BenchmarkListItem // receives the full object
-    benchmarks: Array<{ id: string; name: string }> // receives the list for the combobox
+    benchmarks: Array<{ id: string; name: string; series: BenchmarkSeries }> // receives the list for the combobox
 }
 
 /**

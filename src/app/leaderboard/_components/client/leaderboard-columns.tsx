@@ -72,6 +72,7 @@ export function createLeaderboardColumns(
     if (benchmarkSeries === 'REFERENCE') {
         columns.push({
             id: 'training',
+            accessorFn: (row) => row.isRetrained,
             header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Training" />,
             cell: ({ row }) => {
                 const { isRetrained } = row.original

@@ -29,7 +29,7 @@ export interface LeaderboardPageData {
         hasAcceptableRoutes: boolean
         availableTopKMetrics: string[]
     }
-    allBenchmarks: Array<{ id: string; name: string }>
+    allBenchmarks: Array<{ id: string; name: string; series: BenchmarkListItem['series'] }>
     selectedBenchmark: BenchmarkListItem
 }
 
