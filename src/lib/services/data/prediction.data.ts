@@ -2,7 +2,7 @@
  * data access layer for prediction models.
  */
 import { unstable_cache as cache } from 'next/cache'
-
+import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 import prisma from '@/lib/db'
 
 /** fetches prediction run info for a target, aggregated from its prediction routes. */
@@ -69,26 +69,3 @@ async function _getPredictedRouteForTarget(targetId: string, runId: string, rank
 export const getPredictedRouteForTarget = cache(_getPredictedRouteForTarget, ['predicted-route-for-target'], {
     tags: ['routes', 'targets', 'runs'],
 })
-
-// helper for the above function
-import type { RouteNodeWithDetails } from '@/types'
-import type { RouteNodeWithMoleculePayload } from '@/lib/services/data/route.data'
-function buildRouteTree(nodes: RouteNodeWithMoleculePayload): RouteNodeWithDetails {
-    if (nodes.length === 0) throw new Error('cannot build tree from empty nodes.')
-    const rootNodeData = nodes.find((n) => n.parentId === null)
-    if (!rootNodeData) throw new Error('no root node found.')
-    const nodeMap = new Map<string, RouteNodeWithDetails>()
-    nodes.forEach((node) => {
-        nodeMap.set(node.id, { ...node, children: [] })
-    })
-    nodes.forEach((node) => {
-        if (node.parentId) {
-            const parent = nodeMap.get(node.parentId)
-            const child = nodeMap.get(node.id)
-            if (parent && child) parent.children.push(child)
-        }
-    })
-    const routeTree = nodeMap.get(rootNodeData.id)
-    if (!routeTree) throw new Error('failed to build route tree.')
-    return routeTree
-}
