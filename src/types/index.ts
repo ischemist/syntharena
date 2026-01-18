@@ -323,6 +323,16 @@ export interface BenchmarkTargetSearchResult {
 }
 
 /**
+ * DTO for the entire benchmark detail page.
+ * Contains all pre-fetched data needed for rendering, eliminating horizontal waterfalls.
+ */
+export interface BenchmarkDetailPageData {
+    benchmark: BenchmarkListItem
+    stats: BenchmarkStats
+    targetsResult: BenchmarkTargetSearchResult
+}
+
+/**
  * Result from loading a benchmark file.
  */
 export interface LoadBenchmarkResult {
@@ -663,4 +673,124 @@ export interface BenchmarkOverview {
     stockName: string
     hasAcceptableRoutes: boolean
     runCount: number
+}
+
+/**
+ * DTO for the target info card. FAST.
+ */
+export interface TargetInfo {
+    targetId: string
+    molecule: TargetPredictionDetail['molecule']
+    routeLength: number | null
+    isConvergent: boolean | null
+    hasAcceptableRoutes: boolean
+    acceptableMatchRank?: number
+}
+
+/**
+ * Mega-DTO for the entire target display section on the run detail page.
+ * Contains all pre-fetched and pre-computed data needed for rendering,
+ * eliminating component-level waterfalls.
+ */
+export interface TargetDisplayData {
+    // Core target metadata
+    targetInfo: TargetInfo & { hasNoPredictions: boolean }
+
+    // Navigation and summary data
+    totalPredictions: number
+    currentRank: number
+
+    // Data for the currently selected prediction
+    currentPrediction: {
+        predictionRoute: PredictionRoute
+        route: Route
+        visualizationNode: RouteVisualizationNode
+        // We include the specific solvability record for the selected stock
+        solvability?: {
+            stockId: string
+            stockName: string
+            isSolvable: boolean
+            matchesAcceptable: boolean
+        }
+    } | null
+
+    // Data for the currently selected acceptable route (if any)
+    acceptableRoute: {
+        visualizationNode: RouteVisualizationNode
+    } | null
+    totalAcceptableRoutes: number
+    currentAcceptableIndex: number
+
+    // Stock-related data for visualization
+    stockInfo: {
+        stockId?: string
+        stockName?: string
+        inStockInchiKeys: Set<string>
+        buyableMetadataMap: Map<string, BuyableMetadata>
+    }
+
+    // Pass-through UI state from URL
+    viewMode?: string
+}
+
+/**
+ * Mega-DTO for the entire target comparison page (`/benchmarks/[benchmarkId]/targets/[targetId]`).
+ * Contains all pre-fetched and pre-computed data needed for rendering the comparison UI,
+ * eliminating component-level waterfalls.
+ */
+export interface TargetComparisonData {
+    benchmarkId: string
+    targetId: string
+
+    // All available prediction runs for this target, used to populate model selectors.
+    availableRuns: Array<{
+        id: string
+        modelName: string
+        modelVersion?: string
+        algorithmName: string
+        executedAt: Date
+        routeCount: number
+        maxRank: number
+    }>
+
+    // Information about the selected acceptable route for comparison.
+    acceptableRoute?: {
+        route: Route
+        data: RouteVisualizationData
+        visualizationNode: RouteVisualizationNode
+        layout?: {
+            nodes: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }>
+            edges: Array<{ source: string; target: string }>
+        }
+    }
+    totalAcceptableRoutes: number
+    currentAcceptableIndex: number
+
+    // Information about the first selected model prediction.
+    model1?: {
+        runId: string
+        rank: number
+        maxRank: number
+        name: string
+        routeTree: RouteVisualizationNode
+    }
+
+    // Information about the second selected model prediction.
+    model2?: {
+        runId: string
+        rank: number
+        maxRank: number
+        name: string
+        routeTree: RouteVisualizationNode
+    }
+
+    // Fully resolved stock and buyable metadata for all molecules in view.
+    stockInfo: {
+        inStockInchiKeys: Set<string>
+        buyableMetadataMap: Map<string, BuyableMetadata>
+    }
+
+    // UI state derived from URL params.
+    currentMode: 'gt-only' | 'gt-vs-pred' | 'pred-vs-pred'
+    viewMode: 'side-by-side' | 'diff-overlay'
 }

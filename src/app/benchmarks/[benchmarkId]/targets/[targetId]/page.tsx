@@ -1,7 +1,9 @@
-import { Suspense, use } from 'react'
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 
+import type { TargetComparisonData } from '@/types'
 import { getBenchmarkById, getTargetById } from '@/lib/services/view/benchmark.view'
+import { getTargetComparisonData } from '@/lib/services/view/route.view'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { RouteDisplayWithComparison } from './_components/server/route-display-with-comparison'
@@ -24,57 +26,45 @@ interface TargetDetailPageProps {
 export async function generateMetadata({ params }: TargetDetailPageProps): Promise<Metadata> {
     const { benchmarkId, targetId } = await params
     const [benchmark, target] = await Promise.all([getBenchmarkById(benchmarkId), getTargetById(targetId)])
-
     const title = `${target?.targetId || 'Target'} - ${benchmark?.name || 'Benchmark'}`
-
-    return {
-        title,
-        description: 'View ground truth route and compare with model predictions.',
-    }
+    return { title, description: 'View ground truth route and compare with model predictions.' }
 }
 
-/**
- * Target detail page showing target molecule and ground truth route.
- * Now supports comparison with model predictions via URL search params.
- * Remains synchronous per the app router manifesto, unwrapping promises with use().
- * Delegates data fetching to async server components wrapped in Suspense boundaries.
- * Target header and route display load independently via streaming.
- */
-export default function TargetDetailPage(props: TargetDetailPageProps) {
-    // ORTHODOXY: Unwrap promises in sync component (Next.js 15 pattern)
-    const params = use(props.params)
-    const searchParams = use(props.searchParams)
+export default async function TargetDetailPage({ params, searchParams }: TargetDetailPageProps) {
+    const { benchmarkId, targetId } = await params
+    const { mode, model1, model2, view, rank1, rank2, acceptableIndex } = await searchParams
 
-    const { benchmarkId, targetId } = params
+    // Fetch ALL data for the page with a single, parallelized call.
+    const comparisonDataPromise = getTargetComparisonData(
+        targetId,
+        benchmarkId,
+        mode,
+        model1,
+        model2,
+        rank1 ? parseInt(rank1, 10) : 1,
+        rank2 ? parseInt(rank2, 10) : 1,
+        view,
+        acceptableIndex ? parseInt(acceptableIndex, 10) : 0
+    )
 
     return (
         <div className="flex flex-col gap-6">
-            {/* Target header with molecule structure */}
             <Suspense fallback={<TargetDetailSkeleton />}>
                 <TargetHeader targetId={targetId} />
             </Suspense>
 
-            {/* Route visualization with comparison support */}
             <Suspense
-                key={`${searchParams.mode}-${searchParams.model1}-${searchParams.model2}-${searchParams.rank1}-${searchParams.rank2}-${searchParams.view}-${searchParams.acceptableIndex}`}
-                fallback={
-                    <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-6 dark:border-gray-800 dark:bg-gray-900/50">
-                        <Skeleton className="h-[600px] w-full" />
-                    </div>
-                }
+                key={`${mode}-${model1}-${model2}-${rank1}-${rank2}-${view}-${acceptableIndex}`}
+                fallback={<Skeleton className="h-[800px] w-full rounded-lg" />}
             >
-                <RouteDisplayWithComparison
-                    targetId={targetId}
-                    benchmarkId={benchmarkId}
-                    mode={searchParams.mode}
-                    model1Id={searchParams.model1}
-                    model2Id={searchParams.model2}
-                    rank1={searchParams.rank1 ? parseInt(searchParams.rank1, 10) : 1}
-                    rank2={searchParams.rank2 ? parseInt(searchParams.rank2, 10) : 1}
-                    viewMode={searchParams.view}
-                    acceptableIndex={searchParams.acceptableIndex ? parseInt(searchParams.acceptableIndex, 10) : 0}
-                />
+                <ResolvedComparison dataPromise={comparisonDataPromise} />
             </Suspense>
         </div>
     )
+}
+
+// Helper component to resolve the promise inside the Suspense boundary
+async function ResolvedComparison({ dataPromise }: { dataPromise: Promise<TargetComparisonData> }) {
+    const data = await dataPromise
+    return <RouteDisplayWithComparison data={data} />
 }

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-import * as benchmarkView from '@/lib/services/view/benchmark.view'
+import type { BenchmarkTargetSearchResult } from '@/types'
 import { RouteLengthBadge, RouteTypeBadge } from '@/components/route-badges'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -9,47 +9,18 @@ import { TargetPagination } from '../client/target-pagination'
 
 interface TargetGridProps {
     benchmarkId: string
-    page?: number
-    limit?: number
-    searchQuery?: string
-    searchType?: 'smiles' | 'inchikey' | 'targetId' | 'all'
-    isConvergent?: boolean
-    minRouteLength?: number
-    maxRouteLength?: number
+    result: BenchmarkTargetSearchResult
 }
 
 /**
- * Server component that displays a grid of benchmark targets with molecule structures.
- * Shows pagination and target metadata (route length, convergence).
- * Supports search and filtering by SMILES/InChiKey/TargetId and convergence/length.
+ * Synchronous component that displays a grid of benchmark targets from a pre-fetched result set.
  */
-export async function TargetGrid({
-    benchmarkId,
-    page = 1,
-    limit = 24,
-    searchQuery,
-    searchType = 'all',
-    isConvergent,
-    minRouteLength,
-    maxRouteLength,
-}: TargetGridProps) {
-    const result = await benchmarkView.getBenchmarkTargets(
-        benchmarkId,
-        page,
-        limit,
-        searchQuery,
-        searchType,
-        undefined, // hasGroundTruth filter (not used here)
-        minRouteLength,
-        maxRouteLength,
-        isConvergent
-    )
-
+export function TargetGrid({ benchmarkId, result }: TargetGridProps) {
     if (result.targets.length === 0) {
         return (
             <Card variant="bordered">
                 <CardContent className="text-muted-foreground py-8 text-center">
-                    No targets found in this benchmark.
+                    No targets match the current filters.
                 </CardContent>
             </Card>
         )
@@ -87,10 +58,10 @@ export async function TargetGrid({
 
             {/* Pagination component */}
             <TargetPagination
-                currentPage={page}
-                totalPages={Math.ceil(result.total / limit)}
+                currentPage={result.page}
+                totalPages={Math.ceil(result.total / result.limit)}
                 totalItems={result.total}
-                itemsPerPage={limit}
+                itemsPerPage={result.limit}
             />
         </div>
     )

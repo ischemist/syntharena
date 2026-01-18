@@ -1,20 +1,10 @@
-import { notFound } from 'next/navigation'
-
-import * as benchmarkView from '@/lib/services/view/benchmark.view'
+import type { BenchmarkListItem } from '@/types'
 import { Badge } from '@/components/ui/badge'
 
 /**
- * Server component that fetches and displays benchmark header information.
- * Handles 404 if benchmark not found. Allows page to remain synchronous.
+ * Synchronous component that displays benchmark header information from a pre-fetched DTO.
  */
-export async function BenchmarkDetailHeader({ benchmarkId }: { benchmarkId: string }) {
-    let benchmark
-    try {
-        benchmark = await benchmarkView.getBenchmarkById(benchmarkId)
-    } catch {
-        notFound()
-    }
-
+export function BenchmarkDetailHeader({ benchmark }: { benchmark: BenchmarkListItem }) {
     return (
         <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-3">

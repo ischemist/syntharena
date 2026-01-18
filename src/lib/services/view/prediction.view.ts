@@ -15,12 +15,17 @@ import type {
     RunStatistics,
     StockListItem,
     StratifiedMetric,
-    TargetPredictionDetail,
+    TargetDisplayData,
+    TargetInfo,
+    RouteVisualizationNode,
+    BuyableMetadata,
 } from '@/types'
+import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkData from '@/lib/services/data/benchmark.data'
 import * as routeData from '@/lib/services/data/route.data'
 import * as runData from '@/lib/services/data/run.data'
 import * as statsData from '@/lib/services/data/stats.data'
+import * as stockData from '@/lib/services/data/stock.data'
 import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 
 import { toVisualizationNode } from './route.view'
@@ -58,51 +63,12 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
     })
 }
 
-/** prepares the DTO for the target detail/comparison page. this is a beast. */
-export async function getTargetPredictions(
-    targetId: string,
-    runId: string,
-    stockId?: string
-): Promise<TargetPredictionDetail> {
-    // parallelize data fetching from different domains
-    const [targetPayload, predictionPayload] = await Promise.all([
+/** fetches fast, flat metadata for the target info card. */
+export async function getTargetInfo(targetId: string, runId: string, stockId?: string): Promise<TargetInfo> {
+    const [targetPayload, acceptableMatchRank] = await Promise.all([
         benchmarkData.findTargetWithDetailsById(targetId),
-        routeData.findPredictionsForTarget(targetId, runId, stockId),
+        stockId ? routeData.findFirstAcceptableMatchRank(targetId, runId, stockId) : Promise.resolve(undefined),
     ])
-
-    const acceptableRoutesRaw = await routeData.findAcceptableRoutesForTarget(targetId)
-    const acceptableRoutes = acceptableRoutesRaw.map((ar) => ({
-        ...ar.route,
-        id: ar.route.id,
-        routeIndex: ar.routeIndex,
-        // placeholder values until full route is fetched, if needed
-        length: -1,
-        isConvergent: false,
-        signature: ar.route.signature || '',
-        contentHash: ar.route.contentHash || '',
-    }))
-
-    const routesWithTrees = predictionPayload.map((pr) => {
-        const routeTree = buildRouteTree(pr.route.nodes)
-        const solvability = pr.solvabilityStatus.map((s) => ({
-            stockId: s.stockId,
-            stockName: s.stock.name,
-            isSolvable: s.isSolvable,
-            matchesAcceptable: s.matchesAcceptable,
-            matchedAcceptableIndex: s.matchedAcceptableIndex,
-        }))
-
-        return {
-            route: pr.route,
-            predictionRoute: pr,
-            routeNode: routeTree,
-            visualizationNode: toVisualizationNode(routeTree),
-            solvability,
-        }
-    })
-
-    const acceptableMatchRank = routesWithTrees.find((r) => r.solvability.some((s) => s.matchesAcceptable))
-        ?.predictionRoute.rank
 
     return {
         targetId: targetPayload.targetId,
@@ -110,19 +76,38 @@ export async function getTargetPredictions(
         routeLength: targetPayload.routeLength,
         isConvergent: targetPayload.isConvergent,
         hasAcceptableRoutes: targetPayload.acceptableRoutesCount > 0,
-        acceptableRoutes,
-        acceptableMatchRank,
-        routes: routesWithTrees,
+        acceptableMatchRank: acceptableMatchRank ?? undefined,
     }
 }
 
-/** gets a specific predicted route and builds its visualization tree. */
-export async function getPredictedRouteForTarget(targetId: string, runId: string, rank: number) {
-    const predictionRoute = await routeData.findPredictedRouteForTarget(targetId, runId, rank)
-    if (!predictionRoute || predictionRoute.route.nodes.length === 0) {
-        return null
+/** DTO for prediction summaries, used for navigation. FAST. */
+export interface PredictionSummary {
+    rank: number
+    routeId: string
+}
+
+/** fetches a lightweight list of prediction summaries for a target. */
+export async function getPredictionSummaries(targetId: string, runId: string): Promise<PredictionSummary[]> {
+    return routeData.findPredictionSummaries(targetId, runId)
+}
+
+/** fetches the full data for a SINGLE predicted route by rank. SLOW. */
+export async function getSinglePrediction(targetId: string, runId: string, rank: number, stockId?: string) {
+    const prediction = await routeData.findSinglePredictionForTarget(targetId, runId, rank, stockId)
+    if (!prediction) return null
+
+    const solvability = prediction.solvabilityStatus.map((s) => ({
+        stockId: s.stockId,
+        stockName: s.stock.name,
+        isSolvable: s.isSolvable,
+        matchesAcceptable: s.matchesAcceptable,
+    }))
+
+    return {
+        predictionRoute: prediction,
+        route: prediction.route,
+        solvability,
     }
-    return buildRouteTree(predictionRoute.route.nodes)
 }
 
 /** DTO for prediction run summary used in model selectors. */
@@ -490,4 +475,131 @@ export async function getRunDefaults(
     const defaultStockId = stocks[0].id
     const targetIds = await getTargetIdsByRun(runId)
     return { stockId: defaultStockId, targetId: targetIds[0] }
+}
+
+/**
+ * The "mega-dto" orchestrator for the target display section.
+ * Fetches and composes ALL data needed for this UI section in parallel waves
+ * to eliminate component-level request waterfalls.
+ */
+export async function getTargetDisplayData(
+    runId: string,
+    targetId: string,
+    rank: number,
+    stockId?: string,
+    acceptableIndexProp?: number,
+    viewMode?: string
+): Promise<TargetDisplayData> {
+    // --- Wave 1: Fetch all independent base data in parallel ---
+    const [targetPayload, predictionSummaries, acceptableRoutes, prediction, firstMatchRank] = await Promise.all([
+        benchmarkData.findTargetWithDetailsById(targetId),
+        routeData.findPredictionSummaries(targetId, runId),
+        routeData.findAcceptableRoutesForTarget(targetId),
+        routeData.findSinglePredictionForTarget(targetId, runId, rank, stockId),
+        stockId ? routeData.findFirstAcceptableMatchRank(targetId, runId, stockId) : Promise.resolve(undefined),
+    ])
+
+    // --- Process Wave 1 results and prepare for Wave 2 ---
+    const totalPredictions = predictionSummaries.length
+    const hasPredictions = totalPredictions > 0
+    const totalAcceptableRoutes = acceptableRoutes.length
+    const currentAcceptableIndex =
+        totalAcceptableRoutes > 0 ? Math.min(Math.max(0, acceptableIndexProp ?? 0), totalAcceptableRoutes - 1) : 0
+    const selectedAcceptable = totalAcceptableRoutes > 0 ? acceptableRoutes[currentAcceptableIndex] : undefined
+
+    const targetInfo: TargetInfo = {
+        targetId: targetPayload.targetId,
+        molecule: targetPayload.molecule,
+        routeLength: targetPayload.routeLength,
+        isConvergent: targetPayload.isConvergent,
+        hasAcceptableRoutes: targetPayload.acceptableRoutesCount > 0,
+        acceptableMatchRank: firstMatchRank ?? undefined,
+    }
+
+    // --- Wave 2: Fetch route node data based on IDs from Wave 1 ---
+    const nodePromises = []
+    if (prediction) {
+        nodePromises.push(routeData.findNodesForRoute(prediction.route.id))
+    }
+    if (selectedAcceptable) {
+        nodePromises.push(routeData.findNodesForRoute(selectedAcceptable.route.id))
+    }
+    const [predictedNodes, acceptableNodes] = await Promise.all(nodePromises)
+
+    // --- Process Wave 2: Build trees and collect all molecules ---
+    const allInchiKeys = new Set<string>()
+    let predictedVizNode: RouteVisualizationNode | null = null
+    let acceptableVizNode: RouteVisualizationNode | null = null
+
+    if (predictedNodes && predictedNodes.length > 0) {
+        const tree = buildRouteTree(predictedNodes)
+        predictedVizNode = toVisualizationNode(tree)
+        getAllRouteInchiKeysSet(predictedVizNode).forEach((key) => allInchiKeys.add(key))
+    }
+    if (acceptableNodes && acceptableNodes.length > 0) {
+        const tree = buildRouteTree(acceptableNodes)
+        acceptableVizNode = toVisualizationNode(tree)
+        getAllRouteInchiKeysSet(acceptableVizNode).forEach((key) => allInchiKeys.add(key))
+    }
+
+    // --- Wave 3: Fetch stock data for all collected molecules ---
+    let inStockInchiKeys = new Set<string>()
+    let buyableMetadataMap = new Map<string, BuyableMetadata>()
+    let stockName: string | undefined
+
+    if (stockId) {
+        // We still fetch stock name in parallel with the main data query
+        const [stockItems, stockNameResult] = await Promise.all([
+            allInchiKeys.size > 0
+                ? stockData.findStockDataForInchiKeys(Array.from(allInchiKeys), stockId)
+                : Promise.resolve([]),
+            stockData.findStockNameById(stockId),
+        ])
+
+        stockName = stockNameResult?.name
+
+        // Process the single result array into both the Set and the Map
+        for (const item of stockItems) {
+            inStockInchiKeys.add(item.molecule.inchikey)
+            buyableMetadataMap.set(item.molecule.inchikey, item)
+        }
+    }
+
+    // --- Final Assembly: Construct the mega-DTO ---
+    const currentPrediction = prediction
+        ? (() => {
+              // create a scope to safely handle the nullable 'prediction'
+              const solvabilityRecord = prediction.solvabilityStatus.find((s) => s.stockId === stockId)
+              return {
+                  predictionRoute: prediction,
+                  route: prediction.route,
+                  visualizationNode: predictedVizNode!,
+                  solvability: solvabilityRecord
+                      ? {
+                            stockId: solvabilityRecord.stockId,
+                            stockName: solvabilityRecord.stock.name,
+                            isSolvable: solvabilityRecord.isSolvable,
+                            matchesAcceptable: solvabilityRecord.matchesAcceptable,
+                        }
+                      : undefined,
+              }
+          })()
+        : null
+
+    return {
+        targetInfo: { ...targetInfo, hasNoPredictions: !hasPredictions },
+        totalPredictions,
+        currentRank: rank,
+        currentPrediction,
+        acceptableRoute: acceptableVizNode ? { visualizationNode: acceptableVizNode } : null,
+        totalAcceptableRoutes,
+        currentAcceptableIndex,
+        stockInfo: {
+            stockId,
+            stockName,
+            inStockInchiKeys,
+            buyableMetadataMap,
+        },
+        viewMode,
+    }
 }

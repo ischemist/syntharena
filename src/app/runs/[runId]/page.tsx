@@ -1,4 +1,3 @@
-// src/app/runs/[runId]/page.tsx
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 
@@ -37,9 +36,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         return { title: 'Run Not Found', description: 'The requested prediction run could not be found.' }
     }
 }
-
 export default async function RunDetailPage({ params, searchParams }: PageProps) {
-    // --- FIX: Await promises at the top level ---
+    // --- Await promises at the top level ---
     const { runId } = await params
     const searchParamsValues = await searchParams
 
@@ -58,8 +56,9 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
     const headerPromise = predictionView.getPredictionRunHeader(runId)
     const stocksPromise = predictionView.getStocksForRun(runId)
     const statsPromise = stockId ? predictionView.getRunStatistics(runId, stockId) : Promise.resolve(null)
-    const targetDetailPromise =
-        targetId && stockId ? predictionView.getTargetPredictions(targetId, runId, stockId) : Promise.resolve(null)
+    const targetDisplayDataPromise = targetId
+        ? predictionView.getTargetDisplayData(runId, targetId, rank, stockId, acceptableIndex, viewMode)
+        : null
 
     return (
         <div className="flex flex-col gap-6">
@@ -81,25 +80,27 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
 
             <TargetSearchWrapper runId={runId} stockId={stockId} currentTargetId={targetId} routeLength={routeLength} />
 
-            {targetId && (
+            {targetDisplayDataPromise && (
                 <Suspense
-                    key={`${targetId}-${rank}-${viewMode}-${acceptableIndex}`} // Key ensures suspense resets on navigation
+                    key={`${targetId}-${rank}-${stockId}-${viewMode}-${acceptableIndex}`}
                     fallback={<RouteDisplaySkeleton />}
                 >
-                    <TargetDisplaySection
-                        targetDetailPromise={targetDetailPromise}
-                        runId={runId}
-                        rank={rank}
-                        stockId={stockId}
-                        viewMode={viewMode}
-                        acceptableIndex={acceptableIndex}
-                    />
+                    <ResolvedTargetDisplay dataPromise={targetDisplayDataPromise} />
                 </Suspense>
             )}
         </div>
     )
 }
 
+/** Async component to resolve the mega-DTO promise inside the Suspense boundary. */
+async function ResolvedTargetDisplay({
+    dataPromise,
+}: {
+    dataPromise: Promise<Awaited<ReturnType<typeof predictionView.getTargetDisplayData>>>
+}) {
+    const data = await dataPromise
+    return <TargetDisplaySection data={data} />
+}
 // Wrapper to handle promise for StockSelector
 async function StockSelectorWrapper({
     stocksPromise,

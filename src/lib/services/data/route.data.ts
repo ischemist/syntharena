@@ -91,24 +91,6 @@ export const findPredictionRunsForTarget = cache(_findPredictionRunsForTarget, [
     tags: ['runs', 'targets', 'routes'],
 })
 
-/** fetches all predicted routes for a target from a specific run. */
-async function _findPredictionsForTarget(targetId: string, runId: string, stockId?: string) {
-    return prisma.predictionRoute.findMany({
-        where: { targetId, predictionRunId: runId },
-        include: {
-            route: { include: { nodes: { include: { molecule: true } } } },
-            solvabilityStatus: {
-                where: stockId ? { stockId } : undefined,
-                include: { stock: true },
-            },
-        },
-        orderBy: { rank: 'asc' },
-    })
-}
-export const findPredictionsForTarget = cache(_findPredictionsForTarget, ['predictions-for-target'], {
-    tags: ['routes', 'targets', 'runs', 'stocks'],
-})
-
 /** fetches a route by id with its metadata. */
 async function _findRouteById(routeId: string) {
     const route = await prisma.route.findUnique({
@@ -119,4 +101,64 @@ async function _findRouteById(routeId: string) {
 }
 export const findRouteById = cache(_findRouteById, ['route-by-id'], {
     tags: ['routes'],
+})
+
+/** fetches the rank of the first predicted route that matches an acceptable route. */
+async function _findFirstAcceptableMatchRank(targetId: string, runId: string, stockId: string) {
+    const result = await prisma.predictionRoute.findFirst({
+        where: {
+            targetId,
+            predictionRunId: runId,
+            solvabilityStatus: {
+                some: {
+                    matchesAcceptable: true,
+                    stockId: stockId,
+                },
+            },
+        },
+        select: { rank: true },
+        orderBy: { rank: 'asc' },
+    })
+    return result?.rank
+}
+export const findFirstAcceptableMatchRank = cache(_findFirstAcceptableMatchRank, ['first-acceptable-match-rank'], {
+    tags: ['routes', 'targets', 'runs', 'stocks'],
+})
+
+/** fetches a lightweight list of prediction summaries (rank, routeId) for a target in a run. */
+async function _findPredictionSummaries(targetId: string, runId: string) {
+    return prisma.predictionRoute.findMany({
+        where: { targetId, predictionRunId: runId },
+        select: {
+            rank: true,
+            routeId: true,
+        },
+        orderBy: { rank: 'asc' },
+    })
+}
+export const findPredictionSummaries = cache(_findPredictionSummaries, ['prediction-summaries-for-target'], {
+    tags: ['routes', 'targets', 'runs'],
+})
+
+/** fetches a single predicted route by rank, with its solvability status. */
+async function _findSinglePredictionForTarget(targetId: string, runId: string, rank: number, stockId?: string) {
+    return prisma.predictionRoute.findUnique({
+        where: {
+            predictionRunId_targetId_rank: {
+                predictionRunId: runId,
+                targetId: targetId,
+                rank: rank,
+            },
+        },
+        include: {
+            route: true, // we need the route metadata
+            solvabilityStatus: {
+                where: stockId ? { stockId } : undefined,
+                include: { stock: { select: { name: true } } },
+            },
+        },
+    })
+}
+export const findSinglePredictionForTarget = cache(_findSinglePredictionForTarget, ['single-prediction-for-target'], {
+    tags: ['routes', 'targets', 'runs', 'stocks'],
 })

@@ -1,27 +1,38 @@
-import type { TargetPredictionDetail } from '@/types'
+import { AlertCircle } from 'lucide-react'
+
+import type { TargetDisplayData } from '@/types'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 import { TargetInfoCard } from '../client/target-info-card'
 
 type TargetInfoDisplayProps = {
-    targetDetail: TargetPredictionDetail
+    data: TargetDisplayData
 }
 
 /**
- * Fast path: Displays target metadata.
- * This is now a "dumb" component that receives fully resolved data.
+ * Dumb component: Displays target metadata from the pre-fetched DTO.
  */
-export function TargetInfoDisplay({ targetDetail }: TargetInfoDisplayProps) {
-    const hasRoutes = targetDetail.routes.length > 0
+export function TargetInfoDisplay({ data }: TargetInfoDisplayProps) {
+    const { targetInfo } = data
+
+    if (!targetInfo) {
+        return (
+            <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>Target information not found.</AlertDescription>
+            </Alert>
+        )
+    }
 
     return (
         <TargetInfoCard
-            targetId={targetDetail.targetId}
-            molecule={targetDetail.molecule}
-            routeLength={targetDetail.routeLength}
-            isConvergent={targetDetail.isConvergent}
-            hasAcceptableRoutes={targetDetail.hasAcceptableRoutes}
-            acceptableMatchRank={targetDetail.acceptableMatchRank}
-            hasNoPredictions={!hasRoutes}
+            targetId={targetInfo.targetId}
+            molecule={targetInfo.molecule}
+            routeLength={targetInfo.routeLength}
+            isConvergent={targetInfo.isConvergent}
+            hasAcceptableRoutes={targetInfo.hasAcceptableRoutes}
+            acceptableMatchRank={targetInfo.acceptableMatchRank}
+            hasNoPredictions={targetInfo.hasNoPredictions}
         />
     )
 }
