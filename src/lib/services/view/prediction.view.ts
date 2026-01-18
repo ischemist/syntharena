@@ -439,3 +439,55 @@ function reconstructStatisticsFromMetrics(
         ...(Object.keys(topKAccuracy).length > 0 && { topKAccuracy }),
     }
 }
+
+/** DTO for the run detail page header. */
+export interface RunDetailHeaderData {
+    modelName: string
+    benchmarkId: string
+    benchmarkName: string
+    hasAcceptableRoutes: boolean
+    totalRoutes: number
+    executedAt: Date
+    totalWallTime?: number | null
+    totalCost?: number | null
+}
+
+/** Prepares the DTO for the run detail page header. */
+export async function getPredictionRunHeader(runId: string): Promise<RunDetailHeaderData> {
+    const run = await runData.findPredictionRunHeaderById(runId)
+    return {
+        modelName: run.modelInstance.name,
+        benchmarkId: run.benchmarkSet.id,
+        benchmarkName: run.benchmarkSet.name,
+        hasAcceptableRoutes: run.benchmarkSet.hasAcceptableRoutes,
+        totalRoutes: run.totalRoutes,
+        executedAt: run.executedAt,
+        totalWallTime: run.statistics[0]?.totalWallTime ?? null,
+        totalCost: run.totalCost,
+    }
+}
+
+/**
+ * Determines the default stock and target for a run.
+ * Used to render the initial page state without a client-side redirect.
+ */
+export async function getRunDefaults(
+    runId: string,
+    currentStockId?: string,
+    currentTargetId?: string
+): Promise<{ stockId: string | undefined; targetId: string | undefined }> {
+    if (currentStockId) {
+        // If stock is set, we just need to check if we should default the target
+        if (currentTargetId) return { stockId: currentStockId, targetId: currentTargetId }
+        const targetIds = await getTargetIdsByRun(runId)
+        return { stockId: currentStockId, targetId: targetIds[0] }
+    }
+
+    // No stock is set, so find the first available one
+    const stocks = await getStocksForRun(runId)
+    if (stocks.length === 0) return { stockId: undefined, targetId: undefined }
+
+    const defaultStockId = stocks[0].id
+    const targetIds = await getTargetIdsByRun(runId)
+    return { stockId: defaultStockId, targetId: targetIds[0] }
+}
