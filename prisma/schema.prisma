@@ -121,7 +121,6 @@ model Algorithm {
   codeUrl     String? // link to canonical implementation
   bibtex      String? // bibtex citation string
 
-  instances     ModelInstance[]
   modelFamilies ModelFamily[]
 }
 
@@ -140,9 +139,7 @@ model ModelFamily {
 
 model ModelInstance {
   id            String  @id @default(cuid())
-  algorithmId   String
-  modelFamilyId String?
-  name          String // "dms-explorer-xl", NOT unique anymore
+  modelFamilyId String
   slug          String  @unique // "dms-explorer-xl-v1-2-0"
   description   String? // what makes THIS version special? "trained on new internal dataset"
 
@@ -155,12 +152,10 @@ model ModelInstance {
   metadata  String? // JSON: training set info, hyperparams
   createdAt DateTime @default(now())
 
-  algorithm Algorithm       @relation(fields: [algorithmId], references: [id])
-  family    ModelFamily?    @relation(fields: [modelFamilyId], references: [id])
-  runs      PredictionRun[]
+  family ModelFamily     @relation(fields: [modelFamilyId], references: [id])
+  runs   PredictionRun[]
 
-  // @@unique([modelFamilyId, versionMajor, versionMinor, versionPatch, versionPrerelease])
-  @@unique([name, versionMajor, versionMinor, versionPatch, versionPrerelease])
+  @@unique([modelFamilyId, versionMajor, versionMinor, versionPatch, versionPrerelease])
   @@index([modelFamilyId])
 }
 
