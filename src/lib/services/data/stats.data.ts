@@ -119,6 +119,8 @@ async function _findBestMetricsForAlgorithm(algorithmId: string, benchmarkIds: s
         select: {
             metricName: true,
             value: true,
+            ciLower: true,
+            ciUpper: true,
             statistics: {
                 select: {
                     benchmarkSetId: true,

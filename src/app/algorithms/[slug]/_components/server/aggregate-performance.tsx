@@ -33,12 +33,19 @@ export function AggregatePerformance({ metrics }: AggregatePerformanceProps) {
 
 function MetricCard({ metric }: { metric: AlgorithmHighlightMetric }) {
     const percentage = (metric.value * 100).toFixed(1)
+    const ciLower = (metric.ciLower * 100).toFixed(1)
+    const ciUpper = (metric.ciUpper * 100).toFixed(1)
 
     return (
         <Card variant="bordered">
             <CardHeader>
                 <CardDescription>{metric.benchmarkName}</CardDescription>
-                <CardTitle className="text-2xl tabular-nums">{percentage}%</CardTitle>
+                <div>
+                    <CardTitle className="text-2xl tabular-nums">{percentage}%</CardTitle>
+                    <p className="text-muted-foreground text-xs tabular-nums">
+                        95% CI: [{ciLower}%, {ciUpper}%]
+                    </p>
+                </div>
             </CardHeader>
             <CardContent>
                 <p className="text-muted-foreground text-sm">
@@ -48,7 +55,7 @@ function MetricCard({ metric }: { metric: AlgorithmHighlightMetric }) {
                         className="text-primary hover:underline"
                         prefetch={true}
                     >
-                        {metric.version}
+                        {metric.modelInstanceName} ({metric.version})
                     </Link>
                 </p>
             </CardContent>

@@ -601,6 +601,8 @@ export interface AlgorithmHighlightMetric {
     benchmarkName: string
     metricName: string // "Top-1" or "Top-10"
     value: number // 0-1, displayed as percentage
+    ciLower: number // 95% CI lower bound
+    ciUpper: number // 95% CI upper bound
     modelInstanceName: string // which instance achieved it
     modelInstanceSlug: string // for linking to model detail page
     version: string // formatted semver (e.g., "v1.2.0-beta")

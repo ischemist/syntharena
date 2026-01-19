@@ -67,7 +67,7 @@ function buildHighlightMetrics(rawMetrics: statsData.BestMetricPayload[]): Algor
     const bestByKey = new Map<string, AlgorithmHighlightMetric>()
 
     for (const metric of rawMetrics) {
-        const { statistics, metricName, value } = metric
+        const { statistics, metricName, value, ciLower, ciUpper } = metric
         const benchmarkId = statistics.benchmarkSetId
         const key = `${benchmarkId}:${metricName}`
 
@@ -82,6 +82,8 @@ function buildHighlightMetrics(rawMetrics: statsData.BestMetricPayload[]): Algor
             benchmarkName: benchmarkSet.name,
             metricName,
             value,
+            ciLower,
+            ciUpper,
             modelInstanceName: modelInstance.name,
             modelInstanceSlug: modelInstance.slug,
             version: formatVersion(modelInstance),
