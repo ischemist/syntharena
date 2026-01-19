@@ -3,7 +3,7 @@
 import { useState } from 'react'
 
 import type { MetricResult } from '@/types'
-import { ReliabilityBadge } from '@/components/reliability-badge'
+import { ReliabilityBadge } from '@/components/badges/reliability'
 
 type MetricCellProps = {
     metric: MetricResult
@@ -54,7 +54,7 @@ export function MetricCell({ metric, showBadge = false }: MetricCellProps) {
                         <span className="invisible">{upperPercent}</span>
                     )}
                     <span className={isHovered ? 'ml-2' : ''}>
-                        <ReliabilityBadge reliability={metric.reliability} iconOnly />
+                        <ReliabilityBadge reliability={metric.reliability} size="sm" />
                     </span>
                 </span>
             )}

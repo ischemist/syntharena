@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 
 import * as benchmarkView from '@/lib/services/view/benchmark.view'
 import * as routeView from '@/lib/services/view/route.view'
-import { RouteLengthBadge, RouteTypeBadge } from '@/components/route-badges'
+import { RouteLengthBadge, RouteTypeBadge } from '@/components/badges/route'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -64,10 +64,10 @@ export async function TargetHeader({ targetId }: TargetHeaderProps) {
                             {/* Badges */}
                             <div className="flex flex-wrap items-center gap-2">
                                 {target.routeLength !== null && (
-                                    <RouteLengthBadge length={target.routeLength} variant="ghost" />
+                                    <RouteLengthBadge length={target.routeLength} badgeStyle="soft" />
                                 )}
                                 {target.isConvergent !== null && (
-                                    <RouteTypeBadge isConvergent={target.isConvergent} variant="ghost" />
+                                    <RouteTypeBadge isConvergent={target.isConvergent} badgeStyle="soft" />
                                 )}
                                 {target.hasAcceptableRoutes && (
                                     <Badge variant="secondary">

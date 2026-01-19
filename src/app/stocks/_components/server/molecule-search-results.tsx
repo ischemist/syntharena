@@ -82,7 +82,7 @@ export async function MoleculeSearchResults({
                 </p>
             </div>
 
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-4">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-4">
                 {moleculesWithStocks.map((molecule, index) => (
                     <MoleculeCard key={molecule.id} molecule={molecule} index={index} />
                 ))}

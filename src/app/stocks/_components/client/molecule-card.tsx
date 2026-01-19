@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Check, Copy, Info } from 'lucide-react'
 
 import type { MoleculeWithStocks } from '@/types'
-import { BuyableInfoSection, BuyableMetadataStrip } from '@/components/buyable-badges'
+import { BuyableInfoSection, BuyableMetadataStrip } from '@/components/badges/buyables'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -52,7 +52,7 @@ export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
             <div className="absolute inset-x-0 top-4 bottom-12 flex items-center justify-center p-4">
                 {isReady ? (
                     <div className="animate-in fade-in duration-500">
-                        <MemoizedSmileDrawer smilesStr={molecule.smiles} width={80} height={80} />
+                        <MemoizedSmileDrawer smilesStr={molecule.smiles} width={120} height={120} />
                     </div>
                 ) : (
                     <Skeleton className="h-[200px] w-[200px] rounded-full opacity-10" />
@@ -65,7 +65,7 @@ export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
                         <BuyableMetadataStrip
                             source={molecule.stockItem.source!}
                             ppg={molecule.stockItem.ppg!}
-                            variant="soft"
+                            badgeStyle="soft"
                         />
                     </div>
                 </div>
@@ -133,7 +133,8 @@ export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
                             {molecule.stocks.length > 0 && (
                                 <div className="space-y-2 border-t pt-3">
                                     <span className="text-muted-foreground text-xs font-semibold">
-                                        Found in {molecule.stocks.length} stock{molecule.stocks.length !== 1 ? 's' : ''}
+                                        Found in {molecule.stocks.length} stock
+                                        {molecule.stocks.length !== 1 ? 's' : ''}
                                     </span>
                                     <div className="flex flex-wrap gap-1">
                                         {molecule.stocks.map((stock) => (

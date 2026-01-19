@@ -1,7 +1,7 @@
 import Link from 'next/link'
 
 import type { BenchmarkTargetSearchResult } from '@/types'
-import { RouteLengthBadge, RouteTypeBadge } from '@/components/route-badges'
+import { RouteLengthBadge, RouteTypeBadge } from '@/components/badges/route'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 
@@ -38,10 +38,14 @@ export function TargetGrid({ benchmarkId, result }: TargetGridProps) {
                                     <span className="truncate font-mono text-sm font-medium">{target.targetId}</span>
                                     <div className="flex shrink-0 items-center gap-1.5">
                                         {target.routeLength !== null && (
-                                            <RouteLengthBadge length={target.routeLength} variant="ghost" />
+                                            <RouteLengthBadge length={target.routeLength} badgeStyle="soft" />
                                         )}
                                         {target.isConvergent !== null && (
-                                            <RouteTypeBadge isConvergent={target.isConvergent} variant="ghost" />
+                                            <RouteTypeBadge
+                                                isConvergent={target.isConvergent}
+                                                badgeStyle="soft"
+                                                size="sm"
+                                            />
                                         )}
                                     </div>
                                 </div>

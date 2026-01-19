@@ -6,7 +6,7 @@ import type { Node, NodeProps } from '@xyflow/react'
 import { Check, Copy, Info, Package } from 'lucide-react'
 
 import type { NodeStatus, RouteGraphNode } from '@/types'
-import { BuyableInfoSection } from '@/components/buyable-badges'
+import { BuyableInfoSection } from '@/components/badges/buyables'
 import { SmileDrawerSvg } from '@/components/smile-drawer'
 import { Button } from '@/components/ui/button'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
