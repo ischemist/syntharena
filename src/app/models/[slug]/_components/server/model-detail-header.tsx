@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
 
 import type { Algorithm, ModelInstance } from '@/types'
 
@@ -24,15 +23,6 @@ export function ModelDetailHeader({ modelInstance }: ModelDetailHeaderProps) {
 
     return (
         <div className="space-y-4">
-            {/* Back navigation to algorithm */}
-            <Link
-                href={`/algorithms/${algorithm.slug}`}
-                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
-            >
-                <ArrowLeft className="h-4 w-4" />
-                Back to {algorithm.name}
-            </Link>
-
             {/* Title with version badge */}
             <div className="flex items-center gap-3">
                 <h1 className="text-3xl font-bold tracking-tight">{modelInstance.name}</h1>

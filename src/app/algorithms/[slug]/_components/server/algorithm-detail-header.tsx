@@ -1,16 +1,12 @@
-import Link from 'next/link'
-import { ArrowLeft, ExternalLink, FileCode } from 'lucide-react'
+import { ExternalLink, FileCode } from 'lucide-react'
 
 import type { Algorithm } from '@/types'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-
-import { CopyButton } from '../client/copy-button'
 
 /**
  * Formats a single-line bibtex string into a readable multiline format.
  */
-function formatBibtex(bibtex: string): string {
+export function formatBibtex(bibtex: string): string {
     // Add newline after entry type opening (e.g., @article{key,)
     let formatted = bibtex.replace(/(@\w+\{[^,]+,)\s*/, '$1\n    ')
 
@@ -34,15 +30,6 @@ interface AlgorithmDetailHeaderProps {
 export function AlgorithmDetailHeader({ algorithm }: AlgorithmDetailHeaderProps) {
     return (
         <div className="space-y-6">
-            {/* Back navigation */}
-            <Link
-                href="/algorithms"
-                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
-            >
-                <ArrowLeft className="h-4 w-4" />
-                Back to algorithms
-            </Link>
-
             {/* Title and description */}
             <div className="space-y-2">
                 <h1 className="text-3xl font-bold tracking-tight">{algorithm.name}</h1>
@@ -69,21 +56,6 @@ export function AlgorithmDetailHeader({ algorithm }: AlgorithmDetailHeaderProps)
                         </Button>
                     )}
                 </div>
-            )}
-
-            {/* Bibtex citation - always visible */}
-            {algorithm.bibtex && (
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">Citation</CardTitle>
-                        <CopyButton text={algorithm.bibtex} />
-                    </CardHeader>
-                    <CardContent>
-                        <pre className="bg-muted overflow-x-auto rounded-md p-4 text-xs break-words whitespace-pre-wrap">
-                            <code>{formatBibtex(algorithm.bibtex)}</code>
-                        </pre>
-                    </CardContent>
-                </Card>
             )}
         </div>
     )
