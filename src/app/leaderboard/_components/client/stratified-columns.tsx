@@ -46,7 +46,7 @@ export function createStratifiedColumns(routeLengths: number[]): ColumnDef<Strat
             cell: ({ row }) => {
                 const metric = row.original.metricsByLength[length]
                 return (
-                    <div className={isLastColumn ? 'flex justify-center pr-24' : 'flex justify-center'}>
+                    <div className={isLastColumn ? 'flex justify-center' : 'flex justify-center'}>
                         {metric ? <MetricCell metric={metric} showBadge /> : '-'}
                     </div>
                 )

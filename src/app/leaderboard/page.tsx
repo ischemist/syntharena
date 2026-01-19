@@ -66,6 +66,7 @@ async function LeaderboardContentWrapper({ searchParams }: { searchParams: Promi
             ) : (
                 <LeaderboardMetrics
                     leaderboardEntries={leaderboardEntries}
+                    selectedBenchmark={selectedBenchmark}
                     stratifiedMetricsByStock={stratifiedMetricsByStock}
                     stocks={stocks}
                     hasAcceptableRoutes={hasAcceptableRoutes}
@@ -79,11 +80,12 @@ async function LeaderboardContentWrapper({ searchParams }: { searchParams: Promi
 // Separate component for metrics to logically group them. It's not async.
 function LeaderboardMetrics({
     leaderboardEntries,
+    selectedBenchmark,
     stratifiedMetricsByStock,
     stocks,
     hasAcceptableRoutes,
     availableTopKMetrics,
-}: Omit<LeaderboardPageData, 'allBenchmarks' | 'selectedBenchmark' | 'metadata'> & LeaderboardPageData['metadata']) {
+}: Omit<LeaderboardPageData, 'allBenchmarks' | 'metadata'> & LeaderboardPageData['metadata']) {
     const stockName = leaderboardEntries[0].stockName
 
     if (!hasAcceptableRoutes || availableTopKMetrics.length === 0) {
@@ -91,6 +93,7 @@ function LeaderboardMetrics({
             <div className="flex flex-col gap-6">
                 <BenchmarkLeaderboardOverall
                     entries={leaderboardEntries}
+                    benchmarkSeries={selectedBenchmark.series}
                     hasAcceptableRoutes={hasAcceptableRoutes}
                     stockName={stockName}
                     topKMetricNames={[]}
@@ -109,6 +112,7 @@ function LeaderboardMetrics({
             <div className="flex flex-col gap-6">
                 <BenchmarkLeaderboardOverall
                     entries={leaderboardEntries}
+                    benchmarkSeries={selectedBenchmark.series}
                     hasAcceptableRoutes={hasAcceptableRoutes}
                     stockName={stockName}
                     topKMetricNames={availableTopKMetrics}

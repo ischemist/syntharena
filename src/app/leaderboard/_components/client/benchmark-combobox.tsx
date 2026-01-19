@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 type BenchmarkOption = {
     id: string
     name: string
+    series: 'MARKET' | 'REFERENCE' | 'LEGACY' | 'OTHER'
 }
 
 type BenchmarkComboboxProps = {
@@ -35,6 +36,10 @@ export function BenchmarkCombobox({ benchmarks, selectedId }: BenchmarkComboboxP
 
     const selectedBenchmark = benchmarks.find((b) => b.id === selectedId)
 
+    const marketBenchmarks = benchmarks.filter((b) => b.series === 'MARKET')
+    const referenceBenchmarks = benchmarks.filter((b) => b.series === 'REFERENCE')
+    const otherBenchmarks = benchmarks.filter((b) => b.series === 'LEGACY' || b.series === 'OTHER')
+
     const handleSelect = (benchmarkId: string) => {
         // Update URL with new benchmark selection, preserving existing params
         const params = new URLSearchParams(searchParams.toString())
@@ -56,23 +61,32 @@ export function BenchmarkCombobox({ benchmarks, selectedId }: BenchmarkComboboxP
                     <CommandInput placeholder="Search benchmarks..." className="h-9" />
                     <CommandList>
                         <CommandEmpty>No benchmark found.</CommandEmpty>
-                        <CommandGroup>
-                            {benchmarks.map((benchmark) => (
-                                <CommandItem
-                                    key={benchmark.id}
-                                    value={benchmark.name}
-                                    onSelect={() => handleSelect(benchmark.id)}
-                                >
-                                    {benchmark.name}
-                                    <Check
-                                        className={cn(
-                                            'ml-auto h-4 w-4',
-                                            selectedId === benchmark.id ? 'opacity-100' : 'opacity-0'
-                                        )}
-                                    />
-                                </CommandItem>
-                            ))}
-                        </CommandGroup>
+                        {[
+                            { title: 'Market Series', benchmarks: marketBenchmarks },
+                            { title: 'Reference Series', benchmarks: referenceBenchmarks },
+                            { title: 'Other', benchmarks: otherBenchmarks },
+                        ].map(
+                            ({ title, benchmarks: groupBenchmarks }) =>
+                                groupBenchmarks.length > 0 && (
+                                    <CommandGroup heading={title} key={title}>
+                                        {groupBenchmarks.map((benchmark) => (
+                                            <CommandItem
+                                                key={benchmark.id}
+                                                value={benchmark.name}
+                                                onSelect={() => handleSelect(benchmark.id)}
+                                            >
+                                                {benchmark.name}
+                                                <Check
+                                                    className={cn(
+                                                        'ml-auto h-4 w-4',
+                                                        selectedId === benchmark.id ? 'opacity-100' : 'opacity-0'
+                                                    )}
+                                                />
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                )
+                        )}
                     </CommandList>
                 </Command>
             </PopoverContent>

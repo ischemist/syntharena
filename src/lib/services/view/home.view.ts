@@ -34,6 +34,7 @@ export async function getBenchmarkOverview(): Promise<BenchmarkOverview[]> {
         id: b.id,
         name: b.name,
         description: b.description,
+        series: b.series,
         targetCount: b._count.targets,
         stockName: b.stock.name,
         hasAcceptableRoutes: b.hasAcceptableRoutes,

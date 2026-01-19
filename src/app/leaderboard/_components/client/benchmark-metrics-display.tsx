@@ -19,6 +19,7 @@ import { useSelectedTopK } from './page-level-top-k-selector'
 
 type BenchmarkMetricsDisplayProps = {
     entries: LeaderboardEntry[]
+    benchmarkSeries: LeaderboardEntry['benchmarkSeries']
     topKMetricNames: string[]
     selectedTopK?: string[] // Optional - will use context if not provided
 }
@@ -98,6 +99,7 @@ export function MetricsViewToggleButtons() {
  */
 export function BenchmarkMetricsDisplay({
     entries,
+    benchmarkSeries,
     topKMetricNames,
     selectedTopK: propSelectedTopK,
 }: BenchmarkMetricsDisplayProps) {
@@ -116,10 +118,12 @@ export function BenchmarkMetricsDisplay({
     const [sorting, setSorting] = useState<SortingState>([])
 
     // Create columns based on displayed Top-K metrics
-    const columns = useMemo(() => createLeaderboardColumns(displayedTopK), [displayedTopK])
+    const columns = useMemo(
+        () => createLeaderboardColumns(benchmarkSeries, displayedTopK),
+        [benchmarkSeries, displayedTopK]
+    )
 
     // Initialize TanStack Table
-    // eslint-disable-next-line react-hooks/incompatible-library
     const table = useReactTable({
         data: entries,
         columns,
@@ -140,14 +144,9 @@ export function BenchmarkMetricsDisplay({
                         <TableHeader>
                             {table.getHeaderGroups().map((headerGroup) => (
                                 <TableRow key={headerGroup.id}>
-                                    {headerGroup.headers.map((header, idx) => {
-                                        const isLastColumn = idx === headerGroup.headers.length - 1
-                                        const isModelName = header.id === 'modelName'
+                                    {headerGroup.headers.map((header) => {
                                         return (
-                                            <TableHead
-                                                key={header.id}
-                                                className={cn(!isModelName && 'min-w-[220px]', isLastColumn && 'pr-24')}
-                                            >
+                                            <TableHead key={header.id} className={cn('px-2')}>
                                                 {header.isPlaceholder
                                                     ? null
                                                     : flexRender(header.column.columnDef.header, header.getContext())}
@@ -162,7 +161,7 @@ export function BenchmarkMetricsDisplay({
                                 table.getRowModel().rows.map((row) => (
                                     <TableRow key={row.id}>
                                         {row.getVisibleCells().map((cell) => (
-                                            <TableCell key={cell.id}>
+                                            <TableCell key={cell.id} className="px-2">
                                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                             </TableCell>
                                         ))}

@@ -1,4 +1,5 @@
-import type { BenchmarkListItem } from '@/types' // new import
+import type { BenchmarkListItem, BenchmarkSeries } from '@/types'
+import { BenchmarkSeriesBadge } from '@/components/badges/benchmark-series'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -6,7 +7,7 @@ import { BenchmarkCombobox } from '../client/benchmark-combobox'
 
 type BenchmarkLeaderboardHeaderProps = {
     benchmark: BenchmarkListItem // receives the full object
-    benchmarks: Array<{ id: string; name: string }> // receives the list for the combobox
+    benchmarks: Array<{ id: string; name: string; series: BenchmarkSeries }> // receives the list for the combobox
 }
 
 /**
@@ -19,7 +20,10 @@ export function BenchmarkLeaderboardHeader({ benchmark, benchmarks }: BenchmarkL
             <CardHeader>
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                        <CardTitle className="text-2xl">{benchmark.name}</CardTitle>
+                        <div className="flex items-center gap-3">
+                            <CardTitle className="text-2xl">{benchmark.name}</CardTitle>
+                            <BenchmarkSeriesBadge series={benchmark.series} badgeStyle="soft" />
+                        </div>
                         {benchmark.description && <CardDescription>{benchmark.description}</CardDescription>}
                     </div>
                     <div className="flex items-center gap-2">

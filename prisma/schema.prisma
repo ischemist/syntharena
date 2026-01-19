@@ -42,6 +42,13 @@ model Molecule {
 // Matches retrocast.models.benchmark
 // =================================================================================
 
+enum BenchmarkSeries {
+  MARKET // mkt-* for chemists
+  REFERENCE // ref-* for developers
+  LEGACY // random-* for Reviewer #3
+  OTHER // future-proofing
+}
+
 model BenchmarkSet {
   id                  String  @id @default(cuid())
   name                String  @unique // e.g. "mkt-lin-500"
@@ -51,10 +58,15 @@ model BenchmarkSet {
 
   createdAt DateTime @default(now())
 
+  series   BenchmarkSeries @default(OTHER)
+  isListed Boolean         @default(true) // for de-prioritizing -single-gt
+
   stock      Stock                @relation(fields: [stockId], references: [id])
   targets    BenchmarkTarget[]
   runs       PredictionRun[]
   statistics ModelRunStatistics[]
+
+  @@index([series, isListed, name]) // new index for fast filtering
 }
 
 model BenchmarkTarget {
@@ -119,6 +131,11 @@ model ModelInstance {
   runs      PredictionRun[]
 }
 
+enum SubmissionType {
+  MAINTAINER_VERIFIED // run by us, hardware verified
+  COMMUNITY_SUBMITTED // submitted by author, computationally verified
+}
+
 // Represents one "folder" in your data/3-processed structure
 // e.g., data/3-processed/mkt-lin-500/dms-explorer-xl
 model PredictionRun {
@@ -138,6 +155,9 @@ model PredictionRun {
   // Stats from RunStatistics
   totalRoutes    Int // final_unique_routes_saved (now counts PredictionRoutes)
   avgRouteLength Float? // Average route length across all routes
+
+  submissionType SubmissionType @default(COMMUNITY_SUBMITTED)
+  isRetrained    Boolean? // for ref-* series. NULL = N/A, true/false for ref runs.
 
   modelInstance    ModelInstance        @relation(fields: [modelInstanceId], references: [id])
   benchmarkSet     BenchmarkSet         @relation(fields: [benchmarkSetId], references: [id])

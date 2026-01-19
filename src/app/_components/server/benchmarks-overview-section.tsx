@@ -8,9 +8,9 @@ export async function BenchmarksOverviewSection() {
     await connection()
     const benchmarks = await homeView.getBenchmarkOverview()
 
-    // Split into two series, exclude -single-gt benchmarks
-    const mktBenchmarks = benchmarks.filter((b) => b.name.startsWith('mkt-') && !b.name.endsWith('-single-gt'))
-    const refBenchmarks = benchmarks.filter((b) => b.name.startsWith('ref-') && !b.name.endsWith('-single-gt'))
+    // Split into two series by actual series enum value (isListed filtering handled in data layer)
+    const mktBenchmarks = benchmarks.filter((b) => b.series === 'MARKET')
+    const refBenchmarks = benchmarks.filter((b) => b.series === 'REFERENCE')
 
     return (
         <section className="py-8">

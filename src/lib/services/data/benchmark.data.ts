@@ -43,6 +43,7 @@ export async function deleteBenchmarkAndDeps(benchmarkId: string): Promise<void>
 
     // note: cascades will handle related PredictionRoute and RouteSolvability
     await prisma.$transaction([
+        prisma.modelRunStatistics.deleteMany({ where: { benchmarkSetId: benchmarkId } }),
         prisma.predictionRun.deleteMany({ where: { benchmarkSetId: benchmarkId } }),
         prisma.acceptableRoute.deleteMany({ where: { target: { benchmarkSetId: benchmarkId } } }),
         prisma.benchmarkTarget.deleteMany({ where: { benchmarkSetId: benchmarkId } }),
@@ -57,17 +58,20 @@ export async function deleteBenchmarkAndDeps(benchmarkId: string): Promise<void>
 /** returns data needed to build a `BenchmarkListItem` */
 async function _findBenchmarkListItems() {
     return prisma.benchmarkSet.findMany({
+        where: { isListed: true },
         select: {
             id: true,
             name: true,
             description: true,
             stockId: true,
             hasAcceptableRoutes: true,
+            series: true,
+            isListed: true,
             createdAt: true,
             stock: { select: { id: true, name: true, description: true } },
             _count: { select: { targets: true, runs: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { name: 'asc' },
     })
 }
 export const findBenchmarkListItems = cache(_findBenchmarkListItems, ['benchmark-list'], {
@@ -85,6 +89,8 @@ async function _findBenchmarkListItemById(benchmarkId: string) {
             description: true,
             stockId: true,
             hasAcceptableRoutes: true,
+            series: true,
+            isListed: true,
             createdAt: true,
             stock: { select: { id: true, name: true, description: true } },
             _count: { select: { targets: true, runs: true } },

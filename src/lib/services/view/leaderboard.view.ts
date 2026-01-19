@@ -29,8 +29,7 @@ export interface LeaderboardPageData {
         hasAcceptableRoutes: boolean
         availableTopKMetrics: string[]
     }
-    // [NEW] Add context for the entire page
-    allBenchmarks: Array<{ id: string; name: string }>
+    allBenchmarks: Array<{ id: string; name: string; series: BenchmarkListItem['series'] }>
     selectedBenchmark: BenchmarkListItem
 }
 
@@ -71,13 +70,11 @@ function toMetricResult(
  * this is the single entry point for this route's data.
  */
 export async function getLeaderboardPageData(benchmarkId?: string): Promise<LeaderboardPageData | null> {
-    // wave 1: fetch all benchmarks to determine the effective id and populate the dropdown.
+    // wave 1: fetch all LISTED benchmarks to determine the effective id and populate the dropdown.
     const allBenchmarksRaw = await benchmarkData.findBenchmarkListItems()
     if (allBenchmarksRaw.length === 0) return null
 
-    // sort for a stable default
-    allBenchmarksRaw.sort((a, b) => a.name.localeCompare(b.name))
-    const allBenchmarks = allBenchmarksRaw.map((b) => ({ id: b.id, name: b.name }))
+    const allBenchmarks = allBenchmarksRaw.map((b) => ({ id: b.id, name: b.name, series: b.series }))
 
     const effectiveBenchmarkId =
         benchmarkId && allBenchmarks.some((b) => b.id === benchmarkId) ? benchmarkId : allBenchmarks[0].id
@@ -100,21 +97,23 @@ export async function getLeaderboardPageData(benchmarkId?: string): Promise<Lead
         hasAcceptableRoutes: selectedBenchmarkRaw.hasAcceptableRoutes,
         createdAt: selectedBenchmarkRaw.createdAt,
         targetCount: selectedBenchmarkRaw._count.targets,
+        series: selectedBenchmarkRaw.series,
     }
 
     if (rawStats.length === 0) {
-        // we have a benchmark, but no stats. return a partial payload.
         return {
             leaderboardEntries: [],
             stratifiedMetricsByStock: new Map(),
             stocks: [],
-            metadata: { hasAcceptableRoutes: false, availableTopKMetrics: [] },
+            metadata: {
+                hasAcceptableRoutes: selectedBenchmark.hasAcceptableRoutes,
+                availableTopKMetrics: [],
+            },
             allBenchmarks,
             selectedBenchmark,
         }
     }
 
-    // --- existing transformation logic for rawStats ---
     const leaderboardEntries: LeaderboardEntry[] = []
     const stratifiedMetricsByStock = new Map<
         string,
@@ -122,10 +121,8 @@ export async function getLeaderboardPageData(benchmarkId?: string): Promise<Lead
     >()
     const stocksMap = new Map<string, StockListItem>()
 
-    const hasAcceptableRoutes = rawStats.some((stat) => stat.predictionRun.benchmarkSet.hasAcceptableRoutes)
-
     const topKMetricNames = new Set<string>()
-    if (hasAcceptableRoutes) {
+    if (selectedBenchmark.hasAcceptableRoutes) {
         rawStats.forEach((stat) => {
             stat.metrics.forEach((metric) => {
                 if (metric.metricName.startsWith('Top-')) {
@@ -140,7 +137,7 @@ export async function getLeaderboardPageData(benchmarkId?: string): Promise<Lead
 
         // -- 1. build leaderboard entry (flat list) --
         const solvabilityMetric = metrics.find((m) => m.metricName === 'Solvability' && m.groupKey === null)
-        const topKMetrics = hasAcceptableRoutes
+        const topKMetrics = selectedBenchmark.hasAcceptableRoutes
             ? metrics.filter((m) => m.metricName.startsWith('Top-') && m.groupKey === null)
             : []
 
@@ -152,7 +149,10 @@ export async function getLeaderboardPageData(benchmarkId?: string): Promise<Lead
         leaderboardEntries.push({
             modelName,
             benchmarkName: predictionRun.benchmarkSet.name,
+            benchmarkSeries: predictionRun.benchmarkSet.series,
             stockName: stock.name,
+            submissionType: predictionRun.submissionType,
+            isRetrained: predictionRun.isRetrained,
             metrics: {
                 solvability: toMetricResult(solvabilityMetric),
                 ...(Object.keys(topKAccuracy).length > 0 && { topKAccuracy }),
@@ -181,7 +181,7 @@ export async function getLeaderboardPageData(benchmarkId?: string): Promise<Lead
         if (!solvability) continue
 
         let stratifiedTopK: Record<string, StratifiedMetric> | undefined
-        if (hasAcceptableRoutes) {
+        if (selectedBenchmark.hasAcceptableRoutes) {
             const acc: Record<string, StratifiedMetric> = {}
             ;[...topKMetricNames].forEach((name) => {
                 const metric = buildStratifiedMetric(name)
@@ -202,7 +202,6 @@ export async function getLeaderboardPageData(benchmarkId?: string): Promise<Lead
             })
         }
     }
-    // --- end of identical transformation logic ---
 
     const sortedTopKNames = Array.from(topKMetricNames).sort((a, b) => {
         const aNum = parseInt(a.replace(/^\D+/, ''))
@@ -215,7 +214,7 @@ export async function getLeaderboardPageData(benchmarkId?: string): Promise<Lead
         stratifiedMetricsByStock,
         stocks: Array.from(stocksMap.values()),
         metadata: {
-            hasAcceptableRoutes,
+            hasAcceptableRoutes: selectedBenchmark.hasAcceptableRoutes,
             availableTopKMetrics: sortedTopKNames,
         },
         allBenchmarks,

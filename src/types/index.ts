@@ -19,6 +19,16 @@ export type ActionState<T> =
       }
 
 // ============================================================================
+// Shared Enums & Types (The "Canonical Pattern")
+// ============================================================================
+
+export const BENCHMARK_SERIES = ['MARKET', 'REFERENCE', 'LEGACY', 'OTHER'] as const
+export type BenchmarkSeries = (typeof BENCHMARK_SERIES)[number]
+
+export const SUBMISSION_TYPES = ['MAINTAINER_VERIFIED', 'COMMUNITY_SUBMITTED'] as const
+export type SubmissionType = (typeof SUBMISSION_TYPES)[number]
+
+// ============================================================================
 // Stock & Molecule Types
 // ============================================================================
 
@@ -150,6 +160,7 @@ export interface BenchmarkSet {
     stock?: Stock // Optional: included when relation is loaded
     hasAcceptableRoutes: boolean // True if any target has acceptable routes
     createdAt: Date
+    series: BenchmarkSeries
 }
 
 /**
@@ -575,6 +586,8 @@ export interface PredictionRunWithStats {
     avgRouteLength?: number | null
     solvabilitySummary?: Record<string, number> // stockId -> solvability percentage
     executedAt: Date
+    submissionType: SubmissionType
+    isRetrained?: boolean | null
 }
 
 /**
@@ -643,7 +656,10 @@ export interface RunStatistics {
 export interface LeaderboardEntry {
     modelName: string
     benchmarkName: string
+    benchmarkSeries: BenchmarkSeries
     stockName: string
+    submissionType: SubmissionType
+    isRetrained: PredictionRunWithStats['isRetrained']
     metrics: {
         solvability: MetricResult
         topKAccuracy?: Record<string, MetricResult> // "Top-1", "Top-5", etc.
@@ -669,6 +685,7 @@ export interface BenchmarkOverview {
     id: string
     name: string
     description: string | null
+    series: BenchmarkSeries
     targetCount: number
     stockName: string
     hasAcceptableRoutes: boolean
