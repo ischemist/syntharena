@@ -36,7 +36,7 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput)
                     versionMinor: true,
                     versionPatch: true,
                     versionPrerelease: true,
-                    algorithm: { select: { id: true, name: true } },
+                    algorithm: { select: { id: true, name: true, slug: true } },
                 },
             },
             benchmarkSet: {
@@ -120,7 +120,11 @@ async function _findPredictionRunsForBenchmark(benchmarkId: string) {
             modelInstance: {
                 select: {
                     name: true,
-                    version: true,
+                    slug: true,
+                    versionMajor: true,
+                    versionMinor: true,
+                    versionPatch: true,
+                    versionPrerelease: true,
                     algorithm: { select: { name: true } },
                 },
             },
