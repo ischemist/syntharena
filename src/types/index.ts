@@ -685,6 +685,7 @@ export interface BenchmarkOverview {
     id: string
     name: string
     description: string | null
+    series: BenchmarkSeries
     targetCount: number
     stockName: string
     hasAcceptableRoutes: boolean
