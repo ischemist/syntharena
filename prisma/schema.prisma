@@ -113,9 +113,13 @@ model AcceptableRoute {
 // =================================================================================
 
 model Algorithm {
-  id    String  @id @default(cuid())
-  name  String  @unique // "DirectMultiStep"
-  paper String?
+  id          String  @id @default(cuid())
+  name        String  @unique // "DirectMultiStep"
+  slug        String  @unique // "direct-multi-step" (for clean urls)
+  description String? // high-level explanation of the method
+  paper       String? // link to paper
+  codeUrl     String? // link to canonical implementation
+  bibtex      String? // bibtex citation string
 
   instances ModelInstance[]
 }
@@ -123,12 +127,24 @@ model Algorithm {
 model ModelInstance {
   id          String  @id @default(cuid())
   algorithmId String
-  name        String  @unique // "dms-explorer-xl"
-  version     String?
-  metadata    String? // JSON: training set info, hyperparams
+  name        String // "dms-explorer-xl", NOT unique anymore
+  slug        String  @unique // "dms-explorer-xl-v1-2-0"
+  description String? // what makes THIS version special? "trained on new internal dataset"
+
+  // Structured SemVer
+  versionMajor      Int     @default(0)
+  versionMinor      Int     @default(0)
+  versionPatch      Int     @default(0)
+  versionPrerelease String? // e.g., "alpha", "beta.1"
+
+  metadata  String?  // JSON: training set info, hyperparams
+  createdAt DateTime @default(now())
 
   algorithm Algorithm       @relation(fields: [algorithmId], references: [id])
   runs      PredictionRun[]
+
+  @@unique([name, versionMajor, versionMinor, versionPatch, versionPrerelease])
+  @@index([name])
 }
 
 enum SubmissionType {

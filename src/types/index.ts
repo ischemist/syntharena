@@ -549,24 +549,63 @@ export interface EvaluationResults {
 // ============================================================================
 
 /**
- * Algorithm information for display.
+ * [UPDATED] Algorithm information for display.
+ * Now includes full metadata for the algorithm detail page.
  */
 export interface Algorithm {
     id: string
     name: string
+    slug: string
+    description?: string | null
     paper?: string | null
+    codeUrl?: string | null
+    bibtex?: string | null
+}
+
+/** DTO for displaying algorithm info in list views. */
+export interface AlgorithmListItem extends Omit<Algorithm, 'paper' | 'codeUrl' | 'bibtex'> {
+    instanceCount: number
 }
 
 /**
- * Model instance with algorithm details.
+ * [UPDATED] Model instance with structured versioning.
+ * 'name' is now the series name (e.g., "dms-explorer-xl").
+ * The combination of name + version is unique.
  */
 export interface ModelInstance {
     id: string
     algorithmId: string
     name: string
-    version?: string | null
+    slug: string
+    description?: string | null
+    versionMajor: number
+    versionMinor: number
+    versionPatch: number
+    versionPrerelease?: string | null
     metadata?: string | null // JSON: training set info, hyperparams
+    createdAt: Date
     algorithm?: Algorithm
+}
+
+/** DTO for displaying model instance info in list views. */
+export interface ModelInstanceListItem extends ModelInstance {
+    runCount: number
+}
+
+/**
+ * DTO for displaying best performance metrics for an algorithm.
+ * Used in the algorithm detail page "Best Performance" section.
+ */
+export interface AlgorithmHighlightMetric {
+    benchmarkId: string
+    benchmarkName: string
+    metricName: string // "Top-1" or "Top-10"
+    value: number // 0-1, displayed as percentage
+    ciLower: number // 95% CI lower bound
+    ciUpper: number // 95% CI upper bound
+    modelInstanceName: string // which instance achieved it
+    modelInstanceSlug: string // for linking to model detail page
+    version: string // formatted semver (e.g., "v1.2.0-beta")
 }
 
 /**
@@ -585,6 +624,7 @@ export interface PredictionRunWithStats {
     totalWallTime?: number | null // Total wall time in seconds (from statistics[0])
     avgRouteLength?: number | null
     solvabilitySummary?: Record<string, number> // stockId -> solvability percentage
+    top10Accuracy?: { value: number; ciLower: number; ciUpper: number } | null // Top-10 accuracy with CI (null if no ground truth)
     executedAt: Date
     submissionType: SubmissionType
     isRetrained?: boolean | null

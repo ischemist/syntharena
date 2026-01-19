@@ -5,6 +5,7 @@ import {
     BarChart3,
     Beaker,
     BookOpen,
+    Cpu,
     FlaskConical,
     History,
     LayoutDashboard,
@@ -53,6 +54,11 @@ const data = {
             title: 'Leaderboard',
             url: '/leaderboard',
             icon: BarChart3,
+        },
+        {
+            title: 'Algorithms',
+            url: '/algorithms',
+            icon: Cpu,
         },
     ],
     navDropdowns: [

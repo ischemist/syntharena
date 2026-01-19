@@ -31,8 +31,13 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput)
                     id: true,
                     algorithmId: true,
                     name: true,
-                    version: true,
-                    algorithm: { select: { id: true, name: true } },
+                    slug: true,
+                    versionMajor: true,
+                    versionMinor: true,
+                    versionPatch: true,
+                    versionPrerelease: true,
+                    createdAt: true,
+                    algorithm: { select: { id: true, name: true, slug: true } },
                 },
             },
             benchmarkSet: {
@@ -50,8 +55,11 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput)
                     stockId: true,
                     totalWallTime: true,
                     metrics: {
-                        where: { metricName: 'Solvability', groupKey: null },
-                        select: { value: true },
+                        where: {
+                            groupKey: null,
+                            metricName: { in: ['Solvability', 'Top-10'] },
+                        },
+                        select: { metricName: true, value: true, ciLower: true, ciUpper: true },
                     },
                 },
             },
@@ -116,7 +124,11 @@ async function _findPredictionRunsForBenchmark(benchmarkId: string) {
             modelInstance: {
                 select: {
                     name: true,
-                    version: true,
+                    slug: true,
+                    versionMajor: true,
+                    versionMinor: true,
+                    versionPatch: true,
+                    versionPrerelease: true,
                     algorithm: { select: { name: true } },
                 },
             },

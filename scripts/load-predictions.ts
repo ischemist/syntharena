@@ -4,33 +4,57 @@
  * CLI Script to load model predictions from retrocast pipeline outputs.
  *
  * Usage:
- *   tsx scripts/load-predictions.ts <benchmark-name> <model-name> --algorithm <algorithm-name> [options]
+ *   tsx scripts/load-predictions.ts [options]
  *
- * Required Arguments:
- *   <benchmark-name>         Name of benchmark (must exist in database)
- *   <model-name>            Name of model instance to create/use
- *   --algorithm <name>      Algorithm name (e.g., "DirectMultiStep", "Retro*")
+ * Benchmark (one required):
+ *   <benchmark-name>           First positional arg: name of benchmark to find
+ *   --benchmark-id <id>        OR: benchmark ID for existing benchmark
  *
- * Options:
- *   --data-dir <path>        Base data directory (default: ../project-procrustes/data)
- *   --stock <stock-name>     Load evaluations for specific stock (optional)
- *   --routes-only            Only load routes, skip evaluations and statistics
- *   --algorithm-paper <url>  Paper URL for algorithm (optional)
- *   --model-version <ver>    Model version string (optional)
- *   --hourly-cost <usd>      Compute cost in USD per hour (optional)
+ * Model Instance (one required):
+ *   <model-name>               Second positional arg: name for new model instance
+ *     --model-slug <slug>      Required when creating: URL-safe slug
+ *     --model-description      Optional description
+ *     --version-major <n>      Major version (default: 0)
+ *     --version-minor <n>      Minor version (default: 0)
+ *     --version-patch <n>      Patch version (default: 0)
+ *     --version-prerelease <s> Prerelease tag (e.g., "alpha", "beta.1")
+ *   --model-id <id>            OR: model instance ID for existing model
+ *
+ * Algorithm (one required):
+ *   --algorithm <name>         Algorithm name (creates/finds by name)
+ *     --algorithm-slug <slug>  Required when creating: URL-safe slug
+ *     --algorithm-paper <url>  Optional paper URL
+ *     --algorithm-description  Optional description
+ *     --algorithm-code-url     Optional code repository URL
+ *     --algorithm-bibtex       Optional BibTeX citation
+ *   --algorithm-id <id>        OR: algorithm ID for existing algorithm
+ *
+ * Stock (for evaluations):
+ *   --stock-path <name>        Stock name in file path (e.g., "buyables-stock")
+ *   --stock-db <name>          Stock name in database
+ *   --stock-id <id>            OR: stock ID for existing stock
+ *
+ * Other Options:
+ *   --data-dir <path>          Base data directory (default: ../project-procrustes/data)
+ *   --routes-only              Only load routes, skip evaluations and statistics
+ *   --hourly-cost <usd>        Compute cost in USD per hour
  *
  * Examples:
- *   # Load only routes
- *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 dms-explorer-xl --algorithm DirectMultiStep --routes-only
+ *   # Create new algorithm and model (routes only):
+ *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 dms-explorer-xl \
+ *     --algorithm DirectMultiStep --algorithm-slug direct-multi-step \
+ *     --model-slug dms-explorer-xl-v0-0-0 --routes-only
  *
- *   # Load routes + evaluations + statistics for buyables-stock
- *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 dms-explorer-xl --algorithm DirectMultiStep --stock-path buyables-stock --stock-db "ASKCOS Buyables Stock"
+ *   # Create new model with version:
+ *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 dms-explorer-xl \
+ *     --algorithm DirectMultiStep --algorithm-slug direct-multi-step \
+ *     --model-slug dms-explorer-xl-v1-0-0 \
+ *     --version-major 1 --version-minor 0 --version-patch 0 \
+ *     --stock-path buyables-stock --stock-db "ASKCOS Buyables Stock"
  *
- *   # With version and paper
- *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 dms-explorer-xl --algorithm DirectMultiStep --model-version "v1.0" --algorithm-paper "https://arxiv.org/abs/2405.13983" --stock-path buyables-stock --stock-db "ASKCOS Buyables Stock"
- *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 aizynthfinder-retro-star --algorithm "AiZynthFinder Retro*" --stock-path buyables-stock --stock-db "ASKCOS Buyables Stock"
- *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 retro-star --algorithm "Retro*" --stock-path buyables-stock --stock-db "ASKCOS Buyables Stock"
- *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 askcos --algorithm "ASKCOS" --stock-path buyables-stock --stock-db "ASKCOS Buyables Stock"
+ *   # Load into existing entities by ID:
+ *   pnpm tsx scripts/load-predictions.ts --benchmark-id abc123 --model-id def456 \
+ *     --algorithm-id ghi789 --stock-path buyables-stock --stock-id jkl012
  *
  * File Structure Expected:
  *   {data-dir}/3-processed/{benchmark}/{model}/routes.json.gz
@@ -38,7 +62,7 @@
  *   {data-dir}/5-results/{benchmark}/{model}/{stock-path}/statistics.json.gz
  *
  * The script will:
- *   1. Create Algorithm and ModelInstance if they don't exist
+ *   1. Resolve or create Algorithm and ModelInstance
  *   2. Create or update PredictionRun for benchmark+model combination
  *   3. Load routes from 3-processed (creates Route + RouteNode tree + Molecules)
  *   4. If --stock specified:
@@ -112,37 +136,111 @@ interface ManifestFile {
 // Helper Functions
 // ============================================================================
 
+/** Parsed CLI options */
+interface ParsedOptions {
+    // Benchmark identification (name OR id)
+    benchmarkName: string | null
+    benchmarkId: string | null
+    // Model identification (name OR id)
+    modelName: string | null
+    modelId: string | null
+    // Algorithm identification (name OR id)
+    algorithmName: string | null
+    algorithmId: string | null
+    // Algorithm creation options (when using --algorithm)
+    algorithmSlug: string | null
+    algorithmPaper: string | null
+    algorithmDescription: string | null
+    algorithmCodeUrl: string | null
+    algorithmBibtex: string | null
+    // Model creation options (when using <model-name>)
+    modelSlug: string | null
+    modelDescription: string | null
+    versionMajor: number
+    versionMinor: number
+    versionPatch: number
+    versionPrerelease: string | null
+    // Stock identification
+    stockPathName: string | null
+    stockDbName: string | null
+    stockId: string | null
+    // Other options
+    dataDir: string
+    routesOnly: boolean
+    hourlyCost: number | null
+}
+
 /**
  * Parses CLI arguments into structured options.
  */
-function parseArgs(args: string[]): {
-    benchmarkName: string
-    modelName: string
-    algorithmName: string
-    algorithmPaper: string | null
-    modelVersion: string | null
-    dataDir: string
-    stockPathName: string | null
-    stockDbName: string | null
-    routesOnly: boolean
-    hourlyCost: number | null
-} {
-    if (args.length < 2) {
-        throw new Error('Missing required arguments: <benchmark-name> <model-name>')
-    }
-
-    const [benchmarkName, modelName] = args
+function parseArgs(args: string[]): ParsedOptions {
+    // Positional args are optional now (can use --benchmark-id and --model-id instead)
+    let benchmarkName: string | null = null
+    let modelName: string | null = null
+    let benchmarkId: string | null = null
+    let modelId: string | null = null
+    let algorithmName: string | null = null
+    let algorithmId: string | null = null
+    let algorithmSlug: string | null = null
+    let algorithmPaper: string | null = null
+    let algorithmDescription: string | null = null
+    let algorithmCodeUrl: string | null = null
+    let algorithmBibtex: string | null = null
+    let modelSlug: string | null = null
+    let modelDescription: string | null = null
+    let versionMajor = 0
+    let versionMinor = 0
+    let versionPatch = 0
+    let versionPrerelease: string | null = null
     let dataDir = path.resolve(__dirname, '../../project-procrustes/data')
     let stockPathName: string | null = null
     let stockDbName: string | null = null
+    let stockId: string | null = null
     let routesOnly = false
-    let algorithmName: string | null = null
-    let algorithmPaper: string | null = null
-    let modelVersion: string | null = null
     let hourlyCost: number | null = null
 
+    // First pass: collect positional args (benchmark-name, model-name)
+    const positionalArgs: string[] = []
+    for (let i = 0; i < args.length; i++) {
+        if (args[i].startsWith('--')) {
+            // Skip this option and its value if it has one
+            const optionsWithValues = [
+                '--data-dir',
+                '--stock-path',
+                '--stock-db',
+                '--stock-id',
+                '--algorithm',
+                '--algorithm-id',
+                '--algorithm-slug',
+                '--algorithm-paper',
+                '--algorithm-description',
+                '--algorithm-code-url',
+                '--algorithm-bibtex',
+                '--model-id',
+                '--model-slug',
+                '--model-description',
+                '--version-major',
+                '--version-minor',
+                '--version-patch',
+                '--version-prerelease',
+                '--benchmark-id',
+                '--hourly-cost',
+            ]
+            if (optionsWithValues.includes(args[i]) && i + 1 < args.length) {
+                i++ // skip the value
+            }
+            // --routes-only has no value, so nothing extra to skip
+        } else {
+            positionalArgs.push(args[i])
+        }
+    }
+
+    // Assign positional args
+    if (positionalArgs.length >= 1) benchmarkName = positionalArgs[0]
+    if (positionalArgs.length >= 2) modelName = positionalArgs[1]
+
     // Parse options
-    for (let i = 2; i < args.length; i++) {
+    for (let i = 0; i < args.length; i++) {
         if (args[i] === '--data-dir' && i + 1 < args.length) {
             dataDir = path.resolve(args[i + 1])
             i++
@@ -152,14 +250,62 @@ function parseArgs(args: string[]): {
         } else if (args[i] === '--stock-db' && i + 1 < args.length) {
             stockDbName = args[i + 1]
             i++
+        } else if (args[i] === '--stock-id' && i + 1 < args.length) {
+            stockId = args[i + 1]
+            i++
         } else if (args[i] === '--algorithm' && i + 1 < args.length) {
             algorithmName = args[i + 1]
+            i++
+        } else if (args[i] === '--algorithm-id' && i + 1 < args.length) {
+            algorithmId = args[i + 1]
+            i++
+        } else if (args[i] === '--algorithm-slug' && i + 1 < args.length) {
+            algorithmSlug = args[i + 1]
             i++
         } else if (args[i] === '--algorithm-paper' && i + 1 < args.length) {
             algorithmPaper = args[i + 1]
             i++
-        } else if (args[i] === '--model-version' && i + 1 < args.length) {
-            modelVersion = args[i + 1]
+        } else if (args[i] === '--algorithm-description' && i + 1 < args.length) {
+            algorithmDescription = args[i + 1]
+            i++
+        } else if (args[i] === '--algorithm-code-url' && i + 1 < args.length) {
+            algorithmCodeUrl = args[i + 1]
+            i++
+        } else if (args[i] === '--algorithm-bibtex' && i + 1 < args.length) {
+            algorithmBibtex = args[i + 1]
+            i++
+        } else if (args[i] === '--benchmark-id' && i + 1 < args.length) {
+            benchmarkId = args[i + 1]
+            i++
+        } else if (args[i] === '--model-id' && i + 1 < args.length) {
+            modelId = args[i + 1]
+            i++
+        } else if (args[i] === '--model-slug' && i + 1 < args.length) {
+            modelSlug = args[i + 1]
+            i++
+        } else if (args[i] === '--model-description' && i + 1 < args.length) {
+            modelDescription = args[i + 1]
+            i++
+        } else if (args[i] === '--version-major' && i + 1 < args.length) {
+            versionMajor = parseInt(args[i + 1], 10)
+            if (isNaN(versionMajor) || versionMajor < 0) {
+                throw new Error('--version-major must be a non-negative integer')
+            }
+            i++
+        } else if (args[i] === '--version-minor' && i + 1 < args.length) {
+            versionMinor = parseInt(args[i + 1], 10)
+            if (isNaN(versionMinor) || versionMinor < 0) {
+                throw new Error('--version-minor must be a non-negative integer')
+            }
+            i++
+        } else if (args[i] === '--version-patch' && i + 1 < args.length) {
+            versionPatch = parseInt(args[i + 1], 10)
+            if (isNaN(versionPatch) || versionPatch < 0) {
+                throw new Error('--version-patch must be a non-negative integer')
+            }
+            i++
+        } else if (args[i] === '--version-prerelease' && i + 1 < args.length) {
+            versionPrerelease = args[i + 1]
             i++
         } else if (args[i] === '--hourly-cost' && i + 1 < args.length) {
             hourlyCost = parseFloat(args[i + 1])
@@ -169,29 +315,77 @@ function parseArgs(args: string[]): {
             i++
         } else if (args[i] === '--routes-only') {
             routesOnly = true
+        } else if (!args[i].startsWith('--')) {
+            // positional arg, already handled
         } else {
             throw new Error(`Unknown option: ${args[i]}`)
         }
     }
 
-    if (!algorithmName) {
-        throw new Error('Missing required option: --algorithm <algorithm-name>')
+    // Validation: need either benchmark name or id
+    if (!benchmarkName && !benchmarkId) {
+        throw new Error('Must specify either <benchmark-name> or --benchmark-id')
+    }
+    if (benchmarkName && benchmarkId) {
+        throw new Error('Cannot specify both <benchmark-name> and --benchmark-id')
     }
 
-    // Validate stock options
-    if ((stockPathName && !stockDbName) || (!stockPathName && stockDbName)) {
-        throw new Error('Both --stock-path and --stock-db must be specified together')
+    // Validation: need either model name or id
+    if (!modelName && !modelId) {
+        throw new Error('Must specify either <model-name> or --model-id')
+    }
+    if (modelName && modelId) {
+        throw new Error('Cannot specify both <model-name> and --model-id')
+    }
+
+    // Validation: need either algorithm name or id
+    if (!algorithmName && !algorithmId) {
+        throw new Error('Must specify either --algorithm <name> or --algorithm-id <id>')
+    }
+    if (algorithmName && algorithmId) {
+        throw new Error('Cannot specify both --algorithm and --algorithm-id')
+    }
+
+    // Validation: if creating algorithm (by name), slug is required
+    if (algorithmName && !algorithmSlug) {
+        throw new Error('When creating algorithm with --algorithm, --algorithm-slug is required')
+    }
+
+    // Validation: if creating model (by name), slug is required
+    if (modelName && !modelSlug) {
+        throw new Error('When creating model with <model-name>, --model-slug is required')
+    }
+
+    // Validation: stock options - if stock-path specified, need either stock-db or stock-id
+    if (stockPathName && !stockDbName && !stockId) {
+        throw new Error('When using --stock-path, must specify either --stock-db or --stock-id')
+    }
+    if (stockDbName && stockId) {
+        throw new Error('Cannot specify both --stock-db and --stock-id')
     }
 
     return {
         benchmarkName,
+        benchmarkId,
         modelName,
+        modelId,
         algorithmName,
+        algorithmId,
+        algorithmSlug,
         algorithmPaper,
-        modelVersion,
+        algorithmDescription,
+        algorithmCodeUrl,
+        algorithmBibtex,
+        modelSlug,
+        modelDescription,
+        versionMajor,
+        versionMinor,
+        versionPatch,
+        versionPrerelease,
         dataDir,
         stockPathName,
         stockDbName,
+        stockId,
         routesOnly,
         hourlyCost,
     }
@@ -238,31 +432,50 @@ async function main() {
 
     // Show usage if no args
     if (args.length === 0) {
-        console.error(
-            'Usage: tsx scripts/load-predictions.ts <benchmark-name> <model-name> --algorithm <algorithm-name> [options]'
-        )
+        console.error('Usage: tsx scripts/load-predictions.ts [options]')
         console.error('')
-        console.error('Required Arguments:')
-        console.error('  <benchmark-name>         Name of benchmark (must exist in database)')
-        console.error('  <model-name>            Name of model instance to create/use')
-        console.error('  --algorithm <name>      Algorithm name (e.g., "DirectMultiStep", "Retro*")')
+        console.error('Benchmark (one required):')
+        console.error('  <benchmark-name>           Name of benchmark (first positional arg)')
+        console.error('  --benchmark-id <id>        OR benchmark ID for existing benchmark')
         console.error('')
-        console.error('Options:')
-        console.error('  --data-dir <path>        Base data directory (default: ../project-procrustes/data)')
-        console.error('  --stock-path <name>      Stock name in file path (e.g., "buyables-stock")')
-        console.error('  --stock-db <name>        Stock name in database (e.g., "ASKCOS Buyables Stock")')
-        console.error('  --routes-only            Only load routes, skip evaluations and statistics')
-        console.error('  --algorithm-paper <url>  Paper URL for algorithm (optional)')
-        console.error('  --model-version <ver>    Model version string (optional)')
-        console.error('  --hourly-cost <usd>      Compute cost in USD per hour (optional)')
+        console.error('Model Instance (one required):')
+        console.error('  <model-name>               Name for new model instance (second positional arg)')
+        console.error('    --model-slug <slug>      Required when creating: URL-safe slug')
+        console.error('    --model-description      Optional description')
+        console.error('    --version-major <n>      Major version (default: 0)')
+        console.error('    --version-minor <n>      Minor version (default: 0)')
+        console.error('    --version-patch <n>      Patch version (default: 0)')
+        console.error('    --version-prerelease <s> Prerelease tag (e.g., "alpha", "beta.1")')
+        console.error('  --model-id <id>            OR model instance ID for existing model')
+        console.error('')
+        console.error('Algorithm (one required):')
+        console.error('  --algorithm <name>         Algorithm name for new/existing algorithm')
+        console.error('    --algorithm-slug <slug>  Required when creating: URL-safe slug')
+        console.error('    --algorithm-paper <url>  Optional paper URL')
+        console.error('    --algorithm-description  Optional description')
+        console.error('    --algorithm-code-url     Optional code repository URL')
+        console.error('    --algorithm-bibtex       Optional BibTeX citation')
+        console.error('  --algorithm-id <id>        OR algorithm ID for existing algorithm')
+        console.error('')
+        console.error('Stock (for evaluations):')
+        console.error('  --stock-path <name>        Stock name in file path (e.g., "buyables-stock")')
+        console.error('  --stock-db <name>          Stock name in database')
+        console.error('  --stock-id <id>            OR stock ID for existing stock')
+        console.error('')
+        console.error('Other Options:')
+        console.error('  --data-dir <path>          Base data directory (default: ../project-procrustes/data)')
+        console.error('  --routes-only              Only load routes, skip evaluations and statistics')
+        console.error('  --hourly-cost <usd>        Compute cost in USD per hour')
         console.error('')
         console.error('Examples:')
-        console.error(
-            '  pnpm tsx scripts/load-predictions.ts mkt-cnv-160 dms-explorer-xl --algorithm DirectMultiStep --routes-only'
-        )
-        console.error(
-            '  pnpm tsx scripts/load-predictions.ts mkt-cnv-160 dms-explorer-xl --algorithm DirectMultiStep --stock-path buyables-stock --stock-db "ASKCOS Buyables Stock"'
-        )
+        console.error('  # Create new algorithm and model:')
+        console.error('  pnpm tsx scripts/load-predictions.ts mkt-cnv-160 dms-explorer-xl \\')
+        console.error('    --algorithm DirectMultiStep --algorithm-slug direct-multi-step \\')
+        console.error('    --model-slug dms-explorer-xl-v0-0-0 --routes-only')
+        console.error('')
+        console.error('  # Load into existing algorithm and model by ID:')
+        console.error('  pnpm tsx scripts/load-predictions.ts --benchmark-id abc123 --model-id def456 \\')
+        console.error('    --algorithm-id ghi789 --stock-path buyables-stock --stock-id jkl012')
         process.exit(1)
     }
 
@@ -276,27 +489,48 @@ async function main() {
 
     const {
         benchmarkName,
+        benchmarkId,
         modelName,
+        modelId,
         algorithmName,
+        algorithmId,
+        algorithmSlug,
         algorithmPaper,
-        modelVersion,
+        algorithmDescription,
+        algorithmCodeUrl,
+        algorithmBibtex,
+        modelSlug,
+        modelDescription,
+        versionMajor,
+        versionMinor,
+        versionPatch,
+        versionPrerelease,
         dataDir,
         stockPathName,
         stockDbName,
+        stockId,
         routesOnly,
         hourlyCost,
     } = options
 
+    // Format version string for display
+    const versionString = versionPrerelease
+        ? `${versionMajor}.${versionMinor}.${versionPatch}-${versionPrerelease}`
+        : `${versionMajor}.${versionMinor}.${versionPatch}`
+
     console.log('='.repeat(70))
     console.log('Model Predictions Loader')
     console.log('='.repeat(70))
-    console.log(`Benchmark:        ${benchmarkName}`)
-    console.log(`Algorithm:        ${algorithmName}`)
-    console.log(`Model:            ${modelName}`)
-    console.log(`Model Version:    ${modelVersion ?? '(none)'}`)
+    console.log(`Benchmark:        ${benchmarkName ?? `(by ID: ${benchmarkId})`}`)
+    console.log(`Algorithm:        ${algorithmName ?? `(by ID: ${algorithmId})`}`)
+    console.log(`Model:            ${modelName ?? `(by ID: ${modelId})`}`)
+    if (modelName) {
+        console.log(`  Slug:           ${modelSlug}`)
+        console.log(`  Version:        ${versionString}`)
+    }
     console.log(`Data Directory:   ${dataDir}`)
     console.log(`Stock (path):     ${stockPathName ?? '(none - routes only)'}`)
-    console.log(`Stock (DB):       ${stockDbName ?? '(none - routes only)'}`)
+    console.log(`Stock (DB/ID):    ${stockDbName ?? stockId ?? '(none - routes only)'}`)
     console.log(`Hourly Cost:      ${hourlyCost !== null ? `$${hourlyCost.toFixed(2)}/hr` : '(none)'}`)
     console.log(`Mode:             ${routesOnly ? 'Routes Only' : 'Full Load'}`)
     console.log('='.repeat(70))
@@ -306,57 +540,138 @@ async function main() {
 
     try {
         // ====================================================================
-        // Step 1: Verify benchmark exists, create algorithm and model if needed
+        // Step 1: Resolve benchmark, algorithm, and model
         // ====================================================================
-        console.log('Verifying benchmark in database...')
 
-        const benchmark = await prisma.benchmarkSet.findFirst({
-            where: { name: benchmarkName },
-            select: { id: true, name: true },
-        })
-        if (!benchmark) {
-            throw new Error(
-                `Benchmark not found in database: ${benchmarkName}. Please load the benchmark first using load-benchmark.ts`
-            )
+        // --- Benchmark ---
+        console.log('Resolving benchmark...')
+        let benchmark: { id: string; name: string }
+        if (benchmarkId) {
+            const found = await prisma.benchmarkSet.findUnique({
+                where: { id: benchmarkId },
+                select: { id: true, name: true },
+            })
+            if (!found) {
+                throw new Error(`Benchmark not found with ID: ${benchmarkId}`)
+            }
+            benchmark = found
+        } else {
+            const found = await prisma.benchmarkSet.findFirst({
+                where: { name: benchmarkName! },
+                select: { id: true, name: true },
+            })
+            if (!found) {
+                throw new Error(
+                    `Benchmark not found in database: ${benchmarkName}. Please load the benchmark first using load-benchmark.ts`
+                )
+            }
+            benchmark = found
         }
-
-        console.log(`  Benchmark ID: ${benchmark.id}`)
+        console.log(`  Benchmark ID: ${benchmark.id} (${benchmark.name})`)
         console.log('')
 
-        console.log('Creating/finding algorithm...')
-        const algorithm = await prisma.algorithm.upsert({
-            where: { name: algorithmName },
-            update: {},
-            create: {
-                name: algorithmName,
-                paper: algorithmPaper,
-            },
-            select: { id: true, name: true },
-        })
-        console.log(`  Algorithm ID: ${algorithm.id} (${algorithm.name})`)
+        // --- Algorithm ---
+        console.log('Resolving algorithm...')
+        let algorithm: { id: string; name: string }
+        if (algorithmId) {
+            // Find by ID
+            const found = await prisma.algorithm.findUnique({
+                where: { id: algorithmId },
+                select: { id: true, name: true },
+            })
+            if (!found) {
+                throw new Error(`Algorithm not found with ID: ${algorithmId}`)
+            }
+            algorithm = found
+            console.log(`  Found Algorithm ID: ${algorithm.id} (${algorithm.name})`)
+        } else {
+            // Upsert by name (create with slug if new)
+            algorithm = await prisma.algorithm.upsert({
+                where: { name: algorithmName! },
+                update: {
+                    // Update optional fields if provided
+                    ...(algorithmPaper && { paper: algorithmPaper }),
+                    ...(algorithmDescription && { description: algorithmDescription }),
+                    ...(algorithmCodeUrl && { codeUrl: algorithmCodeUrl }),
+                    ...(algorithmBibtex && { bibtex: algorithmBibtex }),
+                },
+                create: {
+                    name: algorithmName!,
+                    slug: algorithmSlug!,
+                    paper: algorithmPaper,
+                    description: algorithmDescription,
+                    codeUrl: algorithmCodeUrl,
+                    bibtex: algorithmBibtex,
+                },
+                select: { id: true, name: true },
+            })
+            console.log(`  Algorithm ID: ${algorithm.id} (${algorithm.name})`)
+        }
         console.log('')
 
-        console.log('Creating/finding model instance...')
-        const model = await prisma.modelInstance.upsert({
-            where: { name: modelName },
-            update: {
-                version: modelVersion ?? undefined,
-            },
-            create: {
-                algorithmId: algorithm.id,
-                name: modelName,
-                version: modelVersion,
-            },
-            select: { id: true, name: true },
-        })
-        console.log(`  Model ID:     ${model.id} (${model.name})`)
+        // --- Model Instance ---
+        console.log('Resolving model instance...')
+        let model: { id: string; name: string }
+        if (modelId) {
+            // Find by ID
+            const found = await prisma.modelInstance.findUnique({
+                where: { id: modelId },
+                select: { id: true, name: true },
+            })
+            if (!found) {
+                throw new Error(`Model instance not found with ID: ${modelId}`)
+            }
+            model = found
+            console.log(`  Found Model ID: ${model.id} (${model.name})`)
+        } else {
+            // Find existing or create new model instance
+            const existingModel = await prisma.modelInstance.findFirst({
+                where: {
+                    name: modelName!,
+                    versionMajor,
+                    versionMinor,
+                    versionPatch,
+                    versionPrerelease: versionPrerelease ?? null,
+                },
+                select: { id: true, name: true },
+            })
+
+            if (existingModel) {
+                // Update description if provided
+                if (modelDescription) {
+                    await prisma.modelInstance.update({
+                        where: { id: existingModel.id },
+                        data: { description: modelDescription },
+                    })
+                }
+                model = existingModel
+                console.log(`  Found Model ID: ${model.id} (${model.name} v${versionString})`)
+            } else {
+                // Create new model instance
+                model = await prisma.modelInstance.create({
+                    data: {
+                        algorithmId: algorithm.id,
+                        name: modelName!,
+                        slug: modelSlug!,
+                        description: modelDescription,
+                        versionMajor,
+                        versionMinor,
+                        versionPatch,
+                        versionPrerelease,
+                    },
+                    select: { id: true, name: true },
+                })
+                console.log(`  Created Model ID: ${model.id} (${model.name} v${versionString})`)
+            }
+        }
         console.log('')
 
         // ====================================================================
         // Step 2: Resolve file paths and check existence
         // ====================================================================
-        const routesFile = path.join(dataDir, '3-processed', benchmarkName, modelName, 'routes.json.gz')
-        const manifestFile = path.join(dataDir, '3-processed', benchmarkName, modelName, 'manifest.json')
+        // Use benchmark name and model name for file paths (need actual names, not IDs)
+        const routesFile = path.join(dataDir, '3-processed', benchmark.name, model.name, 'routes.json.gz')
+        const manifestFile = path.join(dataDir, '3-processed', benchmark.name, model.name, 'manifest.json')
 
         console.log('Checking files...')
         console.log(`  Routes file: ${routesFile}`)
@@ -381,16 +696,16 @@ async function main() {
             evaluationFile = path.join(
                 dataDir,
                 '4-scored',
-                benchmarkName,
-                modelName,
+                benchmark.name,
+                model.name,
                 stockPathName,
                 'evaluation.json.gz'
             )
             statisticsFile = path.join(
                 dataDir,
                 '5-results',
-                benchmarkName,
-                modelName,
+                benchmark.name,
+                model.name,
                 stockPathName,
                 'statistics.json.gz'
             )
@@ -481,22 +796,34 @@ async function main() {
         // ====================================================================
         // Step 5: Load evaluations (if stock specified)
         // ====================================================================
-        if (stockPathName && stockDbName && !routesOnly && evaluationFile) {
-            console.log(`Loading evaluations for stock: ${stockDbName}...`)
-
-            // Find stock in database by exact name
-            const stock = await prisma.stock.findFirst({
-                where: { name: stockDbName },
-                select: { id: true, name: true },
-            })
-
-            if (!stock) {
-                // Show available stocks to help user
-                const availableStocks = await prisma.stock.findMany({
-                    select: { name: true },
+        if (stockPathName && (stockDbName || stockId) && !routesOnly && evaluationFile) {
+            // Resolve stock by ID or name
+            let stock: { id: string; name: string }
+            if (stockId) {
+                const found = await prisma.stock.findUnique({
+                    where: { id: stockId },
+                    select: { id: true, name: true },
                 })
-                const stockNames = availableStocks.map((s) => s.name).join(', ')
-                throw new Error(`Stock not found in database: ${stockDbName}. Available stocks: ${stockNames}`)
+                if (!found) {
+                    throw new Error(`Stock not found with ID: ${stockId}`)
+                }
+                stock = found
+                console.log(`Loading evaluations for stock: ${stock.name} (ID: ${stock.id})...`)
+            } else {
+                const found = await prisma.stock.findFirst({
+                    where: { name: stockDbName! },
+                    select: { id: true, name: true },
+                })
+                if (!found) {
+                    // Show available stocks to help user
+                    const availableStocks = await prisma.stock.findMany({
+                        select: { name: true },
+                    })
+                    const stockNames = availableStocks.map((s) => s.name).join(', ')
+                    throw new Error(`Stock not found in database: ${stockDbName}. Available stocks: ${stockNames}`)
+                }
+                stock = found
+                console.log(`Loading evaluations for stock: ${stock.name}...`)
             }
 
             console.log(`  Stock ID: ${stock.id}`)
@@ -621,12 +948,12 @@ async function main() {
         console.log('Load Complete!')
         console.log('='.repeat(70))
         console.log(`Prediction Run ID:    ${predictionRun.id}`)
-        console.log(`Benchmark:            ${benchmarkName}`)
-        console.log(`Model:                ${modelName}`)
+        console.log(`Benchmark:            ${benchmark.name}`)
+        console.log(`Model:                ${model.name}`)
         console.log(`Routes Created:       ${routesCreated}`)
-        if (stockPathName && stockDbName && !routesOnly) {
+        if (stockPathName && (stockDbName || stockId) && !routesOnly) {
             console.log(`Stock (path):         ${stockPathName}`)
-            console.log(`Stock (DB):           ${stockDbName}`)
+            console.log(`Stock (DB/ID):        ${stockDbName ?? stockId}`)
             console.log(`Evaluations Loaded:   Yes`)
             console.log(`Statistics Loaded:    Yes`)
         } else {

@@ -7,26 +7,26 @@
 
 import type {
     BenchmarkTargetWithMolecule,
+    BuyableMetadata,
     MetricResult,
     ModelStatistics,
     PredictionRunWithStats,
     ReliabilityCode,
     RouteNodeWithDetails,
+    RouteVisualizationNode,
     RunStatistics,
     StockListItem,
     StratifiedMetric,
     TargetDisplayData,
     TargetInfo,
-    RouteVisualizationNode,
-    BuyableMetadata,
 } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkData from '@/lib/services/data/benchmark.data'
+import * as predictionData from '@/lib/services/data/prediction.data'
 import * as routeData from '@/lib/services/data/route.data'
 import * as runData from '@/lib/services/data/run.data'
 import * as statsData from '@/lib/services/data/stats.data'
 import * as stockData from '@/lib/services/data/stock.data'
-import * as predictionData from '@/lib/services/data/prediction.data'
 import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 
 import { toVisualizationNode } from './route.view'
@@ -44,11 +44,17 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
     return runs.map((run) => {
         const solvabilitySummary: Record<string, number> = {}
         for (const stat of run.statistics) {
-            const overallMetric = stat.metrics[0]
-            if (overallMetric) {
-                solvabilitySummary[stat.stockId] = overallMetric.value
+            const solvabilityMetric = stat.metrics.find((m) => m.metricName === 'Solvability')
+            if (solvabilityMetric) {
+                solvabilitySummary[stat.stockId] = solvabilityMetric.value
             }
         }
+
+        // Extract Top-10 accuracy from first stock's statistics (if available)
+        const top10Metric = run.statistics[0]?.metrics.find((m) => m.metricName === 'Top-10')
+        const top10Accuracy = top10Metric
+            ? { value: top10Metric.value, ciLower: top10Metric.ciLower, ciUpper: top10Metric.ciUpper }
+            : null
 
         return {
             id: run.id,
@@ -62,6 +68,7 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
             totalWallTime: run.statistics[0]?.totalWallTime ?? null,
             avgRouteLength: run.avgRouteLength,
             solvabilitySummary,
+            top10Accuracy,
             executedAt: run.executedAt,
             submissionType: run.submissionType,
             isRetrained: run.isRetrained,
