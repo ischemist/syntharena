@@ -15,22 +15,19 @@ export async function generateMetadata({ params }: ModelDetailPageProps): Promis
     try {
         const modelInstance = await modelData.findModelInstanceBySlug(slug)
         const version = `v${modelInstance.versionMajor}.${modelInstance.versionMinor}.${modelInstance.versionPatch}`
+        // use family name in title
         return {
-            title: `${modelInstance.name} ${version}`,
-            description: modelInstance.description || `Details and prediction runs for ${modelInstance.name}.`,
+            title: `${modelInstance.family.name} ${version}`,
+            description: modelInstance.description || `details and prediction runs for ${modelInstance.family.name}.`,
         }
     } catch {
         return {
-            title: 'Model Not Found',
-            description: 'The requested model instance could not be found.',
+            title: 'model not found',
+            description: 'the requested model instance could not be found.',
         }
     }
 }
 
-/**
- * Model instance detail page showing model metadata and all prediction runs.
- * Uses streaming with Suspense for instant layout render.
- */
 export default function ModelDetailPage(props: ModelDetailPageProps) {
     const params = use(props.params)
     const { slug } = params
