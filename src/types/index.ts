@@ -709,6 +709,8 @@ export interface RunStatistics {
  */
 export interface LeaderboardEntry {
     modelName: string
+    version: string
+    modelInstanceSlug: string
     benchmarkName: string
     benchmarkSeries: BenchmarkSeries
     stockName: string
