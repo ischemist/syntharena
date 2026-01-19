@@ -33,6 +33,7 @@ export function PredictionRunTable({ runs }: PredictionRunTableProps) {
                 <TableHeader>
                     <TableRow>
                         <TableHead>Benchmark</TableHead>
+                        <TableHead>Top-10</TableHead>
                         <TableHead className="text-right">Routes</TableHead>
                         <TableHead className="text-right">Duration</TableHead>
                         <TableHead className="text-right">Cost</TableHead>
@@ -51,6 +52,19 @@ export function PredictionRunTable({ runs }: PredictionRunTableProps) {
                                 >
                                     {run.benchmarkSet.name}
                                 </Link>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                                {run.benchmarkSet.hasAcceptableRoutes && run.top10Accuracy ? (
+                                    <span>
+                                        {(run.top10Accuracy.value * 100).toFixed(1)}%{' '}
+                                        <span className="text-muted-foreground/70">
+                                            [{(run.top10Accuracy.ciLower * 100).toFixed(1)},{' '}
+                                            {(run.top10Accuracy.ciUpper * 100).toFixed(1)}]
+                                        </span>
+                                    </span>
+                                ) : (
+                                    '—'
+                                )}
                             </TableCell>
                             <TableCell className="text-right">
                                 <Badge variant="secondary">{run.totalRoutes.toLocaleString()}</Badge>
