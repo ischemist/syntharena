@@ -192,7 +192,7 @@ function parseArgs(args: string[]): ParsedOptions {
     let versionMinor = 0
     let versionPatch = 0
     let versionPrerelease: string | null = null
-    let dataDir = path.resolve(__dirname, '../../project-procrustes/data')
+    let dataDir = path.resolve(__dirname, '../../project-procrustes/data/retrocast')
     let stockPathName: string | null = null
     let stockDbName: string | null = null
     let stockId: string | null = null

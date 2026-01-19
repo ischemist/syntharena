@@ -39,3 +39,10 @@ pnpm tsx scripts/load-predictions.ts uspto-190 aizynthfinder-retro-star --algori
 pnpm tsx scripts/load-predictions.ts uspto-190 retro-star --algorithm "Retro*" --stock-path buyables-stock --stock-db "ASKCOS Buyables Stock"
 pnpm tsx scripts/load-predictions.ts uspto-190 askcos --algorithm "ASKCOS" --stock-path buyables-stock --stock-db "ASKCOS Buyables Stock"
 ```
+
+New synplanner
+
+```bash
+pnpm tsx scripts/load-predictions.ts mkt-cnv-160 synplanner-1.3.2-mcts-rollout --model-slug synp-m-v1-3-2 --algorithm-id cmise5n3y0000fqdd9adk2lbb --stock-path buyables-stock --stock-db "ASKCOS Buyables Stock"
+
+```
