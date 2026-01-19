@@ -9,9 +9,11 @@ import prisma from '@/lib/db'
 const tags = ['models', 'families']
 
 /** [RENAMED] returns all model instance versions for a given model family. */
-async function _findModelInstancesByFamilyId(modelFamilyId: string) {
+async function _findModelInstancesByFamilyId(modelFamilyIds: string | string[]) {
+    const ids = Array.isArray(modelFamilyIds) ? modelFamilyIds : [modelFamilyIds]
+    if (ids.length === 0) return [] // prevent prisma from querying with an empty `in` array
     return prisma.modelInstance.findMany({
-        where: { modelFamilyId },
+        where: { modelFamilyId: { in: ids } },
         select: {
             id: true,
             modelFamilyId: true,

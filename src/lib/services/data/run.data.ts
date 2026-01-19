@@ -29,15 +29,21 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput)
             modelInstance: {
                 select: {
                     id: true,
-                    algorithmId: true,
-                    name: true,
+                    modelFamilyId: true,
                     slug: true,
                     versionMajor: true,
                     versionMinor: true,
                     versionPatch: true,
                     versionPrerelease: true,
                     createdAt: true,
-                    algorithm: { select: { id: true, name: true, slug: true } },
+                    family: {
+                        select: {
+                            id: true,
+                            name: true,
+                            slug: true,
+                            algorithm: { select: { id: true, name: true, slug: true } },
+                        },
+                    },
                 },
             },
             benchmarkSet: {

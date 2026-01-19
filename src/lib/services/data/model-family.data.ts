@@ -13,6 +13,7 @@ async function _findModelFamiliesByAlgorithmId(algorithmId: string) {
         where: { algorithmId },
         select: {
             id: true,
+            algorithmId: true,
             name: true,
             slug: true,
             description: true,
