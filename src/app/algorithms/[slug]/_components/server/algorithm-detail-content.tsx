@@ -21,12 +21,12 @@ export async function AlgorithmDetailContent({ slug }: AlgorithmDetailContentPro
 
             {/* new: render families in sections */}
             <div className="space-y-8">
-                <h2 className="text-xl font-semibold">model families</h2>
+                <h2 className="text-xl font-semibold">Model Families</h2>
                 {families.length > 0 ? (
                     families.map((family) => (
                         <div key={family.id} className="space-y-4">
                             <h3 className="text-lg font-semibold">
-                                <Link href={`/families/${family.slug}`} className="text-primary hover:underline">
+                                <Link href={`/model-families/${family.slug}`} className="text-primary hover:underline">
                                     {family.name}
                                 </Link>
                             </h3>
@@ -48,7 +48,7 @@ export async function AlgorithmDetailContent({ slug }: AlgorithmDetailContentPro
                     <p className="text-muted-foreground text-sm">if you use this model in your work, cite it as</p>
                     <div className="bg-muted relative overflow-x-auto rounded-md p-4">
                         <CopyButton text={algorithm.bibtex} className="absolute top-2 right-2" />
-                        <pre className="text-xs break-words whitespace-pre-wrap">
+                        <pre className="wrap-break-words text-xs whitespace-pre-wrap">
                             <code>{formatBibtex(algorithm.bibtex)}</code>
                         </pre>
                     </div>

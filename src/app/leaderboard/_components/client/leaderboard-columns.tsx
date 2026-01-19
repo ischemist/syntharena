@@ -32,13 +32,15 @@ export function createLeaderboardColumns(
         {
             id: 'version',
             accessorKey: 'version',
-            header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="version" />,
+            header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Version" />,
             cell: ({ row }) => {
                 const { version, modelInstanceSlug } = row.original
                 return (
-                    <Link href={`/models/${modelInstanceSlug}`} className="hover:underline">
-                        <code className="bg-muted rounded px-1.5 py-0.5 text-sm">{version}</code>
-                    </Link>
+                    <div className="flex justify-center">
+                        <Link href={`/models/${modelInstanceSlug}`} className="hover:underline">
+                            <code className="bg-muted rounded px-1.5 py-0.5 text-sm">{version}</code>
+                        </Link>
+                    </div>
                 )
             },
         },

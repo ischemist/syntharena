@@ -27,15 +27,15 @@ export function ModelDetailHeader({ modelInstance }: ModelDetailHeaderProps) {
 
             <div className="flex flex-col gap-1">
                 <p className="text-muted-foreground text-sm">
-                    family:{' '}
-                    <Link href={`/families/${family.slug}`} className="text-primary font-medium hover:underline">
-                        {family.name}
+                    Algorithm:{' '}
+                    <Link href={`/algorithms/${algorithm.slug}`} className="text-primary font-medium hover:underline">
+                        {algorithm.name}
                     </Link>
                 </p>
                 <p className="text-muted-foreground text-sm">
-                    algorithm:{' '}
-                    <Link href={`/algorithms/${algorithm.slug}`} className="text-primary font-medium hover:underline">
-                        {algorithm.name}
+                    Model Family:{' '}
+                    <Link href={`/model-families/${family.slug}`} className="text-primary font-medium hover:underline">
+                        {family.name}
                     </Link>
                 </p>
             </div>
