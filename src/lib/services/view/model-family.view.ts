@@ -15,7 +15,7 @@ export interface ModelFamilyDetailPageData {
 export async function getModelFamilyDetailPageData(slug: string): Promise<ModelFamilyDetailPageData> {
     const family = await modelFamilyData.findModelFamilyBySlug(slug)
 
-    const [rawInstances] = await Promise.all([modelData.findModelInstancesByFamilyId(family.id)])
+    const rawInstances = await modelData.findModelInstancesByFamilyId(family.id)
 
     const instances: ModelInstanceListItem[] = rawInstances.map((i) => ({
         ...i,
