@@ -41,6 +41,8 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput)
                             id: true,
                             name: true,
                             slug: true,
+                            description: true,
+                            algorithmId: true,
                             algorithm: { select: { id: true, name: true, slug: true } },
                         },
                     },
@@ -83,7 +85,7 @@ async function _findPredictionRunDetailsById(runId: string) {
     const run = await prisma.predictionRun.findUnique({
         where: { id: runId },
         include: {
-            modelInstance: { include: { algorithm: true } },
+            modelInstance: { include: { family: { include: { algorithm: true } } } },
             benchmarkSet: true,
             statistics: {
                 include: { stock: true, metrics: true },
@@ -106,7 +108,7 @@ async function _findPredictionRunHeaderById(runId: string) {
             totalRoutes: true,
             executedAt: true,
             totalCost: true,
-            modelInstance: { select: { name: true } },
+            modelInstance: { select: { family: { select: { name: true } } } },
             benchmarkSet: { select: { id: true, name: true, hasAcceptableRoutes: true } },
             statistics: { select: { totalWallTime: true }, take: 1 }, // only need one stat record for wall time
         },
@@ -129,13 +131,17 @@ async function _findPredictionRunsForBenchmark(benchmarkId: string) {
             executedAt: true,
             modelInstance: {
                 select: {
-                    name: true,
                     slug: true,
                     versionMajor: true,
                     versionMinor: true,
                     versionPatch: true,
                     versionPrerelease: true,
-                    algorithm: { select: { name: true } },
+                    family: {
+                        select: {
+                            name: true,
+                            algorithm: { select: { name: true } },
+                        },
+                    },
                 },
             },
         },
@@ -153,7 +159,7 @@ async function _findPredictionRunBreadcrumbData(runId: string) {
     const run = await prisma.predictionRun.findUnique({
         where: { id: runId },
         select: {
-            modelInstance: { select: { name: true } },
+            modelInstance: { select: { family: { select: { name: true } } } },
             benchmarkSet: { select: { id: true, name: true } },
         },
     })

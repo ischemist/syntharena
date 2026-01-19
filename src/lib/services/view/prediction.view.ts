@@ -60,7 +60,13 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
             id: run.id,
             modelInstanceId: run.modelInstanceId,
             benchmarkSetId: run.benchmarkSetId,
-            modelInstance: run.modelInstance,
+            modelInstance: {
+                ...run.modelInstance,
+                family: {
+                    ...run.modelInstance.family,
+                    description: run.modelInstance.family.description ?? undefined,
+                },
+            },
             benchmarkSet: run.benchmarkSet,
             totalRoutes: run.totalRoutes,
             hourlyCost: run.hourlyCost,
@@ -119,7 +125,7 @@ export interface RunDetailBreadcrumbData {
 export async function getPredictionRunBreadcrumbData(runId: string): Promise<RunDetailBreadcrumbData> {
     const run = await runData.findPredictionRunBreadcrumbData(runId)
     return {
-        modelName: run.modelInstance.name,
+        modelName: run.modelInstance.family.name,
         benchmarkId: run.benchmarkSet.id,
         benchmarkName: run.benchmarkSet.name,
     }
@@ -139,7 +145,7 @@ export async function getStocksForRun(runId: string): Promise<StockListItem[]> {
 /** returns ordered list of target IDs for a run's benchmark. */
 export async function getTargetIdsByRun(runId: string, routeLength?: number): Promise<string[]> {
     const run = await runData.findPredictionRunDetailsById(runId)
-    return benchmarkData.findTargetIdsByBenchmark(run.benchmarkSetId, routeLength)
+    return benchmarkData.findTargetIdsByBenchmark(run.benchmarkSet.id, routeLength)
 }
 
 /** returns distinct route lengths available for filtering. */
@@ -148,7 +154,7 @@ export async function getAvailableRouteLengths(runId: string): Promise<number[]>
     if (!run.benchmarkSet.hasAcceptableRoutes) {
         return []
     }
-    return benchmarkData.findAvailableRouteLengths(run.benchmarkSetId)
+    return benchmarkData.findAvailableRouteLengths(run.benchmarkSet.id)
 }
 
 /** returns full statistics for a run against a stock. */
@@ -196,7 +202,7 @@ export async function searchTargets(
     limit: number = 20
 ): Promise<BenchmarkTargetWithMolecule[]> {
     const run = await runData.findPredictionRunDetailsById(runId)
-    const benchmarkId = run.benchmarkSetId
+    const benchmarkId = run.benchmarkSet.id
 
     // Use the benchmark view's getBenchmarkTargets with search
     const searchType = 'all' as const
@@ -360,7 +366,7 @@ export interface RunDetailHeaderData {
 export async function getPredictionRunHeader(runId: string): Promise<RunDetailHeaderData> {
     const run = await runData.findPredictionRunHeaderById(runId)
     return {
-        modelName: run.modelInstance.name,
+        modelName: run.modelInstance.family.name,
         benchmarkId: run.benchmarkSet.id,
         benchmarkName: run.benchmarkSet.name,
         hasAcceptableRoutes: run.benchmarkSet.hasAcceptableRoutes,

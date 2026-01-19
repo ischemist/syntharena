@@ -133,7 +133,7 @@ export async function getLeaderboardPageData(benchmarkId?: string): Promise<Lead
     }
     for (const stat of rawStats) {
         const { stock, predictionRun, metrics } = stat
-        const modelName = predictionRun.modelInstance.name
+        const modelName = predictionRun.modelInstance.family.name
 
         // -- 1. build leaderboard entry (flat list) --
         const solvabilityMetric = metrics.find((m) => m.metricName === 'Solvability' && m.groupKey === null)
