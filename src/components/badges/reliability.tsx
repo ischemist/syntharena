@@ -1,17 +1,11 @@
 import { AlertCircle, AlertTriangle } from 'lucide-react'
 
+import type { ReliabilityFlag } from '@/types'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 
 export type BadgeStyle = 'soft' | 'outline'
-
-export type ReliabilityCode = 'LOW_N' | 'EXTREME_P' | 'OK'
-
-export interface ReliabilityFlag {
-    code: ReliabilityCode
-    message: string
-}
 
 export interface ReliabilityBadgeProps {
     reliability: ReliabilityFlag

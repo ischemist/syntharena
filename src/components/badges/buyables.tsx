@@ -1,21 +1,11 @@
-import * as React from 'react'
 import { ExternalLink } from 'lucide-react'
 
+import { VENDOR_NAMES, type VendorSource } from '@/types'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 export type BadgeStyle = 'soft' | 'outline'
-
-export type VendorSource = 'MC' | 'LN' | 'EM' | 'SA' | 'CB'
-
-export const VENDOR_NAMES: Record<VendorSource, string> = {
-    MC: 'MilliporeSigma',
-    LN: 'Labnetwork',
-    EM: 'Enamine',
-    SA: 'Sigma-Aldrich',
-    CB: 'ChemBridge',
-}
 
 export interface VendorBadgeProps {
     source: VendorSource
