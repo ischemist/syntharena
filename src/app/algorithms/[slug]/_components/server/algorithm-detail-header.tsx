@@ -5,6 +5,24 @@ import type { Algorithm } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
+import { CopyButton } from '../client/copy-button'
+
+/**
+ * Formats a single-line bibtex string into a readable multiline format.
+ */
+function formatBibtex(bibtex: string): string {
+    // Add newline after entry type opening (e.g., @article{key,)
+    let formatted = bibtex.replace(/(@\w+\{[^,]+,)\s*/, '$1\n    ')
+
+    // Add newlines before each field (word followed by =)
+    formatted = formatted.replace(/,\s+(\w+\s*=)/g, ',\n    $1')
+
+    // Put closing brace on its own line
+    formatted = formatted.replace(/\s*\}\s*$/, '\n}')
+
+    return formatted
+}
+
 interface AlgorithmDetailHeaderProps {
     algorithm: Algorithm
 }
@@ -56,12 +74,13 @@ export function AlgorithmDetailHeader({ algorithm }: AlgorithmDetailHeaderProps)
             {/* Bibtex citation - always visible */}
             {algorithm.bibtex && (
                 <Card>
-                    <CardHeader className="pb-2">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">Citation</CardTitle>
+                        <CopyButton text={algorithm.bibtex} />
                     </CardHeader>
                     <CardContent>
-                        <pre className="bg-muted overflow-x-auto rounded-md p-4 text-xs">
-                            <code>{algorithm.bibtex}</code>
+                        <pre className="bg-muted overflow-x-auto rounded-md p-4 text-xs break-words whitespace-pre-wrap">
+                            <code>{formatBibtex(algorithm.bibtex)}</code>
                         </pre>
                     </CardContent>
                 </Card>
