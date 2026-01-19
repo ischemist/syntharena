@@ -61,62 +61,31 @@ export function BenchmarkCombobox({ benchmarks, selectedId }: BenchmarkComboboxP
                     <CommandInput placeholder="Search benchmarks..." className="h-9" />
                     <CommandList>
                         <CommandEmpty>No benchmark found.</CommandEmpty>
-                        {marketBenchmarks.length > 0 && (
-                            <CommandGroup heading="Market Series">
-                                {marketBenchmarks.map((benchmark) => (
-                                    <CommandItem
-                                        key={benchmark.id}
-                                        value={benchmark.name}
-                                        onSelect={() => handleSelect(benchmark.id)}
-                                    >
-                                        {benchmark.name}
-                                        <Check
-                                            className={cn(
-                                                'ml-auto h-4 w-4',
-                                                selectedId === benchmark.id ? 'opacity-100' : 'opacity-0'
-                                            )}
-                                        />
-                                    </CommandItem>
-                                ))}
-                            </CommandGroup>
-                        )}
-                        {referenceBenchmarks.length > 0 && (
-                            <CommandGroup heading="Reference Series">
-                                {referenceBenchmarks.map((benchmark) => (
-                                    <CommandItem
-                                        key={benchmark.id}
-                                        value={benchmark.name}
-                                        onSelect={() => handleSelect(benchmark.id)}
-                                    >
-                                        {benchmark.name}
-                                        <Check
-                                            className={cn(
-                                                'ml-auto h-4 w-4',
-                                                selectedId === benchmark.id ? 'opacity-100' : 'opacity-0'
-                                            )}
-                                        />
-                                    </CommandItem>
-                                ))}
-                            </CommandGroup>
-                        )}
-                        {otherBenchmarks.length > 0 && (
-                            <CommandGroup heading="Other">
-                                {otherBenchmarks.map((benchmark) => (
-                                    <CommandItem
-                                        key={benchmark.id}
-                                        value={benchmark.name}
-                                        onSelect={() => handleSelect(benchmark.id)}
-                                    >
-                                        {benchmark.name}
-                                        <Check
-                                            className={cn(
-                                                'ml-auto h-4 w-4',
-                                                selectedId === benchmark.id ? 'opacity-100' : 'opacity-0'
-                                            )}
-                                        />
-                                    </CommandItem>
-                                ))}
-                            </CommandGroup>
+                        {[
+                            { title: 'Market Series', benchmarks: marketBenchmarks },
+                            { title: 'Reference Series', benchmarks: referenceBenchmarks },
+                            { title: 'Other', benchmarks: otherBenchmarks },
+                        ].map(
+                            ({ title, benchmarks: groupBenchmarks }) =>
+                                groupBenchmarks.length > 0 && (
+                                    <CommandGroup heading={title} key={title}>
+                                        {groupBenchmarks.map((benchmark) => (
+                                            <CommandItem
+                                                key={benchmark.id}
+                                                value={benchmark.name}
+                                                onSelect={() => handleSelect(benchmark.id)}
+                                            >
+                                                {benchmark.name}
+                                                <Check
+                                                    className={cn(
+                                                        'ml-auto h-4 w-4',
+                                                        selectedId === benchmark.id ? 'opacity-100' : 'opacity-0'
+                                                    )}
+                                                />
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                )
                         )}
                     </CommandList>
                 </Command>
