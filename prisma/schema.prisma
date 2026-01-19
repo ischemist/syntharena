@@ -121,15 +121,30 @@ model Algorithm {
   codeUrl     String? // link to canonical implementation
   bibtex      String? // bibtex citation string
 
+  instances     ModelInstance[]
+  modelFamilies ModelFamily[]
+}
+
+model ModelFamily {
+  id          String  @id @default(cuid())
+  algorithmId String
+  name        String  @unique // "SynPlanner MCTS Rollout"
+  slug        String  @unique // "synplanner-mcts-rollout"
+  description String?
+
+  algorithm Algorithm       @relation(fields: [algorithmId], references: [id])
   instances ModelInstance[]
+
+  @@index([algorithmId])
 }
 
 model ModelInstance {
-  id          String  @id @default(cuid())
-  algorithmId String
-  name        String // "dms-explorer-xl", NOT unique anymore
-  slug        String  @unique // "dms-explorer-xl-v1-2-0"
-  description String? // what makes THIS version special? "trained on new internal dataset"
+  id            String  @id @default(cuid())
+  algorithmId   String
+  modelFamilyId String?
+  name          String // "dms-explorer-xl", NOT unique anymore
+  slug          String  @unique // "dms-explorer-xl-v1-2-0"
+  description   String? // what makes THIS version special? "trained on new internal dataset"
 
   // Structured SemVer
   versionMajor      Int     @default(0)
@@ -137,14 +152,16 @@ model ModelInstance {
   versionPatch      Int     @default(0)
   versionPrerelease String? // e.g., "alpha", "beta.1"
 
-  metadata  String?  // JSON: training set info, hyperparams
+  metadata  String? // JSON: training set info, hyperparams
   createdAt DateTime @default(now())
 
   algorithm Algorithm       @relation(fields: [algorithmId], references: [id])
+  family    ModelFamily?    @relation(fields: [modelFamilyId], references: [id])
   runs      PredictionRun[]
 
+  // @@unique([modelFamilyId, versionMajor, versionMinor, versionPatch, versionPrerelease])
   @@unique([name, versionMajor, versionMinor, versionPatch, versionPrerelease])
-  @@index([name])
+  @@index([modelFamilyId])
 }
 
 enum SubmissionType {
