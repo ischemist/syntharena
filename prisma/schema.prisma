@@ -115,7 +115,7 @@ model AcceptableRoute {
 model Algorithm {
   id          String  @id @default(cuid())
   name        String  @unique // "DirectMultiStep"
-  slug        String? @unique // "direct-multi-step" (for clean urls)
+  slug        String  @unique // "direct-multi-step" (for clean urls)
   description String? // high-level explanation of the method
   paper       String? // link to paper
   codeUrl     String? // link to canonical implementation
@@ -128,7 +128,7 @@ model ModelInstance {
   id          String  @id @default(cuid())
   algorithmId String
   name        String // "dms-explorer-xl", NOT unique anymore
-  slug        String? @unique // "dms-explorer-xl-v1-2-0"
+  slug        String  @unique // "dms-explorer-xl-v1-2-0"
   description String? // what makes THIS version special? "trained on new internal dataset"
 
   // Structured SemVer

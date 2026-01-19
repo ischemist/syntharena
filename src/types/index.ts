@@ -549,26 +549,47 @@ export interface EvaluationResults {
 // ============================================================================
 
 /**
- * Algorithm information for display.
+ * [UPDATED] Algorithm information for display.
+ * Now includes full metadata for the algorithm detail page.
  */
 export interface Algorithm {
     id: string
     name: string
+    slug: string
+    description?: string | null
     paper?: string | null
+    codeUrl?: string | null
+    bibtex?: string | null
+}
+
+/** DTO for displaying algorithm info in list views. */
+export interface AlgorithmListItem extends Omit<Algorithm, 'paper' | 'codeUrl' | 'bibtex'> {
+    instanceCount: number
 }
 
 /**
- * Model instance with algorithm details.
+ * [UPDATED] Model instance with structured versioning.
+ * 'name' is now the series name (e.g., "dms-explorer-xl").
+ * The combination of name + version is unique.
  */
 export interface ModelInstance {
     id: string
     algorithmId: string
     name: string
-    version?: string | null
+    slug: string
+    description?: string | null
+    versionMajor: number
+    versionMinor: number
+    versionPatch: number
+    versionPrerelease?: string | null
     metadata?: string | null // JSON: training set info, hyperparams
     algorithm?: Algorithm
 }
 
+/** DTO for displaying model instance info in list views. */
+export interface ModelInstanceListItem extends ModelInstance {
+    runCount: number
+}
 /**
  * Prediction run summary with statistics.
  * Used for listing runs on benchmark pages.

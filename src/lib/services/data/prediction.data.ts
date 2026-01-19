@@ -16,7 +16,10 @@ async function _findPredictionRunsForTarget(targetId: string) {
             modelInstance: {
                 select: {
                     name: true,
-                    version: true,
+                    versionMajor: true,
+                    versionMinor: true,
+                    versionPatch: true,
+                    versionPrerelease: true,
                     algorithm: { select: { name: true } },
                 },
             },
@@ -36,15 +39,22 @@ async function _findPredictionRunsForTarget(targetId: string) {
     })
     const maxRankMap = new Map(maxRanks.map((r) => [r.predictionRunId, r._max.rank]))
 
-    return runsWithPredictions.map((run) => ({
-        id: run.id,
-        modelName: run.modelInstance.name,
-        modelVersion: run.modelInstance.version || undefined,
-        algorithmName: run.modelInstance.algorithm.name,
-        executedAt: run.executedAt,
-        routeCount: run._count.predictionRoutes,
-        maxRank: maxRankMap.get(run.id) || 0,
-    }))
+    return runsWithPredictions.map((run) => {
+        const { versionMajor, versionMinor, versionPatch, versionPrerelease } = run.modelInstance
+        let versionString = `v${versionMajor}.${versionMinor}.${versionPatch}`
+        if (versionPrerelease) {
+            versionString += `-${versionPrerelease}`
+        }
+        return {
+            id: run.id,
+            modelName: run.modelInstance.name,
+            modelVersion: versionString,
+            algorithmName: run.modelInstance.algorithm.name,
+            executedAt: run.executedAt,
+            routeCount: run._count.predictionRoutes,
+            maxRank: maxRankMap.get(run.id) || 0,
+        }
+    })
 }
 export const findPredictionRunsForTarget = cache(_findPredictionRunsForTarget, ['runs-for-target'], {
     tags: ['runs', 'targets', 'routes'],
