@@ -6,16 +6,15 @@ import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/db'
 
-const tags = ['models', 'algorithms']
+const tags = ['models', 'families']
 
-/** returns all model instance versions for a given algorithm. */
-async function _findModelInstancesByAlgorithmId(algorithmId: string) {
+/** [RENAMED] returns all model instance versions for a given model family. */
+async function _findModelInstancesByFamilyId(modelFamilyId: string) {
     return prisma.modelInstance.findMany({
-        where: { algorithmId },
+        where: { modelFamilyId },
         select: {
             id: true,
-            algorithmId: true,
-            name: true,
+            modelFamilyId: true,
             slug: true,
             description: true,
             versionMajor: true,
@@ -30,21 +29,20 @@ async function _findModelInstancesByAlgorithmId(algorithmId: string) {
             { versionMajor: 'desc' },
             { versionMinor: 'desc' },
             { versionPatch: 'desc' },
-            // nulls last for prerelease so '1.0.0' comes before '1.0.0-alpha'
             { versionPrerelease: { sort: 'desc', nulls: 'last' } },
         ],
     })
 }
-export const findModelInstancesByAlgorithmId = cache(_findModelInstancesByAlgorithmId, ['models-by-algorithm-id'], {
+export const findModelInstancesByFamilyId = cache(_findModelInstancesByFamilyId, ['models-by-family-id'], {
     tags,
 })
-export type ModelInstanceListItemPayload = Prisma.PromiseReturnType<typeof _findModelInstancesByAlgorithmId>[0]
+export type ModelInstanceListItemPayload = Prisma.PromiseReturnType<typeof _findModelInstancesByFamilyId>[0]
 
 /** returns all data for a single model instance detail page. */
 async function _findModelInstanceBySlug(slug: string) {
     const modelInstance = await prisma.modelInstance.findUnique({
         where: { slug },
-        include: { algorithm: true },
+        include: { family: { include: { algorithm: true } } },
     })
     if (!modelInstance) throw new Error(`model instance with slug "${slug}" not found.`)
     return modelInstance
