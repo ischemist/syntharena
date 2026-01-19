@@ -1,6 +1,7 @@
 import * as algorithmView from '@/lib/services/view/algorithm.view'
 
 import { CopyButton } from '../client/copy-button'
+import { AggregatePerformance } from './aggregate-performance'
 import { AlgorithmDetailHeader, formatBibtex } from './algorithm-detail-header'
 import { ModelInstanceTable } from './model-instance-table'
 
@@ -10,14 +11,15 @@ interface AlgorithmDetailContentProps {
 
 /**
  * Async server component that fetches and renders the full algorithm detail page.
- * Combines header and model instance table in a single data fetch.
+ * Combines header, aggregate performance, model instance table, and citation.
  */
 export async function AlgorithmDetailContent({ slug }: AlgorithmDetailContentProps) {
-    const { algorithm, instances } = await algorithmView.getAlgorithmDetailPageData(slug)
+    const { algorithm, instances, highlightMetrics } = await algorithmView.getAlgorithmDetailPageData(slug)
 
     return (
         <div className="flex flex-col gap-8">
             <AlgorithmDetailHeader algorithm={algorithm} />
+            <AggregatePerformance metrics={highlightMetrics} />
             <ModelInstanceTable instances={instances} />
 
             {/* Citation section */}

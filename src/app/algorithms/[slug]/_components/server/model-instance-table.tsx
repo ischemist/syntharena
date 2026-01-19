@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { formatDistanceToNow } from 'date-fns'
 
 import type { ModelInstanceListItem } from '@/types'
 import { Badge } from '@/components/ui/badge'
@@ -18,7 +19,7 @@ function formatVersion(instance: ModelInstanceListItem): string {
 
 /**
  * Server component displaying a table of model instance versions.
- * Shows name, version, description, and run count for each instance.
+ * Shows version, name, description, run count, and date added.
  */
 export function ModelInstanceTable({ instances }: ModelInstanceTableProps) {
     if (instances.length === 0) {
@@ -38,15 +39,21 @@ export function ModelInstanceTable({ instances }: ModelInstanceTableProps) {
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead>Name</TableHead>
                         <TableHead>Version</TableHead>
+                        <TableHead>Instance Name</TableHead>
                         <TableHead>Description</TableHead>
-                        <TableHead className="text-right">Runs</TableHead>
+                        <TableHead className="text-right">Prediction Runs</TableHead>
+                        <TableHead className="text-right">Date Added</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {instances.map((instance) => (
                         <TableRow key={instance.id} className="group hover:bg-muted/50 relative transition-colors">
+                            <TableCell>
+                                <code className="bg-muted rounded px-1.5 py-0.5 text-sm">
+                                    {formatVersion(instance)}
+                                </code>
+                            </TableCell>
                             <TableCell className="font-medium">
                                 <Link
                                     href={`/models/${instance.slug}`}
@@ -56,11 +63,6 @@ export function ModelInstanceTable({ instances }: ModelInstanceTableProps) {
                                     {instance.name}
                                 </Link>
                             </TableCell>
-                            <TableCell>
-                                <code className="bg-muted rounded px-1.5 py-0.5 text-sm">
-                                    {formatVersion(instance)}
-                                </code>
-                            </TableCell>
                             <TableCell className="text-muted-foreground max-w-md truncate">
                                 {instance.description || '—'}
                             </TableCell>
@@ -68,6 +70,9 @@ export function ModelInstanceTable({ instances }: ModelInstanceTableProps) {
                                 <Badge variant="secondary">
                                     {instance.runCount} {instance.runCount === 1 ? 'run' : 'runs'}
                                 </Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-right text-sm">
+                                {formatDistanceToNow(instance.createdAt, { addSuffix: true })}
                             </TableCell>
                         </TableRow>
                     ))}

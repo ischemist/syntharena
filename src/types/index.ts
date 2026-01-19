@@ -583,6 +583,7 @@ export interface ModelInstance {
     versionPatch: number
     versionPrerelease?: string | null
     metadata?: string | null // JSON: training set info, hyperparams
+    createdAt: Date
     algorithm?: Algorithm
 }
 
@@ -590,6 +591,21 @@ export interface ModelInstance {
 export interface ModelInstanceListItem extends ModelInstance {
     runCount: number
 }
+
+/**
+ * DTO for displaying best performance metrics for an algorithm.
+ * Used in the algorithm detail page "Best Performance" section.
+ */
+export interface AlgorithmHighlightMetric {
+    benchmarkId: string
+    benchmarkName: string
+    metricName: string // "Top-1" or "Top-10"
+    value: number // 0-1, displayed as percentage
+    modelInstanceName: string // which instance achieved it
+    modelInstanceSlug: string // for linking to model detail page
+    version: string // formatted semver (e.g., "v1.2.0-beta")
+}
+
 /**
  * Prediction run summary with statistics.
  * Used for listing runs on benchmark pages.

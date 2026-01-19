@@ -36,6 +36,7 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput)
                     versionMinor: true,
                     versionPatch: true,
                     versionPrerelease: true,
+                    createdAt: true,
                     algorithm: { select: { id: true, name: true, slug: true } },
                 },
             },

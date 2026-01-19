@@ -96,3 +96,54 @@ async function _findStatisticsForRun(runId: string, stockId: string) {
 export const findStatisticsForRun = cache(_findStatisticsForRun, ['stats-for-run'], {
     tags: ['statistics'],
 })
+
+/**
+ * Finds the best (max value) metrics for an algorithm's model instances on specified benchmarks.
+ * Returns the best Top-K accuracy per (benchmark, metric) combination with the achieving model instance.
+ * Only considers overall metrics (groupKey === null).
+ */
+async function _findBestMetricsForAlgorithm(algorithmId: string, benchmarkIds: string[], metricNames: string[]) {
+    if (benchmarkIds.length === 0 || metricNames.length === 0) return []
+
+    return prisma.stratifiedMetricGroup.findMany({
+        where: {
+            metricName: { in: metricNames },
+            groupKey: null, // overall metrics only
+            statistics: {
+                benchmarkSetId: { in: benchmarkIds },
+                predictionRun: {
+                    modelInstance: { algorithmId },
+                },
+            },
+        },
+        select: {
+            metricName: true,
+            value: true,
+            statistics: {
+                select: {
+                    benchmarkSetId: true,
+                    predictionRun: {
+                        select: {
+                            benchmarkSet: { select: { name: true } },
+                            modelInstance: {
+                                select: {
+                                    name: true,
+                                    slug: true,
+                                    versionMajor: true,
+                                    versionMinor: true,
+                                    versionPatch: true,
+                                    versionPrerelease: true,
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        orderBy: { value: 'desc' },
+    })
+}
+export const findBestMetricsForAlgorithm = cache(_findBestMetricsForAlgorithm, ['best-metrics-for-algorithm'], {
+    tags: ['statistics', 'algorithms', 'models'],
+})
+export type BestMetricPayload = Prisma.PromiseReturnType<typeof _findBestMetricsForAlgorithm>[0]

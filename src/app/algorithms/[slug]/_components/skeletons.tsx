@@ -39,6 +39,32 @@ export function AlgorithmDetailHeaderSkeleton() {
 }
 
 /**
+ * Loading skeleton for the aggregate performance section.
+ * Shows placeholder cards for highlight metrics.
+ */
+export function AggregatePerformanceSkeleton() {
+    return (
+        <div className="space-y-4">
+            <Skeleton className="h-7 w-40" />
+            <Skeleton className="h-5 w-80" />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                    <Card key={i} variant="bordered">
+                        <CardHeader>
+                            <Skeleton className="h-4 w-20" />
+                            <Skeleton className="h-8 w-16" />
+                        </CardHeader>
+                        <CardContent>
+                            <Skeleton className="h-4 w-full" />
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+        </div>
+    )
+}
+
+/**
  * Loading skeleton for the model instance table.
  * Shows placeholder rows while instances are loading.
  */
@@ -49,26 +75,30 @@ export function ModelInstanceTableSkeleton() {
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead>Name</TableHead>
                         <TableHead>Version</TableHead>
+                        <TableHead>Instance Name</TableHead>
                         <TableHead>Description</TableHead>
-                        <TableHead className="text-right">Runs</TableHead>
+                        <TableHead className="text-right">Prediction Runs</TableHead>
+                        <TableHead className="text-right">Date Added</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {Array.from({ length: 4 }).map((_, i) => (
                         <TableRow key={i}>
                             <TableCell>
-                                <Skeleton className="h-5 w-36" />
+                                <Skeleton className="h-5 w-20" />
                             </TableCell>
                             <TableCell>
-                                <Skeleton className="h-5 w-20" />
+                                <Skeleton className="h-5 w-36" />
                             </TableCell>
                             <TableCell>
                                 <Skeleton className="h-4 w-48" />
                             </TableCell>
                             <TableCell className="text-right">
                                 <Skeleton className="ml-auto h-6 w-12 rounded-full" />
+                            </TableCell>
+                            <TableCell className="text-right">
+                                <Skeleton className="ml-auto h-4 w-24" />
                             </TableCell>
                         </TableRow>
                     ))}
@@ -85,6 +115,7 @@ export function AlgorithmDetailSkeleton() {
     return (
         <div className="flex flex-col gap-8">
             <AlgorithmDetailHeaderSkeleton />
+            <AggregatePerformanceSkeleton />
             <ModelInstanceTableSkeleton />
         </div>
     )

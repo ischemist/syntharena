@@ -23,6 +23,7 @@ async function _findModelInstancesByAlgorithmId(algorithmId: string) {
             versionPatch: true,
             versionPrerelease: true,
             metadata: true,
+            createdAt: true,
             _count: { select: { runs: true } },
         },
         orderBy: [

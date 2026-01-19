@@ -137,7 +137,8 @@ model ModelInstance {
   versionPatch      Int     @default(0)
   versionPrerelease String? // e.g., "alpha", "beta.1"
 
-  metadata String? // JSON: training set info, hyperparams
+  metadata  String?  // JSON: training set info, hyperparams
+  createdAt DateTime @default(now())
 
   algorithm Algorithm       @relation(fields: [algorithmId], references: [id])
   runs      PredictionRun[]
