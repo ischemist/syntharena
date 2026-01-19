@@ -1,17 +1,9 @@
-import * as modelData from '@/lib/services/data/model.data'
+import * as algorithmData from '@/lib/services/data/algorithm.data'
 import { BreadcrumbShell } from '@/components/breadcrumb-shell'
 
-export default async function ModelDetailBreadcrumb({ params }: { params: Promise<{ slug: string }> }) {
+export default async function AlgorithmDetailBreadcrumb({ params }: { params: Promise<{ slug: string }> }) {
     const { slug } = await params
-    const modelInstance = await modelData.findModelInstanceBySlug(slug)
+    const algorithm = await algorithmData.findAlgorithmBySlug(slug)
 
-    return (
-        <BreadcrumbShell
-            items={[
-                { label: 'Algorithms', href: '/algorithms' },
-                { label: modelInstance.algorithm.name, href: `/algorithms/${modelInstance.algorithm.slug}` },
-                { label: modelInstance.name },
-            ]}
-        />
-    )
+    return <BreadcrumbShell items={[{ label: 'Models', href: '/models' }, { label: algorithm.name }]} />
 }

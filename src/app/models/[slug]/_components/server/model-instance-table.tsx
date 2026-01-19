@@ -56,7 +56,7 @@ export function ModelInstanceTable({ instances }: ModelInstanceTableProps) {
                             </TableCell>
                             <TableCell className="font-medium">
                                 <Link
-                                    href={`/models/${instance.slug}`}
+                                    href={`/instances/${instance.slug}`}
                                     className="focus:ring-primary rounded-sm outline-none after:absolute after:inset-0 focus:ring-2"
                                     prefetch={true}
                                 >

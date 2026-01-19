@@ -1,43 +1,42 @@
 import { Suspense, use } from 'react'
 import type { Metadata } from 'next'
 
-import * as modelData from '@/lib/services/data/model.data'
+import * as algorithmData from '@/lib/services/data/algorithm.data'
 
-import { ModelDetailContent } from './_components/server/model-detail-content'
-import { ModelDetailSkeleton } from './_components/skeletons'
+import { AlgorithmDetailContent } from './_components/server/algorithm-detail-content'
+import { AlgorithmDetailSkeleton } from './_components/skeletons'
 
-interface ModelDetailPageProps {
+interface AlgorithmDetailPageProps {
     params: Promise<{ slug: string }>
 }
 
-export async function generateMetadata({ params }: ModelDetailPageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: AlgorithmDetailPageProps): Promise<Metadata> {
     const { slug } = await params
     try {
-        const modelInstance = await modelData.findModelInstanceBySlug(slug)
-        const version = `v${modelInstance.versionMajor}.${modelInstance.versionMinor}.${modelInstance.versionPatch}`
+        const algorithm = await algorithmData.findAlgorithmBySlug(slug)
         return {
-            title: `${modelInstance.name} ${version}`,
-            description: modelInstance.description || `Details and prediction runs for ${modelInstance.name}.`,
+            title: algorithm.name,
+            description: algorithm.description || `Details and model versions for ${algorithm.name}.`,
         }
     } catch {
         return {
-            title: 'Model Not Found',
-            description: 'The requested model instance could not be found.',
+            title: 'Algorithm Not Found',
+            description: 'The requested algorithm could not be found.',
         }
     }
 }
 
 /**
- * Model instance detail page showing model metadata and all prediction runs.
+ * Algorithm detail page showing algorithm metadata and all model versions.
  * Uses streaming with Suspense for instant layout render.
  */
-export default function ModelDetailPage(props: ModelDetailPageProps) {
+export default function AlgorithmDetailPage(props: AlgorithmDetailPageProps) {
     const params = use(props.params)
     const { slug } = params
 
     return (
-        <Suspense fallback={<ModelDetailSkeleton />}>
-            <ModelDetailContent slug={slug} />
+        <Suspense fallback={<AlgorithmDetailSkeleton />}>
+            <AlgorithmDetailContent slug={slug} />
         </Suspense>
     )
 }

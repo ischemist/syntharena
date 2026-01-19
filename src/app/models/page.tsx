@@ -1,10 +1,31 @@
-import { redirect } from 'next/navigation'
+import { Suspense } from 'react'
+import type { Metadata } from 'next'
+import { connection } from 'next/server'
+
+import { AlgorithmList } from './_components/server/algorithm-list'
+import { AlgorithmListSkeleton } from './_components/skeletons'
+
+export const metadata: Metadata = {
+    title: 'Models',
+    description: 'Browse retrosynthesis models and their instance versions.',
+}
 
 /**
- * Redirect /models to /algorithms.
- * Model instances are accessed via /models/[slug] but the list view
- * is accessed through the algorithm hierarchy at /algorithms.
+ * Main algorithms page showing all available algorithms.
+ * Uses streaming with Suspense for instant layout render.
  */
-export default function ModelsPage() {
-    redirect('/algorithms')
+export default async function AlgorithmsPage() {
+    await connection()
+    return (
+        <div className="flex flex-col gap-6">
+            <div className="space-y-2">
+                <h1 className="text-3xl font-bold tracking-tight">Models</h1>
+                <p className="text-muted-foreground">Browse retrosynthesis models</p>
+            </div>
+
+            <Suspense fallback={<AlgorithmListSkeleton />}>
+                <AlgorithmList />
+            </Suspense>
+        </div>
+    )
 }

@@ -1,9 +1,9 @@
-import { ModelDetailSkeleton } from './_components/skeletons'
+import { AlgorithmDetailSkeleton } from './_components/skeletons'
 
 /**
- * Loading shell for model instance detail page.
+ * Loading shell for algorithm detail page.
  * Provides instant full-page layout before data loads.
  */
-export default function ModelDetailLoading() {
-    return <ModelDetailSkeleton />
+export default function AlgorithmDetailLoading() {
+    return <AlgorithmDetailSkeleton />
 }

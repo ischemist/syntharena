@@ -56,8 +56,8 @@ const data = {
             icon: BarChart3,
         },
         {
-            title: 'Algorithms',
-            url: '/algorithms',
+            title: 'Models',
+            url: '/models',
             icon: Cpu,
         },
     ],

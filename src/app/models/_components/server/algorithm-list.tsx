@@ -32,7 +32,7 @@ export async function AlgorithmList() {
                     <TableRow key={algorithm.id} className="group hover:bg-muted/50 relative transition-colors">
                         <TableCell className="font-semibold">
                             <Link
-                                href={`/algorithms/${algorithm.slug}`}
+                                href={`/models/${algorithm.slug}`}
                                 className="focus:ring-primary rounded-sm outline-none after:absolute after:inset-0 focus:ring-2"
                                 prefetch={true}
                             >
