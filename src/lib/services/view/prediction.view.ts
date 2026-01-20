@@ -38,6 +38,7 @@ import { toVisualizationNode } from './route.view'
 /** prepares the DTO for the main prediction run list page. */
 export async function getPredictionRuns(
     benchmarkId?: string,
+    modelInstanceId?: string,
     modelFamilyIds?: string[],
     submissionType?: SubmissionType
 ): Promise<PredictionRunWithStats[]> {
@@ -46,6 +47,7 @@ export async function getPredictionRuns(
             isListed: true,
             ...(benchmarkId && { id: benchmarkId }),
         },
+        ...(modelInstanceId && { modelInstanceId }),
         ...(modelFamilyIds &&
             modelFamilyIds.length > 0 && { modelInstance: { modelFamilyId: { in: modelFamilyIds } } }),
         ...(submissionType && { submissionType }),
@@ -59,16 +61,22 @@ export async function getPredictionRuns(
                 solvabilitySummary[stat.stockId] = solvabilityMetric.value
             }
         }
+        const toMetricResult = (metric?: (typeof run.statistics)[0]['metrics'][0]): MetricResult | null => {
+            if (!metric) return null
+            return {
+                value: metric.value,
+                ciLower: metric.ciLower,
+                ciUpper: metric.ciUpper,
+                nSamples: metric.nSamples,
+                reliability: {
+                    code: metric.reliabilityCode as ReliabilityCode,
+                    message: metric.reliabilityMessage,
+                },
+            }
+        }
 
-        const top1Metric = run.statistics[0]?.metrics.find((m) => m.metricName === 'Top-1')
-        const top1Accuracy = top1Metric
-            ? { value: top1Metric.value, ciLower: top1Metric.ciLower, ciUpper: top1Metric.ciUpper }
-            : null
-        // Extract Top-10 accuracy from first stock's statistics (if available)
-        const top10Metric = run.statistics[0]?.metrics.find((m) => m.metricName === 'Top-10')
-        const top10Accuracy = top10Metric
-            ? { value: top10Metric.value, ciLower: top10Metric.ciLower, ciUpper: top10Metric.ciUpper }
-            : null
+        const top1Accuracy = toMetricResult(run.statistics[0]?.metrics.find((m) => m.metricName === 'Top-1'))
+        const top10Accuracy = toMetricResult(run.statistics[0]?.metrics.find((m) => m.metricName === 'Top-10'))
 
         return {
             id: run.id,

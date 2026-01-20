@@ -28,7 +28,7 @@ export default async function RunsPage({ searchParams }: PageProps) {
 
     // Fetch all data concurrently
     const [allRuns, modelFamilies] = await Promise.all([
-        predictionView.getPredictionRuns(undefined, familyIds, submission),
+        predictionView.getPredictionRuns(undefined, undefined, familyIds, submission),
         predictionView.getModelFamiliesWithRuns(),
     ])
 
