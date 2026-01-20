@@ -206,39 +206,43 @@ export function TargetSearch({ onSearch, navigation, availableRouteLengths, curr
                             {!isSearching && results.length > 0 && (
                                 <>
                                     <CommandGroup>
-                                        {results.map((target) => (
-                                            <CommandItem
-                                                key={target.id}
-                                                value={target.id}
-                                                onSelect={() => handleSelectTarget(target.id)}
-                                                className="flex-col items-start gap-1 py-3"
-                                            >
-                                                <div className="flex w-full items-center justify-between gap-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-mono text-sm font-medium">
-                                                            {target.targetId}
-                                                        </span>
-                                                        {target.routeCount && target.routeCount > 0 ? (
-                                                            <Badge variant="secondary" className="text-xs">
-                                                                {target.routeCount} routes
-                                                            </Badge>
-                                                        ) : (
-                                                            <Badge variant="outline" className="text-xs">
-                                                                No routes
-                                                            </Badge>
+                                        {results.map((target) => {
+                                            const searchValue =
+                                                `${target.targetId} ${target.molecule.smiles}`.toLowerCase()
+                                            return (
+                                                <CommandItem
+                                                    key={target.id}
+                                                    value={searchValue}
+                                                    onSelect={() => handleSelectTarget(target.id)}
+                                                    className="flex-col items-start gap-1 py-3"
+                                                >
+                                                    <div className="flex w-full items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-mono text-sm font-medium">
+                                                                {target.targetId}
+                                                            </span>
+                                                            {target.routeCount && target.routeCount > 0 ? (
+                                                                <Badge variant="secondary" className="text-xs">
+                                                                    {target.routeCount} routes
+                                                                </Badge>
+                                                            ) : (
+                                                                <Badge variant="outline" className="text-xs">
+                                                                    No routes
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                        {target.routeLength && (
+                                                            <div className="text-muted-foreground text-xs">
+                                                                Length: {target.routeLength}
+                                                            </div>
                                                         )}
                                                     </div>
-                                                    {target.routeLength && (
-                                                        <div className="text-muted-foreground text-xs">
-                                                            Length: {target.routeLength}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="text-muted-foreground w-full truncate font-mono text-xs">
-                                                    {target.molecule.smiles}
-                                                </div>
-                                            </CommandItem>
-                                        ))}
+                                                    <div className="text-muted-foreground w-full truncate font-mono text-xs">
+                                                        {target.molecule.smiles}
+                                                    </div>
+                                                </CommandItem>
+                                            )
+                                        })}
                                     </CommandGroup>
                                     {results.length === 20 && !query.trim() && navigation.totalTargets > 20 && (
                                         <div className="text-muted-foreground border-t px-3 py-2 text-center text-xs">
