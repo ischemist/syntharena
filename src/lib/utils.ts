@@ -202,3 +202,59 @@ export function filterPlateauStratifiedMetrics<T extends { name: string; stratif
 
     return result
 }
+
+// ============================================================================
+// NEW: Canonical Version Utilities
+// ============================================================================
+
+/**
+ * A standard interface for any object with SemVer fields.
+ * This ensures consistency across all functions that handle versions.
+ */
+export interface Versionable {
+    versionMajor: number
+    versionMinor: number
+    versionPatch: number
+    versionPrerelease: string | null
+}
+
+/**
+ * Formats a Versionable object into a standard string (e.g., "v1.2.0-beta").
+ * This is the SINGLE source of truth for version display.
+ * @param version - An object matching the Versionable interface.
+ * @returns A formatted version string.
+ */
+export function formatVersion(version: Versionable): string {
+    const base = `v${version.versionMajor}.${version.versionMinor}.${version.versionPatch}`
+    return version.versionPrerelease ? `${base}-${version.versionPrerelease}` : base
+}
+
+/**
+ * Compares two Versionable objects according to SemVer precedence.
+ * Returns > 0 if a > b, < 0 if a < b, 0 if equal.
+ * Suitable for use in Array.prototype.sort().
+ * @param a - The first version object.
+ * @param b - The second version object.
+ * @returns A number indicating the sort order.
+ */
+export function compareVersions(a: Versionable, b: Versionable): number {
+    const majorDiff = a.versionMajor - b.versionMajor
+    if (majorDiff !== 0) return majorDiff
+
+    const minorDiff = a.versionMinor - b.versionMinor
+    if (minorDiff !== 0) return minorDiff
+
+    const patchDiff = a.versionPatch - b.versionPatch
+    if (patchDiff !== 0) return patchDiff
+
+    // Pre-release tag comparison:
+    // A version with a pre-release tag has lower precedence than a normal version.
+    // e.g., 1.0.0 > 1.0.0-beta
+    if (a.versionPrerelease === null && b.versionPrerelease !== null) return 1
+    if (a.versionPrerelease !== null && b.versionPrerelease === null) return -1
+    if (a.versionPrerelease !== null && b.versionPrerelease !== null) {
+        return a.versionPrerelease.localeCompare(b.versionPrerelease)
+    }
+
+    return 0
+}

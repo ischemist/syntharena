@@ -15,16 +15,7 @@ import type {
 } from '@/types'
 import * as benchmarkData from '@/lib/services/data/benchmark.data' // new import
 import * as statsData from '@/lib/services/data/stats.data'
-
-function formatVersion(instance: {
-    versionMajor: number
-    versionMinor: number
-    versionPatch: number
-    versionPrerelease: string | null
-}): string {
-    const base = `v${instance.versionMajor}.${instance.versionMinor}.${instance.versionPatch}`
-    return instance.versionPrerelease ? `${base}-${instance.versionPrerelease}` : base
-}
+import { formatVersion } from '@/lib/utils'
 
 /** the comprehensive DTO for the entire leaderboard page. */
 export interface LeaderboardPageData {
@@ -79,7 +70,10 @@ function toMetricResult(
  * fetches and composes all data for the leaderboard page in one go.
  * this is the single entry point for this route's data.
  */
-export async function getLeaderboardPageData(benchmarkId?: string): Promise<LeaderboardPageData | null> {
+export async function getLeaderboardPageData(
+    benchmarkId?: string,
+    viewMode: 'curated' | 'forensic' = 'curated'
+): Promise<LeaderboardPageData | null> {
     // wave 1: fetch all LISTED benchmarks to determine the effective id and populate the dropdown.
     const allBenchmarksRaw = await benchmarkData.findBenchmarkListItems()
     if (allBenchmarksRaw.length === 0) return null
@@ -123,36 +117,43 @@ export async function getLeaderboardPageData(benchmarkId?: string): Promise<Lead
             selectedBenchmark,
         }
     }
+    let statsToProcess: typeof rawStats
 
-    // select model family champion - best performing instance
-    const statsByFamilyId = new Map<string, (typeof rawStats)[0][]>()
-    for (const stat of rawStats) {
-        const familyId = stat.predictionRun.modelInstance.family.id
-        if (!statsByFamilyId.has(familyId)) {
-            statsByFamilyId.set(familyId, [])
-        }
-        statsByFamilyId.get(familyId)!.push(stat)
-    }
-
-    const championStats: (typeof rawStats)[0][] = []
-    for (const [, familyStats] of statsByFamilyId) {
-        const champion = familyStats.reduce((best, current) => {
-            // primary sort: top-10, fallback: solvability
-            const bestTop10 = best.metrics.find((m) => m.metricName === 'Top-10' && m.groupKey === null)?.value ?? -1
-            const currentTop10 =
-                current.metrics.find((m) => m.metricName === 'Top-10' && m.groupKey === null)?.value ?? -1
-
-            if (bestTop10 !== -1 || currentTop10 !== -1) {
-                return currentTop10 > bestTop10 ? current : best
+    if (viewMode === 'forensic') {
+        // Forensic View: Process ALL stats records returned from the DB.
+        statsToProcess = rawStats
+    } else {
+        // Curated View: Apply the "champion instance" logic.
+        const statsByFamilyId = new Map<string, (typeof rawStats)[0][]>()
+        for (const stat of rawStats) {
+            const familyId = stat.predictionRun.modelInstance.family.id
+            if (!statsByFamilyId.has(familyId)) {
+                statsByFamilyId.set(familyId, [])
             }
+            statsByFamilyId.get(familyId)!.push(stat)
+        }
 
-            const bestSolvability =
-                best.metrics.find((m) => m.metricName === 'Solvability' && m.groupKey === null)?.value ?? -1
-            const currentSolvability =
-                current.metrics.find((m) => m.metricName === 'Solvability' && m.groupKey === null)?.value ?? -1
-            return currentSolvability > bestSolvability ? current : best
-        })
-        championStats.push(champion)
+        const championStats: (typeof rawStats)[0][] = []
+        for (const [, familyStats] of statsByFamilyId) {
+            const champion = familyStats.reduce((best, current) => {
+                const bestTop10 =
+                    best.metrics.find((m) => m.metricName === 'Top-10' && m.groupKey === null)?.value ?? -1
+                const currentTop10 =
+                    current.metrics.find((m) => m.metricName === 'Top-10' && m.groupKey === null)?.value ?? -1
+
+                if (bestTop10 !== -1 || currentTop10 !== -1) {
+                    return currentTop10 > bestTop10 ? current : best
+                }
+
+                const bestSolvability =
+                    best.metrics.find((m) => m.metricName === 'Solvability' && m.groupKey === null)?.value ?? -1
+                const currentSolvability =
+                    current.metrics.find((m) => m.metricName === 'Solvability' && m.groupKey === null)?.value ?? -1
+                return currentSolvability > bestSolvability ? current : best
+            })
+            championStats.push(champion)
+        }
+        statsToProcess = championStats
     }
 
     const leaderboardEntries: LeaderboardEntry[] = []
@@ -172,7 +173,7 @@ export async function getLeaderboardPageData(benchmarkId?: string): Promise<Lead
             })
         })
     }
-    for (const stat of championStats) {
+    for (const stat of statsToProcess) {
         const { stock, predictionRun, metrics } = stat
         const { modelInstance } = predictionRun
         const modelName = modelInstance.family.name

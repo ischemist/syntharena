@@ -880,5 +880,5 @@ export interface TargetComparisonData {
 
     // UI state derived from URL params.
     currentMode: 'gt-only' | 'gt-vs-pred' | 'pred-vs-pred'
-    viewMode: 'side-by-side' | 'diff-overlay'
+    displayMode: 'side-by-side' | 'diff-overlay'
 }

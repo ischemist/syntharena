@@ -5,9 +5,10 @@ import { unstable_cache as cache } from 'next/cache'
 import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/db'
+import { compareVersions } from '@/lib/utils'
 
 /** fetches prediction run info for a target, aggregated from its prediction routes. */
-async function _findPredictionRunsForTarget(targetId: string) {
+async function _findPredictionRunsForTarget(targetId: string, viewMode?: 'curated' | 'forensic') {
     const runsWithPredictions = await prisma.predictionRun.findMany({
         where: { predictionRoutes: { some: { targetId: targetId } } },
         select: {
@@ -15,12 +16,14 @@ async function _findPredictionRunsForTarget(targetId: string) {
             executedAt: true,
             modelInstance: {
                 select: {
+                    id: true, // needed for filtering
                     versionMajor: true,
                     versionMinor: true,
                     versionPatch: true,
                     versionPrerelease: true,
                     family: {
                         select: {
+                            id: true, // needed for grouping
                             name: true,
                             algorithm: { select: { name: true } },
                         },
@@ -34,8 +37,26 @@ async function _findPredictionRunsForTarget(targetId: string) {
         orderBy: { executedAt: 'desc' },
     })
 
+    let filteredRuns = runsWithPredictions
+
+    // Apply curation logic if not in forensic mode
+    if (viewMode !== 'forensic') {
+        const championsByFamily = new Map<string, (typeof runsWithPredictions)[0]>()
+        for (const run of runsWithPredictions) {
+            const familyId = run.modelInstance.family.id
+            const currentChampion = championsByFamily.get(familyId)
+
+            if (!currentChampion || compareVersions(currentChampion.modelInstance, run.modelInstance) < 0) {
+                championsByFamily.set(familyId, run)
+            }
+        }
+        filteredRuns = Array.from(championsByFamily.values())
+    }
+
     // Fetch max ranks in a separate, efficient query
-    const runIds = runsWithPredictions.map((r) => r.id)
+    const runIds = filteredRuns.map((r) => r.id)
+    if (runIds.length === 0) return []
+
     const maxRanks = await prisma.predictionRoute.groupBy({
         by: ['predictionRunId'],
         where: { predictionRunId: { in: runIds }, targetId },
@@ -43,7 +64,7 @@ async function _findPredictionRunsForTarget(targetId: string) {
     })
     const maxRankMap = new Map(maxRanks.map((r) => [r.predictionRunId, r._max.rank]))
 
-    return runsWithPredictions.map((run) => {
+    return filteredRuns.map((run) => {
         const { versionMajor, versionMinor, versionPatch, versionPrerelease } = run.modelInstance
         let versionString = `v${versionMajor}.${versionMinor}.${versionPatch}`
         if (versionPrerelease) {

@@ -24,7 +24,6 @@ import * as benchmarkData from '@/lib/services/data/benchmark.data'
 import * as predictionData from '@/lib/services/data/prediction.data'
 import * as routeData from '@/lib/services/data/route.data'
 import * as stockData from '@/lib/services/data/stock.data'
-
 import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 
 // ============================================================================
@@ -157,13 +156,14 @@ export async function getTargetComparisonData(
     model2Id?: string,
     rank1: number = 1,
     rank2: number = 1,
-    viewModeProp?: string,
-    acceptableIndexProp: number = 0
+    displayModeProp?: string,
+    acceptableIndexProp: number = 0,
+    viewMode: 'curated' | 'forensic' = 'curated'
 ): Promise<TargetComparisonData> {
     // --- Wave 1: Fetch base contextual data in parallel ---
     const [benchmark, availableRunsResult, acceptableRoutes] = await Promise.all([
         benchmarkData.findBenchmarkListItemById(benchmarkId),
-        predictionData.findPredictionRunsForTarget(targetId),
+        predictionData.findPredictionRunsForTarget(targetId, viewMode),
         routeData.findAcceptableRoutesForTarget(targetId),
     ])
 
@@ -217,8 +217,10 @@ export async function getTargetComparisonData(
     const currentMode =
         modeProp && validModes.includes(modeProp) ? (modeProp as any) : acceptableRouteTree ? 'gt-only' : 'pred-vs-pred'
 
-    const validViewModes = ['side-by-side', 'diff-overlay']
-    const viewMode = viewModeProp && validViewModes.includes(viewModeProp) ? (viewModeProp as any) : 'side-by-side'
+    // --- LOGIC UPDATED TO USE NEW NAME ---
+    const validDisplayModes = ['side-by-side', 'diff-overlay']
+    const displayMode =
+        displayModeProp && validDisplayModes.includes(displayModeProp) ? (displayModeProp as any) : 'side-by-side'
 
     return {
         benchmarkId,
@@ -257,6 +259,6 @@ export async function getTargetComparisonData(
                 : undefined,
         stockInfo: { inStockInchiKeys, buyableMetadataMap },
         currentMode,
-        viewMode,
+        displayMode,
     }
 }

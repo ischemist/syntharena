@@ -28,7 +28,7 @@ function NoAcceptableRoute() {
 export function RouteDisplayWithComparison({ data }: RouteDisplayWithComparisonProps) {
     const {
         currentMode,
-        viewMode,
+        displayMode,
         availableRuns,
         acceptableRoute,
         totalAcceptableRoutes,
@@ -104,7 +104,7 @@ export function RouteDisplayWithComparison({ data }: RouteDisplayWithComparisonP
                                         <span className="text-sm font-medium">Comparison View:</span>
                                         <div className="flex gap-1">
                                             <Button
-                                                variant={viewMode === 'side-by-side' ? 'default' : 'outline'}
+                                                variant={displayMode === 'side-by-side' ? 'default' : 'outline'}
                                                 size="sm"
                                                 asChild
                                             >
@@ -116,7 +116,7 @@ export function RouteDisplayWithComparison({ data }: RouteDisplayWithComparisonP
                                                 </Link>
                                             </Button>
                                             <Button
-                                                variant={viewMode === 'diff-overlay' ? 'default' : 'outline'}
+                                                variant={displayMode === 'diff-overlay' ? 'default' : 'outline'}
                                                 size="sm"
                                                 asChild
                                             >
@@ -173,7 +173,7 @@ export function RouteDisplayWithComparison({ data }: RouteDisplayWithComparisonP
                                         <RouteComparison
                                             acceptableRoute={acceptableRoute.visualizationNode}
                                             predictionRoute={model1.routeTree}
-                                            mode={viewMode}
+                                            mode={displayMode}
                                             inStockInchiKeys={stockInfo.inStockInchiKeys}
                                             buyableMetadataMap={stockInfo.buyableMetadataMap}
                                             modelName={model1.name}
@@ -198,7 +198,7 @@ export function RouteDisplayWithComparison({ data }: RouteDisplayWithComparisonP
                                         <span className="text-sm font-medium">Comparison View:</span>
                                         <div className="flex gap-1">
                                             <Button
-                                                variant={viewMode === 'side-by-side' ? 'default' : 'outline'}
+                                                variant={displayMode === 'side-by-side' ? 'default' : 'outline'}
                                                 size="sm"
                                                 asChild
                                             >
@@ -210,7 +210,7 @@ export function RouteDisplayWithComparison({ data }: RouteDisplayWithComparisonP
                                                 </Link>
                                             </Button>
                                             <Button
-                                                variant={viewMode === 'diff-overlay' ? 'default' : 'outline'}
+                                                variant={displayMode === 'diff-overlay' ? 'default' : 'outline'}
                                                 size="sm"
                                                 asChild
                                             >
@@ -268,7 +268,7 @@ export function RouteDisplayWithComparison({ data }: RouteDisplayWithComparisonP
                                     <PredictionComparison
                                         prediction1Route={model1.routeTree}
                                         prediction2Route={model2.routeTree}
-                                        mode={viewMode}
+                                        mode={displayMode}
                                         inStockInchiKeys={stockInfo.inStockInchiKeys}
                                         buyableMetadataMap={stockInfo.buyableMetadataMap}
                                         model1Label={model1.name}
