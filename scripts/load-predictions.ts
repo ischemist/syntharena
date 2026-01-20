@@ -369,7 +369,7 @@ async function main() {
                 versionMajor,
                 versionMinor,
                 versionPatch,
-                versionPrerelease,
+                versionPrerelease: versionPrerelease || '',
             },
             select: { id: true },
         })

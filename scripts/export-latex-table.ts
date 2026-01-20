@@ -2,19 +2,23 @@ import './env-loader'
 
 import prisma from '@/lib/db'
 
-// Mapping from database model names to readable display names
+// mapping from database instance slugs to readable display names
 const MODEL_NAME_MAPPING: Record<string, string> = {
-    'dms-explorer-xl': 'DMS Explorer XL',
-    'aizynthfinder-mcts': 'AiZynF MCTS',
-    'aizynthfinder-mcts-high': 'AiZynF MCTS (High)',
-    'retro-star': 'Retro*',
-    'retro-star-high': 'Retro* (High)',
-    'aizynthfinder-retro-star': 'AiZynF Retro*',
-    'aizynthfinder-retro-star-high': 'AiZynF Retro* (High)',
-    'syntheseus-retro0-local-retro': 'Syntheseus LocalRetro',
-    askcos: 'ASKCOS',
-    'synplanner-eval': 'SynPlanner Eval',
-    'synplanner-mcts': 'SynPlanner MCTS',
+    // this mapping now uses INSTANCE SLUGS as keys, and FAMILY NAMES as values for display
+    'askcos-v2-0-0': 'ASKCOS',
+    'azf-m-v4-4-0': 'AiZynthFinder MCTS',
+    'azf-mh-v4-4-0': 'AiZynthFinder MCTS (High)',
+    'azf-r-v4-4-0': 'AiZynthFinder Retro*',
+    'azf-rh-v4-4-0': 'AiZynthFinder Retro* (High)',
+    'explorer-xl-v1-1-3': 'DMS Explorer XL',
+    'og-r-v1-1-0': 'Retro*',
+    'og-rh-v1-1-0': 'Retro* (High)',
+    'synp-m-v1-2-0': 'SynPlanner MCTS Rollout',
+    'synp-m-v1-3-2': 'SynPlanner MCTS Rollout',
+    'synp-mv-v1-3-2': 'SynPlanner MCTS Val',
+    'synp-v-v1-2-0': 'SynPlanner MCTS Val',
+    'synp-nm-v1-3-2': 'SynPlanner NMCS',
+    'synt-lr-v0-7-0': 'Syntheseus LocalRetro',
 }
 
 async function exportLatexTable(
@@ -33,7 +37,11 @@ async function exportLatexTable(
         include: {
             predictionRun: {
                 include: {
-                    modelInstance: true,
+                    modelInstance: {
+                        include: {
+                            family: true,
+                        },
+                    },
                 },
             },
             benchmarkSet: {
@@ -55,7 +63,9 @@ async function exportLatexTable(
         orderBy: {
             predictionRun: {
                 modelInstance: {
-                    name: 'asc',
+                    family: {
+                        name: 'asc',
+                    },
                 },
             },
         },
@@ -80,8 +90,8 @@ async function exportLatexTable(
     console.log()
 
     for (const stat of statistics) {
-        const dbModelName = stat.predictionRun.modelInstance.name
-        const modelName = MODEL_NAME_MAPPING[dbModelName] || dbModelName
+        const instanceSlug = stat.predictionRun.modelInstance.slug
+        const modelName = MODEL_NAME_MAPPING[instanceSlug] || stat.predictionRun.modelInstance.family.name
 
         // Find metrics
         const solvability = stat.metrics.find((m) => m.metricName === 'Solvability')

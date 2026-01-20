@@ -630,7 +630,7 @@ export interface PredictionRunWithStats {
     id: string
     modelInstanceId: string
     benchmarkSetId: string
-    modelInstance: ModelInstance
+    modelInstance: ModelInstance & { family: ModelFamily }
     benchmarkSet: BenchmarkSet & { hasAcceptableRoutes: boolean }
     totalRoutes: number
     hourlyCost?: number | null // USD per hour (user-specified)
