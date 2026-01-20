@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { ColumnDef } from '@tanstack/react-table'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -17,49 +16,25 @@ function formatVersion(instance: PredictionRunWithStats['modelInstance']): strin
 
 export const columns: ColumnDef<PredictionRunWithStats>[] = [
     {
-        accessorKey: 'modelInstance',
-        id: 'model',
-        header: ({ column, table }) => <DataTableColumnHeader table={table} column={column} title="Model" />,
-        cell: ({ row }) => {
-            const run = row.original
-            const family = run.modelInstance.family
-            const algorithm = family.algorithm
-            return (
-                <div className="flex flex-col gap-0.5">
-                    <div className="flex items-baseline gap-2">
-                        <Link href={`/families/${family.slug}`} className="font-medium hover:underline" prefetch={true}>
-                            {family.name}
-                        </Link>
-                        <Link href={`/models/${run.modelInstance.slug}`} className="hover:underline" prefetch={true}>
-                            <code className="bg-muted rounded px-1.5 py-0.5 text-xs">
-                                {formatVersion(run.modelInstance)}
-                            </code>
-                        </Link>
-                    </div>
-                    <Link
-                        href={`/algorithms/${algorithm.slug}`}
-                        className="text-muted-foreground text-xs hover:underline"
-                        prefetch={true}
-                    >
-                        {algorithm.name}
-                    </Link>
-                </div>
-            )
-        },
-        sortingFn: (rowA, rowB) =>
-            rowA.original.modelInstance.family.name.localeCompare(rowB.original.modelInstance.family.name),
+        accessorKey: 'modelInstance.family.name',
+        id: 'modelFamily',
+        header: ({ column, table }) => <DataTableColumnHeader table={table} column={column} title="Model Family" />,
+        cell: ({ row }) => <span className="font-medium">{row.original.modelInstance.family.name}</span>,
     },
     {
-        accessorKey: 'benchmarkSet.name',
-        id: 'benchmark',
-        header: ({ column, table }) => <DataTableColumnHeader table={table} column={column} title="Benchmark" />,
-        cell: ({ row }) => {
-            const run = row.original
-            return (
-                <Link href={`/benchmarks/${run.benchmarkSet.id}`} className="hover:underline" prefetch={true}>
-                    {run.benchmarkSet.name}
-                </Link>
-            )
+        accessorKey: 'modelInstance.slug',
+        id: 'version',
+        header: ({ column, table }) => <DataTableColumnHeader table={table} column={column} title="Version" />,
+        cell: ({ row }) => (
+            <code className="bg-muted rounded px-1.5 py-0.5 text-sm">{formatVersion(row.original.modelInstance)}</code>
+        ),
+        sortingFn: (rowA, rowB) => {
+            const a = rowA.original.modelInstance
+            const b = rowB.original.modelInstance
+            if (a.versionMajor !== b.versionMajor) return a.versionMajor - b.versionMajor
+            if (a.versionMinor !== b.versionMinor) return a.versionMinor - b.versionMinor
+            if (a.versionPatch !== b.versionPatch) return a.versionPatch - b.versionPatch
+            return (a.versionPrerelease ?? '').localeCompare(b.versionPrerelease ?? '')
         },
     },
     {

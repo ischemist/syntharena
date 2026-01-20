@@ -3,31 +3,39 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { X } from 'lucide-react'
 
+import { SUBMISSION_TYPES, type SubmissionType } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { MultiSelectCombobox, type MultiSelectOption } from '@/components/ui/multi-select-combobox'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-type FilterOption = { id: string; name: string }
-
 type RunFiltersProps = {
-    benchmarks: FilterOption[]
-    modelFamilies: FilterOption[]
+    modelFamilies: MultiSelectOption[]
 }
 
-export function RunFilters({ benchmarks, modelFamilies }: RunFiltersProps) {
+export function RunFilters({ modelFamilies }: RunFiltersProps) {
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
 
-    const currentBenchmark = searchParams.get('benchmark')
-    const currentFamily = searchParams.get('family')
+    const currentFamilies = searchParams.get('families')?.split(',') ?? []
+    const currentSubmission = searchParams.get('submission')
 
-    const handleFilterChange = (key: 'benchmark' | 'family', value: string) => {
+    const handleFilterChange = (key: 'families' | 'submission', value: string | string[]) => {
         const params = new URLSearchParams(searchParams.toString())
-        if (value === 'all') {
-            params.delete(key)
+
+        if (Array.isArray(value)) {
+            if (value.length > 0) {
+                params.set(key, value.join(','))
+            } else {
+                params.delete(key)
+            }
         } else {
-            params.set(key, value)
+            if (value === 'all') {
+                params.delete(key)
+            } else {
+                params.set(key, value)
+            }
         }
         router.replace(`${pathname}?${params.toString()}`, { scroll: false })
     }
@@ -35,47 +43,36 @@ export function RunFilters({ benchmarks, modelFamilies }: RunFiltersProps) {
     return (
         <div className="bg-card border-border/60 flex items-center gap-6 rounded-lg border p-4">
             <div className="flex items-center gap-3">
-                <Label htmlFor="benchmark-filter">Benchmark</Label>
-                <Select
-                    value={currentBenchmark ?? 'all'}
-                    onValueChange={(value) => handleFilterChange('benchmark', value)}
-                >
-                    <SelectTrigger id="benchmark-filter" className="w-[250px]">
-                        <SelectValue placeholder="All Benchmarks" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectGroup>
-                            <SelectItem value="all">All Benchmarks</SelectItem>
-                            {benchmarks.map((b) => (
-                                <SelectItem key={b.id} value={b.id}>
-                                    {b.name}
-                                </SelectItem>
-                            ))}
-                        </SelectGroup>
-                    </SelectContent>
-                </Select>
+                <Label>Model Family</Label>
+                <MultiSelectCombobox
+                    options={modelFamilies}
+                    selected={currentFamilies}
+                    onChange={(value) => handleFilterChange('families', value)}
+                    className="w-[300px]"
+                    placeholder="All Model Families"
+                />
             </div>
 
             <div className="flex items-center gap-3">
-                <Label htmlFor="family-filter">Model Family</Label>
-                <Select value={currentFamily ?? 'all'} onValueChange={(value) => handleFilterChange('family', value)}>
-                    <SelectTrigger id="family-filter" className="w-[250px]">
-                        <SelectValue placeholder="All Model Families" />
+                <Label htmlFor="submission-filter">Submission</Label>
+                <Select
+                    value={currentSubmission ?? 'all'}
+                    onValueChange={(value) => handleFilterChange('submission', value)}
+                >
+                    <SelectTrigger id="submission-filter" className="w-[220px]">
+                        <SelectValue placeholder="All Submissions" />
                     </SelectTrigger>
                     <SelectContent>
                         <SelectGroup>
-                            <SelectItem value="all">All Model Families</SelectItem>
-                            {modelFamilies.map((f) => (
-                                <SelectItem key={f.id} value={f.id}>
-                                    {f.name}
-                                </SelectItem>
-                            ))}
+                            <SelectItem value="all">All Submissions</SelectItem>
+                            <SelectItem value={SUBMISSION_TYPES[0]}>Maintainer Verified</SelectItem>
+                            <SelectItem value={SUBMISSION_TYPES[1]}>Community Submitted</SelectItem>
                         </SelectGroup>
                     </SelectContent>
                 </Select>
             </div>
 
-            {(currentBenchmark || currentFamily) && (
+            {(currentFamilies.length > 0 || currentSubmission) && (
                 <Button
                     variant="ghost"
                     className="text-muted-foreground gap-2"

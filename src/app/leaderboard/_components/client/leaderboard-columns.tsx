@@ -125,25 +125,6 @@ export function createLeaderboardColumns(
             },
         })
     }
-    columns.push({
-        accessorKey: 'submissionType',
-        id: 'submission',
-        header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Submission" />,
-        cell: ({ row }) => {
-            const { submissionType, isRetrained } = row.original
-            return (
-                <div className="flex justify-center">
-                    <SubmissionBadge
-                        submissionType={submissionType}
-                        isRetrained={isRetrained}
-                        badgeStyle="soft"
-                        size="sm"
-                    />
-                </div>
-            )
-        },
-        // Note: Custom sorting for submission type is likely not needed, but can be added here if required.
-    })
 
     // Add Duration column (wall time in minutes)
     columns.push({
@@ -178,6 +159,25 @@ export function createLeaderboardColumns(
             const b = rowB.original.totalCost ?? -1
             return a - b
         },
+    })
+    columns.push({
+        accessorKey: 'submissionType',
+        id: 'submission',
+        header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Submission" />,
+        cell: ({ row }) => {
+            const { submissionType, isRetrained } = row.original
+            return (
+                <div className="flex justify-center">
+                    <SubmissionBadge
+                        submissionType={submissionType}
+                        isRetrained={isRetrained}
+                        badgeStyle="soft"
+                        size="sm"
+                    />
+                </div>
+            )
+        },
+        // Note: Custom sorting for submission type is likely not needed, but can be added here if required.
     })
 
     return columns

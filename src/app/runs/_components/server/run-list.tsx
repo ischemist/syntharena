@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { flexRender, getCoreRowModel, getSortedRowModel, SortingState, useReactTable } from '@tanstack/react-table'
 
 import type { PredictionRunWithStats } from '@/types'
@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 
 import { columns } from '../client/run-list-columns'
 
-export function RunList({ runs }: { runs: PredictionRunWithStats[] }) {
+export function RunDataTable({ runs }: { runs: PredictionRunWithStats[] }) {
+    const router = useRouter()
     const [sorting, setSorting] = useState<SortingState>([{ id: 'executed', desc: true }])
 
     const table = useReactTable({
@@ -36,17 +37,16 @@ export function RunList({ runs }: { runs: PredictionRunWithStats[] }) {
             </TableHeader>
             <TableBody>
                 {table.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id} className="group relative">
+                    <TableRow
+                        key={row.id}
+                        className="group relative cursor-pointer"
+                        onClick={() => router.push(`/runs/${row.original.id}`)}
+                    >
                         {row.getVisibleCells().map((cell) => (
-                            <TableCell key={cell.id} className="p-4">
+                            <TableCell key={cell.id}>
                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
                             </TableCell>
                         ))}
-                        <Link
-                            href={`/runs/${row.original.id}`}
-                            className="focus:ring-primary rounded-sm outline-none after:absolute after:inset-0 focus:ring-2"
-                            prefetch={true}
-                        />
                     </TableRow>
                 ))}
             </TableBody>
