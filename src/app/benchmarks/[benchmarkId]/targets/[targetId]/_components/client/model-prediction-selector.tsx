@@ -85,7 +85,7 @@ export function ModelPredictionSelector({ runs, paramName, label, selectedRunId 
                             <span className="flex items-center gap-2">
                                 <span className="font-medium">{selectedRun.modelName}</span>
                                 {selectedRun.modelVersion && (
-                                    <span className="text-muted-foreground text-xs">v{selectedRun.modelVersion}</span>
+                                    <span className="text-muted-foreground text-xs">{selectedRun.modelVersion}</span>
                                 )}
                                 <span className="text-muted-foreground text-xs">
                                     • {formatDate(selectedRun.executedAt)}
@@ -112,32 +112,40 @@ export function ModelPredictionSelector({ runs, paramName, label, selectedRunId 
                         <CommandList>
                             <CommandEmpty>No models found.</CommandEmpty>
                             <CommandGroup>
-                                {runs.map((run) => (
-                                    <CommandItem key={run.id} value={run.id} onSelect={() => handleSelect(run.id)}>
-                                        <div className="flex w-full items-center justify-between">
-                                            <div className="flex flex-col">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-medium">{run.modelName}</span>
-                                                    {run.modelVersion && (
-                                                        <span className="text-muted-foreground text-xs">
-                                                            v{run.modelVersion}
-                                                        </span>
+                                {runs.map((run) => {
+                                    const searchValue =
+                                        `${run.modelName} ${run.algorithmName} ${run.modelVersion ?? ''}`.toLowerCase()
+                                    return (
+                                        <CommandItem
+                                            key={run.id}
+                                            value={searchValue}
+                                            onSelect={() => handleSelect(run.id)}
+                                        >
+                                            <div className="flex w-full items-center justify-between">
+                                                <div className="flex flex-col">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-medium">{run.modelName}</span>
+                                                        {run.modelVersion && (
+                                                            <span className="text-muted-foreground text-xs">
+                                                                {run.modelVersion}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-muted-foreground text-xs">
+                                                        {run.algorithmName} • {formatDate(run.executedAt)} •{' '}
+                                                        {run.routeCount} {run.routeCount === 1 ? 'route' : 'routes'}
+                                                    </div>
+                                                </div>
+                                                <Check
+                                                    className={cn(
+                                                        'ml-2 h-4 w-4',
+                                                        selectedRunId === run.id ? 'opacity-100' : 'opacity-0'
                                                     )}
-                                                </div>
-                                                <div className="text-muted-foreground text-xs">
-                                                    {run.algorithmName} • {formatDate(run.executedAt)} •{' '}
-                                                    {run.routeCount} {run.routeCount === 1 ? 'route' : 'routes'}
-                                                </div>
+                                                />
                                             </div>
-                                            <Check
-                                                className={cn(
-                                                    'ml-2 h-4 w-4',
-                                                    selectedRunId === run.id ? 'opacity-100' : 'opacity-0'
-                                                )}
-                                            />
-                                        </div>
-                                    </CommandItem>
-                                ))}
+                                        </CommandItem>
+                                    )
+                                })}
                             </CommandGroup>
                         </CommandList>
                     </Command>

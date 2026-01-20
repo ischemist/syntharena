@@ -5,6 +5,8 @@
  * DTOs for the prediction-focused UI components.
  */
 
+import { Prisma } from '@prisma/client'
+
 import type {
     BenchmarkTargetWithMolecule,
     BuyableMetadata,
@@ -193,34 +195,40 @@ export async function getRunStatistics(runId: string, stockId: string): Promise<
 // Target Search Functions
 // ============================================================================
 
-/** searches targets within a run's benchmark by targetId or SMILES. */
+/**
+ * searches targets within a run's benchmark by targetId or SMILES.
+ * now correctly fetches prediction counts for the specific run.
+ */
 export async function searchTargets(
     runId: string,
     query: string,
-    stockId?: string,
+    stockId?: string, // remains for signature consistency, but unused here
     routeLength?: number,
     limit: number = 20
 ): Promise<BenchmarkTargetWithMolecule[]> {
-    const run = await runData.findPredictionRunDetailsById(runId)
-    const benchmarkId = run.benchmarkSet.id
+    // build the prisma where clause from search params
+    const where: Prisma.BenchmarkTargetWhereInput = {}
+    if (query?.trim()) {
+        const q = query.trim()
+        where.OR = [{ targetId: { contains: q } }, { molecule: { smiles: { contains: q } } }]
+    }
+    if (routeLength !== undefined) {
+        where.routeLength = routeLength
+    }
 
-    // Use the benchmark view's getBenchmarkTargets with search
-    const searchType = 'all' as const
-    const result = await import('./benchmark.view').then((mod) =>
-        mod.getBenchmarkTargets(
-            benchmarkId,
-            1, // page
-            limit,
-            query || undefined, // searchQuery
-            searchType,
-            undefined, // hasGroundTruth
-            routeLength, // minRouteLength
-            routeLength, // maxRouteLength (same as min for exact match)
-            undefined // isConvergent
-        )
-    )
+    // call our new, dedicated data-layer function
+    const { targets, counts } = await predictionData.findTargetsAndPredictionCountsForRun(runId, where, limit)
 
-    return result.targets
+    // map the counts for quick lookup
+    const countMap = new Map(counts.map((c) => [c.targetId, c._count._all]))
+
+    // assemble the final DTO, correctly populating `routeCount`
+    return targets.map((target) => ({
+        ...target,
+        hasAcceptableRoutes: false, // not needed for this component, but required by type
+        acceptableRoutesCount: 0, // not needed
+        routeCount: countMap.get(target.id) ?? 0, // <-- THE CRITICAL FIX
+    }))
 }
 
 // ============================================================================

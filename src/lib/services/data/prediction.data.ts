@@ -82,3 +82,49 @@ export const findPredictedRouteNodes = cache(_findPredictedRouteNodes, ['predict
     tags: ['routes', 'targets', 'runs'],
 })
 export type RouteNodeWithMoleculePayload = NonNullable<Prisma.PromiseReturnType<typeof _findPredictedRouteNodes>>
+
+/**
+ * finds benchmark targets for a run and counts the number of predicted routes for each.
+ * optimized for the target search component on the run detail page.
+ */
+async function _findTargetsAndPredictionCountsForRun(
+    runId: string,
+    where: Prisma.BenchmarkTargetWhereInput,
+    limit: number
+) {
+    // first, get the benchmarkId from the run
+    const run = await prisma.predictionRun.findUnique({
+        where: { id: runId },
+        select: { benchmarkSetId: true },
+    })
+    if (!run) throw new Error('run not found.')
+
+    // find the paginated targets for that benchmark matching the where clause
+    const targets = await prisma.benchmarkTarget.findMany({
+        where: { ...where, benchmarkSetId: run.benchmarkSetId },
+        include: { molecule: true },
+        orderBy: { targetId: 'asc' },
+        take: limit,
+    })
+
+    // now, efficiently count the predictions for ONLY these targets in this specific run
+    const targetIds = targets.map((t) => t.id)
+    const counts =
+        targetIds.length > 0
+            ? await prisma.predictionRoute.groupBy({
+                  by: ['targetId'],
+                  where: {
+                      predictionRunId: runId,
+                      targetId: { in: targetIds },
+                  },
+                  _count: { _all: true },
+              })
+            : []
+
+    return { targets, counts }
+}
+export const findTargetsAndPredictionCountsForRun = cache(
+    _findTargetsAndPredictionCountsForRun,
+    ['targets-and-prediction-counts-for-run'],
+    { tags: ['targets', 'runs'] }
+)
