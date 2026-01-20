@@ -48,7 +48,9 @@ export function MultiSelectCombobox({
                     onClick={() => setOpen(!open)}
                 >
                     <div className="flex items-center gap-1 overflow-hidden">
-                        {selected.length === 0 && <span className="text-muted-foreground truncate">{placeholder}</span>}
+                        {selected.length === 0 && (
+                            <span className="text-muted-foreground truncate font-normal">{placeholder}</span>
+                        )}
                         {selected.length > 0 &&
                             selected
                                 .slice(0, 2) // Show first 2 selected items

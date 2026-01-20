@@ -1,4 +1,4 @@
-import { Suspense } from 'react'
+// src/app/runs/page.tsx
 import type { Metadata } from 'next'
 
 import type { PredictionRunWithStats, SubmissionType } from '@/types'
@@ -6,8 +6,8 @@ import * as predictionView from '@/lib/services/view/prediction.view'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { RunFilters } from './_components/client/run-filters'
-import { RunDataTable } from './_components/server/run-list' // Renamed from RunList to RunDataTable
-import { RunListSkeleton } from './_components/skeletons'
+import { RunDataTable } from './_components/server/run-list'
+import { RunsPageHeader } from './_components/server/runs-page-header'
 
 export const metadata: Metadata = {
     title: 'Model Runs',
@@ -38,54 +38,42 @@ export default async function RunsPage({ searchParams }: PageProps) {
         other: allRuns.filter((r) => r.benchmarkSet.series === 'LEGACY' || r.benchmarkSet.series === 'OTHER'),
     }
 
-    const runsByBenchmark = (runs: typeof allRuns) =>
-        runs.reduce(
-            (acc, run) => {
-                const benchmarkName = run.benchmarkSet.name
-                if (!acc[benchmarkName]) acc[benchmarkName] = []
-                acc[benchmarkName].push(run)
-                return acc
-            },
-            {} as Record<string, typeof allRuns>
-        )
-
     const familyOptions = modelFamilies.map((f) => ({ value: f.id, label: f.name }))
 
+    // --- CHANGE: The page structure is now orchestrated by the new header. ---
+    // The <Tabs> component wraps the entire content area to provide context.
     return (
-        <div className="flex flex-col gap-6">
-            <div className="space-y-2">
-                <h1 className="text-3xl font-bold tracking-tight">Model Runs</h1>
-                <p className="text-muted-foreground">Browse and filter prediction runs from retrosynthesis models.</p>
-            </div>
-
-            <RunFilters modelFamilies={familyOptions} />
-
-            <Tabs defaultValue="market">
+        <Tabs defaultValue="market" className="flex flex-col gap-6">
+            <RunsPageHeader>
+                {/* Left side of the control bar */}
                 <TabsList>
                     <TabsTrigger value="market">Market Series</TabsTrigger>
                     <TabsTrigger value="reference">Reference Series</TabsTrigger>
                     <TabsTrigger value="other">Other</TabsTrigger>
                 </TabsList>
-                <TabsContent value="market">
-                    <RunListDisplay
-                        runs={runsBySeries.market}
-                        emptyMessage="No Market series runs match the current filters."
-                    />
-                </TabsContent>
-                <TabsContent value="reference">
-                    <RunListDisplay
-                        runs={runsBySeries.reference}
-                        emptyMessage="No Reference series runs match the current filters."
-                    />
-                </TabsContent>
-                <TabsContent value="other">
-                    <RunListDisplay
-                        runs={runsBySeries.other}
-                        emptyMessage="No Other series runs match the current filters."
-                    />
-                </TabsContent>
-            </Tabs>
-        </div>
+                {/* Right side of the control bar */}
+                <RunFilters modelFamilies={familyOptions} />
+            </RunsPageHeader>
+
+            <TabsContent value="market" className="mt-0">
+                <RunListDisplay
+                    runs={runsBySeries.market}
+                    emptyMessage="No Market series runs match the current filters."
+                />
+            </TabsContent>
+            <TabsContent value="reference" className="mt-0">
+                <RunListDisplay
+                    runs={runsBySeries.reference}
+                    emptyMessage="No Reference series runs match the current filters."
+                />
+            </TabsContent>
+            <TabsContent value="other" className="mt-0">
+                <RunListDisplay
+                    runs={runsBySeries.other}
+                    emptyMessage="No Other series runs match the current filters."
+                />
+            </TabsContent>
+        </Tabs>
     )
 }
 

@@ -3,9 +3,9 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { X } from 'lucide-react'
 
-import { SUBMISSION_TYPES, type SubmissionType } from '@/types'
+import { SUBMISSION_TYPES } from '@/types'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import { MultiSelectCombobox, type MultiSelectOption } from '@/components/ui/multi-select-combobox'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
@@ -41,9 +41,9 @@ export function RunFilters({ modelFamilies }: RunFiltersProps) {
     }
 
     return (
-        <div className="bg-card border-border/60 flex items-center gap-6 rounded-lg border p-4">
-            <div className="flex items-center gap-3">
-                <Label>Model Family</Label>
+        <div className="flex items-center gap-4">
+            {/* --- CHANGE: Removed the <Label> and adjusted gap. --- */}
+            <div className="flex items-center gap-2">
                 <MultiSelectCombobox
                     options={modelFamilies}
                     selected={currentFamilies}
@@ -53,10 +53,9 @@ export function RunFilters({ modelFamilies }: RunFiltersProps) {
                 />
             </div>
 
-            <div className="flex items-center gap-3">
-                <Label htmlFor="submission-filter">Submission</Label>
+            <div className="flex items-center gap-2">
                 <Select
-                    value={currentSubmission ?? 'all'}
+                    value={currentSubmission || undefined}
                     onValueChange={(value) => handleFilterChange('submission', value)}
                 >
                     <SelectTrigger id="submission-filter" className="w-[220px]">
@@ -75,11 +74,12 @@ export function RunFilters({ modelFamilies }: RunFiltersProps) {
             {(currentFamilies.length > 0 || currentSubmission) && (
                 <Button
                     variant="ghost"
+                    size="sm"
                     className="text-muted-foreground gap-2"
                     onClick={() => router.replace(pathname, { scroll: false })}
                 >
                     <X className="h-4 w-4" />
-                    Clear Filters
+                    Clear
                 </Button>
             )}
         </div>
