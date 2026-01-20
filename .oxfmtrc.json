@@ -23,5 +23,5 @@
         "",
         "^[./]"
     ],
-    "ignorePatterns": ["build", "coverage", "pnpm-lock.json", ".next", "dist", "node_modules"]
+    "ignorePatterns": ["build", "coverage", ".next", "out"]
 }

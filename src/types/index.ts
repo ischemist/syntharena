@@ -549,7 +549,7 @@ export interface EvaluationResults {
 // ============================================================================
 
 /**
- * [UPDATED] Algorithm information for display.
+ * Algorithm information for display.
  * Now includes full metadata for the algorithm detail page.
  */
 export interface Algorithm {
@@ -568,14 +568,28 @@ export interface AlgorithmListItem extends Omit<Algorithm, 'paper' | 'codeUrl' |
 }
 
 /**
- * [UPDATED] Model instance with structured versioning.
- * 'name' is now the series name (e.g., "dms-explorer-xl").
- * The combination of name + version is unique.
+ * Represents a methodological grouping of model instances under a single algorithm.
+ * e.g., "SynPlanner MCTS Rollout" is a family within the "SynPlanner" algorithm.
  */
-export interface ModelInstance {
+export interface ModelFamily {
     id: string
     algorithmId: string
     name: string
+    slug: string
+    description?: string | null
+    // relations (when included)
+    algorithm?: Algorithm
+    instances?: ModelInstance[]
+}
+
+/**
+ * Model instance with structured versioning.
+ * 'name' is now the specific instance name (e.g., "dms-explorer-xl-v1-2-0").
+ * The combination of family + version is unique.
+ */
+export interface ModelInstance {
+    id: string
+    modelFamilyId: string
     slug: string
     description?: string | null
     versionMajor: number
@@ -584,7 +598,7 @@ export interface ModelInstance {
     versionPrerelease?: string | null
     metadata?: string | null // JSON: training set info, hyperparams
     createdAt: Date
-    algorithm?: Algorithm
+    family?: ModelFamily
 }
 
 /** DTO for displaying model instance info in list views. */
@@ -616,7 +630,7 @@ export interface PredictionRunWithStats {
     id: string
     modelInstanceId: string
     benchmarkSetId: string
-    modelInstance: ModelInstance
+    modelInstance: ModelInstance & { family: ModelFamily }
     benchmarkSet: BenchmarkSet & { hasAcceptableRoutes: boolean }
     totalRoutes: number
     hourlyCost?: number | null // USD per hour (user-specified)
@@ -695,6 +709,8 @@ export interface RunStatistics {
  */
 export interface LeaderboardEntry {
     modelName: string
+    version: string
+    modelInstanceSlug: string
     benchmarkName: string
     benchmarkSeries: BenchmarkSeries
     stockName: string

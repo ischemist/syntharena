@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { ColumnDef } from '@tanstack/react-table'
 import { Check, X } from 'lucide-react'
 
@@ -27,6 +28,21 @@ export function createLeaderboardColumns(
             id: 'modelName',
             header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Model" />,
             cell: ({ row }) => <div className="font-medium">{row.getValue('modelName')}</div>,
+        },
+        {
+            id: 'version',
+            accessorKey: 'version',
+            header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Version" />,
+            cell: ({ row }) => {
+                const { version, modelInstanceSlug } = row.original
+                return (
+                    <div className="flex justify-center">
+                        <Link href={`/models/${modelInstanceSlug}`} className="hover:underline">
+                            <code className="bg-muted rounded px-1.5 py-0.5 text-sm">{version}</code>
+                        </Link>
+                    </div>
+                )
+            },
         },
         // Solvability Column
         {

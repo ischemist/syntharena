@@ -18,15 +18,20 @@ async function _findStatisticsForLeaderboard(where: Prisma.ModelRunStatisticsWhe
             stock: true,
             predictionRun: {
                 include: {
-                    modelInstance: true,
                     benchmarkSet: true,
+                    modelInstance: {
+                        include: {
+                            family: true,
+                        },
+                    },
                 },
             },
             metrics: true,
         },
         orderBy: [
             { predictionRun: { benchmarkSet: { name: 'asc' } } },
-            { predictionRun: { modelInstance: { name: 'asc' } } },
+            { predictionRun: { modelInstance: { family: { name: 'asc' } } } },
+            { predictionRun: { modelInstance: { versionMajor: 'desc' } } },
         ],
     })
 }
@@ -105,14 +110,14 @@ export const findStatisticsForRun = cache(_findStatisticsForRun, ['stats-for-run
 async function _findBestMetricsForAlgorithm(algorithmId: string, benchmarkIds: string[], metricNames: string[]) {
     if (benchmarkIds.length === 0 || metricNames.length === 0) return []
 
-    return prisma.stratifiedMetricGroup.findMany({
+    const metrics = await prisma.stratifiedMetricGroup.findMany({
         where: {
             metricName: { in: metricNames },
             groupKey: null, // overall metrics only
             statistics: {
                 benchmarkSetId: { in: benchmarkIds },
                 predictionRun: {
-                    modelInstance: { algorithmId },
+                    modelInstance: { family: { algorithmId } },
                 },
             },
         },
@@ -129,12 +134,12 @@ async function _findBestMetricsForAlgorithm(algorithmId: string, benchmarkIds: s
                             benchmarkSet: { select: { name: true } },
                             modelInstance: {
                                 select: {
-                                    name: true,
                                     slug: true,
                                     versionMajor: true,
                                     versionMinor: true,
                                     versionPatch: true,
                                     versionPrerelease: true,
+                                    family: { select: { name: true } },
                                 },
                             },
                         },
@@ -144,6 +149,16 @@ async function _findBestMetricsForAlgorithm(algorithmId: string, benchmarkIds: s
         },
         orderBy: { value: 'desc' },
     })
+    // a simple filter to remove duplicates if the same instance has multiple stats for the same metric (e.g. diff stocks)
+    // we only care about the best performance overall.
+    const uniqueMetrics = new Map<string, (typeof metrics)[0]>()
+    for (const metric of metrics) {
+        const key = `${metric.statistics.predictionRun.modelInstance.slug}:${metric.metricName}:${metric.statistics.benchmarkSetId}`
+        if (!uniqueMetrics.has(key)) {
+            uniqueMetrics.set(key, metric)
+        }
+    }
+    return Array.from(uniqueMetrics.values())
 }
 export const findBestMetricsForAlgorithm = cache(_findBestMetricsForAlgorithm, ['best-metrics-for-algorithm'], {
     tags: ['statistics', 'algorithms', 'models'],

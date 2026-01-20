@@ -53,7 +53,7 @@ export function RunList({ runs }: { runs: PredictionRunWithStats[] }) {
                                             className="focus:ring-primary rounded-sm outline-none after:absolute after:inset-0 focus:ring-2"
                                             prefetch={true}
                                         >
-                                            {run.modelInstance.name}
+                                            {run.modelInstance.family.name}
                                         </Link>
                                     </TableCell>
 

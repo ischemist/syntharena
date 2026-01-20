@@ -15,12 +15,16 @@ async function _findPredictionRunsForTarget(targetId: string) {
             executedAt: true,
             modelInstance: {
                 select: {
-                    name: true,
                     versionMajor: true,
                     versionMinor: true,
                     versionPatch: true,
                     versionPrerelease: true,
-                    algorithm: { select: { name: true } },
+                    family: {
+                        select: {
+                            name: true,
+                            algorithm: { select: { name: true } },
+                        },
+                    },
                 },
             },
             _count: {
@@ -47,9 +51,9 @@ async function _findPredictionRunsForTarget(targetId: string) {
         }
         return {
             id: run.id,
-            modelName: run.modelInstance.name,
+            modelName: run.modelInstance.family.name,
             modelVersion: versionString,
-            algorithmName: run.modelInstance.algorithm.name,
+            algorithmName: run.modelInstance.family.algorithm.name,
             executedAt: run.executedAt,
             routeCount: run._count.predictionRoutes,
             maxRank: maxRankMap.get(run.id) || 0,

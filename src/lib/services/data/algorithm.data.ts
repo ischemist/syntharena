@@ -16,13 +16,32 @@ async function _findAlgorithmListItems() {
             name: true,
             slug: true,
             description: true,
-            _count: { select: { instances: true } },
         },
         orderBy: { name: 'asc' },
     })
 }
 export const findAlgorithmListItems = cache(_findAlgorithmListItems, ['algorithm-list-items'], { tags })
-export type AlgorithmListItemPayload = Prisma.PromiseReturnType<typeof _findAlgorithmListItems>[0]
+export type AlgorithmListItemPayload = Prisma.PromiseReturnType<typeof _findAlgorithmListItems>
+
+/** efficiently computes total instance counts for all algorithms. */
+async function _getAlgorithmInstanceCountsMap(): Promise<Map<string, number>> {
+    const familiesWithCounts = await prisma.modelFamily.findMany({
+        select: {
+            algorithmId: true,
+            _count: { select: { instances: true } },
+        },
+    })
+
+    const countsMap = new Map<string, number>()
+    for (const family of familiesWithCounts) {
+        const currentCount = countsMap.get(family.algorithmId) ?? 0
+        countsMap.set(family.algorithmId, currentCount + family._count.instances)
+    }
+    return countsMap
+}
+export const getAlgorithmInstanceCountsMap = cache(_getAlgorithmInstanceCountsMap, ['algorithm-instance-counts-map'], {
+    tags: [...tags, 'models', 'families'],
+})
 
 /** returns all data for a single algorithm detail page. */
 async function _findAlgorithmBySlug(slug: string) {
