@@ -1,0 +1,8 @@
+
+> syntharena@0.1.0 check-types /Users/morgunov/Developer/ischemist/syntharena
+> tsgo --noEmit
+
+src/app/runs/_components/client/run-list-columns.tsx(51,33): error TS2739: Type '{ value: number; ciLower: number; ciUpper: number; }' is missing the following properties from type 'MetricResult': nSamples, reliability
+src/app/runs/_components/client/run-list-columns.tsx(65,33): error TS2739: Type '{ value: number; ciLower: number; ciUpper: number; }' is missing the following properties from type 'MetricResult': nSamples, reliability
+src/lib/services/view/model.view.ts(18,53): error TS2345: Argument of type 'string' is not assignable to parameter of type 'string[]'.
+ ELIFECYCLE  Command failed with exit code 2.

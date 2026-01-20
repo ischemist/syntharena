@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Check, ChevronsUpDown, X } from 'lucide-react'
+import { Check, ChevronsUpDown } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -47,14 +47,21 @@ export function MultiSelectCombobox({
                     className={cn('w-full justify-between', className)}
                     onClick={() => setOpen(!open)}
                 >
-                    <div className="flex flex-wrap items-center gap-1">
-                        {selected.length === 0 && <span className="text-muted-foreground">{placeholder}</span>}
-                        {selected.slice(0, 3).map((value) => (
-                            <Badge variant="secondary" key={value} className="mr-1">
-                                {options.find((option) => option.value === value)?.label}
+                    <div className="flex items-center gap-1 overflow-hidden">
+                        {selected.length === 0 && <span className="text-muted-foreground truncate">{placeholder}</span>}
+                        {selected.length > 0 &&
+                            selected
+                                .slice(0, 2) // Show first 2 selected items
+                                .map((value) => (
+                                    <Badge variant="secondary" key={value} className="shrink-0">
+                                        {options.find((option) => option.value === value)?.label}
+                                    </Badge>
+                                ))}
+                        {selected.length > 2 && (
+                            <Badge variant="secondary" className="shrink-0">
+                                +{selected.length - 2} more
                             </Badge>
-                        ))}
-                        {selected.length > 3 && <Badge variant="secondary">+{selected.length - 3} more</Badge>}
+                        )}
                     </div>
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
