@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
-import type { MetricResult, StratifiedMetric } from '@/types'
+import type { MetricResult, StratifiedMetric, Versionable } from '@/types'
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs))
@@ -206,17 +206,6 @@ export function filterPlateauStratifiedMetrics<T extends { name: string; stratif
 // ============================================================================
 // NEW: Canonical Version Utilities
 // ============================================================================
-
-/**
- * A standard interface for any object with SemVer fields.
- * This ensures consistency across all functions that handle versions.
- */
-export interface Versionable {
-    versionMajor: number
-    versionMinor: number
-    versionPatch: number
-    versionPrerelease: string | null
-}
 
 /**
  * Formats a Versionable object into a standard string (e.g., "v1.2.0-beta").

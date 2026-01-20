@@ -298,7 +298,7 @@ export interface PredictionRunSummary {
     algorithmName: string
     executedAt: Date
     routeCount: number
-    maxRank: number // Note: this will be deprecated in favor of `availableRanks`
+    availableRanks: number[]
 }
 
 /**
@@ -820,7 +820,6 @@ export interface TargetDisplayData {
     // Pass-through UI state from URL
     viewMode?: string
 }
-
 /**
  * Mega-DTO for the entire target comparison page (`/benchmarks/[benchmarkId]/targets/[targetId]`).
  * Contains all pre-fetched and pre-computed data needed for rendering the comparison UI,
@@ -831,15 +830,7 @@ export interface TargetComparisonData {
     targetId: string
 
     // All available prediction runs for this target, used to populate model selectors.
-    availableRuns: Array<{
-        id: string
-        modelName: string
-        modelVersion?: string
-        algorithmName: string
-        executedAt: Date
-        routeCount: number
-        maxRank: number
-    }>
+    availableRuns: PredictionRunSummary[] // Updated to use the new summary type
 
     // Information about the selected acceptable route for comparison.
     acceptableRoute?: {
@@ -850,6 +841,9 @@ export interface TargetComparisonData {
             nodes: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }>
             edges: Array<{ source: string; target: string }>
         }
+        availableRanks: number[]
+        previousRankHref: string | null
+        nextRankHref: string | null
     }
     totalAcceptableRoutes: number
     currentAcceptableIndex: number
@@ -858,18 +852,22 @@ export interface TargetComparisonData {
     model1?: {
         runId: string
         rank: number
-        maxRank: number
         name: string
         routeTree: RouteVisualizationNode
+        availableRanks: number[]
+        previousRankHref: string | null
+        nextRankHref: string | null
     }
 
     // Information about the second selected model prediction.
     model2?: {
         runId: string
         rank: number
-        maxRank: number
         name: string
         routeTree: RouteVisualizationNode
+        availableRanks: number[]
+        previousRankHref: string | null
+        nextRankHref: string | null
     }
 
     // Fully resolved stock and buyable metadata for all molecules in view.
@@ -881,4 +879,15 @@ export interface TargetComparisonData {
     // UI state derived from URL params.
     currentMode: 'gt-only' | 'gt-vs-pred' | 'pred-vs-pred'
     displayMode: 'side-by-side' | 'diff-overlay'
+}
+
+/**
+ * A standard interface for any object with SemVer fields.
+ * This ensures consistency across all functions that handle versions.
+ */
+export interface Versionable {
+    versionMajor: number
+    versionMinor: number
+    versionPatch: number
+    versionPrerelease: string | null
 }
