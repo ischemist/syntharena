@@ -3,7 +3,6 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { X } from 'lucide-react'
 
-import { SUBMISSION_TYPES } from '@/types'
 import { Button } from '@/components/ui/button'
 import { MultiSelectCombobox, type MultiSelectOption } from '@/components/ui/multi-select-combobox'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
