@@ -1,12 +1,14 @@
 'use client'
 
-import { CheckCircle, XCircle } from 'lucide-react'
+import { Star } from 'lucide-react'
 
 import type { BuyableMetadata, PredictionRoute, Route, RouteViewMode, RouteVisualizationNode } from '@/types'
+import { StockTerminationBadge } from '@/components/badges/stock-termination'
 import { RoutePagination } from '@/components/route-pagination'
 import { RouteComparison, RouteGraph, RouteLegend } from '@/components/route-visualization'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
 
 import { RouteViewToggle } from './route-view-toggle'
 
@@ -27,7 +29,6 @@ type RouteDisplayCardProps = {
     acceptableIndex?: number
     totalAcceptableRoutes?: number
 }
-
 export function RouteDisplayCard({
     route,
     predictionRoute,
@@ -50,18 +51,22 @@ export function RouteDisplayCard({
     const hasNavigation = currentRank !== undefined && totalPredictions !== undefined && targetId !== undefined
     const hasMultipleAcceptableRoutes = totalAcceptableRoutes > 1
 
-    // Validate and default view mode
     const validViewModes: RouteViewMode[] = ['prediction-only', 'side-by-side', 'diff-overlay']
     const viewMode: RouteViewMode =
         viewModeProp && validViewModes.includes(viewModeProp as RouteViewMode)
             ? (viewModeProp as RouteViewMode)
             : 'prediction-only'
 
+    const showAcceptableNav =
+        hasMultipleAcceptableRoutes && (viewMode === 'side-by-side' || viewMode === 'diff-overlay')
+
     return (
         <Card variant="bordered">
-            <CardHeader>
-                <div>
-                    <CardTitle className="text-lg">Prediction Route</CardTitle>
+            {/* --- NEW: Two-row header for clean separation --- */}
+            <CardHeader className="space-y-4">
+                {/* Row 1: Title and Description */}
+                <div className="grid gap-1">
+                    <CardTitle className="text-xl font-semibold">Prediction Route</CardTitle>
                     <CardDescription>
                         {hasRoute ? (
                             <>
@@ -69,112 +74,74 @@ export function RouteDisplayCard({
                                 {route.isConvergent ? 'Convergent' : 'Linear'}
                             </>
                         ) : (
-                            <>Rank {currentRank} not found</>
+                            `Rank ${currentRank} not found`
                         )}
                     </CardDescription>
                 </div>
-                <CardAction>
-                    {/* Badges - only show when route exists */}
-                    {hasRoute && (
+
+                {/* Row 2: Actions and Status Badges */}
+                {hasRoute && (
+                    <div className="flex w-full items-center justify-between">
+                        {/* Left-aligned controls */}
                         <div className="flex items-center gap-2">
-                            {isSolvable !== undefined && (
-                                <>
-                                    {isSolvable ? (
-                                        <Badge variant="default" className="gap-1">
-                                            <CheckCircle className="h-3 w-3" />
-                                            Solved
-                                        </Badge>
-                                    ) : (
-                                        <Badge variant="destructive" className="gap-1">
-                                            <XCircle className="h-3 w-3" />
-                                            Unsolved
-                                        </Badge>
-                                    )}
-                                </>
-                            )}
+                            <span className="text-muted-foreground text-sm">View:</span>
+                            <RouteViewToggle viewMode={viewMode} hasAcceptableRoute={hasAcceptableRoute} />
+                        </div>
+                        {/* Right-aligned status badges */}
+                        <div className="flex items-center gap-2">
                             {matchesAcceptable && (
-                                <Badge variant="secondary" className="gap-1">
-                                    ⭐ Acceptable Match
+                                <Badge variant="secondary" className="gap-1 px-2 py-1">
+                                    <Star className="h-3 w-3" />
+                                    Acceptable Match
                                 </Badge>
                             )}
+                            {isSolvable !== undefined && (
+                                <StockTerminationBadge
+                                    isTerminated={isSolvable}
+                                    stockName={stockName}
+                                    badgeStyle="soft"
+                                />
+                            )}
                         </div>
-                    )}
-                </CardAction>
+                    </div>
+                )}
             </CardHeader>
+
             <CardContent className="space-y-4">
-                {hasRoute && stockName && (
-                    <div className="text-muted-foreground text-sm">
-                        Solvability evaluated against: <span className="font-medium">{stockName}</span>
-                    </div>
-                )}
-
-                {/* View mode toggle - only show when route exists */}
-                {hasRoute && <RouteViewToggle viewMode={viewMode} hasAcceptableRoute={hasAcceptableRoute} />}
-
-                {/* Navigation controls - two-column layout */}
-                {(hasNavigation ||
-                    (hasMultipleAcceptableRoutes && (viewMode === 'side-by-side' || viewMode === 'diff-overlay'))) && (
-                    <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
-                        <div className="grid gap-3 md:grid-cols-2">
-                            {/* Left column: Acceptable route navigation (only in comparison mode with multiple routes) */}
-                            <div className="space-y-3">
-                                {hasMultipleAcceptableRoutes &&
-                                (viewMode === 'side-by-side' || viewMode === 'diff-overlay') ? (
-                                    <>
-                                        <div>
-                                            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                Acceptable Route
-                                            </label>
-                                            <div className="text-sm text-gray-600 dark:text-gray-400">
-                                                Navigate through available routes
-                                            </div>
-                                        </div>
-                                        <RoutePagination
-                                            paramName="acceptableIndex"
-                                            currentValue={acceptableIndex}
-                                            maxValue={totalAcceptableRoutes}
-                                            label="Route"
-                                            zeroBasedIndex={true}
-                                        />
-                                    </>
-                                ) : (
-                                    <div className="space-y-3">
-                                        <div>
-                                            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                Acceptable Route
-                                            </label>
-                                            <div className="text-sm text-gray-600 dark:text-gray-400">
-                                                {hasAcceptableRoute ? 'Single route available' : 'No acceptable routes'}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Right column: Prediction rank navigation */}
-                            <div className="space-y-3">
-                                {hasNavigation && (
-                                    <>
-                                        <div>
-                                            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                Prediction Rank
-                                            </label>
-                                            <div className="text-sm text-gray-600 dark:text-gray-400">
-                                                Navigate through predictions
-                                            </div>
-                                        </div>
-                                        <RoutePagination
-                                            paramName="rank"
-                                            currentValue={currentRank!}
-                                            maxValue={totalPredictions!}
-                                            label="Rank"
-                                        />
-                                    </>
-                                )}
-                            </div>
+                {(hasNavigation || showAcceptableNav) && (
+                    <>
+                        <Separator />
+                        <div className="grid grid-cols-1 gap-x-6 gap-y-4 pt-2 sm:grid-cols-2">
+                            {showAcceptableNav ? (
+                                <div>
+                                    <label className="text-sm font-medium">Acceptable Route</label>
+                                    <RoutePagination
+                                        paramName="acceptableIndex"
+                                        currentValue={acceptableIndex}
+                                        maxValue={totalAcceptableRoutes}
+                                        label="Route"
+                                        zeroBasedIndex={true}
+                                    />
+                                </div>
+                            ) : (
+                                <div />
+                            )}
+                            {hasNavigation && (
+                                <div>
+                                    <label className="text-sm font-medium">Prediction Rank</label>
+                                    <RoutePagination
+                                        paramName="rank"
+                                        currentValue={currentRank!}
+                                        maxValue={totalPredictions!}
+                                        label="Rank"
+                                    />
+                                </div>
+                            )}
                         </div>
-                    </div>
+                    </>
                 )}
+
+                <Separator />
 
                 {/* Route visualization */}
                 <div className="h-[750px] w-full rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">

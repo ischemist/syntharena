@@ -384,29 +384,42 @@ function reconstructStatisticsFromMetrics(
     }
 }
 
-/** DTO for the run detail page header. */
-export interface RunDetailHeaderData {
-    modelName: string
+/** DTO for the new run detail page title card. */
+export interface RunTitleCardData {
+    modelFamilyName: string
+    modelFamilySlug: string
+    algorithmName: string
+    algorithmSlug: string
     benchmarkId: string
     benchmarkName: string
-    hasAcceptableRoutes: boolean
+    submissionType: SubmissionType
+    isRetrained?: boolean | null
     totalRoutes: number
     executedAt: Date
     totalWallTime?: number | null
     totalCost?: number | null
 }
 
-/** Prepares the DTO for the run detail page header. */
-export async function getPredictionRunHeader(runId: string): Promise<RunDetailHeaderData> {
-    const run = await runData.findPredictionRunHeaderById(runId)
+/** Prepares the DTO for the new run detail page title card. */
+export async function getRunTitleCardData(runId: string): Promise<RunTitleCardData> {
+    // NOTE: This reuses the `findPredictionRunHeaderById` from run.data.ts for efficiency.
+    // If it needs more fields, update the data layer function first.
+    // We need to fetch the full run to get submissionType/isRetrained.
+    const run = await runData.findPredictionRunDetailsById(runId)
+    const { modelInstance, benchmarkSet, statistics } = run
+
     return {
-        modelName: run.modelInstance.family.name,
-        benchmarkId: run.benchmarkSet.id,
-        benchmarkName: run.benchmarkSet.name,
-        hasAcceptableRoutes: run.benchmarkSet.hasAcceptableRoutes,
+        modelFamilyName: modelInstance.family.name,
+        modelFamilySlug: modelInstance.family.slug,
+        algorithmName: modelInstance.family.algorithm.name,
+        algorithmSlug: modelInstance.family.algorithm.slug,
+        benchmarkId: benchmarkSet.id,
+        benchmarkName: benchmarkSet.name,
+        submissionType: run.submissionType,
+        isRetrained: run.isRetrained,
         totalRoutes: run.totalRoutes,
         executedAt: run.executedAt,
-        totalWallTime: run.statistics[0]?.totalWallTime ?? null,
+        totalWallTime: statistics[0]?.totalWallTime ?? null,
         totalCost: run.totalCost,
     }
 }

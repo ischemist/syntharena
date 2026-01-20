@@ -60,7 +60,7 @@ export function RoutePagination({
     const isNextDisabled = currentValue >= maxBound
 
     return (
-        <div className="flex items-center gap-2">
+        <div className="mt-2 flex items-center gap-2">
             {label && <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}:</span>}
             <div className="flex items-center gap-1">
                 <Button
