@@ -6,10 +6,9 @@ import { Check, X } from 'lucide-react'
 
 import type { LeaderboardEntry } from '@/types'
 import { SubmissionBadge } from '@/components/badges/submission'
+import { DataTableColumnHeader } from '@/components/data-table-column-header'
 import { MetricCell } from '@/components/metrics'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-
-import { DataTableColumnHeader } from './data-table-column-header'
 
 /**
  * Creates column definitions for the overall leaderboard table.

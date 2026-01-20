@@ -24,6 +24,8 @@ import type {
 } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkData from '@/lib/services/data/benchmark.data'
+import * as modelFamilyData from '@/lib/services/data/model-family.data' // NEW import
+
 import * as predictionData from '@/lib/services/data/prediction.data'
 import * as routeData from '@/lib/services/data/route.data'
 import * as runData from '@/lib/services/data/run.data'
@@ -34,13 +36,16 @@ import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 import { toVisualizationNode } from './route.view'
 
 /** prepares the DTO for the main prediction run list page. */
-export async function getPredictionRuns(benchmarkId?: string, modelId?: string): Promise<PredictionRunWithStats[]> {
+export async function getPredictionRuns(
+    benchmarkId?: string,
+    modelFamilyId?: string
+): Promise<PredictionRunWithStats[]> {
     const runs = await runData.findPredictionRunsForList({
         benchmarkSet: {
             isListed: true,
             ...(benchmarkId && { id: benchmarkId }),
         },
-        ...(modelId && { modelInstanceId: modelId }),
+        ...(modelFamilyId && { modelInstance: { modelFamilyId: modelFamilyId } }),
     })
 
     return runs.map((run) => {
@@ -52,6 +57,10 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
             }
         }
 
+        const top1Metric = run.statistics[0]?.metrics.find((m) => m.metricName === 'Top-1')
+        const top1Accuracy = top1Metric
+            ? { value: top1Metric.value, ciLower: top1Metric.ciLower, ciUpper: top1Metric.ciUpper }
+            : null
         // Extract Top-10 accuracy from first stock's statistics (if available)
         const top10Metric = run.statistics[0]?.metrics.find((m) => m.metricName === 'Top-10')
         const top10Accuracy = top10Metric
@@ -76,12 +85,18 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
             totalWallTime: run.statistics[0]?.totalWallTime ?? null,
             avgRouteLength: run.avgRouteLength,
             solvabilitySummary,
+            top1Accuracy,
             top10Accuracy,
             executedAt: run.executedAt,
             submissionType: run.submissionType,
             isRetrained: run.isRetrained,
         }
     })
+}
+
+/** returns all model families that have at least one prediction run. */
+export async function getModelFamiliesWithRuns() {
+    return modelFamilyData.findAllModelFamiliesWithRuns()
 }
 
 /** DTO for prediction summaries, used for navigation. FAST. */

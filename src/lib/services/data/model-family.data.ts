@@ -36,3 +36,28 @@ async function _findModelFamilyBySlug(slug: string) {
     return family
 }
 export const findModelFamilyBySlug = cache(_findModelFamilyBySlug, ['family-by-slug'], { tags })
+
+/** returns all model families that have at least one run, for filtering. */
+async function _findAllModelFamiliesWithRuns() {
+    return prisma.modelFamily.findMany({
+        where: {
+            instances: {
+                some: {
+                    runs: {
+                        some: {},
+                    },
+                },
+            },
+        },
+        select: {
+            id: true,
+            name: true,
+        },
+        orderBy: {
+            name: 'asc',
+        },
+    })
+}
+export const findAllModelFamiliesWithRuns = cache(_findAllModelFamiliesWithRuns, ['all-model-families-with-runs'], {
+    tags,
+})

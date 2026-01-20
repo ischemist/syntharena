@@ -65,7 +65,7 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput)
                     metrics: {
                         where: {
                             groupKey: null,
-                            metricName: { in: ['Solvability', 'Top-10'] },
+                            metricName: { in: ['Solvability', 'Top-1', 'Top-10'] },
                         },
                         select: { metricName: true, value: true, ciLower: true, ciUpper: true },
                     },
