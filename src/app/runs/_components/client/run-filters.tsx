@@ -4,7 +4,6 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { X } from 'lucide-react'
 
 import { SUBMISSION_TYPES } from '@/types'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { MultiSelectCombobox, type MultiSelectOption } from '@/components/ui/multi-select-combobox'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -42,7 +41,6 @@ export function RunFilters({ modelFamilies }: RunFiltersProps) {
 
     return (
         <div className="flex items-center gap-4">
-            {/* --- CHANGE: Removed the <Label> and adjusted gap. --- */}
             <div className="flex items-center gap-2">
                 <MultiSelectCombobox
                     options={modelFamilies}
