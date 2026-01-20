@@ -612,7 +612,6 @@ export async function getTargetDisplayData(
     return {
         targetInfo: { ...targetInfo, hasNoPredictions: !hasPredictions },
         totalPredictions,
-        currentRank: rank,
         currentPrediction,
         acceptableRoute: acceptableVizNode ? { visualizationNode: acceptableVizNode } : null,
         totalAcceptableRoutes,
@@ -625,6 +624,7 @@ export async function getTargetDisplayData(
         },
         viewMode,
         navigation: {
+            currentRank: rank,
             availableRanks,
             previousRankHref,
             nextRankHref,

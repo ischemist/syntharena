@@ -786,7 +786,6 @@ export interface TargetDisplayData {
 
     // Navigation and summary data
     totalPredictions: number
-    currentRank: number
 
     // Data for the currently selected prediction
     currentPrediction: {
@@ -820,6 +819,7 @@ export interface TargetDisplayData {
     // Pass-through UI state from URL
     viewMode?: string
     navigation: {
+        currentRank: number
         availableRanks: number[]
         previousRankHref: string | null
         nextRankHref: string | null
@@ -894,5 +894,5 @@ export interface Versionable {
     versionMajor: number
     versionMinor: number
     versionPatch: number
-    versionPrerelease: string | null | undefined
+    versionPrerelease?: string | null | undefined
 }
