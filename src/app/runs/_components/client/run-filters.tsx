@@ -62,8 +62,8 @@ export function RunFilters({ modelFamilies }: RunFiltersProps) {
                     <SelectContent>
                         <SelectGroup>
                             <SelectItem value="all">All Submissions</SelectItem>
-                            <SelectItem value={SUBMISSION_TYPES[0]}>Maintainer Verified</SelectItem>
-                            <SelectItem value={SUBMISSION_TYPES[1]}>Community Submitted</SelectItem>
+                            <SelectItem value="MAINTAINER_VERIFIED">Maintainer Verified</SelectItem>
+                            <SelectItem value="COMMUNITY_SUBMITTED">Community Submitted</SelectItem>
                         </SelectGroup>
                     </SelectContent>
                 </Select>
