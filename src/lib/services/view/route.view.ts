@@ -24,6 +24,7 @@ import * as benchmarkData from '@/lib/services/data/benchmark.data'
 import * as predictionData from '@/lib/services/data/prediction.data'
 import * as routeData from '@/lib/services/data/route.data'
 import * as stockData from '@/lib/services/data/stock.data'
+import * as predictionView from '@/lib/services/view/prediction.view'
 import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 
 // ============================================================================
@@ -163,7 +164,7 @@ export async function getTargetComparisonData(
     // --- Wave 1: Fetch base contextual data in parallel ---
     const [benchmark, availableRunsResult, acceptableRoutes] = await Promise.all([
         benchmarkData.findBenchmarkListItemById(benchmarkId),
-        predictionData.findPredictionRunsForTarget(targetId, viewMode),
+        predictionView.getPredictionRunsForTarget(targetId, viewMode),
         routeData.findAcceptableRoutesForTarget(targetId),
     ])
 
@@ -172,6 +173,8 @@ export async function getTargetComparisonData(
     const currentAcceptableIndex =
         totalAcceptableRoutes > 0 ? Math.min(Math.max(0, acceptableIndexProp), totalAcceptableRoutes - 1) : 0
     const selectedAcceptable = totalAcceptableRoutes > 0 ? acceptableRoutes[currentAcceptableIndex] : undefined
+
+    const acceptableRanks = Array.from({ length: totalAcceptableRoutes }, (_, i) => i)
 
     // --- Wave 2: Fetch specific route data based on URL params ---
     const [acceptableRouteData, acceptableRouteLayout, model1Nodes, model2Nodes] = await Promise.all([
@@ -242,7 +245,6 @@ export async function getTargetComparisonData(
                 ? {
                       runId: model1Id,
                       rank: rank1,
-                      maxRank: model1Run.maxRank,
                       name: `${model1Run.modelName} (${model1Run.algorithmName})`,
                       routeTree: model1RouteTree,
                   }
@@ -252,7 +254,6 @@ export async function getTargetComparisonData(
                 ? {
                       runId: model2Id,
                       rank: rank2,
-                      maxRank: model2Run.maxRank,
                       name: `${model2Run.modelName} (${model2Run.algorithmName})`,
                       routeTree: model2RouteTree,
                   }

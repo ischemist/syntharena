@@ -129,13 +129,38 @@ export interface PredictionRunSummary {
     algorithmName: string
     executedAt: Date
     routeCount: number
-    maxRank: number
+    availableRanks: number[]
 }
 
 /** aggregates prediction routes into run summaries for a target. */
-export async function getPredictionRunsForTarget(targetId: string): Promise<PredictionRunSummary[]> {
-    // this now calls the much more efficient function from prediction.data
-    return predictionData.findPredictionRunsForTarget(targetId)
+export async function getPredictionRunsForTarget(
+    targetId: string,
+    viewMode: 'curated' | 'forensic' = 'curated'
+): Promise<PredictionRunSummary[]> {
+    const rawRuns = await predictionData.findPredictionRunsForTarget(targetId, viewMode)
+
+    // fetch all rank summaries in parallel
+    const summaryPromises = rawRuns.map((run) => routeData.findPredictionSummaries(targetId, run.id))
+    const allSummaries = await Promise.all(summaryPromises)
+
+    return rawRuns.map((run, i) => {
+        const summaries = allSummaries[i]
+        const availableRanks = summaries.map((s) => s.rank)
+
+        const { versionMajor, versionMinor, versionPatch, versionPrerelease } = run.modelInstance
+        let versionString = `v${versionMajor}.${versionMinor}.${versionPatch}`
+        if (versionPrerelease) versionString += `-${versionPrerelease}`
+
+        return {
+            id: run.id,
+            modelName: run.modelInstance.family.name,
+            modelVersion: versionString,
+            algorithmName: run.modelInstance.family.algorithm.name,
+            executedAt: run.executedAt,
+            routeCount: run._count.predictionRoutes,
+            availableRanks,
+        }
+    })
 }
 
 // ============================================================================
