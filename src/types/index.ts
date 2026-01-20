@@ -288,6 +288,20 @@ export interface RouteVisualizationData {
 }
 
 /**
+ * DTO for displaying a prediction run in a selector.
+ * Contains minimal data for identifying a run.
+ */
+export interface PredictionRunSummary {
+    id: string
+    modelName: string
+    modelVersion?: string
+    algorithmName: string
+    executedAt: Date
+    routeCount: number
+    maxRank: number // Note: this will be deprecated in favor of `availableRanks`
+}
+
+/**
  * Statistics about a benchmark set.
  */
 export interface BenchmarkStats {
