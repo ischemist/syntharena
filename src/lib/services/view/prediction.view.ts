@@ -19,11 +19,13 @@ import type {
     RunStatistics,
     StockListItem,
     StratifiedMetric,
+    SubmissionType,
     TargetDisplayData,
     TargetInfo,
 } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkData from '@/lib/services/data/benchmark.data'
+import * as modelFamilyData from '@/lib/services/data/model-family.data'
 import * as predictionData from '@/lib/services/data/prediction.data'
 import * as routeData from '@/lib/services/data/route.data'
 import * as runData from '@/lib/services/data/run.data'
@@ -34,13 +36,21 @@ import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 import { toVisualizationNode } from './route.view'
 
 /** prepares the DTO for the main prediction run list page. */
-export async function getPredictionRuns(benchmarkId?: string, modelId?: string): Promise<PredictionRunWithStats[]> {
+export async function getPredictionRuns(
+    benchmarkId?: string,
+    modelInstanceId?: string,
+    modelFamilyIds?: string[],
+    submissionType?: SubmissionType
+): Promise<PredictionRunWithStats[]> {
     const runs = await runData.findPredictionRunsForList({
         benchmarkSet: {
             isListed: true,
             ...(benchmarkId && { id: benchmarkId }),
         },
-        ...(modelId && { modelInstanceId: modelId }),
+        ...(modelInstanceId && { modelInstanceId }),
+        ...(modelFamilyIds &&
+            modelFamilyIds.length > 0 && { modelInstance: { modelFamilyId: { in: modelFamilyIds } } }),
+        ...(submissionType && { submissionType }),
     })
 
     return runs.map((run) => {
@@ -51,12 +61,22 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
                 solvabilitySummary[stat.stockId] = solvabilityMetric.value
             }
         }
+        const toMetricResult = (metric?: (typeof run.statistics)[0]['metrics'][0]): MetricResult | null => {
+            if (!metric) return null
+            return {
+                value: metric.value,
+                ciLower: metric.ciLower,
+                ciUpper: metric.ciUpper,
+                nSamples: metric.nSamples,
+                reliability: {
+                    code: metric.reliabilityCode as ReliabilityCode,
+                    message: metric.reliabilityMessage,
+                },
+            }
+        }
 
-        // Extract Top-10 accuracy from first stock's statistics (if available)
-        const top10Metric = run.statistics[0]?.metrics.find((m) => m.metricName === 'Top-10')
-        const top10Accuracy = top10Metric
-            ? { value: top10Metric.value, ciLower: top10Metric.ciLower, ciUpper: top10Metric.ciUpper }
-            : null
+        const top1Accuracy = toMetricResult(run.statistics[0]?.metrics.find((m) => m.metricName === 'Top-1'))
+        const top10Accuracy = toMetricResult(run.statistics[0]?.metrics.find((m) => m.metricName === 'Top-10'))
 
         return {
             id: run.id,
@@ -76,12 +96,18 @@ export async function getPredictionRuns(benchmarkId?: string, modelId?: string):
             totalWallTime: run.statistics[0]?.totalWallTime ?? null,
             avgRouteLength: run.avgRouteLength,
             solvabilitySummary,
+            top1Accuracy,
             top10Accuracy,
             executedAt: run.executedAt,
             submissionType: run.submissionType,
             isRetrained: run.isRetrained,
         }
     })
+}
+
+/** returns all model families that have at least one prediction run. */
+export async function getModelFamiliesWithRuns() {
+    return modelFamilyData.findAllModelFamiliesWithRuns()
 }
 
 /** DTO for prediction summaries, used for navigation. FAST. */

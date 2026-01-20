@@ -3,9 +3,8 @@
 import { ColumnDef } from '@tanstack/react-table'
 
 import type { MetricResult, StratifiedMetric } from '@/types'
+import { DataTableColumnHeader } from '@/components/data-table-column-header'
 import { MetricCell } from '@/components/metrics'
-
-import { DataTableColumnHeader } from './data-table-column-header'
 
 /**
  * Row data type for stratified metrics table.

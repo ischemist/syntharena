@@ -6,10 +6,9 @@ import { Check, X } from 'lucide-react'
 
 import type { LeaderboardEntry } from '@/types'
 import { SubmissionBadge } from '@/components/badges/submission'
+import { DataTableColumnHeader } from '@/components/data-table-column-header'
 import { MetricCell } from '@/components/metrics'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-
-import { DataTableColumnHeader } from './data-table-column-header'
 
 /**
  * Creates column definitions for the overall leaderboard table.
@@ -126,25 +125,6 @@ export function createLeaderboardColumns(
             },
         })
     }
-    columns.push({
-        accessorKey: 'submissionType',
-        id: 'submission',
-        header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Submission" />,
-        cell: ({ row }) => {
-            const { submissionType, isRetrained } = row.original
-            return (
-                <div className="flex justify-center">
-                    <SubmissionBadge
-                        submissionType={submissionType}
-                        isRetrained={isRetrained}
-                        badgeStyle="soft"
-                        size="sm"
-                    />
-                </div>
-            )
-        },
-        // Note: Custom sorting for submission type is likely not needed, but can be added here if required.
-    })
 
     // Add Duration column (wall time in minutes)
     columns.push({
@@ -179,6 +159,25 @@ export function createLeaderboardColumns(
             const b = rowB.original.totalCost ?? -1
             return a - b
         },
+    })
+    columns.push({
+        accessorKey: 'submissionType',
+        id: 'submission',
+        header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Submission" />,
+        cell: ({ row }) => {
+            const { submissionType, isRetrained } = row.original
+            return (
+                <div className="flex justify-center">
+                    <SubmissionBadge
+                        submissionType={submissionType}
+                        isRetrained={isRetrained}
+                        badgeStyle="soft"
+                        size="sm"
+                    />
+                </div>
+            )
+        },
+        // Note: Custom sorting for submission type is likely not needed, but can be added here if required.
     })
 
     return columns

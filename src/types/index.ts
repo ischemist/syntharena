@@ -638,7 +638,8 @@ export interface PredictionRunWithStats {
     totalWallTime?: number | null // Total wall time in seconds (from statistics[0])
     avgRouteLength?: number | null
     solvabilitySummary?: Record<string, number> // stockId -> solvability percentage
-    top10Accuracy?: { value: number; ciLower: number; ciUpper: number } | null // Top-10 accuracy with CI (null if no ground truth)
+    top1Accuracy?: MetricResult | null
+    top10Accuracy?: MetricResult | null
     executedAt: Date
     submissionType: SubmissionType
     isRetrained?: boolean | null
