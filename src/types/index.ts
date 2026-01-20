@@ -819,6 +819,11 @@ export interface TargetDisplayData {
 
     // Pass-through UI state from URL
     viewMode?: string
+    navigation: {
+        availableRanks: number[]
+        previousRankHref: string | null
+        nextRankHref: string | null
+    }
 }
 /**
  * Mega-DTO for the entire target comparison page (`/benchmarks/[benchmarkId]/targets/[targetId]`).
@@ -889,5 +894,5 @@ export interface Versionable {
     versionMajor: number
     versionMinor: number
     versionPatch: number
-    versionPrerelease: string | null
+    versionPrerelease: string | null | undefined
 }

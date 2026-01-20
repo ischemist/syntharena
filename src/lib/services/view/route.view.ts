@@ -174,8 +174,6 @@ export async function getTargetComparisonData(
         totalAcceptableRoutes > 0 ? Math.min(Math.max(0, acceptableIndexProp), totalAcceptableRoutes - 1) : 0
     const selectedAcceptable = totalAcceptableRoutes > 0 ? acceptableRoutes[currentAcceptableIndex] : undefined
 
-    const acceptableRanks = Array.from({ length: totalAcceptableRoutes }, (_, i) => i)
-
     // --- Wave 2: Fetch specific route data based on URL params ---
     const [acceptableRouteData, acceptableRouteLayout, model1Nodes, model2Nodes] = await Promise.all([
         selectedAcceptable ? getAcceptableRouteData(selectedAcceptable.route.id, targetId) : Promise.resolve(undefined),
@@ -212,9 +210,57 @@ export async function getTargetComparisonData(
         inStockInchiKeys = keys
         buyableMetadataMap = meta
     }
+
     // --- Final Assembly: Business logic and DTO construction ---
     const model1Run = availableRunsResult.find((run) => run.id === model1Id)
     const model2Run = availableRunsResult.find((run) => run.id === model2Id)
+
+    // --- Wave 3.5: Calculate Navigation State for all 3 slots ---
+    const basePath = `/benchmarks/${benchmarkId}/targets/${targetId}`
+
+    // Helper to preserve existing query params while changing one
+    const buildNavHref = (paramName: string, paramValue: number) => {
+        const params = new URLSearchParams()
+        if (modeProp) params.set('mode', modeProp)
+        if (displayModeProp) params.set('display', displayModeProp)
+        if (viewMode === 'forensic') params.set('view', 'forensic')
+        if (model1Id) params.set('model1', model1Id)
+        if (model2Id) params.set('model2', model2Id)
+
+        // Add existing ranks, then override the specific one being navigated
+        params.set('rank1', rank1.toString())
+        params.set('rank2', rank2.toString())
+        params.set('acceptableIndex', acceptableIndexProp.toString())
+        params.set(paramName, paramValue.toString())
+
+        return `${basePath}?${params.toString()}`
+    }
+
+    // 1. Acceptable Route Navigation
+    const acceptableRanks = Array.from({ length: totalAcceptableRoutes }, (_, i) => i)
+    let prevAccHref = null,
+        nextAccHref = null
+    if (currentAcceptableIndex > 0) prevAccHref = buildNavHref('acceptableIndex', currentAcceptableIndex - 1)
+    if (currentAcceptableIndex < totalAcceptableRoutes - 1)
+        nextAccHref = buildNavHref('acceptableIndex', currentAcceptableIndex + 1)
+
+    // 2. Model 1 Navigation
+    const model1AvailableRanks = model1Run?.availableRanks || []
+    const model1CurrentIndex = model1AvailableRanks.indexOf(rank1)
+    let prevM1Href = null,
+        nextM1Href = null
+    if (model1CurrentIndex > 0) prevM1Href = buildNavHref('rank1', model1AvailableRanks[model1CurrentIndex - 1])
+    if (model1CurrentIndex < model1AvailableRanks.length - 1)
+        nextM1Href = buildNavHref('rank1', model1AvailableRanks[model1CurrentIndex + 1])
+
+    // 3. Model 2 Navigation
+    const model2AvailableRanks = model2Run?.availableRanks || []
+    const model2CurrentIndex = model2AvailableRanks.indexOf(rank2)
+    let prevM2Href = null,
+        nextM2Href = null
+    if (model2CurrentIndex > 0) prevM2Href = buildNavHref('rank2', model2AvailableRanks[model2CurrentIndex - 1])
+    if (model2CurrentIndex < model2AvailableRanks.length - 1)
+        nextM2Href = buildNavHref('rank2', model2AvailableRanks[model2CurrentIndex + 1])
 
     const validModes = ['gt-only', 'gt-vs-pred', 'pred-vs-pred']
     const currentMode =
@@ -236,6 +282,9 @@ export async function getTargetComparisonData(
                       data: acceptableRouteData,
                       visualizationNode: acceptableRouteTree,
                       layout: acceptableRouteLayout,
+                      availableRanks: acceptableRanks,
+                      previousRankHref: prevAccHref,
+                      nextRankHref: nextAccHref,
                   }
                 : undefined,
         totalAcceptableRoutes,
@@ -247,6 +296,9 @@ export async function getTargetComparisonData(
                       rank: rank1,
                       name: `${model1Run.modelName} (${model1Run.algorithmName})`,
                       routeTree: model1RouteTree,
+                      availableRanks: model1AvailableRanks,
+                      previousRankHref: prevM1Href,
+                      nextRankHref: nextM1Href,
                   }
                 : undefined,
         model2:
@@ -256,6 +308,9 @@ export async function getTargetComparisonData(
                       rank: rank2,
                       name: `${model2Run.modelName} (${model2Run.algorithmName})`,
                       routeTree: model2RouteTree,
+                      availableRanks: model2AvailableRanks,
+                      previousRankHref: prevM2Href,
+                      nextRankHref: nextM2Href,
                   }
                 : undefined,
         stockInfo: { inStockInchiKeys, buyableMetadataMap },

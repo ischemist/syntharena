@@ -236,14 +236,19 @@ export function compareVersions(a: Versionable, b: Versionable): number {
     const patchDiff = a.versionPatch - b.versionPatch
     if (patchDiff !== 0) return patchDiff
 
-    // Pre-release tag comparison:
+    const aHasPrerelease = !!a.versionPrerelease
+    const bHasPrerelease = !!b.versionPrerelease
+
     // A version with a pre-release tag has lower precedence than a normal version.
     // e.g., 1.0.0 > 1.0.0-beta
-    if (a.versionPrerelease === null && b.versionPrerelease !== null) return 1
-    if (a.versionPrerelease !== null && b.versionPrerelease === null) return -1
-    if (a.versionPrerelease !== null && b.versionPrerelease !== null) {
+    if (!aHasPrerelease && bHasPrerelease) return 1 // a is stable, b is not -> a is greater
+    if (aHasPrerelease && !bHasPrerelease) return -1 // a is not stable, b is -> a is lesser
+
+    // Both are pre-releases, compare them lexicographically.
+    if (a.versionPrerelease && b.versionPrerelease) {
         return a.versionPrerelease.localeCompare(b.versionPrerelease)
     }
 
+    // Both are stable releases (or both lack a pre-release tag). They are equal on this field.
     return 0
 }

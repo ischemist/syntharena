@@ -562,6 +562,32 @@ export async function getTargetDisplayData(
         }
     }
 
+    // --- Wave 3.5: Calculate Navigation State ---
+    const availableRanks = predictionSummaries.map((s) => s.rank)
+    const currentRankIndex = availableRanks.indexOf(rank)
+
+    let previousRankHref: string | null = null
+    let nextRankHref: string | null = null
+
+    if (currentRankIndex !== -1) {
+        const buildHref = (newRank: number) => {
+            const params = new URLSearchParams()
+            params.set('target', targetId)
+            params.set('rank', newRank.toString())
+            if (stockId) params.set('stock', stockId)
+            if (acceptableIndexProp !== undefined) params.set('acceptableIndex', acceptableIndexProp.toString())
+            if (viewMode) params.set('view', viewMode)
+            return `/runs/${runId}?${params.toString()}`
+        }
+
+        if (currentRankIndex > 0) {
+            previousRankHref = buildHref(availableRanks[currentRankIndex - 1])
+        }
+        if (currentRankIndex < availableRanks.length - 1) {
+            nextRankHref = buildHref(availableRanks[currentRankIndex + 1])
+        }
+    }
+
     // --- Final Assembly: Construct the mega-DTO ---
     const currentPrediction = prediction
         ? (() => {
@@ -598,5 +624,10 @@ export async function getTargetDisplayData(
             buyableMetadataMap,
         },
         viewMode,
+        navigation: {
+            availableRanks,
+            previousRankHref,
+            nextRankHref,
+        },
     }
 }
