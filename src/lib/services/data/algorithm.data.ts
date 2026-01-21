@@ -32,11 +32,10 @@ async function _getAlgorithmInstanceCountsMap(): Promise<Record<string, number>>
         },
     })
 
-    const countsMap: Record<string, number> = {}
-    for (const family of familiesWithCounts) {
-        countsMap[family.algorithmId] = (countsMap[family.algorithmId] ?? 0) + family._count.instances
-    }
-    return countsMap
+    return familiesWithCounts.reduce<Record<string, number>>((acc, family) => {
+        acc[family.algorithmId] = (acc[family.algorithmId] ?? 0) + family._count.instances
+        return acc
+    }, {})
 }
 export const getAlgorithmInstanceCountsMap = cache(_getAlgorithmInstanceCountsMap, ['algorithm-instance-counts-map'], {
     tags: [...tags, 'models', 'families'],
