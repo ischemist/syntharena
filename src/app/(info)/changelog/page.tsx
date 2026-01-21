@@ -9,6 +9,43 @@ export const metadata: Metadata = {
 
 const versions = [
     {
+        version: 'v0.3.0',
+        date: 'January 20, 2026',
+        changes: [
+            {
+                type: ChangeType.FEAT,
+                description: 'Model families: group model instances into families with version tracking on leaderboard',
+            },
+            {
+                type: ChangeType.FEAT,
+                description: 'New model and model instance detail pages',
+            },
+            {
+                type: ChangeType.FEAT,
+                description: 'Submission types (official vs community) and benchmark series designation for runs',
+            },
+            {
+                type: ChangeType.FEAT,
+                description:
+                    'Developer-aligned leaderboard now shows if result used a model retrained on standardized dataset',
+            },
+            {
+                type: ChangeType.UI_UX,
+                description:
+                    'Redesigned runs page with sortable columns and filtering by model families and submission types',
+            },
+            {
+                type: ChangeType.BUGFIX,
+                description: 'Fixed race condition on price filter and search for targets/models',
+            },
+            {
+                type: ChangeType.PERF,
+                description:
+                    'Backend optimizations: eliminated request waterfalls, faster navigation between targets and predictions, more extensive caching',
+            },
+        ],
+    },
+    {
         version: 'v0.2.1',
         date: 'December 10, 2025',
         changes: [
