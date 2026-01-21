@@ -7,7 +7,8 @@ import type {
     AlgorithmListItem,
     ModelFamily,
     ModelInstanceListItem,
-} from '@/types' // ModelFamily added
+} from '@/types'
+// ModelFamily added
 import { HIGHLIGHT_BENCHMARK_IDS, HIGHLIGHT_METRICS } from '@/lib/constants'
 
 import * as algorithmData from '../data/algorithm.data'
@@ -28,7 +29,7 @@ export async function getAlgorithmListItems(): Promise<AlgorithmListItem[]> {
         name: a.name,
         slug: a.slug,
         description: a.description,
-        instanceCount: countsMap.get(a.id) ?? 0,
+        instanceCount: countsMap[a.id] ?? 0,
     }))
 }
 
