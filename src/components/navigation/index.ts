@@ -1,3 +1,5 @@
 export { StepButton } from './step-button'
-export { RankSelector } from './rank-selector'
+export { RankNavigator } from './rank-navigator'
 export { ModelSelector } from './model-selector'
+
+export { ControlGrid, ControlGridSlot } from './control-grid'
