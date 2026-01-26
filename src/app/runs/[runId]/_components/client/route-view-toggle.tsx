@@ -2,22 +2,22 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
-import type { RouteViewMode } from '@/types'
+import type { RouteLayoutMode } from '@/types'
 import { Button } from '@/components/ui/button'
 
 interface RouteViewToggleProps {
-    viewMode: RouteViewMode
+    layout: RouteLayoutMode
     hasAcceptableRoute: boolean
 }
 
-export function RouteViewToggle({ viewMode, hasAcceptableRoute }: RouteViewToggleProps) {
+export function RouteViewToggle({ layout, hasAcceptableRoute }: RouteViewToggleProps) {
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
 
-    const handleViewModeChange = (mode: RouteViewMode) => {
+    const handleLayoutChange = (mode: RouteLayoutMode) => {
         const params = new URLSearchParams(searchParams.toString())
-        params.set('view', mode)
+        params.set('layout', mode)
         router.replace(`${pathname}?${params.toString()}`, { scroll: false })
     }
 
@@ -26,24 +26,24 @@ export function RouteViewToggle({ viewMode, hasAcceptableRoute }: RouteViewToggl
             <span className="text-muted-foreground text-sm font-medium">View:</span>
             <div className="flex items-center gap-1">
                 <Button
-                    variant={viewMode === 'prediction-only' ? 'default' : 'outline'}
+                    variant={layout === 'prediction-only' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => handleViewModeChange('prediction-only')}
+                    onClick={() => handleLayoutChange('prediction-only')}
                 >
                     Prediction Only
                 </Button>
                 <Button
-                    variant={viewMode === 'side-by-side' ? 'default' : 'outline'}
+                    variant={layout === 'side-by-side' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => handleViewModeChange('side-by-side')}
+                    onClick={() => handleLayoutChange('side-by-side')}
                     disabled={!hasAcceptableRoute}
                 >
                     Side-by-Side
                 </Button>
                 <Button
-                    variant={viewMode === 'diff-overlay' ? 'default' : 'outline'}
+                    variant={layout === 'diff-overlay' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => handleViewModeChange('diff-overlay')}
+                    onClick={() => handleLayoutChange('diff-overlay')}
                     disabled={!hasAcceptableRoute}
                 >
                     Diff Overlay

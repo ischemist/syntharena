@@ -20,6 +20,7 @@ interface TargetDetailPageProps {
         rank2?: string
         display?: string
         acceptableIndex?: string
+        dev?: string
     }>
 }
 
@@ -32,7 +33,8 @@ export async function generateMetadata({ params }: TargetDetailPageProps): Promi
 
 export default async function TargetDetailPage({ params, searchParams }: TargetDetailPageProps) {
     const { benchmarkId, targetId } = await params
-    const { mode, model1, model2, display, rank1, rank2, acceptableIndex } = await searchParams
+    const { mode, model1, model2, display, rank1, rank2, acceptableIndex, dev } = await searchParams
+    const devMode = dev === 'true'
 
     // Fetch ALL data for the page with a single, parallelized call.
     const comparisonDataPromise = getTargetComparisonData(
@@ -44,7 +46,8 @@ export default async function TargetDetailPage({ params, searchParams }: TargetD
         rank1 ? parseInt(rank1, 10) : 1,
         rank2 ? parseInt(rank2, 10) : 1,
         display,
-        acceptableIndex ? parseInt(acceptableIndex, 10) : 0
+        acceptableIndex ? parseInt(acceptableIndex, 10) : 0,
+        devMode
     )
 
     return (

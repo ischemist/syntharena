@@ -40,11 +40,11 @@ export default function LeaderboardPage({ searchParams }: LeaderboardPageProps) 
 async function LeaderboardContentWrapper({
     searchParams,
 }: {
-    searchParams: Promise<{ benchmarkId?: string; view?: string }>
+    searchParams: Promise<{ benchmarkId?: string; dev?: string }>
 }) {
     const params = await searchParams
-    const viewMode = params.view === 'forensic' ? 'forensic' : 'curated'
-    const pageData = await getLeaderboardPageData(params.benchmarkId, viewMode)
+    const devMode = params.dev === 'true'
+    const pageData = await getLeaderboardPageData(params.benchmarkId, devMode)
 
     if (!pageData) {
         return (

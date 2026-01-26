@@ -7,19 +7,19 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
-export function ForensicViewToggle() {
+export function DeveloperModeToggle() {
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
 
-    const isForensicView = searchParams.get('view') === 'forensic'
+    const isDevMode = searchParams.get('dev') === 'true'
 
     const handleToggle = (checked: boolean) => {
         const params = new URLSearchParams(searchParams.toString())
         if (checked) {
-            params.set('view', 'forensic')
+            params.set('dev', 'true')
         } else {
-            params.delete('view')
+            params.delete('dev')
         }
         router.replace(`${pathname}?${params.toString()}`, { scroll: false })
     }
@@ -29,7 +29,7 @@ export function ForensicViewToggle() {
             <div className="flex items-center space-x-2">
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <Label htmlFor="forensic-view-toggle" className="flex items-center gap-1.5">
+                        <Label htmlFor="dev-mode-toggle" className="flex cursor-pointer items-center gap-1.5">
                             <Trophy className="size-4" />
                             <span>Curated</span>
                         </Label>
@@ -40,17 +40,17 @@ export function ForensicViewToggle() {
                 </Tooltip>
 
                 <Switch
-                    id="forensic-view-toggle"
-                    checked={isForensicView}
+                    id="dev-mode-toggle"
+                    checked={isDevMode}
                     onCheckedChange={handleToggle}
-                    aria-label="Toggle forensic view"
+                    aria-label="Toggle developer mode"
                 />
 
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <Label htmlFor="forensic-view-toggle" className="flex items-center gap-1.5">
+                        <Label htmlFor="dev-mode-toggle" className="flex cursor-pointer items-center gap-1.5">
                             <Microscope className="size-4" />
-                            <span>Forensic</span>
+                            <span>Developer</span>
                         </Label>
                     </TooltipTrigger>
                     <TooltipContent>

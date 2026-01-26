@@ -230,7 +230,7 @@ function _transformStatsToLeaderboardDTOs(
  */
 export async function getLeaderboardPageData(
     benchmarkId?: string,
-    viewMode: 'curated' | 'forensic' = 'curated'
+    devMode: boolean = false
 ): Promise<LeaderboardPageData | null> {
     // wave 1: fetch all LISTED benchmarks to determine the effective id and populate the dropdown.
     const allBenchmarksRaw = await benchmarkData.findBenchmarkListItems()
@@ -296,7 +296,7 @@ export async function getLeaderboardPageData(
     })
 
     // step 1: curate the stats if necessary
-    const statsToProcess = viewMode === 'forensic' ? rawStats : _curateChampionStats(rawStats)
+    const statsToProcess = devMode ? rawStats : _curateChampionStats(rawStats)
 
     // step 2: transform the processed stats into final DTOs
     const { leaderboardEntries, stratifiedMetricsByStock, stocks } = _transformStatsToLeaderboardDTOs(
