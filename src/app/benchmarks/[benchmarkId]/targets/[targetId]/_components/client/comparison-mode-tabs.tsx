@@ -35,7 +35,7 @@ export function ComparisonModeTabs({ currentMode, hasAcceptableRoutes, children 
             params.delete('model2')
             params.delete('rank1')
             params.delete('rank2')
-            params.delete('view')
+            params.delete('display')
             // Keep acceptableIndex - user may want to view different acceptable routes
         } else if (mode === 'gt-vs-pred') {
             params.delete('model2')

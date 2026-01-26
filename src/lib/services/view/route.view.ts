@@ -24,7 +24,7 @@ import * as benchmarkData from '@/lib/services/data/benchmark.data'
 import * as predictionData from '@/lib/services/data/prediction.data'
 import * as routeData from '@/lib/services/data/route.data'
 import * as stockData from '@/lib/services/data/stock.data'
-
+import * as predictionView from '@/lib/services/view/prediction.view'
 import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 
 // ============================================================================
@@ -157,13 +157,14 @@ export async function getTargetComparisonData(
     model2Id?: string,
     rank1: number = 1,
     rank2: number = 1,
-    viewModeProp?: string,
-    acceptableIndexProp: number = 0
+    displayModeProp?: string,
+    acceptableIndexProp: number = 0,
+    viewMode: 'curated' | 'forensic' = 'curated'
 ): Promise<TargetComparisonData> {
     // --- Wave 1: Fetch base contextual data in parallel ---
     const [benchmark, availableRunsResult, acceptableRoutes] = await Promise.all([
         benchmarkData.findBenchmarkListItemById(benchmarkId),
-        predictionData.findPredictionRunsForTarget(targetId),
+        predictionView.getPredictionRunsForTarget(targetId, viewMode),
         routeData.findAcceptableRoutesForTarget(targetId),
     ])
 
@@ -209,16 +210,66 @@ export async function getTargetComparisonData(
         inStockInchiKeys = keys
         buyableMetadataMap = meta
     }
+
     // --- Final Assembly: Business logic and DTO construction ---
     const model1Run = availableRunsResult.find((run) => run.id === model1Id)
     const model2Run = availableRunsResult.find((run) => run.id === model2Id)
+
+    // --- Wave 3.5: Calculate Navigation State for all 3 slots ---
+    const basePath = `/benchmarks/${benchmarkId}/targets/${targetId}`
+
+    // Helper to preserve existing query params while changing one
+    const buildNavHref = (paramName: string, paramValue: number) => {
+        const params = new URLSearchParams()
+        if (modeProp) params.set('mode', modeProp)
+        if (displayModeProp) params.set('display', displayModeProp)
+        if (viewMode === 'forensic') params.set('view', 'forensic')
+        if (model1Id) params.set('model1', model1Id)
+        if (model2Id) params.set('model2', model2Id)
+
+        // Add existing ranks, then override the specific one being navigated
+        params.set('rank1', rank1.toString())
+        params.set('rank2', rank2.toString())
+        params.set('acceptableIndex', acceptableIndexProp.toString())
+        params.set(paramName, paramValue.toString())
+
+        return `${basePath}?${params.toString()}`
+    }
+
+    // 1. Acceptable Route Navigation
+    const acceptableRanks = Array.from({ length: totalAcceptableRoutes }, (_, i) => i)
+    let prevAccHref = null,
+        nextAccHref = null
+    if (currentAcceptableIndex > 0) prevAccHref = buildNavHref('acceptableIndex', currentAcceptableIndex - 1)
+    if (currentAcceptableIndex < totalAcceptableRoutes - 1)
+        nextAccHref = buildNavHref('acceptableIndex', currentAcceptableIndex + 1)
+
+    // 2. Model 1 Navigation
+    const model1AvailableRanks = model1Run?.availableRanks || []
+    const model1CurrentIndex = model1AvailableRanks.indexOf(rank1)
+    let prevM1Href = null,
+        nextM1Href = null
+    if (model1CurrentIndex > 0) prevM1Href = buildNavHref('rank1', model1AvailableRanks[model1CurrentIndex - 1])
+    if (model1CurrentIndex < model1AvailableRanks.length - 1)
+        nextM1Href = buildNavHref('rank1', model1AvailableRanks[model1CurrentIndex + 1])
+
+    // 3. Model 2 Navigation
+    const model2AvailableRanks = model2Run?.availableRanks || []
+    const model2CurrentIndex = model2AvailableRanks.indexOf(rank2)
+    let prevM2Href = null,
+        nextM2Href = null
+    if (model2CurrentIndex > 0) prevM2Href = buildNavHref('rank2', model2AvailableRanks[model2CurrentIndex - 1])
+    if (model2CurrentIndex < model2AvailableRanks.length - 1)
+        nextM2Href = buildNavHref('rank2', model2AvailableRanks[model2CurrentIndex + 1])
 
     const validModes = ['gt-only', 'gt-vs-pred', 'pred-vs-pred']
     const currentMode =
         modeProp && validModes.includes(modeProp) ? (modeProp as any) : acceptableRouteTree ? 'gt-only' : 'pred-vs-pred'
 
-    const validViewModes = ['side-by-side', 'diff-overlay']
-    const viewMode = viewModeProp && validViewModes.includes(viewModeProp) ? (viewModeProp as any) : 'side-by-side'
+    // --- LOGIC UPDATED TO USE NEW NAME ---
+    const validDisplayModes = ['side-by-side', 'diff-overlay']
+    const displayMode =
+        displayModeProp && validDisplayModes.includes(displayModeProp) ? (displayModeProp as any) : 'side-by-side'
 
     return {
         benchmarkId,
@@ -231,6 +282,9 @@ export async function getTargetComparisonData(
                       data: acceptableRouteData,
                       visualizationNode: acceptableRouteTree,
                       layout: acceptableRouteLayout,
+                      availableRanks: acceptableRanks,
+                      previousRankHref: prevAccHref,
+                      nextRankHref: nextAccHref,
                   }
                 : undefined,
         totalAcceptableRoutes,
@@ -240,9 +294,11 @@ export async function getTargetComparisonData(
                 ? {
                       runId: model1Id,
                       rank: rank1,
-                      maxRank: model1Run.maxRank,
                       name: `${model1Run.modelName} (${model1Run.algorithmName})`,
                       routeTree: model1RouteTree,
+                      availableRanks: model1AvailableRanks,
+                      previousRankHref: prevM1Href,
+                      nextRankHref: nextM1Href,
                   }
                 : undefined,
         model2:
@@ -250,13 +306,15 @@ export async function getTargetComparisonData(
                 ? {
                       runId: model2Id,
                       rank: rank2,
-                      maxRank: model2Run.maxRank,
                       name: `${model2Run.modelName} (${model2Run.algorithmName})`,
                       routeTree: model2RouteTree,
+                      availableRanks: model2AvailableRanks,
+                      previousRankHref: prevM2Href,
+                      nextRankHref: nextM2Href,
                   }
                 : undefined,
         stockInfo: { inStockInchiKeys, buyableMetadataMap },
         currentMode,
-        viewMode,
+        displayMode,
     }
 }

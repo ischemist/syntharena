@@ -129,13 +129,38 @@ export interface PredictionRunSummary {
     algorithmName: string
     executedAt: Date
     routeCount: number
-    maxRank: number
+    availableRanks: number[]
 }
 
 /** aggregates prediction routes into run summaries for a target. */
-export async function getPredictionRunsForTarget(targetId: string): Promise<PredictionRunSummary[]> {
-    // this now calls the much more efficient function from prediction.data
-    return predictionData.findPredictionRunsForTarget(targetId)
+export async function getPredictionRunsForTarget(
+    targetId: string,
+    viewMode: 'curated' | 'forensic' = 'curated'
+): Promise<PredictionRunSummary[]> {
+    const rawRuns = await predictionData.findPredictionRunsForTarget(targetId, viewMode)
+
+    // fetch all rank summaries in parallel
+    const summaryPromises = rawRuns.map((run) => routeData.findPredictionSummaries(targetId, run.id))
+    const allSummaries = await Promise.all(summaryPromises)
+
+    return rawRuns.map((run, i) => {
+        const summaries = allSummaries[i]
+        const availableRanks = summaries.map((s) => s.rank)
+
+        const { versionMajor, versionMinor, versionPatch, versionPrerelease } = run.modelInstance
+        let versionString = `v${versionMajor}.${versionMinor}.${versionPatch}`
+        if (versionPrerelease) versionString += `-${versionPrerelease}`
+
+        return {
+            id: run.id,
+            modelName: run.modelInstance.family.name,
+            modelVersion: versionString,
+            algorithmName: run.modelInstance.family.algorithm.name,
+            executedAt: run.executedAt,
+            routeCount: run._count.predictionRoutes,
+            availableRanks,
+        }
+    })
 }
 
 // ============================================================================
@@ -384,29 +409,42 @@ function reconstructStatisticsFromMetrics(
     }
 }
 
-/** DTO for the run detail page header. */
-export interface RunDetailHeaderData {
-    modelName: string
+/** DTO for the new run detail page title card. */
+export interface RunTitleCardData {
+    modelFamilyName: string
+    modelFamilySlug: string
+    algorithmName: string
+    algorithmSlug: string
     benchmarkId: string
     benchmarkName: string
-    hasAcceptableRoutes: boolean
+    submissionType: SubmissionType
+    isRetrained?: boolean | null
     totalRoutes: number
     executedAt: Date
     totalWallTime?: number | null
     totalCost?: number | null
 }
 
-/** Prepares the DTO for the run detail page header. */
-export async function getPredictionRunHeader(runId: string): Promise<RunDetailHeaderData> {
-    const run = await runData.findPredictionRunHeaderById(runId)
+/** Prepares the DTO for the new run detail page title card. */
+export async function getRunTitleCardData(runId: string): Promise<RunTitleCardData> {
+    // NOTE: This reuses the `findPredictionRunHeaderById` from run.data.ts for efficiency.
+    // If it needs more fields, update the data layer function first.
+    // We need to fetch the full run to get submissionType/isRetrained.
+    const run = await runData.findPredictionRunDetailsById(runId)
+    const { modelInstance, benchmarkSet, statistics } = run
+
     return {
-        modelName: run.modelInstance.family.name,
-        benchmarkId: run.benchmarkSet.id,
-        benchmarkName: run.benchmarkSet.name,
-        hasAcceptableRoutes: run.benchmarkSet.hasAcceptableRoutes,
+        modelFamilyName: modelInstance.family.name,
+        modelFamilySlug: modelInstance.family.slug,
+        algorithmName: modelInstance.family.algorithm.name,
+        algorithmSlug: modelInstance.family.algorithm.slug,
+        benchmarkId: benchmarkSet.id,
+        benchmarkName: benchmarkSet.name,
+        submissionType: run.submissionType,
+        isRetrained: run.isRetrained,
         totalRoutes: run.totalRoutes,
         executedAt: run.executedAt,
-        totalWallTime: run.statistics[0]?.totalWallTime ?? null,
+        totalWallTime: statistics[0]?.totalWallTime ?? null,
         totalCost: run.totalCost,
     }
 }
@@ -524,6 +562,55 @@ export async function getTargetDisplayData(
         }
     }
 
+    // --- Wave 3.5: Calculate Navigation State ---
+    const availableRanks = predictionSummaries.map((s) => s.rank)
+    const currentRankIndex = availableRanks.indexOf(rank)
+
+    let previousRankHref: string | null = null
+    let nextRankHref: string | null = null
+
+    if (currentRankIndex !== -1) {
+        const buildHref = (newRank: number) => {
+            const params = new URLSearchParams()
+            params.set('target', targetId)
+            params.set('rank', newRank.toString())
+            if (stockId) params.set('stock', stockId)
+            if (acceptableIndexProp !== undefined) params.set('acceptableIndex', acceptableIndexProp.toString())
+            if (viewMode) params.set('view', viewMode)
+            return `/runs/${runId}?${params.toString()}`
+        }
+
+        if (currentRankIndex > 0) {
+            previousRankHref = buildHref(availableRanks[currentRankIndex - 1])
+        }
+        if (currentRankIndex < availableRanks.length - 1) {
+            nextRankHref = buildHref(availableRanks[currentRankIndex + 1])
+        }
+    }
+    // --- Wave 3.6: Calculate Navigation State for Acceptable Route ---
+    const acceptableRanks = Array.from({ length: totalAcceptableRoutes }, (_, i) => i)
+    let prevAccHref: string | null = null
+    let nextAccHref: string | null = null
+
+    if (totalAcceptableRoutes > 1) {
+        const buildHref = (newIndex: number) => {
+            const params = new URLSearchParams()
+            params.set('target', targetId)
+            params.set('rank', rank.toString())
+            if (stockId) params.set('stock', stockId)
+            if (viewMode) params.set('view', viewMode)
+            params.set('acceptableIndex', newIndex.toString())
+            return `/runs/${runId}?${params.toString()}`
+        }
+
+        if (currentAcceptableIndex > 0) {
+            prevAccHref = buildHref(currentAcceptableIndex - 1)
+        }
+        if (currentAcceptableIndex < totalAcceptableRoutes - 1) {
+            nextAccHref = buildHref(currentAcceptableIndex + 1)
+        }
+    }
+
     // --- Final Assembly: Construct the mega-DTO ---
     const currentPrediction = prediction
         ? (() => {
@@ -548,7 +635,6 @@ export async function getTargetDisplayData(
     return {
         targetInfo: { ...targetInfo, hasNoPredictions: !hasPredictions },
         totalPredictions,
-        currentRank: rank,
         currentPrediction,
         acceptableRoute: acceptableVizNode ? { visualizationNode: acceptableVizNode } : null,
         totalAcceptableRoutes,
@@ -560,5 +646,17 @@ export async function getTargetDisplayData(
             buyableMetadataMap,
         },
         viewMode,
+        navigation: {
+            currentRank: rank,
+            availableRanks,
+            previousRankHref,
+            nextRankHref,
+        },
+        acceptableRouteNav: {
+            currentAcceptableIndex,
+            availableRanks: acceptableRanks,
+            previousRankHref: prevAccHref,
+            nextRankHref: nextAccHref,
+        },
     }
 }

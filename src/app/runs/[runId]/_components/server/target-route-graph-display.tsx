@@ -13,17 +13,7 @@ type TargetRouteGraphDisplayProps = {
  * the card handles the empty state internally to maintain consistent layout.
  */
 export function TargetRouteGraphDisplay({ data }: TargetRouteGraphDisplayProps) {
-    const {
-        currentPrediction,
-        acceptableRoute,
-        stockInfo,
-        currentRank,
-        totalPredictions,
-        currentAcceptableIndex,
-        totalAcceptableRoutes,
-        targetInfo,
-        viewMode,
-    } = data
+    const { currentPrediction, acceptableRoute, stockInfo, viewMode, navigation, acceptableRouteNav } = data
 
     const solvability = currentPrediction?.solvability
 
@@ -39,11 +29,8 @@ export function TargetRouteGraphDisplay({ data }: TargetRouteGraphDisplayProps) 
             buyableMetadataMap={stockInfo.buyableMetadataMap}
             stockName={stockInfo.stockName}
             viewMode={viewMode}
-            currentRank={currentRank}
-            totalPredictions={totalPredictions}
-            targetId={targetInfo.targetId}
-            acceptableIndex={currentAcceptableIndex}
-            totalAcceptableRoutes={totalAcceptableRoutes}
+            navigation={navigation}
+            acceptableRouteNav={acceptableRouteNav}
         />
     )
 }
