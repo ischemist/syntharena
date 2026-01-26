@@ -587,6 +587,29 @@ export async function getTargetDisplayData(
             nextRankHref = buildHref(availableRanks[currentRankIndex + 1])
         }
     }
+    // --- Wave 3.6: Calculate Navigation State for Acceptable Route ---
+    const acceptableRanks = Array.from({ length: totalAcceptableRoutes }, (_, i) => i)
+    let prevAccHref: string | null = null
+    let nextAccHref: string | null = null
+
+    if (totalAcceptableRoutes > 1) {
+        const buildHref = (newIndex: number) => {
+            const params = new URLSearchParams()
+            params.set('target', targetId)
+            params.set('rank', rank.toString())
+            if (stockId) params.set('stock', stockId)
+            if (viewMode) params.set('view', viewMode)
+            params.set('acceptableIndex', newIndex.toString())
+            return `/runs/${runId}?${params.toString()}`
+        }
+
+        if (currentAcceptableIndex > 0) {
+            prevAccHref = buildHref(currentAcceptableIndex - 1)
+        }
+        if (currentAcceptableIndex < totalAcceptableRoutes - 1) {
+            nextAccHref = buildHref(currentAcceptableIndex + 1)
+        }
+    }
 
     // --- Final Assembly: Construct the mega-DTO ---
     const currentPrediction = prediction
@@ -628,6 +651,12 @@ export async function getTargetDisplayData(
             availableRanks,
             previousRankHref,
             nextRankHref,
+        },
+        acceptableRouteNav: {
+            currentAcceptableIndex,
+            availableRanks: acceptableRanks,
+            previousRankHref: prevAccHref,
+            nextRankHref: nextAccHref,
         },
     }
 }

@@ -2,7 +2,7 @@ import { Star } from 'lucide-react'
 
 import type { BuyableMetadata, PredictionRoute, Route, RouteViewMode, RouteVisualizationNode } from '@/types'
 import { StockTerminationBadge } from '@/components/badges/stock-termination'
-import { ControlGrid, ControlGridSlot, RankNavigator } from '@/components/navigation'
+import { CompactRankNavigator, ControlGrid, ControlGridSlot } from '@/components/navigation'
 import { RouteComparison, RouteGraph, RouteLegend } from '@/components/route-visualization'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -104,14 +104,11 @@ export function RouteDisplayCard({
                 <ControlGrid className="pt-2">
                     {showAcceptableNav && acceptableRouteNav ? (
                         <ControlGridSlot label="Acceptable Route:">
-                            <RankNavigator
+                            <CompactRankNavigator
                                 paramName="acceptableIndex"
-                                prevHref={acceptableRouteNav.previousRankHref}
-                                nextHref={acceptableRouteNav.nextRankHref}
                                 currentRank={acceptableRouteNav.currentAcceptableIndex}
                                 rankCount={acceptableRouteNav.availableRanks.length}
                                 availableRanks={acceptableRouteNav.availableRanks}
-                                label="Route"
                                 isZeroBased
                             />
                         </ControlGridSlot>
@@ -119,14 +116,11 @@ export function RouteDisplayCard({
                         <div /> // Empty div to maintain grid structure
                     )}
                     <ControlGridSlot label="Prediction:">
-                        <RankNavigator
+                        <CompactRankNavigator
                             paramName="rank"
-                            prevHref={navigation.previousRankHref}
-                            nextHref={navigation.nextRankHref}
                             currentRank={navigation.currentRank}
                             rankCount={navigation.availableRanks.length}
                             availableRanks={navigation.availableRanks}
-                            label="Rank"
                         />
                     </ControlGridSlot>
                 </ControlGrid>

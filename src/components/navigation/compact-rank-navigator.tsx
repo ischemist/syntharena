@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface CompactRankNavigatorProps {
-    paramName: 'rank1' | 'rank2' | 'acceptableIndex'
+    paramName: 'rank' | 'rank1' | 'rank2' | 'acceptableIndex'
     currentRank: number
     rankCount: number
     availableRanks: number[]

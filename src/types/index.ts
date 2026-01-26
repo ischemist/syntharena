@@ -824,6 +824,12 @@ export interface TargetDisplayData {
         previousRankHref: string | null
         nextRankHref: string | null
     }
+    acceptableRouteNav?: {
+        currentAcceptableIndex: number
+        availableRanks: number[]
+        previousRankHref: string | null
+        nextRankHref: string | null
+    }
 }
 /**
  * Mega-DTO for the entire target comparison page (`/benchmarks/[benchmarkId]/targets/[targetId]`).
