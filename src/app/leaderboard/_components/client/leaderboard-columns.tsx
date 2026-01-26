@@ -24,13 +24,13 @@ export function createLeaderboardColumns(
 ): ColumnDef<LeaderboardEntry>[] {
     const ActionCell = ({ row }: { row: any }) => {
         const searchParams = useSearchParams()
-        const isForensic = searchParams.get('view') === 'forensic'
+        const isDevMode = searchParams.get('dev') === 'true'
         const { runId, benchmarkId, hasAcceptableRoutes } = row.original
 
         if (!firstTargetId) return null
         const comparisonModeParam = hasAcceptableRoutes ? '&mode=gt-vs-pred' : ''
-        const forensicParam = isForensic ? '&view=forensic' : ''
-        const href = `/benchmarks/${benchmarkId}/targets/${firstTargetId}?model1=${runId}${comparisonModeParam}${forensicParam}`
+        const devParam = isDevMode ? '&dev=true' : ''
+        const href = `/benchmarks/${benchmarkId}/targets/${firstTargetId}?model1=${runId}${comparisonModeParam}${devParam}`
 
         return (
             <div className="flex justify-center">
