@@ -22,7 +22,6 @@ type BenchmarkMetricsDisplayProps = {
     benchmarkSeries: LeaderboardEntry['benchmarkSeries']
     topKMetricNames: string[]
     selectedTopK?: string[] // Optional - will use context if not provided
-    firstTargetId: string | null
 }
 
 // Create context for view mode (to share between toggle and display)
@@ -103,7 +102,6 @@ export function BenchmarkMetricsDisplay({
     benchmarkSeries,
     topKMetricNames,
     selectedTopK: propSelectedTopK,
-    firstTargetId,
 }: BenchmarkMetricsDisplayProps) {
     const contextSelectedTopK = useSelectedTopK()
     const selectedTopK = propSelectedTopK ?? contextSelectedTopK
@@ -121,8 +119,8 @@ export function BenchmarkMetricsDisplay({
 
     // Create columns based on displayed Top-K metrics
     const columns = useMemo(
-        () => createLeaderboardColumns(benchmarkSeries, displayedTopK, firstTargetId),
-        [benchmarkSeries, displayedTopK, firstTargetId]
+        () => createLeaderboardColumns(benchmarkSeries, displayedTopK),
+        [benchmarkSeries, displayedTopK]
     )
 
     // Initialize TanStack Table

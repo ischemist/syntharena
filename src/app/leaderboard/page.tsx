@@ -55,15 +55,8 @@ async function LeaderboardContentWrapper({
         )
     }
 
-    const {
-        leaderboardEntries,
-        stratifiedMetricsByStock,
-        stocks,
-        metadata,
-        allBenchmarks,
-        selectedBenchmark,
-        firstTargetId,
-    } = pageData
+    const { leaderboardEntries, stratifiedMetricsByStock, stocks, metadata, allBenchmarks, selectedBenchmark } =
+        pageData
     const { hasAcceptableRoutes, availableTopKMetrics } = metadata
 
     return (
@@ -83,7 +76,6 @@ async function LeaderboardContentWrapper({
                     stocks={stocks}
                     hasAcceptableRoutes={hasAcceptableRoutes}
                     availableTopKMetrics={availableTopKMetrics}
-                    firstTargetId={firstTargetId}
                 />
             )}
         </>
@@ -98,8 +90,7 @@ function LeaderboardMetrics({
     stocks,
     hasAcceptableRoutes,
     availableTopKMetrics,
-    firstTargetId,
-}: Omit<LeaderboardPageData, 'allBenchmarks' | 'metadata'> & LeaderboardPageData['metadata']) {
+}: Omit<LeaderboardPageData, 'allBenchmarks' | 'metadata' | 'firstTargetId'> & LeaderboardPageData['metadata']) {
     const stockName = leaderboardEntries[0].stockName
 
     if (!hasAcceptableRoutes || availableTopKMetrics.length === 0) {
@@ -111,7 +102,6 @@ function LeaderboardMetrics({
                     hasAcceptableRoutes={hasAcceptableRoutes}
                     stockName={stockName}
                     topKMetricNames={[]}
-                    firstTargetId={firstTargetId}
                 />
                 <StratifiedMetricsWrapper
                     metricsByStock={stratifiedMetricsByStock}
@@ -131,7 +121,6 @@ function LeaderboardMetrics({
                     hasAcceptableRoutes={hasAcceptableRoutes}
                     stockName={stockName}
                     topKMetricNames={availableTopKMetrics}
-                    firstTargetId={firstTargetId}
                 />
                 <StratifiedMetricsWrapper
                     metricsByStock={stratifiedMetricsByStock}

@@ -19,18 +19,17 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
  */
 export function createLeaderboardColumns(
     benchmarkSeries: LeaderboardEntry['benchmarkSeries'],
-    displayedTopK: string[],
-    firstTargetId: string | null
+    displayedTopK: string[]
 ): ColumnDef<LeaderboardEntry>[] {
     const ActionCell = ({ row }: { row: any }) => {
         const searchParams = useSearchParams()
         const isDevMode = searchParams.get('dev') === 'true'
-        const { runId, benchmarkId, hasAcceptableRoutes } = row.original
+        const { runId, hasAcceptableRoutes } = row.original
 
-        if (!firstTargetId) return null
-        const comparisonModeParam = hasAcceptableRoutes ? '&mode=gt-vs-pred' : ''
-        const devParam = isDevMode ? '&dev=true' : ''
-        const href = `/benchmarks/${benchmarkId}/targets/${firstTargetId}?model1=${runId}${comparisonModeParam}${devParam}`
+        const layoutParam = hasAcceptableRoutes ? 'layout=side-by-side' : ''
+        const devParam = isDevMode ? 'dev=true' : ''
+        const queryParts = [layoutParam, devParam].filter(Boolean)
+        const href = `/runs/${runId}${queryParts.length > 0 ? `?${queryParts.join('&')}` : ''}`
 
         return (
             <div className="flex justify-center">
@@ -42,7 +41,7 @@ export function createLeaderboardColumns(
                             </Link>
                         </TooltipTrigger>
                         <TooltipContent>
-                            <p>Compare against acceptable route</p>
+                            <p>Visualize routes for this run</p>
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>

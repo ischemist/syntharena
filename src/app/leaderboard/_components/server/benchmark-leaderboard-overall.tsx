@@ -13,7 +13,6 @@ type BenchmarkLeaderboardOverallProps = {
     hasAcceptableRoutes: boolean
     stockName: string
     topKMetricNames: string[] // now receives this directly
-    firstTargetId: string | null
 }
 
 /**
@@ -30,7 +29,6 @@ export function BenchmarkLeaderboardOverall({
     hasAcceptableRoutes,
     stockName,
     topKMetricNames,
-    firstTargetId,
 }: BenchmarkLeaderboardOverallProps) {
     return (
         <MetricsDisplayProvider>
@@ -50,7 +48,6 @@ export function BenchmarkLeaderboardOverall({
                         entries={entries}
                         benchmarkSeries={benchmarkSeries}
                         topKMetricNames={topKMetricNames}
-                        firstTargetId={firstTargetId}
                     />
                 </CardContent>
             </Card>
