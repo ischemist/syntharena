@@ -9,10 +9,10 @@ import { compareVersions } from '@/lib/utils'
 
 /**
  * fetches prediction run info for a target. now supports `viewMode`.
- * in 'curated' mode, it returns only the "champion" (latest version) for each model family.
- * in 'forensic' mode, it returns ALL runs for the target.
+ * in curated mode (`devMode: false`), it returns only the "champion" (latest version) for each model family.
+ * in developer mode (`devMode: true`), it returns ALL runs for the target.
  */
-async function _findPredictionRunsForTarget(targetId: string, viewMode: 'curated' | 'forensic' = 'curated') {
+async function _findPredictionRunsForTarget(targetId: string, devMode: boolean = false) {
     const runsWithPredictions = await prisma.predictionRun.findMany({
         where: { predictionRoutes: { some: { targetId: targetId } } },
         select: {
@@ -41,8 +41,8 @@ async function _findPredictionRunsForTarget(targetId: string, viewMode: 'curated
         orderBy: { executedAt: 'desc' },
     })
 
-    // if in forensic mode, we are done. return everything.
-    if (viewMode === 'forensic') {
+    // if in developer mode, we are done. return everything.
+    if (devMode) {
         return runsWithPredictions
     }
 

@@ -435,13 +435,29 @@ export type NodeStatus =
     | 'pred-1-only'
     | 'pred-2-only'
 
+// ============================================================================
+// Route Visualization Types
+// ============================================================================
+
+// Canonical constants for runtime validation and type derivation.
+export const ROUTE_LAYOUT_MODES = ['prediction-only', 'side-by-side', 'diff-overlay'] as const
+export const COMPARISON_MODES = ['gt-only', 'gt-vs-pred', 'pred-vs-pred'] as const
+export const COMPARISON_LAYOUT_MODES = ['side-by-side', 'diff-overlay'] as const
+
 /**
- * View mode for route visualization.
- * - "prediction-only": Show only the predicted route
- * - "side-by-side": Show prediction and acceptable route side by side
- * - "diff-overlay": Show merged view with diff highlighting
+ * Describes the visual arrangement of route graphs. Type is derived from the constant.
  */
-export type RouteViewMode = 'prediction-only' | 'side-by-side' | 'diff-overlay'
+export type RouteLayoutMode = (typeof ROUTE_LAYOUT_MODES)[number]
+
+/**
+ * Defines the semantic type of comparison being performed on the target detail page.
+ */
+export type ComparisonMode = (typeof COMPARISON_MODES)[number]
+
+/**
+ * A specific subset of RouteLayoutMode used only for comparisons.
+ */
+export type ComparisonLayoutMode = (typeof COMPARISON_LAYOUT_MODES)[number]
 
 /**
  * Configuration for tree layout algorithm.
@@ -820,7 +836,7 @@ export interface TargetDisplayData {
     }
 
     // Pass-through UI state from URL
-    viewMode?: string
+    layout?: RouteLayoutMode
     navigation: {
         currentRank: number
         availableRanks: number[]
@@ -891,8 +907,8 @@ export interface TargetComparisonData {
     }
 
     // UI state derived from URL params.
-    currentMode: 'gt-only' | 'gt-vs-pred' | 'pred-vs-pred'
-    displayMode: 'side-by-side' | 'diff-overlay'
+    currentMode: ComparisonMode
+    layout: ComparisonLayoutMode
 }
 
 /**

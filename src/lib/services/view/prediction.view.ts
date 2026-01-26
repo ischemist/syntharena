@@ -14,6 +14,7 @@ import type {
     ModelStatistics,
     PredictionRunWithStats,
     ReliabilityCode,
+    RouteLayoutMode,
     RouteNodeWithDetails,
     RunStatistics,
     StockListItem,
@@ -74,7 +75,7 @@ function _buildRunTargetNavigation(
         rank: number
         stockId?: string
         acceptableIndex?: number
-        viewMode?: string
+        layout?: string
     },
     data: {
         availableRanks: number[]
@@ -87,7 +88,7 @@ function _buildRunTargetNavigation(
         search.set('rank', params.rank.toString())
         if (params.stockId) search.set('stock', params.stockId)
         if (params.acceptableIndex !== undefined) search.set('acceptableIndex', params.acceptableIndex.toString())
-        if (params.viewMode) search.set('view', params.viewMode)
+        if (params.layout) search.set('layout', params.layout)
 
         search.set(paramToChange, newValue.toString())
         return `/runs/${runId}?${search.toString()}`
@@ -240,9 +241,9 @@ export interface PredictionRunSummary {
 /** aggregates prediction routes into run summaries for a target. */
 export async function getPredictionRunsForTarget(
     targetId: string,
-    viewMode: 'curated' | 'forensic' = 'curated'
+    devMode: boolean = false
 ): Promise<PredictionRunSummary[]> {
-    const rawRuns = await predictionData.findPredictionRunsForTarget(targetId, viewMode)
+    const rawRuns = await predictionData.findPredictionRunsForTarget(targetId, devMode)
 
     // fetch all rank summaries in parallel
     const summaryPromises = rawRuns.map((run) => routeData.findPredictionSummaries(targetId, run.id))
@@ -524,7 +525,7 @@ export async function getTargetDisplayData(
     rank: number,
     stockId?: string,
     acceptableIndexProp?: number,
-    viewMode?: string
+    layout?: string
 ): Promise<TargetDisplayData> {
     // Wave 1
     const [targetPayload, predictionSummaries, acceptableRoutes, prediction, firstMatchRank] = await Promise.all([
@@ -584,7 +585,7 @@ export async function getTargetDisplayData(
     // Final Assembly
     const navState = _buildRunTargetNavigation(
         runId,
-        { targetId, rank, stockId, acceptableIndex: currentAcceptableIndex, viewMode },
+        { targetId, rank, stockId, acceptableIndex: currentAcceptableIndex, layout },
         { availableRanks: predictionSummaries.map((s) => s.rank), totalAcceptableRoutes }
     )
 
@@ -621,7 +622,7 @@ export async function getTargetDisplayData(
             stockName,
             ...stockDataResult,
         },
-        viewMode,
+        layout: layout as RouteLayoutMode,
         navigation: navState.predictionNav,
         acceptableRouteNav: navState.acceptableNav,
     }
