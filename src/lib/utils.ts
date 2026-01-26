@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
-import type { MetricResult, StratifiedMetric } from '@/types'
+import type { MetricResult, StratifiedMetric, Versionable } from '@/types'
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs))
@@ -201,4 +201,54 @@ export function filterPlateauStratifiedMetrics<T extends { name: string; stratif
     }
 
     return result
+}
+
+// ============================================================================
+// NEW: Canonical Version Utilities
+// ============================================================================
+
+/**
+ * Formats a Versionable object into a standard string (e.g., "v1.2.0-beta").
+ * This is the SINGLE source of truth for version display.
+ * @param version - An object matching the Versionable interface.
+ * @returns A formatted version string.
+ */
+export function formatVersion(version: Versionable): string {
+    const base = `v${version.versionMajor}.${version.versionMinor}.${version.versionPatch}`
+    return version.versionPrerelease ? `${base}-${version.versionPrerelease}` : base
+}
+
+/**
+ * Compares two Versionable objects according to SemVer precedence.
+ * Returns > 0 if a > b, < 0 if a < b, 0 if equal.
+ * Suitable for use in Array.prototype.sort().
+ * @param a - The first version object.
+ * @param b - The second version object.
+ * @returns A number indicating the sort order.
+ */
+export function compareVersions(a: Versionable, b: Versionable): number {
+    const majorDiff = a.versionMajor - b.versionMajor
+    if (majorDiff !== 0) return majorDiff
+
+    const minorDiff = a.versionMinor - b.versionMinor
+    if (minorDiff !== 0) return minorDiff
+
+    const patchDiff = a.versionPatch - b.versionPatch
+    if (patchDiff !== 0) return patchDiff
+
+    const aHasPrerelease = !!a.versionPrerelease
+    const bHasPrerelease = !!b.versionPrerelease
+
+    // A version with a pre-release tag has lower precedence than a normal version.
+    // e.g., 1.0.0 > 1.0.0-beta
+    if (!aHasPrerelease && bHasPrerelease) return 1 // a is stable, b is not -> a is greater
+    if (aHasPrerelease && !bHasPrerelease) return -1 // a is not stable, b is -> a is lesser
+
+    // Both are pre-releases, compare them lexicographically.
+    if (a.versionPrerelease && b.versionPrerelease) {
+        return a.versionPrerelease.localeCompare(b.versionPrerelease)
+    }
+
+    // Both are stable releases (or both lack a pre-release tag). They are equal on this field.
+    return 0
 }

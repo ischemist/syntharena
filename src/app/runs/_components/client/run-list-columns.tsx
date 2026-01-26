@@ -4,15 +4,11 @@ import { ColumnDef } from '@tanstack/react-table'
 import { formatDistanceToNow } from 'date-fns'
 
 import type { PredictionRunWithStats } from '@/types'
+import { compareVersions, formatVersion } from '@/lib/utils'
 import { SubmissionBadge } from '@/components/badges/submission'
 import { DataTableColumnHeader } from '@/components/data-table-column-header'
 import { MetricCell } from '@/components/metrics'
 import { Badge } from '@/components/ui/badge'
-
-function formatVersion(instance: PredictionRunWithStats['modelInstance']): string {
-    const base = `v${instance.versionMajor}.${instance.versionMinor}.${instance.versionPatch}`
-    return instance.versionPrerelease ? `${base}-${instance.versionPrerelease}` : base
-}
 
 export const columns: ColumnDef<PredictionRunWithStats>[] = [
     {
@@ -32,14 +28,7 @@ export const columns: ColumnDef<PredictionRunWithStats>[] = [
                 </code>
             </div>
         ),
-        sortingFn: (rowA, rowB) => {
-            const a = rowA.original.modelInstance
-            const b = rowB.original.modelInstance
-            if (a.versionMajor !== b.versionMajor) return a.versionMajor - b.versionMajor
-            if (a.versionMinor !== b.versionMinor) return a.versionMinor - b.versionMinor
-            if (a.versionPatch !== b.versionPatch) return a.versionPatch - b.versionPatch
-            return (a.versionPrerelease ?? '').localeCompare(b.versionPrerelease ?? '')
-        },
+        sortingFn: (rowA, rowB) => compareVersions(rowA.original.modelInstance, rowB.original.modelInstance),
     },
     {
         accessorKey: 'top1Accuracy.value',

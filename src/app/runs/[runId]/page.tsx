@@ -4,9 +4,9 @@ import type { Metadata } from 'next'
 import * as predictionView from '@/lib/services/view/prediction.view'
 
 import { StockSelector } from './_components/client/stock-selector'
-import { RunDetailHeader } from './_components/server/run-detail-header'
 import { RunStatisticsStratified } from './_components/server/run-statistics-stratified'
 import { RunStatisticsSummary } from './_components/server/run-statistics-summary'
+import { RunTitleCard } from './_components/server/run-title-card'
 import { TargetDisplaySection } from './_components/server/target-display-section'
 import { TargetSearchWrapper } from './_components/server/target-search-wrapper'
 import { RouteDisplaySkeleton, RunStatisticsSkeleton, StratifiedStatisticsSkeleton } from './_components/skeletons'
@@ -25,17 +25,21 @@ type PageProps = {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-    const { runId } = await params // <-- FIX: await the params promise
+    const { runId } = await params
     try {
-        const run = await predictionView.getPredictionRunHeader(runId)
+        const run = await predictionView.getRunTitleCardData(runId)
         return {
-            title: `${run.modelName} on ${run.benchmarkName}`,
-            description: `View statistics and routes for ${run.modelName} predictions on ${run.benchmarkName}.`,
+            title: `${run.modelFamilyName} on ${run.benchmarkName}`,
+            description: `View statistics and routes for ${run.modelFamilyName} predictions on ${run.benchmarkName}.`,
         }
     } catch {
-        return { title: 'Run Not Found', description: 'The requested prediction run could not be found.' }
+        return {
+            title: 'Run Not Found',
+            description: 'The requested prediction run could not be found.',
+        }
     }
 }
+
 export default async function RunDetailPage({ params, searchParams }: PageProps) {
     // --- Await promises at the top level ---
     const { runId } = await params
@@ -53,7 +57,7 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
         : undefined
 
     // Initiate all data fetches concurrently. Do NOT await them here.
-    const headerPromise = predictionView.getPredictionRunHeader(runId)
+    const titleCardPromise = predictionView.getRunTitleCardData(runId)
     const stocksPromise = predictionView.getStocksForRun(runId)
     const statsPromise = stockId ? predictionView.getRunStatistics(runId, stockId) : Promise.resolve(null)
     const targetDisplayDataPromise = targetId
@@ -62,8 +66,8 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
 
     return (
         <div className="flex flex-col gap-6">
-            <Suspense fallback={<div className="h-48 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />}>
-                <RunDetailHeader dataPromise={headerPromise} />
+            <Suspense fallback={<div className="bg-card h-48 animate-pulse rounded-lg" />}>
+                <RunTitleCard dataPromise={titleCardPromise} />
             </Suspense>
 
             <Suspense fallback={<div className="h-12 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />}>
@@ -79,7 +83,6 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
             </Suspense>
 
             <TargetSearchWrapper runId={runId} stockId={stockId} currentTargetId={targetId} routeLength={routeLength} />
-
             {targetDisplayDataPromise && (
                 <Suspense
                     key={`${targetId}-${rank}-${stockId}-${viewMode}-${acceptableIndex}`}

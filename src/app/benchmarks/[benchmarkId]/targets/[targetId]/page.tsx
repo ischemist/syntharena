@@ -18,7 +18,7 @@ interface TargetDetailPageProps {
         model2?: string
         rank1?: string
         rank2?: string
-        view?: string
+        display?: string
         acceptableIndex?: string
     }>
 }
@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: TargetDetailPageProps): Promi
 
 export default async function TargetDetailPage({ params, searchParams }: TargetDetailPageProps) {
     const { benchmarkId, targetId } = await params
-    const { mode, model1, model2, view, rank1, rank2, acceptableIndex } = await searchParams
+    const { mode, model1, model2, display, rank1, rank2, acceptableIndex } = await searchParams
 
     // Fetch ALL data for the page with a single, parallelized call.
     const comparisonDataPromise = getTargetComparisonData(
@@ -43,7 +43,7 @@ export default async function TargetDetailPage({ params, searchParams }: TargetD
         model2,
         rank1 ? parseInt(rank1, 10) : 1,
         rank2 ? parseInt(rank2, 10) : 1,
-        view,
+        display,
         acceptableIndex ? parseInt(acceptableIndex, 10) : 0
     )
 
@@ -54,7 +54,7 @@ export default async function TargetDetailPage({ params, searchParams }: TargetD
             </Suspense>
 
             <Suspense
-                key={`${mode}-${model1}-${model2}-${rank1}-${rank2}-${view}-${acceptableIndex}`}
+                key={`${mode}-${model1}-${model2}-${rank1}-${rank2}-${display}-${acceptableIndex}`}
                 fallback={<Skeleton className="h-[800px] w-full rounded-lg" />}
             >
                 <ResolvedComparison dataPromise={comparisonDataPromise} />

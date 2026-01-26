@@ -8,8 +8,8 @@ import type {
     ModelFamily,
     ModelInstanceListItem,
 } from '@/types'
-// ModelFamily added
 import { HIGHLIGHT_BENCHMARK_IDS, HIGHLIGHT_METRICS } from '@/lib/constants'
+import { formatVersion } from '@/lib/utils'
 
 import * as algorithmData from '../data/algorithm.data'
 import * as modelFamilyData from '../data/model-family.data' // NEW
@@ -38,17 +38,6 @@ export interface AlgorithmDetailPageData {
     algorithm: Algorithm
     families: Array<ModelFamily & { instances: ModelInstanceListItem[] }>
     highlightMetrics: AlgorithmHighlightMetric[]
-}
-
-/** formats a semver version from its components. */
-function formatVersion(instance: {
-    versionMajor: number
-    versionMinor: number
-    versionPatch: number
-    versionPrerelease?: string | null
-}): string {
-    const base = `v${instance.versionMajor}.${instance.versionMinor}.${instance.versionPatch}`
-    return instance.versionPrerelease ? `${base}-${instance.versionPrerelease}` : base
 }
 
 /** prepares the "mega-dto" for the algorithm detail page with the new hierarchy. */

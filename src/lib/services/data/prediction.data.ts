@@ -5,9 +5,14 @@ import { unstable_cache as cache } from 'next/cache'
 import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/db'
+import { compareVersions } from '@/lib/utils'
 
-/** fetches prediction run info for a target, aggregated from its prediction routes. */
-async function _findPredictionRunsForTarget(targetId: string) {
+/**
+ * fetches prediction run info for a target. now supports `viewMode`.
+ * in 'curated' mode, it returns only the "champion" (latest version) for each model family.
+ * in 'forensic' mode, it returns ALL runs for the target.
+ */
+async function _findPredictionRunsForTarget(targetId: string, viewMode: 'curated' | 'forensic' = 'curated') {
     const runsWithPredictions = await prisma.predictionRun.findMany({
         where: { predictionRoutes: { some: { targetId: targetId } } },
         select: {
@@ -15,12 +20,14 @@ async function _findPredictionRunsForTarget(targetId: string) {
             executedAt: true,
             modelInstance: {
                 select: {
+                    id: true,
                     versionMajor: true,
                     versionMinor: true,
                     versionPatch: true,
                     versionPrerelease: true,
                     family: {
                         select: {
+                            id: true,
                             name: true,
                             algorithm: { select: { name: true } },
                         },
@@ -34,31 +41,22 @@ async function _findPredictionRunsForTarget(targetId: string) {
         orderBy: { executedAt: 'desc' },
     })
 
-    // Fetch max ranks in a separate, efficient query
-    const runIds = runsWithPredictions.map((r) => r.id)
-    const maxRanks = await prisma.predictionRoute.groupBy({
-        by: ['predictionRunId'],
-        where: { predictionRunId: { in: runIds }, targetId },
-        _max: { rank: true },
-    })
-    const maxRankMap = new Map(maxRanks.map((r) => [r.predictionRunId, r._max.rank]))
+    // if in forensic mode, we are done. return everything.
+    if (viewMode === 'forensic') {
+        return runsWithPredictions
+    }
 
-    return runsWithPredictions.map((run) => {
-        const { versionMajor, versionMinor, versionPatch, versionPrerelease } = run.modelInstance
-        let versionString = `v${versionMajor}.${versionMinor}.${versionPatch}`
-        if (versionPrerelease) {
-            versionString += `-${versionPrerelease}`
+    // else, apply the "champion instance" curation logic.
+    const championsByFamily = new Map<string, (typeof runsWithPredictions)[0]>()
+    for (const run of runsWithPredictions) {
+        const familyId = run.modelInstance.family.id
+        const currentChampion = championsByFamily.get(familyId)
+
+        if (!currentChampion || compareVersions(currentChampion.modelInstance, run.modelInstance) < 0) {
+            championsByFamily.set(familyId, run)
         }
-        return {
-            id: run.id,
-            modelName: run.modelInstance.family.name,
-            modelVersion: versionString,
-            algorithmName: run.modelInstance.family.algorithm.name,
-            executedAt: run.executedAt,
-            routeCount: run._count.predictionRoutes,
-            maxRank: maxRankMap.get(run.id) || 0,
-        }
-    })
+    }
+    return Array.from(championsByFamily.values())
 }
 export const findPredictionRunsForTarget = cache(_findPredictionRunsForTarget, ['runs-for-target'], {
     tags: ['runs', 'targets', 'routes'],
