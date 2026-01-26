@@ -24,7 +24,7 @@ export const findAlgorithmListItems = cache(_findAlgorithmListItems, ['algorithm
 export type AlgorithmListItemPayload = Prisma.PromiseReturnType<typeof _findAlgorithmListItems>
 
 /** efficiently computes total instance counts for all algorithms. */
-async function _getAlgorithmInstanceCountsMap(): Promise<Map<string, number>> {
+async function _getAlgorithmInstanceCountsMap(): Promise<Record<string, number>> {
     const familiesWithCounts = await prisma.modelFamily.findMany({
         select: {
             algorithmId: true,
@@ -32,12 +32,10 @@ async function _getAlgorithmInstanceCountsMap(): Promise<Map<string, number>> {
         },
     })
 
-    const countsMap = new Map<string, number>()
-    for (const family of familiesWithCounts) {
-        const currentCount = countsMap.get(family.algorithmId) ?? 0
-        countsMap.set(family.algorithmId, currentCount + family._count.instances)
-    }
-    return countsMap
+    return familiesWithCounts.reduce<Record<string, number>>((acc, family) => {
+        acc[family.algorithmId] = (acc[family.algorithmId] ?? 0) + family._count.instances
+        return acc
+    }, {})
 }
 export const getAlgorithmInstanceCountsMap = cache(_getAlgorithmInstanceCountsMap, ['algorithm-instance-counts-map'], {
     tags: [...tags, 'models', 'families'],

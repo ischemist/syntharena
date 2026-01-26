@@ -29,7 +29,7 @@ export async function getAlgorithmListItems(): Promise<AlgorithmListItem[]> {
         name: a.name,
         slug: a.slug,
         description: a.description,
-        instanceCount: countsMap.get(a.id) ?? 0,
+        instanceCount: countsMap[a.id] ?? 0,
     }))
 }
 
