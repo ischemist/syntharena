@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Microscope, Trophy } from 'lucide-react'
+import { Code2, Trophy } from 'lucide-react'
 
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -49,7 +49,7 @@ export function DeveloperModeToggle() {
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <Label htmlFor="dev-mode-toggle" className="flex cursor-pointer items-center gap-1.5">
-                            <Microscope className="size-4" />
+                            <Code2 className="size-4" />
                             <span>Developer</span>
                         </Label>
                     </TooltipTrigger>
