@@ -1,9 +1,8 @@
-import Link from 'next/link'
-
 import type { TargetComparisonData } from '@/types'
-import { ControlGrid, ControlGridSlot, ModelSelector, RankNavigator } from '@/components/navigation'
+import { CompactRankNavigator, ControlGrid, ControlGridSlot, ModelSelector } from '@/components/navigation'
 import { PredictionComparison, RouteLegend } from '@/components/route-visualization'
-import { Button } from '@/components/ui/button'
+
+import { DisplayModeToggle } from '../client/display-mode-toggle'
 
 interface PredictionComparisonViewProps {
     data: TargetComparisonData
@@ -18,60 +17,47 @@ export function PredictionComparisonView({ data }: PredictionComparisonViewProps
             <div className="bg-muted/50 space-y-4 rounded-lg border p-4">
                 <ControlGrid>
                     <ControlGridSlot label="Model 1:">
-                        <ModelSelector
-                            runs={availableRuns}
-                            selectedRunId={model1?.runId}
-                            paramName="model1"
-                            rankParamName="rank1"
-                        />
-                        {model1 && (
-                            <RankNavigator
-                                paramName="rank1"
-                                prevHref={model1.previousRankHref}
-                                nextHref={model1.nextRankHref}
-                                currentRank={model1.rank}
-                                rankCount={model1.availableRanks.length}
-                                availableRanks={model1.availableRanks}
-                                label="Rank"
+                        <div className="flex items-center gap-2">
+                            <ModelSelector
+                                runs={availableRuns}
+                                selectedRunId={model1?.runId}
+                                paramName="model1"
+                                rankParamName="rank1"
                             />
-                        )}
+                            {model1 && (
+                                <CompactRankNavigator
+                                    paramName="rank1"
+                                    currentRank={model1.rank}
+                                    rankCount={model1.availableRanks.length}
+                                    availableRanks={model1.availableRanks}
+                                />
+                            )}
+                        </div>
                     </ControlGridSlot>
                     <ControlGridSlot label="Model 2:">
-                        <ModelSelector
-                            runs={availableRuns}
-                            selectedRunId={model2?.runId}
-                            paramName="model2"
-                            rankParamName="rank2"
-                        />
-                        {model2 && (
-                            <RankNavigator
-                                paramName="rank2"
-                                prevHref={model2.previousRankHref}
-                                nextHref={model2.nextRankHref}
-                                currentRank={model2.rank}
-                                rankCount={model2.availableRanks.length}
-                                availableRanks={model2.availableRanks}
-                                label="Rank"
+                        <div className="flex items-center gap-2">
+                            <ModelSelector
+                                runs={availableRuns}
+                                selectedRunId={model2?.runId}
+                                paramName="model2"
+                                rankParamName="rank2"
                             />
-                        )}
+                            {model2 && (
+                                <CompactRankNavigator
+                                    paramName="rank2"
+                                    currentRank={model2.rank}
+                                    rankCount={model2.availableRanks.length}
+                                    availableRanks={model2.availableRanks}
+                                />
+                            )}
+                        </div>
                     </ControlGridSlot>
                 </ControlGrid>
 
                 {model1 && model2 && (
-                    <div className="flex items-center justify-between">
+                    <div className="border-border/50 flex items-center justify-between border-t pt-3">
                         <span className="text-muted-foreground text-sm font-medium">Comparison View:</span>
-                        <div className="flex gap-1">
-                            <Button variant={displayMode === 'side-by-side' ? 'default' : 'outline'} size="sm" asChild>
-                                <Link href="?view=side-by-side" replace scroll={false}>
-                                    Side-by-Side
-                                </Link>
-                            </Button>
-                            <Button variant={displayMode === 'diff-overlay' ? 'default' : 'outline'} size="sm" asChild>
-                                <Link href="?view=diff-overlay" replace scroll={false}>
-                                    Diff Overlay
-                                </Link>
-                            </Button>
-                        </div>
+                        <DisplayModeToggle currentDisplayMode={displayMode} />
                     </div>
                 )}
             </div>

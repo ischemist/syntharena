@@ -1,5 +1,5 @@
 import type { TargetComparisonData } from '@/types'
-import { ControlGrid, ControlGridSlot, ModelSelector, RankNavigator } from '@/components/navigation'
+import { CompactRankNavigator, ControlGrid, ControlGridSlot, ModelSelector } from '@/components/navigation'
 import { RouteComparison, RouteLegend } from '@/components/route-visualization'
 
 import { DisplayModeToggle } from '../client/display-mode-toggle'
@@ -15,42 +15,41 @@ export function GroundTruthComparisonView({ data }: GroundTruthComparisonViewPro
     return (
         <div className="space-y-4">
             <div className="bg-muted/50 space-y-4 rounded-lg border p-4">
+                {/* section 1: the selection grid */}
                 <ControlGrid>
                     <ControlGridSlot label="Acceptable Route:">
-                        <RankNavigator
+                        <CompactRankNavigator
                             paramName="acceptableIndex"
-                            prevHref={acceptableRoute?.previousRankHref ?? null}
-                            nextHref={acceptableRoute?.nextRankHref ?? null}
                             currentRank={data.currentAcceptableIndex}
                             rankCount={data.totalAcceptableRoutes}
                             availableRanks={acceptableRoute?.availableRanks ?? []}
-                            label="Route"
                             isZeroBased
                         />
                     </ControlGridSlot>
                     <ControlGridSlot label="Model Prediction:">
-                        <ModelSelector
-                            runs={availableRuns}
-                            selectedRunId={model1?.runId}
-                            paramName="model1"
-                            rankParamName="rank1"
-                        />
-                        {model1 && (
-                            <RankNavigator
-                                paramName="rank1"
-                                prevHref={model1.previousRankHref}
-                                nextHref={model1.nextRankHref}
-                                currentRank={model1.rank}
-                                rankCount={model1.availableRanks.length}
-                                availableRanks={model1.availableRanks}
-                                label="Rank"
+                        {/* no extra div needed; the slot's flex-col will stack these */}
+                        <div className="flex items-center gap-2">
+                            <ModelSelector
+                                runs={availableRuns}
+                                selectedRunId={model1?.runId}
+                                paramName="model1"
+                                rankParamName="rank1"
                             />
-                        )}
+                            {model1 && (
+                                <CompactRankNavigator
+                                    paramName="rank1"
+                                    currentRank={model1.rank}
+                                    rankCount={model1.availableRanks.length}
+                                    availableRanks={model1.availableRanks}
+                                />
+                            )}
+                        </div>
                     </ControlGridSlot>
                 </ControlGrid>
 
+                {/* section 2: the view options bar */}
                 {model1 && (
-                    <div className="flex items-center justify-between">
+                    <div className="border-border/50 flex items-center justify-between border-t pt-3">
                         <span className="text-muted-foreground text-sm font-medium">Comparison View:</span>
                         <DisplayModeToggle currentDisplayMode={displayMode} />
                     </div>

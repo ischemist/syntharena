@@ -1,5 +1,5 @@
 import type { TargetComparisonData } from '@/types'
-import { RankNavigator } from '@/components/navigation'
+import { CompactRankNavigator } from '@/components/navigation'
 import { RouteGraph, RouteLegend } from '@/components/route-visualization'
 
 import { RouteJsonViewer } from '../client/route-json-viewer'
@@ -28,14 +28,11 @@ export function AcceptableRouteViewer({ data }: AcceptableRouteViewerProps) {
             {hasMultiple && (
                 <div className="bg-muted/50 rounded-lg border p-4">
                     <div className="mx-auto flex max-w-md justify-center">
-                        <RankNavigator
+                        <CompactRankNavigator
                             paramName="acceptableIndex"
-                            prevHref={acceptableRoute.previousRankHref}
-                            nextHref={acceptableRoute.nextRankHref}
                             currentRank={currentAcceptableIndex}
                             rankCount={totalAcceptableRoutes}
                             availableRanks={acceptableRoute.availableRanks}
-                            label="Route"
                             isZeroBased
                         />
                     </div>
