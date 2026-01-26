@@ -1,9 +1,8 @@
-import Link from 'next/link'
-
 import type { TargetComparisonData } from '@/types'
 import { ControlGrid, ControlGridSlot, ModelSelector, RankNavigator } from '@/components/navigation'
 import { RouteComparison, RouteLegend } from '@/components/route-visualization'
-import { Button } from '@/components/ui/button'
+
+import { DisplayModeToggle } from '../client/display-mode-toggle'
 
 interface GroundTruthComparisonViewProps {
     data: TargetComparisonData
@@ -53,18 +52,7 @@ export function GroundTruthComparisonView({ data }: GroundTruthComparisonViewPro
                 {model1 && (
                     <div className="flex items-center justify-between">
                         <span className="text-muted-foreground text-sm font-medium">Comparison View:</span>
-                        <div className="flex gap-1">
-                            <Button variant={displayMode === 'side-by-side' ? 'default' : 'outline'} size="sm" asChild>
-                                <Link href="?view=side-by-side" replace scroll={false}>
-                                    Side-by-Side
-                                </Link>
-                            </Button>
-                            <Button variant={displayMode === 'diff-overlay' ? 'default' : 'outline'} size="sm" asChild>
-                                <Link href="?view=diff-overlay" replace scroll={false}>
-                                    Diff Overlay
-                                </Link>
-                            </Button>
-                        </div>
+                        <DisplayModeToggle currentDisplayMode={displayMode} />
                     </div>
                 )}
             </div>

@@ -17,6 +17,6 @@ export const ControlGridSlot = ({
 }) => (
     <div className={cn('flex flex-col gap-1.5', className)}>
         <label className="text-muted-foreground text-sm font-medium">{label}</label>
-        <div className="flex items-center gap-2">{children}</div>
+        {children}
     </div>
 )
