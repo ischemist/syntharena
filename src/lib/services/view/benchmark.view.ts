@@ -202,3 +202,8 @@ export async function getTargetById(targetId: string): Promise<BenchmarkTargetWi
         hasAcceptableRoutes: target.acceptableRoutesCount > 0,
     }
 }
+
+/** thin wrapper to expose the first target id function. */
+export async function getFirstTargetIdForBenchmark(benchmarkId: string): Promise<string | null> {
+    return data.findFirstTargetId(benchmarkId)
+}

@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { ColumnDef } from '@tanstack/react-table'
-import { Check, X } from 'lucide-react'
+import { Check, GitCompareArrows, X } from 'lucide-react'
 
 import type { LeaderboardEntry } from '@/types'
 import { SubmissionBadge } from '@/components/badges/submission'
@@ -18,8 +19,37 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
  */
 export function createLeaderboardColumns(
     benchmarkSeries: LeaderboardEntry['benchmarkSeries'],
-    displayedTopK: string[]
+    displayedTopK: string[],
+    firstTargetId: string | null
 ): ColumnDef<LeaderboardEntry>[] {
+    const ActionCell = ({ row }: { row: any }) => {
+        const searchParams = useSearchParams()
+        const isForensic = searchParams.get('view') === 'forensic'
+        const { runId, benchmarkId, hasAcceptableRoutes } = row.original
+
+        if (!firstTargetId) return null
+        const comparisonModeParam = hasAcceptableRoutes ? '&mode=gt-vs-pred' : ''
+        const forensicParam = isForensic ? '&view=forensic' : ''
+        const href = `/benchmarks/${benchmarkId}/targets/${firstTargetId}?model1=${runId}${comparisonModeParam}${forensicParam}`
+
+        return (
+            <div className="flex justify-center">
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Link href={href}>
+                                <GitCompareArrows className="text-muted-foreground hover:text-foreground h-4 w-4 transition-colors" />
+                            </Link>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Compare against acceptable route</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            </div>
+        )
+    }
+
     const columns: ColumnDef<LeaderboardEntry>[] = [
         // Model Name Column
         {
@@ -180,5 +210,10 @@ export function createLeaderboardColumns(
         // Note: Custom sorting for submission type is likely not needed, but can be added here if required.
     })
 
+    columns.push({
+        id: 'actions',
+        header: 'Actions',
+        cell: ActionCell,
+    })
     return columns
 }

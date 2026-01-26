@@ -37,9 +37,14 @@ export default function LeaderboardPage({ searchParams }: LeaderboardPageProps) 
 /**
  * Async component that performs the single data fetch for the page.
  */
-async function LeaderboardContentWrapper({ searchParams }: { searchParams: Promise<{ benchmarkId?: string }> }) {
+async function LeaderboardContentWrapper({
+    searchParams,
+}: {
+    searchParams: Promise<{ benchmarkId?: string; view?: string }>
+}) {
     const params = await searchParams
-    const pageData = await getLeaderboardPageData(params.benchmarkId)
+    const viewMode = params.view === 'forensic' ? 'forensic' : 'curated'
+    const pageData = await getLeaderboardPageData(params.benchmarkId, viewMode)
 
     if (!pageData) {
         return (
@@ -50,8 +55,15 @@ async function LeaderboardContentWrapper({ searchParams }: { searchParams: Promi
         )
     }
 
-    const { leaderboardEntries, stratifiedMetricsByStock, stocks, metadata, allBenchmarks, selectedBenchmark } =
-        pageData
+    const {
+        leaderboardEntries,
+        stratifiedMetricsByStock,
+        stocks,
+        metadata,
+        allBenchmarks,
+        selectedBenchmark,
+        firstTargetId,
+    } = pageData
     const { hasAcceptableRoutes, availableTopKMetrics } = metadata
 
     return (
@@ -71,6 +83,7 @@ async function LeaderboardContentWrapper({ searchParams }: { searchParams: Promi
                     stocks={stocks}
                     hasAcceptableRoutes={hasAcceptableRoutes}
                     availableTopKMetrics={availableTopKMetrics}
+                    firstTargetId={firstTargetId}
                 />
             )}
         </>
@@ -85,6 +98,7 @@ function LeaderboardMetrics({
     stocks,
     hasAcceptableRoutes,
     availableTopKMetrics,
+    firstTargetId,
 }: Omit<LeaderboardPageData, 'allBenchmarks' | 'metadata'> & LeaderboardPageData['metadata']) {
     const stockName = leaderboardEntries[0].stockName
 
@@ -97,6 +111,7 @@ function LeaderboardMetrics({
                     hasAcceptableRoutes={hasAcceptableRoutes}
                     stockName={stockName}
                     topKMetricNames={[]}
+                    firstTargetId={firstTargetId}
                 />
                 <StratifiedMetricsWrapper
                     metricsByStock={stratifiedMetricsByStock}
@@ -116,6 +131,7 @@ function LeaderboardMetrics({
                     hasAcceptableRoutes={hasAcceptableRoutes}
                     stockName={stockName}
                     topKMetricNames={availableTopKMetrics}
+                    firstTargetId={firstTargetId}
                 />
                 <StratifiedMetricsWrapper
                     metricsByStock={stratifiedMetricsByStock}

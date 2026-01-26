@@ -3,8 +3,8 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 
 import {
     BenchmarkMetricsDisplay,
-    MetricsViewProvider,
-    MetricsViewToggleButtons,
+    MetricsDisplayProvider,
+    MetricsDisplayToggleButtons,
 } from '../client/benchmark-metrics-display'
 
 type BenchmarkLeaderboardOverallProps = {
@@ -13,6 +13,7 @@ type BenchmarkLeaderboardOverallProps = {
     hasAcceptableRoutes: boolean
     stockName: string
     topKMetricNames: string[] // now receives this directly
+    firstTargetId: string | null
 }
 
 /**
@@ -29,9 +30,10 @@ export function BenchmarkLeaderboardOverall({
     hasAcceptableRoutes,
     stockName,
     topKMetricNames,
+    firstTargetId,
 }: BenchmarkLeaderboardOverallProps) {
     return (
-        <MetricsViewProvider>
+        <MetricsDisplayProvider>
             <Card variant="bordered">
                 <CardHeader>
                     <CardTitle>Overall Metrics</CardTitle>
@@ -40,7 +42,7 @@ export function BenchmarkLeaderboardOverall({
                         {!hasAcceptableRoutes && ' (solvability only)'}
                     </CardDescription>
                     <CardAction>
-                        <MetricsViewToggleButtons />
+                        <MetricsDisplayToggleButtons />
                     </CardAction>
                 </CardHeader>
                 <CardContent>
@@ -48,9 +50,10 @@ export function BenchmarkLeaderboardOverall({
                         entries={entries}
                         benchmarkSeries={benchmarkSeries}
                         topKMetricNames={topKMetricNames}
+                        firstTargetId={firstTargetId}
                     />
                 </CardContent>
             </Card>
-        </MetricsViewProvider>
+        </MetricsDisplayProvider>
     )
 }

@@ -723,6 +723,8 @@ export interface RunStatistics {
  * One row per model-benchmark-stock combination.
  */
 export interface LeaderboardEntry {
+    runId: string
+    benchmarkId: string
     modelName: string
     version: string
     modelInstanceSlug: string
@@ -730,6 +732,7 @@ export interface LeaderboardEntry {
     benchmarkSeries: BenchmarkSeries
     stockName: string
     submissionType: SubmissionType
+    hasAcceptableRoutes: boolean
     isRetrained: PredictionRunWithStats['isRetrained']
     metrics: {
         solvability: MetricResult

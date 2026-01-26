@@ -1,5 +1,6 @@
 import type { BenchmarkListItem, BenchmarkSeries } from '@/types'
 import { BenchmarkSeriesBadge } from '@/components/badges/benchmark-series'
+import { ForensicViewToggle } from '@/components/forensic-view-toggle'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -26,11 +27,14 @@ export function BenchmarkLeaderboardHeader({ benchmark, benchmarks }: BenchmarkL
                         </div>
                         {benchmark.description && <CardDescription>{benchmark.description}</CardDescription>}
                     </div>
-                    <div className="flex items-center gap-2">
-                        <label htmlFor="benchmark-select" className="text-muted-foreground text-sm font-medium">
-                            Benchmark:
-                        </label>
-                        <BenchmarkCombobox benchmarks={benchmarks} selectedId={benchmark.id} />
+                    <div className="flex items-center gap-4">
+                        <ForensicViewToggle />
+                        <div className="flex items-center gap-2">
+                            <label htmlFor="benchmark-select" className="text-muted-foreground text-sm font-medium">
+                                Benchmark:
+                            </label>
+                            <BenchmarkCombobox benchmarks={benchmarks} selectedId={benchmark.id} />
+                        </div>
                     </div>
                 </div>
             </CardHeader>

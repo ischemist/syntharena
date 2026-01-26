@@ -38,6 +38,7 @@ export interface LeaderboardPageData {
     }
     allBenchmarks: Array<{ id: string; name: string; series: BenchmarkListItem['series'] }>
     selectedBenchmark: BenchmarkListItem
+    firstTargetId: string | null
 }
 
 type RawStatsPayload = Prisma.PromiseReturnType<typeof statsData.findStatisticsForLeaderboard>
@@ -151,6 +152,9 @@ function _transformStatsToLeaderboardDTOs(
         }
 
         leaderboardEntries.push({
+            runId: stat.predictionRun.id,
+            benchmarkId: stat.predictionRun.benchmarkSetId,
+            hasAcceptableRoutes: predictionRun.benchmarkSet.hasAcceptableRoutes,
             modelName,
             version: formatVersion(modelInstance),
             modelInstanceSlug: modelInstance.slug,
@@ -238,11 +242,12 @@ export async function getLeaderboardPageData(
         benchmarkId && allBenchmarks.some((b) => b.id === benchmarkId) ? benchmarkId : allBenchmarks[0].id
 
     // wave 2: fetch all data for the effective benchmark in parallel.
-    const [rawStats, selectedBenchmarkRaw] = await Promise.all([
+    const [rawStats, selectedBenchmarkRaw, firstTargetId] = await Promise.all([
         statsData.findStatisticsForLeaderboard({
             predictionRun: { benchmarkSetId: effectiveBenchmarkId },
         }),
         benchmarkData.findBenchmarkListItemById(effectiveBenchmarkId),
+        benchmarkData.findFirstTargetId(effectiveBenchmarkId),
     ])
 
     // transform selected benchmark data into DTO
@@ -269,6 +274,7 @@ export async function getLeaderboardPageData(
             },
             allBenchmarks,
             selectedBenchmark,
+            firstTargetId,
         }
     }
 
@@ -310,5 +316,6 @@ export async function getLeaderboardPageData(
         },
         allBenchmarks,
         selectedBenchmark,
+        firstTargetId,
     }
 }
