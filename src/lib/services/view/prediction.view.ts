@@ -15,13 +15,13 @@ import type {
     PredictionRunWithStats,
     ReliabilityCode,
     RouteNodeWithDetails,
-    RouteVisualizationNode,
     RunStatistics,
     StockListItem,
     StratifiedMetric,
     SubmissionType,
     TargetDisplayData,
     TargetInfo,
+    VendorSource,
 } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkData from '@/lib/services/data/benchmark.data'
@@ -34,6 +34,111 @@ import * as stockData from '@/lib/services/data/stock.data'
 import { buildRouteTree } from '@/lib/tree-builder/route-tree'
 
 import { toVisualizationNode } from './route.view'
+
+// ============================================================================
+// private helpers
+// ============================================================================
+
+/** a pure, testable helper for processing raw stock item data. */
+function _processStockData(
+    stockItems: Array<{
+        ppg: number | null
+        source: VendorSource | null
+        leadTime: string | null
+        link: string | null
+        molecule: { inchikey: string }
+    }>
+) {
+    const inStockInchiKeys = new Set<string>()
+    const buyableMetadataMap = new Map<string, BuyableMetadata>()
+
+    for (const item of stockItems) {
+        inStockInchiKeys.add(item.molecule.inchikey)
+        // FIX: explicitly construct the BuyableMetadata object to match the type
+        buyableMetadataMap.set(item.molecule.inchikey, {
+            ppg: item.ppg,
+            source: item.source,
+            leadTime: item.leadTime,
+            link: item.link,
+        })
+    }
+
+    return { inStockInchiKeys, buyableMetadataMap }
+}
+
+/** a pure, testable helper for calculating all navigation hrefs for the run target display. */
+function _buildRunTargetNavigation(
+    runId: string,
+    params: {
+        targetId: string
+        rank: number
+        stockId?: string
+        acceptableIndex?: number
+        viewMode?: string
+    },
+    data: {
+        availableRanks: number[]
+        totalAcceptableRoutes: number
+    }
+) {
+    const buildHref = (paramToChange: string, newValue: number) => {
+        const search = new URLSearchParams()
+        search.set('target', params.targetId)
+        search.set('rank', params.rank.toString())
+        if (params.stockId) search.set('stock', params.stockId)
+        if (params.acceptableIndex !== undefined) search.set('acceptableIndex', params.acceptableIndex.toString())
+        if (params.viewMode) search.set('view', params.viewMode)
+
+        search.set(paramToChange, newValue.toString())
+        return `/runs/${runId}?${search.toString()}`
+    }
+
+    // 1. predicted route navigation
+    const currentRankIndex = data.availableRanks.indexOf(params.rank)
+    let previousRankHref: string | null = null
+    let nextRankHref: string | null = null
+    if (currentRankIndex !== -1) {
+        if (currentRankIndex > 0) {
+            previousRankHref = buildHref('rank', data.availableRanks[currentRankIndex - 1])
+        }
+        if (currentRankIndex < data.availableRanks.length - 1) {
+            nextRankHref = buildHref('rank', data.availableRanks[currentRankIndex + 1])
+        }
+    }
+
+    // 2. acceptable route navigation
+    const currentAcceptableIndex = params.acceptableIndex ?? 0
+    const acceptableRanks = Array.from({ length: data.totalAcceptableRoutes }, (_, i) => i)
+    let prevAccHref: string | null = null
+    let nextAccHref: string | null = null
+    if (data.totalAcceptableRoutes > 1) {
+        if (currentAcceptableIndex > 0) {
+            prevAccHref = buildHref('acceptableIndex', currentAcceptableIndex - 1)
+        }
+        if (currentAcceptableIndex < data.totalAcceptableRoutes - 1) {
+            nextAccHref = buildHref('acceptableIndex', currentAcceptableIndex + 1)
+        }
+    }
+
+    return {
+        predictionNav: {
+            currentRank: params.rank,
+            availableRanks: data.availableRanks,
+            previousRankHref,
+            nextRankHref,
+        },
+        acceptableNav: {
+            currentAcceptableIndex,
+            availableRanks: acceptableRanks,
+            previousRankHref: prevAccHref,
+            nextRankHref: nextAccHref,
+        },
+    }
+}
+
+// ============================================================================
+// public view model orchestrators
+// ============================================================================
 
 /** prepares the DTO for the main prediction run list page. */
 export async function getPredictionRuns(
@@ -163,10 +268,6 @@ export async function getPredictionRunsForTarget(
     })
 }
 
-// ============================================================================
-// Run Detail Page Functions
-// ============================================================================
-
 /** DTO for the run detail page breadcrumb. */
 export interface RunDetailBreadcrumbData {
     modelName: string
@@ -214,7 +315,6 @@ export async function getAvailableRouteLengths(runId: string): Promise<number[]>
 export async function getRunStatistics(runId: string, stockId: string): Promise<RunStatistics> {
     const stats = await statsData.findStatisticsForRun(runId, stockId)
 
-    // Parse statistics JSON
     let parsedStats: ModelStatistics | undefined
     try {
         parsedStats = JSON.parse(stats.statisticsJson) as ModelStatistics
@@ -222,7 +322,6 @@ export async function getRunStatistics(runId: string, stockId: string): Promise<
         console.error('Failed to parse statistics JSON:', error)
     }
 
-    // Fallback: reconstruct from metrics table
     if (!parsedStats) {
         parsedStats = reconstructStatisticsFromMetrics(stats.metrics)
     }
@@ -242,22 +341,16 @@ export async function getRunStatistics(runId: string, stockId: string): Promise<
     }
 }
 
-// ============================================================================
-// Target Search Functions
-// ============================================================================
-
 /**
  * searches targets within a run's benchmark by targetId or SMILES.
- * now correctly fetches prediction counts for the specific run.
  */
 export async function searchTargets(
     runId: string,
     query: string,
-    stockId?: string, // remains for signature consistency, but unused here
+    stockId?: string,
     routeLength?: number,
     limit: number = 20
 ): Promise<BenchmarkTargetWithMolecule[]> {
-    // build the prisma where clause from search params
     const where: Prisma.BenchmarkTargetWhereInput = {}
     if (query?.trim()) {
         const q = query.trim()
@@ -267,24 +360,16 @@ export async function searchTargets(
         where.routeLength = routeLength
     }
 
-    // call our new, dedicated data-layer function
     const { targets, counts } = await predictionData.findTargetsAndPredictionCountsForRun(runId, where, limit)
-
-    // map the counts for quick lookup
     const countMap = new Map(counts.map((c) => [c.targetId, c._count._all]))
 
-    // assemble the final DTO, correctly populating `routeCount`
     return targets.map((target) => ({
         ...target,
-        hasAcceptableRoutes: false, // not needed for this component, but required by type
-        acceptableRoutesCount: 0, // not needed
-        routeCount: countMap.get(target.id) ?? 0, // <-- THE CRITICAL FIX
+        hasAcceptableRoutes: false,
+        acceptableRoutesCount: 0,
+        routeCount: countMap.get(target.id) ?? 0,
     }))
 }
-
-// ============================================================================
-// Route Tree Functions
-// ============================================================================
 
 /** fetches acceptable route with full node tree built. */
 export async function getAcceptableRouteWithNodes(routeId: string): Promise<RouteNodeWithDetails | null> {
@@ -300,14 +385,7 @@ export async function getAcceptableRouteWithNodes(routeId: string): Promise<Rout
     }
 }
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/**
- * Reconstruct ModelStatistics from StratifiedMetricGroup records.
- * Fallback for when JSON parsing fails.
- */
+/** Fallback for when JSON parsing fails. */
 function reconstructStatisticsFromMetrics(
     metrics: Array<{
         metricName: string
@@ -320,26 +398,20 @@ function reconstructStatisticsFromMetrics(
         reliabilityMessage: string
     }>
 ): ModelStatistics {
+    // ... implementation remains the same
     const solvabilityMetrics = metrics.filter((m) => m.metricName === 'Solvability')
     const topKMetrics = metrics.filter((m) => m.metricName.startsWith('Top-'))
-
-    // Build solvability stratified metric
     const solvabilityOverall = solvabilityMetrics.find((m) => m.groupKey === null)
     const solvabilityByGroup: Record<number, MetricResult> = {}
-
     for (const metric of solvabilityMetrics.filter((m) => m.groupKey !== null)) {
         solvabilityByGroup[metric.groupKey!] = {
             value: metric.value,
             ciLower: metric.ciLower,
             ciUpper: metric.ciUpper,
             nSamples: metric.nSamples,
-            reliability: {
-                code: metric.reliabilityCode as ReliabilityCode,
-                message: metric.reliabilityMessage,
-            },
+            reliability: { code: metric.reliabilityCode as ReliabilityCode, message: metric.reliabilityMessage },
         }
     }
-
     const solvability: StratifiedMetric = {
         metricName: 'Solvability',
         overall: solvabilityOverall
@@ -353,38 +425,24 @@ function reconstructStatisticsFromMetrics(
                       message: solvabilityOverall.reliabilityMessage,
                   },
               }
-            : {
-                  value: 0,
-                  ciLower: 0,
-                  ciUpper: 0,
-                  nSamples: 0,
-                  reliability: { code: 'LOW_N', message: 'No data' },
-              },
+            : { value: 0, ciLower: 0, ciUpper: 0, nSamples: 0, reliability: { code: 'LOW_N', message: 'No data' } },
         byGroup: solvabilityByGroup,
     }
-
-    // Build top-k accuracy metrics
     const topKAccuracy: Record<string, StratifiedMetric> = {}
     const topKNames = [...new Set(topKMetrics.map((m) => m.metricName))]
-
     for (const metricName of topKNames) {
         const metricsForK = topKMetrics.filter((m) => m.metricName === metricName)
         const overall = metricsForK.find((m) => m.groupKey === null)
         const byGroup: Record<number, MetricResult> = {}
-
         for (const metric of metricsForK.filter((m) => m.groupKey !== null)) {
             byGroup[metric.groupKey!] = {
                 value: metric.value,
                 ciLower: metric.ciLower,
                 ciUpper: metric.ciUpper,
                 nSamples: metric.nSamples,
-                reliability: {
-                    code: metric.reliabilityCode as ReliabilityCode,
-                    message: metric.reliabilityMessage,
-                },
+                reliability: { code: metric.reliabilityCode as ReliabilityCode, message: metric.reliabilityMessage },
             }
         }
-
         if (overall) {
             topKAccuracy[metricName] = {
                 metricName,
@@ -402,11 +460,7 @@ function reconstructStatisticsFromMetrics(
             }
         }
     }
-
-    return {
-        solvability,
-        ...(Object.keys(topKAccuracy).length > 0 && { topKAccuracy }),
-    }
+    return { solvability, ...(Object.keys(topKAccuracy).length > 0 && { topKAccuracy }) }
 }
 
 /** DTO for the new run detail page title card. */
@@ -427,12 +481,8 @@ export interface RunTitleCardData {
 
 /** Prepares the DTO for the new run detail page title card. */
 export async function getRunTitleCardData(runId: string): Promise<RunTitleCardData> {
-    // NOTE: This reuses the `findPredictionRunHeaderById` from run.data.ts for efficiency.
-    // If it needs more fields, update the data layer function first.
-    // We need to fetch the full run to get submissionType/isRetrained.
     const run = await runData.findPredictionRunDetailsById(runId)
     const { modelInstance, benchmarkSet, statistics } = run
-
     return {
         modelFamilyName: modelInstance.family.name,
         modelFamilySlug: modelInstance.family.slug,
@@ -449,36 +499,25 @@ export async function getRunTitleCardData(runId: string): Promise<RunTitleCardDa
     }
 }
 
-/**
- * Determines the default stock and target for a run.
- * Used to render the initial page state without a client-side redirect.
- */
+/** Determines the default stock and target for a run. */
 export async function getRunDefaults(
     runId: string,
     currentStockId?: string,
     currentTargetId?: string
 ): Promise<{ stockId: string | undefined; targetId: string | undefined }> {
     if (currentStockId) {
-        // If stock is set, we just need to check if we should default the target
         if (currentTargetId) return { stockId: currentStockId, targetId: currentTargetId }
         const targetIds = await getTargetIdsByRun(runId)
         return { stockId: currentStockId, targetId: targetIds[0] }
     }
-
-    // No stock is set, so find the first available one
     const stocks = await getStocksForRun(runId)
     if (stocks.length === 0) return { stockId: undefined, targetId: undefined }
-
     const defaultStockId = stocks[0].id
     const targetIds = await getTargetIdsByRun(runId)
     return { stockId: defaultStockId, targetId: targetIds[0] }
 }
 
-/**
- * The "mega-dto" orchestrator for the target display section.
- * Fetches and composes ALL data needed for this UI section in parallel waves
- * to eliminate component-level request waterfalls.
- */
+/** The "mega-dto" orchestrator for the target display section. */
 export async function getTargetDisplayData(
     runId: string,
     targetId: string,
@@ -487,7 +526,7 @@ export async function getTargetDisplayData(
     acceptableIndexProp?: number,
     viewMode?: string
 ): Promise<TargetDisplayData> {
-    // --- Wave 1: Fetch all independent base data in parallel ---
+    // Wave 1
     const [targetPayload, predictionSummaries, acceptableRoutes, prediction, firstMatchRank] = await Promise.all([
         benchmarkData.findTargetWithDetailsById(targetId),
         routeData.findPredictionSummaries(targetId, runId),
@@ -496,14 +535,13 @@ export async function getTargetDisplayData(
         stockId ? routeData.findFirstAcceptableMatchRank(targetId, runId, stockId) : Promise.resolve(undefined),
     ])
 
-    // --- Process Wave 1 results and prepare for Wave 2 ---
+    // Process Wave 1
     const totalPredictions = predictionSummaries.length
     const hasPredictions = totalPredictions > 0
     const totalAcceptableRoutes = acceptableRoutes.length
     const currentAcceptableIndex =
         totalAcceptableRoutes > 0 ? Math.min(Math.max(0, acceptableIndexProp ?? 0), totalAcceptableRoutes - 1) : 0
     const selectedAcceptable = totalAcceptableRoutes > 0 ? acceptableRoutes[currentAcceptableIndex] : undefined
-
     const targetInfo: TargetInfo = {
         targetId: targetPayload.targetId,
         molecule: targetPayload.molecule,
@@ -513,124 +551,63 @@ export async function getTargetDisplayData(
         acceptableMatchRank: firstMatchRank ?? undefined,
     }
 
-    // --- Wave 2: Fetch route node data based on IDs from Wave 1 ---
-    const nodePromises = []
-    if (prediction) {
-        nodePromises.push(routeData.findNodesForRoute(prediction.route.id))
-    }
-    if (selectedAcceptable) {
-        nodePromises.push(routeData.findNodesForRoute(selectedAcceptable.route.id))
-    }
-    const [predictedNodes, acceptableNodes] = await Promise.all(nodePromises)
+    // Wave 2
+    const [predictedNodes, acceptableNodes] = await Promise.all([
+        prediction ? routeData.findNodesForRoute(prediction.route.id) : Promise.resolve(undefined),
+        selectedAcceptable ? routeData.findNodesForRoute(selectedAcceptable.route.id) : Promise.resolve(undefined),
+    ])
 
-    // --- Process Wave 2: Build trees and collect all molecules ---
+    // Process Wave 2
     const allInchiKeys = new Set<string>()
-    let predictedVizNode: RouteVisualizationNode | null = null
-    let acceptableVizNode: RouteVisualizationNode | null = null
+    const predictedVizNode = predictedNodes ? toVisualizationNode(buildRouteTree(predictedNodes)) : null
+    if (predictedVizNode) getAllRouteInchiKeysSet(predictedVizNode).forEach((key) => allInchiKeys.add(key))
+    const acceptableVizNode = acceptableNodes ? toVisualizationNode(buildRouteTree(acceptableNodes)) : null
+    if (acceptableVizNode) getAllRouteInchiKeysSet(acceptableVizNode).forEach((key) => allInchiKeys.add(key))
 
-    if (predictedNodes && predictedNodes.length > 0) {
-        const tree = buildRouteTree(predictedNodes)
-        predictedVizNode = toVisualizationNode(tree)
-        getAllRouteInchiKeysSet(predictedVizNode).forEach((key) => allInchiKeys.add(key))
-    }
-    if (acceptableNodes && acceptableNodes.length > 0) {
-        const tree = buildRouteTree(acceptableNodes)
-        acceptableVizNode = toVisualizationNode(tree)
-        getAllRouteInchiKeysSet(acceptableVizNode).forEach((key) => allInchiKeys.add(key))
-    }
-
-    // --- Wave 3: Fetch stock data for all collected molecules ---
-    let inStockInchiKeys = new Set<string>()
-    let buyableMetadataMap = new Map<string, BuyableMetadata>()
+    // Wave 3
     let stockName: string | undefined
-
+    let stockDataResult = {
+        inStockInchiKeys: new Set<string>(),
+        buyableMetadataMap: new Map<string, BuyableMetadata>(),
+    }
     if (stockId) {
-        // We still fetch stock name in parallel with the main data query
         const [stockItems, stockNameResult] = await Promise.all([
             allInchiKeys.size > 0
                 ? stockData.findStockDataForInchiKeys(Array.from(allInchiKeys), stockId)
                 : Promise.resolve([]),
             stockData.findStockNameById(stockId),
         ])
-
         stockName = stockNameResult?.name
-
-        // Process the single result array into both the Set and the Map
-        for (const item of stockItems) {
-            inStockInchiKeys.add(item.molecule.inchikey)
-            buyableMetadataMap.set(item.molecule.inchikey, item)
-        }
+        stockDataResult = _processStockData(stockItems)
     }
 
-    // --- Wave 3.5: Calculate Navigation State ---
-    const availableRanks = predictionSummaries.map((s) => s.rank)
-    const currentRankIndex = availableRanks.indexOf(rank)
+    // Final Assembly
+    const navState = _buildRunTargetNavigation(
+        runId,
+        { targetId, rank, stockId, acceptableIndex: currentAcceptableIndex, viewMode },
+        { availableRanks: predictionSummaries.map((s) => s.rank), totalAcceptableRoutes }
+    )
 
-    let previousRankHref: string | null = null
-    let nextRankHref: string | null = null
-
-    if (currentRankIndex !== -1) {
-        const buildHref = (newRank: number) => {
-            const params = new URLSearchParams()
-            params.set('target', targetId)
-            params.set('rank', newRank.toString())
-            if (stockId) params.set('stock', stockId)
-            if (acceptableIndexProp !== undefined) params.set('acceptableIndex', acceptableIndexProp.toString())
-            if (viewMode) params.set('view', viewMode)
-            return `/runs/${runId}?${params.toString()}`
-        }
-
-        if (currentRankIndex > 0) {
-            previousRankHref = buildHref(availableRanks[currentRankIndex - 1])
-        }
-        if (currentRankIndex < availableRanks.length - 1) {
-            nextRankHref = buildHref(availableRanks[currentRankIndex + 1])
-        }
-    }
-    // --- Wave 3.6: Calculate Navigation State for Acceptable Route ---
-    const acceptableRanks = Array.from({ length: totalAcceptableRoutes }, (_, i) => i)
-    let prevAccHref: string | null = null
-    let nextAccHref: string | null = null
-
-    if (totalAcceptableRoutes > 1) {
-        const buildHref = (newIndex: number) => {
-            const params = new URLSearchParams()
-            params.set('target', targetId)
-            params.set('rank', rank.toString())
-            if (stockId) params.set('stock', stockId)
-            if (viewMode) params.set('view', viewMode)
-            params.set('acceptableIndex', newIndex.toString())
-            return `/runs/${runId}?${params.toString()}`
-        }
-
-        if (currentAcceptableIndex > 0) {
-            prevAccHref = buildHref(currentAcceptableIndex - 1)
-        }
-        if (currentAcceptableIndex < totalAcceptableRoutes - 1) {
-            nextAccHref = buildHref(currentAcceptableIndex + 1)
-        }
-    }
-
-    // --- Final Assembly: Construct the mega-DTO ---
-    const currentPrediction = prediction
-        ? (() => {
-              // create a scope to safely handle the nullable 'prediction'
-              const solvabilityRecord = prediction.solvabilityStatus.find((s) => s.stockId === stockId)
-              return {
-                  predictionRoute: prediction,
-                  route: prediction.route,
-                  visualizationNode: predictedVizNode!,
-                  solvability: solvabilityRecord
-                      ? {
-                            stockId: solvabilityRecord.stockId,
-                            stockName: solvabilityRecord.stock.name,
-                            isSolvable: solvabilityRecord.isSolvable,
-                            matchesAcceptable: solvabilityRecord.matchesAcceptable,
-                        }
-                      : undefined,
-              }
-          })()
-        : null
+    const currentPrediction =
+        prediction && predictedVizNode
+            ? (() => {
+                  const solvabilityRecord = prediction.solvabilityStatus.find((s) => s.stockId === stockId)
+                  return {
+                      predictionRoute: prediction,
+                      route: prediction.route,
+                      visualizationNode: predictedVizNode,
+                      // FIX: correctly map the record to the DTO shape
+                      solvability: solvabilityRecord
+                          ? {
+                                stockId: solvabilityRecord.stockId,
+                                stockName: solvabilityRecord.stock.name,
+                                isSolvable: solvabilityRecord.isSolvable,
+                                matchesAcceptable: solvabilityRecord.matchesAcceptable,
+                            }
+                          : undefined,
+                  }
+              })()
+            : null
 
     return {
         targetInfo: { ...targetInfo, hasNoPredictions: !hasPredictions },
@@ -642,21 +619,10 @@ export async function getTargetDisplayData(
         stockInfo: {
             stockId,
             stockName,
-            inStockInchiKeys,
-            buyableMetadataMap,
+            ...stockDataResult,
         },
         viewMode,
-        navigation: {
-            currentRank: rank,
-            availableRanks,
-            previousRankHref,
-            nextRankHref,
-        },
-        acceptableRouteNav: {
-            currentAcceptableIndex,
-            availableRanks: acceptableRanks,
-            previousRankHref: prevAccHref,
-            nextRankHref: nextAccHref,
-        },
+        navigation: navState.predictionNav,
+        acceptableRouteNav: navState.acceptableNav,
     }
 }
