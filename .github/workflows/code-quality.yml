@@ -27,7 +27,7 @@ jobs:
               run: pnpm install --frozen-lockfile
 
             - name: Generate Prisma client
-              run: pnpx prisma generate
+              run: pnpm prisma generate
               env:
                   DATABASE_URL: 'file:./dev.db'
 
