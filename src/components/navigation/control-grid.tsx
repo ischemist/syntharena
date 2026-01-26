@@ -1,17 +1,11 @@
 import { cn } from '@/lib/utils'
 
+/** a layout primitive that enforces rigid, responsive alignment for control panels. */
 export const ControlGrid = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-    <div
-        className={cn(
-            'grid items-end gap-x-4 gap-y-2',
-            // a responsive grid: 1 col on mobile, auto-fit on larger screens
-            'grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(300px,1fr))]',
-            className
-        )}
-        {...props}
-    />
+    <div className={cn('grid items-end gap-x-6 gap-y-4 md:grid-cols-2', className)} {...props} />
 )
 
+/** a labeled slot within the control grid. */
 export const ControlGridSlot = ({
     label,
     className,

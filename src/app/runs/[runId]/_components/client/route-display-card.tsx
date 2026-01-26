@@ -1,10 +1,8 @@
-'use client'
-
 import { Star } from 'lucide-react'
 
 import type { BuyableMetadata, PredictionRoute, Route, RouteViewMode, RouteVisualizationNode } from '@/types'
 import { StockTerminationBadge } from '@/components/badges/stock-termination'
-import { RankSelector, StepButton } from '@/components/navigation'
+import { ControlGrid, ControlGridSlot, RankNavigator } from '@/components/navigation'
 import { RouteComparison, RouteGraph, RouteLegend } from '@/components/route-visualization'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -37,11 +35,6 @@ type RouteDisplayCardProps = {
     }
 }
 
-/**
- * [REFACTORED] client component for displaying a prediction route on the run detail page.
- * now uses the new data-driven navigation primitives (`StepButton`, `RankSelector`)
- * and has a cleaner, more logical layout for its controls.
- */
 export function RouteDisplayCard({
     route,
     predictionRoute,
@@ -108,46 +101,35 @@ export function RouteDisplayCard({
 
             <CardContent className="space-y-4">
                 <Separator />
-                <div className="grid grid-cols-1 gap-x-6 gap-y-4 pt-2 sm:grid-cols-2">
-                    {showAcceptableNav ? (
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Acceptable Route</label>
-                            <div className="flex items-center gap-2">
-                                <StepButton href={acceptableRouteNav.previousRankHref} direction="prev">
-                                    Prev
-                                </StepButton>
-                                <div className="text-muted-foreground flex-1 text-center text-sm">
-                                    {acceptableRouteNav.currentAcceptableIndex + 1} of{' '}
-                                    {acceptableRouteNav.availableRanks.length}
-                                </div>
-                                <StepButton href={acceptableRouteNav.nextRankHref} direction="next">
-                                    Next
-                                </StepButton>
-                            </div>
-                        </div>
-                    ) : (
-                        <div />
-                    )}
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium">Prediction Rank</label>
-                        <div className="flex items-center gap-2">
-                            <StepButton href={navigation.previousRankHref} direction="prev">
-                                Prev
-                            </StepButton>
-                            <div className="text-muted-foreground flex-1 text-center text-sm">
-                                {navigation.currentRank} of {navigation.availableRanks.length}
-                            </div>
-                            <StepButton href={navigation.nextRankHref} direction="next">
-                                Next
-                            </StepButton>
-                            <RankSelector
-                                availableRanks={navigation.availableRanks}
-                                currentRank={navigation.currentRank}
-                                paramName="rank"
+                <ControlGrid className="pt-2">
+                    {showAcceptableNav && acceptableRouteNav ? (
+                        <ControlGridSlot label="Acceptable Route:">
+                            <RankNavigator
+                                paramName="acceptableIndex"
+                                prevHref={acceptableRouteNav.previousRankHref}
+                                nextHref={acceptableRouteNav.nextRankHref}
+                                currentRank={acceptableRouteNav.currentAcceptableIndex}
+                                rankCount={acceptableRouteNav.availableRanks.length}
+                                availableRanks={acceptableRouteNav.availableRanks}
+                                label="Route"
+                                isZeroBased
                             />
-                        </div>
-                    </div>
-                </div>
+                        </ControlGridSlot>
+                    ) : (
+                        <div /> // Empty div to maintain grid structure
+                    )}
+                    <ControlGridSlot label="Prediction:">
+                        <RankNavigator
+                            paramName="rank"
+                            prevHref={navigation.previousRankHref}
+                            nextHref={navigation.nextRankHref}
+                            currentRank={navigation.currentRank}
+                            rankCount={navigation.availableRanks.length}
+                            availableRanks={navigation.availableRanks}
+                            label="Rank"
+                        />
+                    </ControlGridSlot>
+                </ControlGrid>
 
                 <Separator />
 

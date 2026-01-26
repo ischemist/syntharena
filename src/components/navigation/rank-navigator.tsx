@@ -1,57 +1,70 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-import { StepButton } from './step-button' // we'll still use this inside
+import { StepButton } from './step-button'
 
 interface RankNavigatorProps {
-    // a function to build the href for a given rank, e.g. `(rank) => buildHref({ rank1: rank })`
-    buildHref: (rank: number) => string
-    // url for the previous and next valid ranks
+    paramName: 'rank' | 'rank1' | 'rank2' | 'acceptableIndex'
     prevHref: string | null
     nextHref: string | null
-    // current rank and the total number of valid ranks
     currentRank: number
     rankCount: number
-    // the actual list of available ranks to validate against
     availableRanks: number[]
-    // label for the rank, e.g. 'Rank' or 'Route'
     label: string
+    isZeroBased?: boolean
 }
 
+/** a scalable, compact navigator for ranked items. replaces dropdowns with a jump-to input. */
 export function RankNavigator({
-    buildHref,
+    paramName,
     prevHref,
     nextHref,
     currentRank,
     rankCount,
     availableRanks,
     label,
+    isZeroBased = false,
 }: RankNavigatorProps) {
-    const [jumpValue, setJumpValue] = React.useState(String(currentRank))
+    const [jumpValue, setJumpValue] = React.useState(String(isZeroBased ? currentRank + 1 : currentRank))
     const router = useRouter()
+    const pathname = usePathname()
+    const searchParams = useSearchParams()
+
+    const buildHref = React.useCallback(
+        (rankValue: number) => {
+            const params = new URLSearchParams(searchParams.toString())
+            params.set(paramName, String(rankValue))
+            return `${pathname}?${params.toString()}`
+        },
+        [pathname, searchParams, paramName]
+    )
 
     const handleJump = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
-        const rank = parseInt(jumpValue, 10)
-        if (!isNaN(rank) && availableRanks.includes(rank)) {
-            router.replace(buildHref(rank), { scroll: false })
+        const targetValue = parseInt(jumpValue, 10)
+        if (isNaN(targetValue)) {
+            setJumpValue(String(isZeroBased ? currentRank + 1 : currentRank))
+            return
+        }
+
+        const rankToFind = isZeroBased ? targetValue - 1 : targetValue
+        if (availableRanks.includes(rankToFind)) {
+            router.replace(buildHref(rankToFind), { scroll: false })
         } else {
-            // reset to current if invalid
-            setJumpValue(String(currentRank))
+            setJumpValue(String(isZeroBased ? currentRank + 1 : currentRank))
         }
     }
 
     React.useEffect(() => {
-        setJumpValue(String(currentRank))
-    }, [currentRank])
+        setJumpValue(String(isZeroBased ? currentRank + 1 : currentRank))
+    }, [currentRank, isZeroBased])
 
-    // if there's only one or zero options, render nothing. it's not a navigator.
     if (rankCount <= 1) return null
 
     return (
@@ -60,16 +73,17 @@ export function RankNavigator({
                 Prev
             </StepButton>
             <form onSubmit={handleJump} className="flex items-center gap-1">
-                <span className="text-muted-foreground text-sm whitespace-nowrap">{label}</span>
+                <span className="text-muted-foreground text-sm text-nowrap">{label}</span>
                 <Input
                     type="text"
                     value={jumpValue}
                     onChange={(e) => setJumpValue(e.target.value)}
-                    onBlur={() => setJumpValue(String(currentRank))} // reset on blur if not submitted
-                    className="h-9 w-12 text-center"
+                    onBlur={() => setJumpValue(String(isZeroBased ? currentRank + 1 : currentRank))}
+                    className="h-9 w-14 text-center"
+                    aria-label={`Jump to ${label}`}
                 />
-                <span className="text-muted-foreground text-sm whitespace-nowrap">of {rankCount}</span>
-                <Button type="submit" variant="ghost" size="icon" className="h-9 w-9">
+                <span className="text-muted-foreground text-sm text-nowrap">of {rankCount}</span>
+                <Button type="submit" variant="ghost" size="icon" className="h-9 w-9" aria-label={`Go to ${label}`}>
                     <ArrowRight className="size-4" />
                 </Button>
             </form>
