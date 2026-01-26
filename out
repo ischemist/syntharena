@@ -1,6 +1,0 @@
-
-> syntharena@0.1.0 check-types /Users/morgunov/Developer/ischemist/syntharena
-> tsgo --noEmit
-
-src/app/runs/[runId]/_components/server/target-route-graph-display.tsx(48,13): error TS2741: Property 'currentRank' is missing in type '{ availableRanks: number[]; previousRankHref: string | null; nextRankHref: string | null; }' but required in type '{ currentRank: number; availableRanks: number[]; previousRankHref: string | null; nextRankHref: string | null; }'.
- ELIFECYCLE  Command failed with exit code 2.
