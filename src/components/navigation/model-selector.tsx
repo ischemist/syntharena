@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Check, ChevronsUpDown } from 'lucide-react'
 
 import type { PredictionRunSummary } from '@/types' // <-- now correctly imported
@@ -14,17 +14,28 @@ interface ModelSelectorProps {
     runs: PredictionRunSummary[]
     selectedRunId?: string
 
-    buildHref: (newRunId: string) => string
+    paramName: 'model1' | 'model2'
+    rankParamName: 'rank1' | 'rank2'
 }
 
-export function ModelSelector({ runs, selectedRunId, buildHref }: ModelSelectorProps) {
+export function ModelSelector({ runs, selectedRunId, paramName, rankParamName }: ModelSelectorProps) {
     const [open, setOpen] = React.useState(false)
     const router = useRouter()
+    const pathname = usePathname()
+    const searchParams = useSearchParams()
 
     const selectedRun = runs.find((run) => run.id === selectedRunId)
 
     const handleSelect = (runId: string) => {
-        const newHref = buildHref(runId)
+        const params = new URLSearchParams(searchParams.toString())
+        const selectedRun = runs.find((r) => r.id === runId)
+        const firstRank = selectedRun?.availableRanks[0] ?? 1
+
+        params.set(paramName, runId)
+        params.set(rankParamName, String(firstRank))
+
+        const newHref = `${pathname}?${params.toString()}`
+
         router.replace(newHref, { scroll: false })
         setOpen(false)
     }

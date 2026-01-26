@@ -33,14 +33,8 @@ export function GroundTruthComparisonView({ data }: GroundTruthComparisonViewPro
                         <ModelSelector
                             runs={availableRuns}
                             selectedRunId={model1?.runId}
-                            buildHref={(newRunId) => {
-                                const params = new URLSearchParams(window.location.search)
-                                const selectedRun = availableRuns.find((r) => r.id === newRunId)
-                                const firstRank = selectedRun?.availableRanks[0] ?? 1
-                                params.set('model1', newRunId)
-                                params.set('rank1', String(firstRank))
-                                return `${window.location.pathname}?${params.toString()}`
-                            }}
+                            paramName="model1"
+                            rankParamName="rank1"
                         />
                         {model1 && (
                             <RankNavigator

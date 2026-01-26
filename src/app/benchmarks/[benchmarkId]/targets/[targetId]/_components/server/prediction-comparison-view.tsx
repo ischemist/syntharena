@@ -13,17 +13,6 @@ interface PredictionComparisonViewProps {
 export function PredictionComparisonView({ data }: PredictionComparisonViewProps) {
     const { model1, model2, availableRuns, displayMode, stockInfo } = data
 
-    const buildModelHref = (paramName: 'model1' | 'model2', rankParamName: 'rank1' | 'rank2') => {
-        return (newRunId: string): string => {
-            const params = new URLSearchParams(window.location.search)
-            const selectedRun = availableRuns.find((r) => r.id === newRunId)
-            const firstRank = selectedRun?.availableRanks[0] ?? 1
-            params.set(paramName, newRunId)
-            params.set(rankParamName, String(firstRank))
-            return `${window.location.pathname}?${params.toString()}`
-        }
-    }
-
     return (
         <div className="space-y-4">
             <div className="bg-muted/50 space-y-4 rounded-lg border p-4">
@@ -32,7 +21,8 @@ export function PredictionComparisonView({ data }: PredictionComparisonViewProps
                         <ModelSelector
                             runs={availableRuns}
                             selectedRunId={model1?.runId}
-                            buildHref={buildModelHref('model1', 'rank1')}
+                            paramName="model1"
+                            rankParamName="rank1"
                         />
                         {model1 && (
                             <RankNavigator
@@ -50,7 +40,8 @@ export function PredictionComparisonView({ data }: PredictionComparisonViewProps
                         <ModelSelector
                             runs={availableRuns}
                             selectedRunId={model2?.runId}
-                            buildHref={buildModelHref('model2', 'rank2')}
+                            paramName="model2"
+                            rankParamName="rank2"
                         />
                         {model2 && (
                             <RankNavigator
