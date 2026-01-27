@@ -82,6 +82,37 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
     }, [entries, selectedX, selectedY])
 
     const yAxisDomain: [number, number] = [0, 100]
+    const yAxisTicks = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+
+    // Calculate max x value and add padding (15%) for labels, plus generate nice ticks
+    const { maxX, xAxisTicks } = useMemo(() => {
+        const allData = Array.from(chartDataByFamily.values()).flatMap((s) => s.data)
+        if (allData.length === 0) return { maxX: 100, xAxisTicks: [0, 20, 40, 60, 80, 100] }
+
+        const dataMax = Math.max(...allData.map((d) => d.x))
+        const paddedMax = dataMax * 1.15 // Add 15% padding for labels
+
+        // Calculate nice tick interval (aim for ~8-10 ticks)
+        const range = paddedMax
+        const roughInterval = range / 8
+
+        // Round to nice number (1, 2, 5, 10, 20, 50, 100, etc.)
+        const magnitude = Math.pow(10, Math.floor(Math.log10(roughInterval)))
+        const normalized = roughInterval / magnitude
+        let niceInterval: number
+        if (normalized < 1.5) niceInterval = 1 * magnitude
+        else if (normalized < 3) niceInterval = 2 * magnitude
+        else if (normalized < 7) niceInterval = 5 * magnitude
+        else niceInterval = 10 * magnitude
+
+        // Generate ticks from 0 to paddedMax
+        const ticks: number[] = []
+        for (let tick = 0; tick <= paddedMax; tick += niceInterval) {
+            ticks.push(tick)
+        }
+
+        return { maxX: paddedMax, xAxisTicks: ticks }
+    }, [chartDataByFamily])
 
     return (
         <div className="flex flex-col gap-4">
@@ -129,7 +160,8 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
                             position: 'insideBottom',
                             offset: -15,
                         }}
-                        domain={['dataMin', 'dataMax']}
+                        domain={[0, maxX]}
+                        ticks={xAxisTicks}
                         tickFormatter={(val: number) =>
                             val > 1000 ? val.toExponential(1) : val.toFixed(selectedX === 'time' ? 0 : 2)
                         }
@@ -140,6 +172,7 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
                         name={selectedY}
                         unit="%"
                         domain={yAxisDomain}
+                        ticks={yAxisTicks}
                         label={{ value: `${selectedY} Accuracy`, angle: -90, position: 'insideLeft' }}
                     />
                     <Tooltip
