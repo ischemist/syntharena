@@ -1,10 +1,17 @@
 import Link from 'next/link'
 
 import type { AlgorithmHighlightMetric } from '@/types'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface AggregatePerformanceProps {
     metrics: AlgorithmHighlightMetric[]
+}
+
+function formatPercent(value: number): string {
+    return `${(value * 100).toFixed(1)}%`
+}
+
+function formatCI(lower: number, upper: number): string {
+    return `[${(lower * 100).toFixed(0)}–${(upper * 100).toFixed(0)}%]`
 }
 
 /**
@@ -16,49 +23,55 @@ export function AggregatePerformance({ metrics }: AggregatePerformanceProps) {
         return null // No metrics available, don't render anything
     }
 
+    // Group metrics by metricName, preserving insertion order
+    const grouped = metrics.reduce(
+        (acc, metric) => {
+            const key = metric.metricName
+            if (!acc[key]) acc[key] = []
+            acc[key].push(metric)
+            return acc
+        },
+        {} as Record<string, AlgorithmHighlightMetric[]>
+    )
+
     return (
         <div className="space-y-4">
             <h2 className="text-xl font-semibold">Best Performance</h2>
             <p className="text-muted-foreground text-sm">
                 Current state-of-the-art achieved by any version of this algorithm.
             </p>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {metrics.map((metric) => (
-                    <MetricCard key={`${metric.benchmarkId}:${metric.metricName}`} metric={metric} />
+            <div className="flex flex-col gap-6 lg:flex-row lg:gap-12">
+                {Object.entries(grouped).map(([metricName, items]) => (
+                    <div key={metricName} className="space-y-2">
+                        <h3 className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+                            {metricName}
+                        </h3>
+                        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
+                            {items.map((metric) => (
+                                <div
+                                    key={`${metric.benchmarkId}:${metric.metricName}`}
+                                    className="flex items-baseline gap-2"
+                                >
+                                    <span className="text-foreground text-lg font-semibold tabular-nums">
+                                        {formatPercent(metric.value)}
+                                    </span>
+                                    <span className="text-muted-foreground/50 text-xs tabular-nums">
+                                        {formatCI(metric.ciLower, metric.ciUpper)}
+                                    </span>
+                                    <span className="text-muted-foreground text-sm">{metric.benchmarkName}</span>
+                                    <Link
+                                        href={`/models/${metric.modelInstanceSlug}`}
+                                        className="text-muted-foreground/60 hover:text-foreground text-xs transition-colors"
+                                        prefetch={true}
+                                    >
+                                        {metric.modelInstanceName}
+                                    </Link>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 ))}
             </div>
         </div>
-    )
-}
-
-function MetricCard({ metric }: { metric: AlgorithmHighlightMetric }) {
-    const percentage = (metric.value * 100).toFixed(1)
-    const ciLower = (metric.ciLower * 100).toFixed(1)
-    const ciUpper = (metric.ciUpper * 100).toFixed(1)
-
-    return (
-        <Card variant="bordered">
-            <CardHeader>
-                <CardDescription>{metric.benchmarkName}</CardDescription>
-                <div>
-                    <CardTitle className="text-2xl tabular-nums">{percentage}%</CardTitle>
-                    <p className="text-muted-foreground text-xs tabular-nums">
-                        95% CI: [{ciLower}%, {ciUpper}%]
-                    </p>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <p className="text-muted-foreground text-sm">
-                    {metric.metricName} Accuracy achieved by{' '}
-                    <Link
-                        href={`/models/${metric.modelInstanceSlug}`}
-                        className="text-primary hover:underline"
-                        prefetch={true}
-                    >
-                        {metric.modelInstanceName} ({metric.version})
-                    </Link>
-                </p>
-            </CardContent>
-        </Card>
     )
 }
