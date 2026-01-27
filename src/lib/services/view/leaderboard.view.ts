@@ -138,7 +138,9 @@ function _transformStatsToLeaderboardDTOs(
     for (const stat of statsToProcess) {
         const { stock, predictionRun, metrics } = stat
         const { modelInstance } = predictionRun
-        const modelName = modelInstance.family.name
+        const modelFamilyName = modelInstance.family.name
+        const algorithmName = modelInstance.family.algorithm.name
+        const algorithmSlug = modelInstance.family.algorithm.slug
 
         // -- 1. build leaderboard entry (flat list) --
         const solvabilityMetric = metrics.find((m) => m.metricName === 'Solvability' && m.groupKey === null)
@@ -155,7 +157,10 @@ function _transformStatsToLeaderboardDTOs(
             runId: stat.predictionRun.id,
             benchmarkId: stat.predictionRun.benchmarkSetId,
             hasAcceptableRoutes: predictionRun.benchmarkSet.hasAcceptableRoutes,
-            modelName,
+            algorithmName,
+            algorithmSlug,
+            modelFamilyName,
+            modelName: modelFamilyName, // Deprecated alias for backward compat
             version: formatVersion(modelInstance),
             modelInstanceSlug: modelInstance.slug,
             benchmarkName: predictionRun.benchmarkSet.name,
@@ -200,7 +205,7 @@ function _transformStatsToLeaderboardDTOs(
             if (Object.keys(acc).length > 0) stratifiedTopK = acc
         }
 
-        modelMap.set(modelName, { solvability, ...(stratifiedTopK && { topKAccuracy: stratifiedTopK }) })
+        modelMap.set(modelFamilyName, { solvability, ...(stratifiedTopK && { topKAccuracy: stratifiedTopK }) })
 
         // -- 3. collect unique stocks --
         if (!stocksMap.has(stock.id)) {

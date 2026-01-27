@@ -741,7 +741,10 @@ export interface RunStatistics {
 export interface LeaderboardEntry {
     runId: string
     benchmarkId: string
-    modelName: string
+    algorithmName: string // e.g., "SynPlanner"
+    algorithmSlug: string // e.g., "synplanner"
+    modelFamilyName: string // e.g., "SynPlanner MCTS Rollout"
+    modelName: string // Deprecated alias for modelFamilyName (kept for backward compat)
     version: string
     modelInstanceSlug: string
     benchmarkName: string

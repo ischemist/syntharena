@@ -21,7 +21,11 @@ async function _findStatisticsForLeaderboard(where: Prisma.ModelRunStatisticsWhe
                     benchmarkSet: true,
                     modelInstance: {
                         include: {
-                            family: true,
+                            family: {
+                                include: {
+                                    algorithm: true,
+                                },
+                            },
                         },
                     },
                 },

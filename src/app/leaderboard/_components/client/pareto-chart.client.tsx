@@ -2,10 +2,10 @@
 
 import { useMemo } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { CartesianGrid, ErrorBar, Legend, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from 'recharts'
+import { CartesianGrid, ErrorBar, LabelList, Legend, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from 'recharts'
 
 import type { LeaderboardEntry } from '@/types'
-import { getProceduralColor } from '@/lib/chart-colors'
+import { getSeriesColor } from '@/lib/chart-colors'
 import { ChartContainer } from '@/components/ui/chart'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
@@ -21,7 +21,9 @@ type ChartDataPoint = {
     x: number
     y: number
     yError: [number, number] // [error_down, error_up]
-    modelName: string
+    algorithmName: string
+    modelFamilyName: string
+    seriesKey: string
     version: string
 }
 
@@ -43,7 +45,7 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
     }
 
     const chartDataByFamily = useMemo(() => {
-        const data: Array<ChartDataPoint & { familyName: string }> = entries
+        const data: ChartDataPoint[] = entries
             .map((entry) => {
                 const metric = entry.metrics.topKAccuracy?.[selectedY]
                 const xValue = selectedX === 'time' ? entry.totalWallTime : entry.totalCost
@@ -56,22 +58,26 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
                         number,
                         number,
                     ],
-                    modelName: entry.modelName,
+                    algorithmName: entry.algorithmName,
+                    modelFamilyName: entry.modelFamilyName,
+                    seriesKey: `${entry.modelFamilyName} v${entry.version}`,
                     version: entry.version,
-                    familyName: entry.modelName,
                 }
             })
             .filter((d): d is NonNullable<typeof d> => d !== null)
 
-        const grouped = new Map<string, ChartDataPoint[]>()
+        const grouped = new Map<string, { algorithmName: string; data: ChartDataPoint[] }>()
         for (const point of data) {
-            if (!grouped.has(point.familyName)) {
-                grouped.set(point.familyName, [])
+            if (!grouped.has(point.seriesKey)) {
+                grouped.set(point.seriesKey, {
+                    algorithmName: point.algorithmName,
+                    data: [],
+                })
             }
-            grouped.get(point.familyName)!.push(point)
+            grouped.get(point.seriesKey)!.data.push(point)
         }
 
-        grouped.forEach((points) => points.sort((a, b) => a.x - b.x))
+        grouped.forEach((series) => series.data.sort((a, b) => a.x - b.x))
         return grouped
     }, [entries, selectedX, selectedY])
 
@@ -143,7 +149,8 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
                             const data = payload[0].payload
                             return (
                                 <div className="bg-background border-border rounded-lg border p-2 shadow-lg">
-                                    <div className="mb-2 font-semibold">{data.modelName}</div>
+                                    <div className="text-muted-foreground mb-1 text-xs">{data.algorithmName}</div>
+                                    <div className="mb-2 font-semibold">{data.modelFamilyName}</div>
                                     <div className="text-muted-foreground mb-1 text-xs">{data.version}</div>
                                     <div className="flex flex-col gap-1 text-sm">
                                         <div className="flex items-center justify-between gap-4">
@@ -173,18 +180,42 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
                         }}
                     />
                     <Legend wrapperStyle={{ bottom: 0 }} />
-                    {Array.from(chartDataByFamily.entries()).map(([familyName, data]) => (
-                        <Scatter
-                            key={familyName}
-                            name={familyName}
-                            data={data}
-                            fill={getProceduralColor(familyName)}
-                            line
-                            shape="circle"
-                        >
-                            <ErrorBar dataKey="yError" width={4} strokeWidth={1.5} strokeOpacity={0.8} direction="y" />
-                        </Scatter>
-                    ))}
+                    {Array.from(chartDataByFamily.entries()).map(([seriesKey, series]) => {
+                        // Calculate color based on algorithm and series index within that algorithm
+                        const seriesInAlgorithm = Array.from(chartDataByFamily.entries()).filter(
+                            ([_, s]) => s.algorithmName === series.algorithmName
+                        )
+                        const seriesIndex = seriesInAlgorithm.findIndex(([k]) => k === seriesKey)
+                        const color = getSeriesColor(series.algorithmName, seriesKey, seriesIndex)
+
+                        return (
+                            <Scatter
+                                key={seriesKey}
+                                name={seriesKey}
+                                data={series.data}
+                                fill={color}
+                                line
+                                shape="circle"
+                            >
+                                <ErrorBar
+                                    dataKey="yError"
+                                    width={4}
+                                    strokeWidth={1.5}
+                                    stroke={color}
+                                    strokeOpacity={0.6}
+                                    direction="y"
+                                />
+                                <LabelList
+                                    dataKey="modelFamilyName"
+                                    position="top"
+                                    offset={8}
+                                    fontSize={10}
+                                    fill={color}
+                                    fontWeight={500}
+                                />
+                            </Scatter>
+                        )
+                    })}
                 </ScatterChart>
             </ChartContainer>
         </div>
