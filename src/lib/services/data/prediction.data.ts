@@ -88,7 +88,8 @@ export type RouteNodeWithMoleculePayload = NonNullable<Prisma.PromiseReturnType<
 async function _findTargetsAndPredictionCountsForRun(
     runId: string,
     where: Prisma.BenchmarkTargetWhereInput,
-    limit: number
+    limit: number,
+    onlyWithPredictions?: boolean
 ) {
     // first, get the benchmarkId from the run
     const run = await prisma.predictionRun.findUnique({
@@ -97,9 +98,18 @@ async function _findTargetsAndPredictionCountsForRun(
     })
     if (!run) throw new Error('run not found.')
 
+    // build the where clause with optional prediction filter
+    const targetWhere: Prisma.BenchmarkTargetWhereInput = {
+        ...where,
+        benchmarkSetId: run.benchmarkSetId,
+        ...(onlyWithPredictions && {
+            predictionRoutes: { some: { predictionRunId: runId } },
+        }),
+    }
+
     // find the paginated targets for that benchmark matching the where clause
     const targets = await prisma.benchmarkTarget.findMany({
-        where: { ...where, benchmarkSetId: run.benchmarkSetId },
+        where: targetWhere,
         include: { molecule: true },
         orderBy: { targetId: 'asc' },
         take: limit,
@@ -124,5 +134,45 @@ async function _findTargetsAndPredictionCountsForRun(
 export const findTargetsAndPredictionCountsForRun = cache(
     _findTargetsAndPredictionCountsForRun,
     ['targets-and-prediction-counts-for-run'],
+    { tags: ['targets', 'runs'] }
+)
+
+/**
+ * fetches ordered target IDs for a run that have at least one prediction.
+ * used for navigation when filtering to only targets with predictions.
+ */
+async function _findTargetIdsWithPredictionsForRun(runId: string, routeLength?: number) {
+    // get all unique target IDs that have predictions in this run
+    const predictions = await prisma.predictionRoute.findMany({
+        where: { predictionRunId: runId },
+        select: {
+            target: {
+                select: {
+                    id: true,
+                    targetId: true,
+                    routeLength: true,
+                },
+            },
+        },
+        distinct: ['targetId'],
+    })
+
+    // filter by route length if specified and collect IDs
+    const targetIds = predictions
+        .filter((p) => routeLength === undefined || p.target.routeLength === routeLength)
+        .map((p) => p.target.id)
+
+    // fetch full targets to maintain proper ordering by targetId
+    const orderedTargets = await prisma.benchmarkTarget.findMany({
+        where: { id: { in: targetIds } },
+        select: { id: true },
+        orderBy: { targetId: 'asc' },
+    })
+
+    return orderedTargets.map((t) => t.id)
+}
+export const findTargetIdsWithPredictionsForRun = cache(
+    _findTargetIdsWithPredictionsForRun,
+    ['target-ids-with-predictions-for-run'],
     { tags: ['targets', 'runs'] }
 )

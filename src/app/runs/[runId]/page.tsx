@@ -21,6 +21,7 @@ type PageProps = {
         layout?: string
         routeLength?: string
         acceptableIndex?: string
+        onlyWithPredictions?: string
     }>
 }
 
@@ -55,6 +56,7 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
     const acceptableIndex = searchParamsValues.acceptableIndex
         ? parseInt(searchParamsValues.acceptableIndex, 10)
         : undefined
+    const onlyWithPredictions = searchParamsValues.onlyWithPredictions === 'true'
 
     // Initiate all data fetches concurrently. Do NOT await them here.
     const titleCardPromise = predictionView.getRunTitleCardData(runId)
@@ -82,7 +84,13 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
                 <RunStatisticsStratified dataPromise={statsPromise} stockId={stockId} />
             </Suspense>
 
-            <TargetSearchWrapper runId={runId} stockId={stockId} currentTargetId={targetId} routeLength={routeLength} />
+            <TargetSearchWrapper
+                runId={runId}
+                stockId={stockId}
+                currentTargetId={targetId}
+                routeLength={routeLength}
+                onlyWithPredictions={onlyWithPredictions}
+            />
             {targetDisplayDataPromise && (
                 <Suspense
                     key={`${targetId}-${rank}-${stockId}-${layout}-${acceptableIndex}`}

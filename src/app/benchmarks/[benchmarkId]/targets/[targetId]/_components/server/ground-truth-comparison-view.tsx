@@ -1,4 +1,5 @@
 import type { TargetComparisonData } from '@/types'
+import { DeveloperModeToggle } from '@/components/developer-mode-toggle'
 import { CompactRankNavigator, ControlGrid, ControlGridSlot, ModelSelector } from '@/components/navigation'
 import { RouteComparison, RouteLegend } from '@/components/route-visualization'
 
@@ -15,6 +16,7 @@ export function GroundTruthComparisonView({ data }: GroundTruthComparisonViewPro
     return (
         <div className="space-y-4">
             <div className="bg-muted/50 space-y-4 rounded-lg border p-4">
+                <DeveloperModeToggle />
                 {/* section 1: the selection grid */}
                 <ControlGrid>
                     <ControlGridSlot label="Acceptable Route:">

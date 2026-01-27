@@ -57,7 +57,7 @@ export default async function TargetDetailPage({ params, searchParams }: TargetD
             </Suspense>
 
             <Suspense
-                key={`${mode}-${model1}-${model2}-${rank1}-${rank2}-${layout}-${acceptableIndex}`}
+                key={`${mode}-${model1}-${model2}-${rank1}-${rank2}-${layout}-${acceptableIndex}-${dev ?? 'false'}`}
                 fallback={<Skeleton className="h-[800px] w-full rounded-lg" />}
             >
                 <ResolvedComparison dataPromise={comparisonDataPromise} />

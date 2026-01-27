@@ -298,7 +298,14 @@ export async function getStocksForRun(runId: string): Promise<StockListItem[]> {
 }
 
 /** returns ordered list of target IDs for a run's benchmark. */
-export async function getTargetIdsByRun(runId: string, routeLength?: number): Promise<string[]> {
+export async function getTargetIdsByRun(
+    runId: string,
+    routeLength?: number,
+    onlyWithPredictions?: boolean
+): Promise<string[]> {
+    if (onlyWithPredictions) {
+        return predictionData.findTargetIdsWithPredictionsForRun(runId, routeLength)
+    }
     const run = await runData.findPredictionRunDetailsById(runId)
     return benchmarkData.findTargetIdsByBenchmark(run.benchmarkSet.id, routeLength)
 }
@@ -350,6 +357,7 @@ export async function searchTargets(
     query: string,
     stockId?: string,
     routeLength?: number,
+    onlyWithPredictions?: boolean,
     limit: number = 20
 ): Promise<BenchmarkTargetWithMolecule[]> {
     const where: Prisma.BenchmarkTargetWhereInput = {}
@@ -361,7 +369,12 @@ export async function searchTargets(
         where.routeLength = routeLength
     }
 
-    const { targets, counts } = await predictionData.findTargetsAndPredictionCountsForRun(runId, where, limit)
+    const { targets, counts } = await predictionData.findTargetsAndPredictionCountsForRun(
+        runId,
+        where,
+        limit,
+        onlyWithPredictions
+    )
     const countMap = new Map(counts.map((c) => [c.targetId, c._count._all]))
 
     return targets.map((target) => ({
