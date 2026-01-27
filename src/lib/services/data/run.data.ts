@@ -11,9 +11,14 @@ import prisma from '@/lib/db'
 // reads
 // ============================================================================
 
-/** returns data needed for the main prediction run list. */
-async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput) {
-    return prisma.predictionRun.findMany({
+/**
+ * returns data needed for the main prediction run list.
+ * supports developer mode filtering: when devMode is false, returns only the
+ * "champion" (best-performing) run for each (model family, benchmark) combination.
+ * champion is determined by Top-10 accuracy, falling back to Solvability.
+ */
+async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput, devMode: boolean = false) {
+    const allRuns = await prisma.predictionRun.findMany({
         where,
         select: {
             id: true,
@@ -82,6 +87,52 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput)
         },
         orderBy: { executedAt: 'desc' },
     })
+
+    // if in developer mode, return all runs
+    if (devMode) {
+        return allRuns
+    }
+
+    // otherwise, apply champion filtering: keep only the best-performing run
+    // for each (model family, benchmark) combination
+    const runsByCompositeKey = new Map<string, typeof allRuns>()
+    for (const run of allRuns) {
+        // group by both family and benchmark to ensure we get champions per benchmark
+        const compositeKey = `${run.modelInstance.family.id}-${run.benchmarkSetId}`
+        if (!runsByCompositeKey.has(compositeKey)) {
+            runsByCompositeKey.set(compositeKey, [])
+        }
+        runsByCompositeKey.get(compositeKey)!.push(run)
+    }
+
+    // for each group, select the champion based on metric performance
+    const champions: typeof allRuns = []
+    for (const [, groupRuns] of runsByCompositeKey) {
+        // helper to extract a metric value from a run
+        const getMetric = (run: (typeof groupRuns)[0], metricName: string): number => {
+            return run.statistics[0]?.metrics.find((m) => m.metricName === metricName)?.value ?? -1
+        }
+
+        // find the champion using the same logic as leaderboard
+        const champion = groupRuns.reduce((best, current) => {
+            const bestTop10 = getMetric(best, 'Top-10')
+            const currentTop10 = getMetric(current, 'Top-10')
+
+            // if top-10 exists, it's the primary sorting key
+            if (bestTop10 !== -1 || currentTop10 !== -1) {
+                return currentTop10 > bestTop10 ? current : best
+            }
+
+            // otherwise, fall back to solvability
+            const bestSolvability = getMetric(best, 'Solvability')
+            const currentSolvability = getMetric(current, 'Solvability')
+            return currentSolvability > bestSolvability ? current : best
+        })
+
+        champions.push(champion)
+    }
+
+    return champions
 }
 export const findPredictionRunsForList = cache(_findPredictionRunsForList, ['prediction-run-list'], {
     tags: ['runs'],

@@ -16,7 +16,9 @@ export function PredictionComparisonView({ data }: PredictionComparisonViewProps
     return (
         <div className="space-y-4">
             <div className="bg-muted/50 space-y-4 rounded-lg border p-4">
-                <DeveloperModeToggle />
+                <div className="flex justify-end">
+                    <DeveloperModeToggle />
+                </div>
                 <ControlGrid>
                     <ControlGridSlot label="Model 1:">
                         <div className="flex items-center gap-2">

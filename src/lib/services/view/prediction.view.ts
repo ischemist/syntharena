@@ -146,18 +146,22 @@ export async function getPredictionRuns(
     benchmarkId?: string,
     modelInstanceId?: string,
     modelFamilyIds?: string[],
-    submissionType?: SubmissionType
+    submissionType?: SubmissionType,
+    devMode?: boolean
 ): Promise<PredictionRunWithStats[]> {
-    const runs = await runData.findPredictionRunsForList({
-        benchmarkSet: {
-            isListed: true,
-            ...(benchmarkId && { id: benchmarkId }),
+    const runs = await runData.findPredictionRunsForList(
+        {
+            benchmarkSet: {
+                isListed: true,
+                ...(benchmarkId && { id: benchmarkId }),
+            },
+            ...(modelInstanceId && { modelInstanceId }),
+            ...(modelFamilyIds &&
+                modelFamilyIds.length > 0 && { modelInstance: { modelFamilyId: { in: modelFamilyIds } } }),
+            ...(submissionType && { submissionType }),
         },
-        ...(modelInstanceId && { modelInstanceId }),
-        ...(modelFamilyIds &&
-            modelFamilyIds.length > 0 && { modelInstance: { modelFamilyId: { in: modelFamilyIds } } }),
-        ...(submissionType && { submissionType }),
-    })
+        devMode
+    )
 
     return runs.map((run) => {
         const solvabilitySummary: Record<string, number> = {}

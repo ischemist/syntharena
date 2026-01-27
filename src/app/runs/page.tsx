@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 
 import type { PredictionRunWithStats, SubmissionType } from '@/types'
 import * as predictionView from '@/lib/services/view/prediction.view'
+import { DeveloperModeToggle } from '@/components/developer-mode-toggle'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { RunFilters } from './_components/client/run-filters'
@@ -18,6 +19,7 @@ type PageProps = {
     searchParams: Promise<{
         families?: string
         submission?: string
+        dev?: string
     }>
 }
 
@@ -25,10 +27,11 @@ export default async function RunsPage({ searchParams }: PageProps) {
     const params = await searchParams
     const familyIds = params.families?.split(',')
     const submission = params.submission as SubmissionType | undefined
+    const devMode = params.dev === 'true'
 
     // Fetch all data concurrently
     const [allRuns, modelFamilies] = await Promise.all([
-        predictionView.getPredictionRuns(undefined, undefined, familyIds, submission),
+        predictionView.getPredictionRuns(undefined, undefined, familyIds, submission, devMode),
         predictionView.getModelFamiliesWithRuns(),
     ])
 
@@ -52,7 +55,10 @@ export default async function RunsPage({ searchParams }: PageProps) {
                     <TabsTrigger value="other">Other</TabsTrigger>
                 </TabsList>
                 {/* Right side of the control bar */}
-                <RunFilters modelFamilies={familyOptions} />
+                <div className="flex items-center gap-4">
+                    <RunFilters modelFamilies={familyOptions} />
+                    <DeveloperModeToggle />
+                </div>
             </RunsPageHeader>
 
             <TabsContent value="market" className="mt-0">

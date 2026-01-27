@@ -16,7 +16,9 @@ export function GroundTruthComparisonView({ data }: GroundTruthComparisonViewPro
     return (
         <div className="space-y-4">
             <div className="bg-muted/50 space-y-4 rounded-lg border p-4">
-                <DeveloperModeToggle />
+                <div className="flex justify-end">
+                    <DeveloperModeToggle />
+                </div>
                 {/* section 1: the selection grid */}
                 <ControlGrid>
                     <ControlGridSlot label="Acceptable Route:">
