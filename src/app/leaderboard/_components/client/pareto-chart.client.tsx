@@ -337,8 +337,8 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
                                     <path
                                         d={pathData}
                                         fill="none"
-                                        stroke="hsl(var(--muted-foreground))"
-                                        strokeWidth={2.5}
+                                        className="stroke-muted-foreground"
+                                        strokeWidth={1}
                                         strokeDasharray="8 4"
                                         strokeLinecap="round"
                                     />
