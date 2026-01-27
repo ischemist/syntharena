@@ -117,3 +117,25 @@ export function StratifiedMetricsSkeleton() {
         </Card>
     )
 }
+
+/**
+ * Skeleton for the Pareto frontier chart.
+ * Mimics the final component structure with controls and chart area.
+ */
+export function ParetoChartSkeleton() {
+    return (
+        <Card variant="bordered">
+            <CardHeader>
+                <CardTitle>Efficiency Frontier</CardTitle>
+                <CardDescription>Visualizing the trade-off between performance and resources.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="mb-4 flex justify-end gap-4">
+                    <Skeleton className="h-8 w-48" />
+                    <Skeleton className="h-8 w-48" />
+                </div>
+                <Skeleton className="h-[450px] w-full" />
+            </CardContent>
+        </Card>
+    )
+}
