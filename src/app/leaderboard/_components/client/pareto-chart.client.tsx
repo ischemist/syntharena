@@ -6,7 +6,7 @@ import { CartesianGrid, ErrorBar, Legend, Scatter, ScatterChart, Tooltip, XAxis,
 
 import type { LeaderboardEntry } from '@/types'
 import { getProceduralColor } from '@/lib/chart-colors'
-import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart'
+import { ChartContainer } from '@/components/ui/chart'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 type XAxisMetric = 'time' | 'cost'
@@ -30,8 +30,8 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
     const pathname = usePathname()
     const searchParams = useSearchParams()
 
-    const selectedX = (searchParams.get('paretoX') as XAxisMetric) || 'time'
-    const defaultY = availableTopKMetrics.includes('Top-1') ? 'Top-1' : availableTopKMetrics[0]
+    const selectedX = (searchParams.get('paretoX') as XAxisMetric) || 'cost'
+    const defaultY = availableTopKMetrics.includes('Top-10') ? 'Top-10' : availableTopKMetrics[0]
     const selectedY = (searchParams.get('paretoY') as YAxisMetric) || defaultY
 
     const handleAxisChange = (axis: 'x' | 'y', value: string) => {
@@ -52,7 +52,10 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
                 return {
                     x: selectedX === 'time' ? xValue / 60 : xValue,
                     y: metric.value * 100,
-                    yError: [metric.value * 100 - metric.ciLower * 100, metric.ciUpper * 100 - metric.value * 100],
+                    yError: [metric.value * 100 - metric.ciLower * 100, metric.ciUpper * 100 - metric.value * 100] as [
+                        number,
+                        number,
+                    ],
                     modelName: entry.modelName,
                     version: entry.version,
                     familyName: entry.modelName,
@@ -135,37 +138,39 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
                     />
                     <Tooltip
                         cursor={{ strokeDasharray: '3 3' }}
-                        content={
-                            <ChartTooltipContent
-                                labelFormatter={(_, payload) => payload?.[0]?.payload.modelName}
-                                formatter={(value, name, item) => (
-                                    <>
-                                        <div className="font-medium">{item.payload.version}</div>
-                                        <div className="flex w-full items-center justify-between gap-2">
+                        content={({ active, payload }) => {
+                            if (!active || !payload?.[0]) return null
+                            const data = payload[0].payload
+                            return (
+                                <div className="bg-background border-border rounded-lg border p-2 shadow-lg">
+                                    <div className="mb-2 font-semibold">{data.modelName}</div>
+                                    <div className="text-muted-foreground mb-1 text-xs">{data.version}</div>
+                                    <div className="flex flex-col gap-1 text-sm">
+                                        <div className="flex items-center justify-between gap-4">
                                             <span className="text-muted-foreground">
                                                 {selectedX === 'time' ? 'Time:' : 'Cost:'}
                                             </span>
-                                            <span>
+                                            <span className="font-medium">
                                                 {selectedX === 'time'
-                                                    ? `${(item.payload.x as number).toFixed(1)} min`
-                                                    : `$${(item.payload.x as number).toFixed(2)}`}
+                                                    ? `${(data.x as number).toFixed(1)} min`
+                                                    : `$${(data.x as number).toFixed(2)}`}
                                             </span>
                                         </div>
-                                        <div className="flex w-full items-center justify-between gap-2">
+                                        <div className="flex items-center justify-between gap-4">
                                             <span className="text-muted-foreground">{selectedY}:</span>
-                                            <span>{(item.payload.y as number).toFixed(1)}%</span>
+                                            <span className="font-medium">{(data.y as number).toFixed(1)}%</span>
                                         </div>
-                                        <div className="flex w-full items-center justify-between gap-2">
+                                        <div className="flex items-center justify-between gap-4">
                                             <span className="text-muted-foreground">95% CI:</span>
                                             <span className="font-mono text-xs">
-                                                [{(item.payload.y - item.payload.yError[0]).toFixed(1)},{' '}
-                                                {(item.payload.y + item.payload.yError[1]).toFixed(1)}]
+                                                [{(data.y - data.yError[0]).toFixed(1)},{' '}
+                                                {(data.y + data.yError[1]).toFixed(1)}]
                                             </span>
                                         </div>
-                                    </>
-                                )}
-                            />
-                        }
+                                    </div>
+                                </div>
+                            )
+                        }}
                     />
                     <Legend wrapperStyle={{ bottom: 0 }} />
                     {Array.from(chartDataByFamily.entries()).map(([familyName, data]) => (
