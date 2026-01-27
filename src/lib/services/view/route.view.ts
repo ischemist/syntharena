@@ -357,7 +357,9 @@ export async function getTargetComparisonData(
                 ? {
                       runId: model1Id,
                       rank: rank1,
-                      name: `${model1Run.modelName} (${model1Run.algorithmName})`,
+                      name: model1Run.modelVersion
+                          ? `${model1Run.modelName} (${model1Run.algorithmName}) ${model1Run.modelVersion}`
+                          : `${model1Run.modelName} (${model1Run.algorithmName})`,
                       routeTree: model1RouteTree,
                       ...navState.model1Nav,
                   }
@@ -367,7 +369,9 @@ export async function getTargetComparisonData(
                 ? {
                       runId: model2Id,
                       rank: rank2,
-                      name: `${model2Run.modelName} (${model2Run.algorithmName})`,
+                      name: model2Run.modelVersion
+                          ? `${model2Run.modelName} (${model2Run.algorithmName}) ${model2Run.modelVersion}`
+                          : `${model2Run.modelName} (${model2Run.algorithmName})`,
                       routeTree: model2RouteTree,
                       ...navState.model2Nav,
                   }
