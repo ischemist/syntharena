@@ -7,8 +7,9 @@ import { PageLevelTopKSelector } from './_components/client/page-level-top-k-sel
 import { StratifiedMetricsFilter } from './_components/client/stratified-metrics-filter'
 import { BenchmarkLeaderboardHeader } from './_components/server/benchmark-leaderboard-header'
 import { BenchmarkLeaderboardOverall } from './_components/server/benchmark-leaderboard-overall'
+import { BenchmarkParetoDisplay } from './_components/server/benchmark-pareto-display'
 import { StratifiedMetricCard } from './_components/server/stratified-metric-card'
-import { LeaderboardCardSkeleton } from './_components/skeletons'
+import { LeaderboardCardSkeleton, ParetoChartSkeleton } from './_components/skeletons'
 
 export const metadata: Metadata = {
     title: 'Leaderboard',
@@ -122,6 +123,9 @@ function LeaderboardMetrics({
                     stockName={stockName}
                     topKMetricNames={availableTopKMetrics}
                 />
+                <Suspense fallback={<ParetoChartSkeleton />}>
+                    <BenchmarkParetoDisplay entries={leaderboardEntries} availableTopKMetrics={availableTopKMetrics} />
+                </Suspense>
                 <StratifiedMetricsWrapper
                     metricsByStock={stratifiedMetricsByStock}
                     stocks={stocks}
