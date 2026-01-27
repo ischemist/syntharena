@@ -2,7 +2,18 @@
 
 import { useMemo } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { CartesianGrid, ErrorBar, LabelList, Legend, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from 'recharts'
+import {
+    CartesianGrid,
+    Customized,
+    ErrorBar,
+    LabelList,
+    Legend,
+    Scatter,
+    ScatterChart,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from 'recharts'
 
 import type { LeaderboardEntry } from '@/types'
 import { getSeriesColor } from '@/lib/chart-colors'
@@ -114,6 +125,28 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
         return { maxX: paddedMax, xAxisTicks: ticks }
     }, [chartDataByFamily])
 
+    // Calculate Pareto frontier
+    const paretoFrontier = useMemo(() => {
+        const allData = Array.from(chartDataByFamily.values()).flatMap((s) => s.data)
+        if (allData.length === 0) return []
+
+        // Sort by x-axis (cost/time) ascending
+        const sorted = [...allData].sort((a, b) => a.x - b.x)
+
+        // Build frontier: keep points where y increases (or stays same for first occurrence)
+        const frontier: Array<{ x: number; y: number }> = []
+        let maxY = -Infinity
+
+        for (const point of sorted) {
+            if (point.y >= maxY) {
+                frontier.push({ x: point.x, y: point.y })
+                maxY = point.y
+            }
+        }
+
+        return frontier
+    }, [chartDataByFamily])
+
     return (
         <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
@@ -180,6 +213,32 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
                         content={({ active, payload }) => {
                             if (!active || !payload?.[0]) return null
                             const data = payload[0].payload
+
+                            // Pareto frontier points only have x/y, skip detailed tooltip
+                            if (!data.algorithmName) {
+                                return (
+                                    <div className="bg-background border-border rounded-lg border p-2 shadow-lg">
+                                        <div className="mb-1 font-semibold">Pareto Frontier</div>
+                                        <div className="flex flex-col gap-1 text-sm">
+                                            <div className="flex items-center justify-between gap-4">
+                                                <span className="text-muted-foreground">
+                                                    {selectedX === 'time' ? 'Time:' : 'Cost:'}
+                                                </span>
+                                                <span className="font-medium">
+                                                    {selectedX === 'time'
+                                                        ? `${(data.x as number).toFixed(1)} min`
+                                                        : `$${(data.x as number).toFixed(2)}`}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-4">
+                                                <span className="text-muted-foreground">{selectedY}:</span>
+                                                <span className="font-medium">{(data.y as number).toFixed(1)}%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            }
+
                             return (
                                 <div className="bg-background border-border rounded-lg border p-2 shadow-lg">
                                     <div className="text-muted-foreground mb-1 text-xs">{data.algorithmName}</div>
@@ -213,6 +272,7 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
                         }}
                     />
                     <Legend wrapperStyle={{ bottom: 0 }} />
+
                     {Array.from(chartDataByFamily.entries()).map(([seriesKey, series]) => {
                         // Calculate color based on algorithm and series index within that algorithm
                         const seriesInAlgorithm = Array.from(chartDataByFamily.entries()).filter(
@@ -249,6 +309,43 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
                             </Scatter>
                         )
                     })}
+
+                    {/* Pareto Frontier Line - rendered as custom SVG path */}
+                    {paretoFrontier.length > 1 && (
+                        <Customized
+                            component={(props: {
+                                xAxisMap?: Record<string, { scale: (v: number) => number }>
+                                yAxisMap?: Record<string, { scale: (v: number) => number }>
+                            }) => {
+                                const { xAxisMap, yAxisMap } = props
+                                if (!xAxisMap || !yAxisMap) return null
+
+                                const xScale = Object.values(xAxisMap)[0]?.scale
+                                const yScale = Object.values(yAxisMap)[0]?.scale
+                                if (!xScale || !yScale) return null
+
+                                // Build SVG path from frontier points
+                                const pathData = paretoFrontier
+                                    .map((point, i) => {
+                                        const x = xScale(point.x)
+                                        const y = yScale(point.y)
+                                        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`
+                                    })
+                                    .join(' ')
+
+                                return (
+                                    <path
+                                        d={pathData}
+                                        fill="none"
+                                        stroke="hsl(var(--muted-foreground))"
+                                        strokeWidth={2.5}
+                                        strokeDasharray="8 4"
+                                        strokeLinecap="round"
+                                    />
+                                )
+                            }}
+                        />
+                    )}
                 </ScatterChart>
             </ChartContainer>
         </div>
