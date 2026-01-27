@@ -1,8 +1,9 @@
 import type { TargetComparisonData } from '@/types'
+import { DeveloperModeToggle } from '@/components/developer-mode-toggle'
 import { CompactRankNavigator, ControlGrid, ControlGridSlot, ModelSelector } from '@/components/navigation'
 import { RouteComparison, RouteLegend } from '@/components/route-visualization'
 
-import { DisplayModeToggle } from '../client/display-mode-toggle'
+import { LayoutModeToggle } from '../client/layout-mode-toggle'
 
 interface GroundTruthComparisonViewProps {
     data: TargetComparisonData
@@ -10,11 +11,14 @@ interface GroundTruthComparisonViewProps {
 
 /** a dedicated view for comparing an acceptable route vs. a model prediction. */
 export function GroundTruthComparisonView({ data }: GroundTruthComparisonViewProps) {
-    const { acceptableRoute, model1, availableRuns, displayMode, stockInfo } = data
+    const { acceptableRoute, model1, availableRuns, layout, stockInfo } = data
 
     return (
         <div className="space-y-4">
             <div className="bg-muted/50 space-y-4 rounded-lg border p-4">
+                <div className="flex justify-end">
+                    <DeveloperModeToggle />
+                </div>
                 {/* section 1: the selection grid */}
                 <ControlGrid>
                     <ControlGridSlot label="Acceptable Route:">
@@ -51,7 +55,7 @@ export function GroundTruthComparisonView({ data }: GroundTruthComparisonViewPro
                 {model1 && (
                     <div className="border-border/50 flex items-center justify-between border-t pt-3">
                         <span className="text-muted-foreground text-sm font-medium">Comparison View:</span>
-                        <DisplayModeToggle currentDisplayMode={displayMode} />
+                        <LayoutModeToggle currentLayout={layout} />
                     </div>
                 )}
             </div>
@@ -65,7 +69,7 @@ export function GroundTruthComparisonView({ data }: GroundTruthComparisonViewPro
                             <RouteComparison
                                 acceptableRoute={acceptableRoute.visualizationNode}
                                 predictionRoute={model1.routeTree}
-                                mode={displayMode}
+                                mode={layout}
                                 inStockInchiKeys={stockInfo.inStockInchiKeys}
                                 buyableMetadataMap={stockInfo.buyableMetadataMap}
                                 modelName={model1.name}
@@ -73,7 +77,7 @@ export function GroundTruthComparisonView({ data }: GroundTruthComparisonViewPro
                             />
                         </div>
                         <div className="mt-4 flex justify-end">
-                            <RouteLegend viewMode={displayMode} />
+                            <RouteLegend viewMode={layout} />
                         </div>
                     </>
                 )}

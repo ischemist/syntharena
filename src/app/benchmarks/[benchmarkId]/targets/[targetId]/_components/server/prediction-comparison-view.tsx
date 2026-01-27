@@ -1,8 +1,9 @@
 import type { TargetComparisonData } from '@/types'
+import { DeveloperModeToggle } from '@/components/developer-mode-toggle'
 import { CompactRankNavigator, ControlGrid, ControlGridSlot, ModelSelector } from '@/components/navigation'
 import { PredictionComparison, RouteLegend } from '@/components/route-visualization'
 
-import { DisplayModeToggle } from '../client/display-mode-toggle'
+import { LayoutModeToggle } from '../client/layout-mode-toggle'
 
 interface PredictionComparisonViewProps {
     data: TargetComparisonData
@@ -10,11 +11,14 @@ interface PredictionComparisonViewProps {
 
 /** a dedicated view for comparing two model predictions. */
 export function PredictionComparisonView({ data }: PredictionComparisonViewProps) {
-    const { model1, model2, availableRuns, displayMode, stockInfo } = data
+    const { model1, model2, availableRuns, layout, stockInfo } = data
 
     return (
         <div className="space-y-4">
             <div className="bg-muted/50 space-y-4 rounded-lg border p-4">
+                <div className="flex justify-end">
+                    <DeveloperModeToggle />
+                </div>
                 <ControlGrid>
                     <ControlGridSlot label="Model 1:">
                         <div className="flex items-center gap-2">
@@ -57,7 +61,7 @@ export function PredictionComparisonView({ data }: PredictionComparisonViewProps
                 {model1 && model2 && (
                     <div className="border-border/50 flex items-center justify-between border-t pt-3">
                         <span className="text-muted-foreground text-sm font-medium">Comparison View:</span>
-                        <DisplayModeToggle currentDisplayMode={displayMode} />
+                        <LayoutModeToggle currentLayout={layout} />
                     </div>
                 )}
             </div>
@@ -71,7 +75,7 @@ export function PredictionComparisonView({ data }: PredictionComparisonViewProps
                             <PredictionComparison
                                 prediction1Route={model1.routeTree}
                                 prediction2Route={model2.routeTree}
-                                mode={displayMode}
+                                mode={layout}
                                 inStockInchiKeys={stockInfo.inStockInchiKeys}
                                 buyableMetadataMap={stockInfo.buyableMetadataMap}
                                 model1Label={model1.name}
@@ -79,7 +83,7 @@ export function PredictionComparisonView({ data }: PredictionComparisonViewProps
                             />
                         </div>
                         <div className="mt-4 flex justify-end">
-                            <RouteLegend viewMode={displayMode} isPredictionComparison />
+                            <RouteLegend viewMode={layout} isPredictionComparison />
                         </div>
                     </>
                 )}

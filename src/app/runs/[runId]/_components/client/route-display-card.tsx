@@ -1,6 +1,6 @@
 import { Star } from 'lucide-react'
 
-import type { BuyableMetadata, PredictionRoute, Route, RouteViewMode, RouteVisualizationNode } from '@/types'
+import type { BuyableMetadata, PredictionRoute, Route, RouteLayoutMode, RouteVisualizationNode } from '@/types'
 import { StockTerminationBadge } from '@/components/badges/stock-termination'
 import { CompactRankNavigator, ControlGrid, ControlGridSlot } from '@/components/navigation'
 import { RouteComparison, RouteGraph, RouteLegend } from '@/components/route-visualization'
@@ -20,7 +20,7 @@ type RouteDisplayCardProps = {
     inStockInchiKeys?: Set<string>
     buyableMetadataMap?: Map<string, BuyableMetadata>
     stockName?: string
-    viewMode?: string
+    layout?: RouteLayoutMode
     navigation: {
         currentRank: number
         availableRanks: number[]
@@ -45,20 +45,15 @@ export function RouteDisplayCard({
     inStockInchiKeys,
     buyableMetadataMap,
     stockName,
-    viewMode: viewModeProp,
+    layout: layoutProp,
     navigation,
     acceptableRouteNav,
 }: RouteDisplayCardProps) {
     const hasRoute = !!route && !!predictionRoute && !!visualizationNode
     const hasAcceptableRoute = !!acceptableRouteVisualizationNode
 
-    const validViewModes: RouteViewMode[] = ['prediction-only', 'side-by-side', 'diff-overlay']
-    const viewMode: RouteViewMode =
-        viewModeProp && validViewModes.includes(viewModeProp as RouteViewMode)
-            ? (viewModeProp as RouteViewMode)
-            : 'prediction-only'
-
-    const showAcceptableNav = acceptableRouteNav && (viewMode === 'side-by-side' || viewMode === 'diff-overlay')
+    const layout: RouteLayoutMode = layoutProp || 'prediction-only' // [RENAMED]
+    const showAcceptableNav = acceptableRouteNav && (layout === 'side-by-side' || layout === 'diff-overlay')
 
     return (
         <Card variant="bordered">
@@ -79,7 +74,7 @@ export function RouteDisplayCard({
 
                 {hasRoute && (
                     <div className="flex w-full items-center justify-between">
-                        <RouteViewToggle viewMode={viewMode} hasAcceptableRoute={hasAcceptableRoute} />
+                        <RouteViewToggle layout={layout} hasAcceptableRoute={hasAcceptableRoute} />
                         <div className="flex items-center gap-2">
                             {matchesAcceptable && (
                                 <Badge variant="secondary" className="gap-1 px-2 py-1">
@@ -135,7 +130,7 @@ export function RouteDisplayCard({
                                 Use the navigation above to browse other ranks.
                             </p>
                         </div>
-                    ) : viewMode === 'prediction-only' ? (
+                    ) : layout === 'prediction-only' ? (
                         <RouteGraph
                             route={visualizationNode}
                             inStockInchiKeys={inStockInchiKeys ?? new Set()}
@@ -146,7 +141,7 @@ export function RouteDisplayCard({
                         <RouteComparison
                             acceptableRoute={acceptableRouteVisualizationNode}
                             predictionRoute={visualizationNode}
-                            mode={viewMode}
+                            mode={layout}
                             inStockInchiKeys={inStockInchiKeys ?? new Set()}
                             buyableMetadataMap={buyableMetadataMap}
                             acceptableRouteLabel={`Acceptable Route ${acceptableRouteNav ? acceptableRouteNav.currentAcceptableIndex + 1 : 1}`}
@@ -158,7 +153,7 @@ export function RouteDisplayCard({
                     )}
                 </div>
 
-                {hasRoute && <RouteLegend viewMode={viewMode} />}
+                {hasRoute && <RouteLegend viewMode={layout} />}
             </CardContent>
         </Card>
     )

@@ -25,11 +25,11 @@ type BenchmarkMetricsDisplayProps = {
 }
 
 // Create context for view mode (to share between toggle and display)
-type ViewModeContextType = {
-    view: 'table' | 'chart'
+type DisplayModeContextType = {
+    display: 'table' | 'chart'
 }
-const ViewModeContext = createContext<ViewModeContextType>({
-    view: 'table',
+const DisplayModeContext = createContext<DisplayModeContextType>({
+    display: 'table',
 })
 
 /**
@@ -37,29 +37,29 @@ const ViewModeContext = createContext<ViewModeContextType>({
  * Must wrap both MetricsViewToggleButtons and BenchmarkMetricsDisplay.
  * Following App Router Manifesto: URL is canon - view state is shareable.
  */
-export function MetricsViewProvider({ children }: { children: React.ReactNode }) {
+export function MetricsDisplayProvider({ children }: { children: React.ReactNode }) {
     const searchParams = useSearchParams()
-    const view = (searchParams.get('view') as 'table' | 'chart') || 'table'
+    const display = (searchParams.get('display') as 'table' | 'chart') || 'table'
 
-    return <ViewModeContext.Provider value={{ view }}>{children}</ViewModeContext.Provider>
+    return <DisplayModeContext.Provider value={{ display }}>{children}</DisplayModeContext.Provider>
 }
 
 /**
  * View toggle buttons for table/chart display.
  * Reads view mode from context, writes to URL.
  */
-export function MetricsViewToggleButtons() {
+export function MetricsDisplayToggleButtons() {
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
-    const { view } = useContext(ViewModeContext)
+    const { display } = useContext(DisplayModeContext)
 
-    const handleViewChange = (newView: 'table' | 'chart') => {
+    const handleDisplayChange = (newDisplay: 'table' | 'chart') => {
         const params = new URLSearchParams(searchParams.toString())
-        if (newView === 'table') {
-            params.delete('view') // Default is table, keep URL clean
+        if (newDisplay === 'table') {
+            params.delete('display')
         } else {
-            params.set('view', newView)
+            params.set('display', newDisplay)
         }
         router.replace(`${pathname}?${params.toString()}`, { scroll: false })
     }
@@ -67,18 +67,18 @@ export function MetricsViewToggleButtons() {
     return (
         <div className="flex gap-2">
             <Button
-                variant={view === 'table' ? 'default' : 'outline'}
+                variant={display === 'table' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => handleViewChange('table')}
+                onClick={() => handleDisplayChange('table')}
                 className="gap-2"
             >
                 <Table2 className="h-4 w-4" />
                 Table
             </Button>
             <Button
-                variant={view === 'chart' ? 'default' : 'outline'}
+                variant={display === 'chart' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => handleViewChange('chart')}
+                onClick={() => handleDisplayChange('chart')}
                 className="gap-2"
             >
                 <BarChart3 className="h-4 w-4" />
@@ -105,7 +105,7 @@ export function BenchmarkMetricsDisplay({
 }: BenchmarkMetricsDisplayProps) {
     const contextSelectedTopK = useSelectedTopK()
     const selectedTopK = propSelectedTopK ?? contextSelectedTopK
-    const { view } = useContext(ViewModeContext)
+    const { display } = useContext(DisplayModeContext)
 
     const hasTopKMetrics = topKMetricNames.length > 0
 
@@ -138,7 +138,7 @@ export function BenchmarkMetricsDisplay({
     return (
         <div>
             {/* Content area */}
-            {view === 'table' ? (
+            {display === 'table' ? (
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>

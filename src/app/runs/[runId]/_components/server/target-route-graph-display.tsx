@@ -13,7 +13,7 @@ type TargetRouteGraphDisplayProps = {
  * the card handles the empty state internally to maintain consistent layout.
  */
 export function TargetRouteGraphDisplay({ data }: TargetRouteGraphDisplayProps) {
-    const { currentPrediction, acceptableRoute, stockInfo, viewMode, navigation, acceptableRouteNav } = data
+    const { currentPrediction, acceptableRoute, stockInfo, layout, navigation, acceptableRouteNav } = data
 
     const solvability = currentPrediction?.solvability
 
@@ -28,7 +28,7 @@ export function TargetRouteGraphDisplay({ data }: TargetRouteGraphDisplayProps) 
             inStockInchiKeys={stockInfo.inStockInchiKeys}
             buyableMetadataMap={stockInfo.buyableMetadataMap}
             stockName={stockInfo.stockName}
-            viewMode={viewMode}
+            layout={layout}
             navigation={navigation}
             acceptableRouteNav={acceptableRouteNav}
         />

@@ -223,3 +223,16 @@ async function _findAvailableRouteLengths(benchmarkId: string) {
 export const findAvailableRouteLengths = cache(_findAvailableRouteLengths, ['available-route-lengths'], {
     tags: ['benchmarks', 'targets'],
 })
+
+/** returns the id of the first target in a benchmark, ordered by targetid. */
+async function _findFirstTargetId(benchmarkId: string) {
+    const target = await prisma.benchmarkTarget.findFirst({
+        where: { benchmarkSetId: benchmarkId },
+        select: { id: true },
+        orderBy: { targetId: 'asc' },
+    })
+    return target?.id ?? null
+}
+export const findFirstTargetId = cache(_findFirstTargetId, ['first-target-id'], {
+    tags: ['benchmarks', 'targets'],
+})

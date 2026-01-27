@@ -1,7 +1,7 @@
-import type { RouteViewMode } from '@/types'
+import type { ComparisonLayoutMode, RouteLayoutMode } from '@/types'
 
 interface RouteLegendProps {
-    viewMode?: RouteViewMode
+    viewMode?: RouteLayoutMode | ComparisonLayoutMode
     isPredictionComparison?: boolean // True for pred-vs-pred, false for GT-vs-pred
 }
 

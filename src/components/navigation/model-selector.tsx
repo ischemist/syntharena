@@ -43,6 +43,12 @@ export function ModelSelector({ runs, selectedRunId, paramName, rankParamName }:
     const formatDate = (date: Date) =>
         new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(date))
 
+    const getSearchValue = (run: PredictionRunSummary) => {
+        const parts = [run.modelName, run.algorithmName, run.modelVersion ?? ''].filter(Boolean)
+
+        return parts.join(' ').toLowerCase()
+    }
+
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
@@ -67,7 +73,11 @@ export function ModelSelector({ runs, selectedRunId, paramName, rankParamName }:
                         <CommandEmpty>No models found.</CommandEmpty>
                         <CommandGroup>
                             {runs.map((run) => (
-                                <CommandItem key={run.id} value={run.id} onSelect={() => handleSelect(run.id)}>
+                                <CommandItem
+                                    key={run.id}
+                                    value={getSearchValue(run)}
+                                    onSelect={() => handleSelect(run.id)}
+                                >
                                     <div className="flex w-full items-center justify-between">
                                         <div className="flex flex-col">
                                             <div className="flex items-center gap-2">

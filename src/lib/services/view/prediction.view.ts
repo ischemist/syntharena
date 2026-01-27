@@ -14,6 +14,7 @@ import type {
     ModelStatistics,
     PredictionRunWithStats,
     ReliabilityCode,
+    RouteLayoutMode,
     RouteNodeWithDetails,
     RunStatistics,
     StockListItem,
@@ -74,7 +75,7 @@ function _buildRunTargetNavigation(
         rank: number
         stockId?: string
         acceptableIndex?: number
-        viewMode?: string
+        layout?: string
     },
     data: {
         availableRanks: number[]
@@ -87,7 +88,7 @@ function _buildRunTargetNavigation(
         search.set('rank', params.rank.toString())
         if (params.stockId) search.set('stock', params.stockId)
         if (params.acceptableIndex !== undefined) search.set('acceptableIndex', params.acceptableIndex.toString())
-        if (params.viewMode) search.set('view', params.viewMode)
+        if (params.layout) search.set('layout', params.layout)
 
         search.set(paramToChange, newValue.toString())
         return `/runs/${runId}?${search.toString()}`
@@ -145,18 +146,22 @@ export async function getPredictionRuns(
     benchmarkId?: string,
     modelInstanceId?: string,
     modelFamilyIds?: string[],
-    submissionType?: SubmissionType
+    submissionType?: SubmissionType,
+    devMode?: boolean
 ): Promise<PredictionRunWithStats[]> {
-    const runs = await runData.findPredictionRunsForList({
-        benchmarkSet: {
-            isListed: true,
-            ...(benchmarkId && { id: benchmarkId }),
+    const runs = await runData.findPredictionRunsForList(
+        {
+            benchmarkSet: {
+                isListed: true,
+                ...(benchmarkId && { id: benchmarkId }),
+            },
+            ...(modelInstanceId && { modelInstanceId }),
+            ...(modelFamilyIds &&
+                modelFamilyIds.length > 0 && { modelInstance: { modelFamilyId: { in: modelFamilyIds } } }),
+            ...(submissionType && { submissionType }),
         },
-        ...(modelInstanceId && { modelInstanceId }),
-        ...(modelFamilyIds &&
-            modelFamilyIds.length > 0 && { modelInstance: { modelFamilyId: { in: modelFamilyIds } } }),
-        ...(submissionType && { submissionType }),
-    })
+        devMode
+    )
 
     return runs.map((run) => {
         const solvabilitySummary: Record<string, number> = {}
@@ -240,9 +245,9 @@ export interface PredictionRunSummary {
 /** aggregates prediction routes into run summaries for a target. */
 export async function getPredictionRunsForTarget(
     targetId: string,
-    viewMode: 'curated' | 'forensic' = 'curated'
+    devMode: boolean = false
 ): Promise<PredictionRunSummary[]> {
-    const rawRuns = await predictionData.findPredictionRunsForTarget(targetId, viewMode)
+    const rawRuns = await predictionData.findPredictionRunsForTarget(targetId, devMode)
 
     // fetch all rank summaries in parallel
     const summaryPromises = rawRuns.map((run) => routeData.findPredictionSummaries(targetId, run.id))
@@ -297,7 +302,14 @@ export async function getStocksForRun(runId: string): Promise<StockListItem[]> {
 }
 
 /** returns ordered list of target IDs for a run's benchmark. */
-export async function getTargetIdsByRun(runId: string, routeLength?: number): Promise<string[]> {
+export async function getTargetIdsByRun(
+    runId: string,
+    routeLength?: number,
+    onlyWithPredictions?: boolean
+): Promise<string[]> {
+    if (onlyWithPredictions) {
+        return predictionData.findTargetIdsWithPredictionsForRun(runId, routeLength)
+    }
     const run = await runData.findPredictionRunDetailsById(runId)
     return benchmarkData.findTargetIdsByBenchmark(run.benchmarkSet.id, routeLength)
 }
@@ -349,6 +361,7 @@ export async function searchTargets(
     query: string,
     stockId?: string,
     routeLength?: number,
+    onlyWithPredictions?: boolean,
     limit: number = 20
 ): Promise<BenchmarkTargetWithMolecule[]> {
     const where: Prisma.BenchmarkTargetWhereInput = {}
@@ -360,7 +373,12 @@ export async function searchTargets(
         where.routeLength = routeLength
     }
 
-    const { targets, counts } = await predictionData.findTargetsAndPredictionCountsForRun(runId, where, limit)
+    const { targets, counts } = await predictionData.findTargetsAndPredictionCountsForRun(
+        runId,
+        where,
+        limit,
+        onlyWithPredictions
+    )
     const countMap = new Map(counts.map((c) => [c.targetId, c._count._all]))
 
     return targets.map((target) => ({
@@ -524,7 +542,7 @@ export async function getTargetDisplayData(
     rank: number,
     stockId?: string,
     acceptableIndexProp?: number,
-    viewMode?: string
+    layout?: string
 ): Promise<TargetDisplayData> {
     // Wave 1
     const [targetPayload, predictionSummaries, acceptableRoutes, prediction, firstMatchRank] = await Promise.all([
@@ -584,7 +602,7 @@ export async function getTargetDisplayData(
     // Final Assembly
     const navState = _buildRunTargetNavigation(
         runId,
-        { targetId, rank, stockId, acceptableIndex: currentAcceptableIndex, viewMode },
+        { targetId, rank, stockId, acceptableIndex: currentAcceptableIndex, layout },
         { availableRanks: predictionSummaries.map((s) => s.rank), totalAcceptableRoutes }
     )
 
@@ -621,7 +639,7 @@ export async function getTargetDisplayData(
             stockName,
             ...stockDataResult,
         },
-        viewMode,
+        layout: layout as RouteLayoutMode,
         navigation: navState.predictionNav,
         acceptableRouteNav: navState.acceptableNav,
     }

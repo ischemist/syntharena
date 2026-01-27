@@ -37,9 +37,14 @@ export default function LeaderboardPage({ searchParams }: LeaderboardPageProps) 
 /**
  * Async component that performs the single data fetch for the page.
  */
-async function LeaderboardContentWrapper({ searchParams }: { searchParams: Promise<{ benchmarkId?: string }> }) {
+async function LeaderboardContentWrapper({
+    searchParams,
+}: {
+    searchParams: Promise<{ benchmarkId?: string; dev?: string }>
+}) {
     const params = await searchParams
-    const pageData = await getLeaderboardPageData(params.benchmarkId)
+    const devMode = params.dev === 'true'
+    const pageData = await getLeaderboardPageData(params.benchmarkId, devMode)
 
     if (!pageData) {
         return (
@@ -85,7 +90,7 @@ function LeaderboardMetrics({
     stocks,
     hasAcceptableRoutes,
     availableTopKMetrics,
-}: Omit<LeaderboardPageData, 'allBenchmarks' | 'metadata'> & LeaderboardPageData['metadata']) {
+}: Omit<LeaderboardPageData, 'allBenchmarks' | 'metadata' | 'firstTargetId'> & LeaderboardPageData['metadata']) {
     const stockName = leaderboardEntries[0].stockName
 
     if (!hasAcceptableRoutes || availableTopKMetrics.length === 0) {

@@ -3,8 +3,8 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 
 import {
     BenchmarkMetricsDisplay,
-    MetricsViewProvider,
-    MetricsViewToggleButtons,
+    MetricsDisplayProvider,
+    MetricsDisplayToggleButtons,
 } from '../client/benchmark-metrics-display'
 
 type BenchmarkLeaderboardOverallProps = {
@@ -31,7 +31,7 @@ export function BenchmarkLeaderboardOverall({
     topKMetricNames,
 }: BenchmarkLeaderboardOverallProps) {
     return (
-        <MetricsViewProvider>
+        <MetricsDisplayProvider>
             <Card variant="bordered">
                 <CardHeader>
                     <CardTitle>Overall Metrics</CardTitle>
@@ -40,7 +40,7 @@ export function BenchmarkLeaderboardOverall({
                         {!hasAcceptableRoutes && ' (solvability only)'}
                     </CardDescription>
                     <CardAction>
-                        <MetricsViewToggleButtons />
+                        <MetricsDisplayToggleButtons />
                     </CardAction>
                 </CardHeader>
                 <CardContent>
@@ -51,6 +51,6 @@ export function BenchmarkLeaderboardOverall({
                     />
                 </CardContent>
             </Card>
-        </MetricsViewProvider>
+        </MetricsDisplayProvider>
     )
 }

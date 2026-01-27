@@ -8,14 +8,21 @@ type TargetSearchWrapperProps = {
     stockId?: string
     currentTargetId?: string
     routeLength?: string
+    onlyWithPredictions?: boolean
 }
 
-export async function TargetSearchWrapper({ runId, stockId, currentTargetId, routeLength }: TargetSearchWrapperProps) {
+export async function TargetSearchWrapper({
+    runId,
+    stockId,
+    currentTargetId,
+    routeLength,
+    onlyWithPredictions,
+}: TargetSearchWrapperProps) {
     // Parse route length filter
     const routeLengthFilter = routeLength ? parseInt(routeLength, 10) : undefined
 
-    // Get target IDs for this run (ordered) - filtered by route length if specified
-    const targetIds = await predictionView.getTargetIdsByRun(runId, routeLengthFilter)
+    // Get target IDs for this run (ordered) - filtered by route length and predictions if specified
+    const targetIds = await predictionView.getTargetIdsByRun(runId, routeLengthFilter, onlyWithPredictions)
 
     // Get available route lengths (empty if no acceptable routes)
     const availableRouteLengths = await predictionView.getAvailableRouteLengths(runId)
@@ -40,9 +47,13 @@ export async function TargetSearchWrapper({ runId, stockId, currentTargetId, rou
     }
 
     // Create a server action to pass to the client component
-    async function handleSearch(query: string, selectedRouteLength?: number): Promise<BenchmarkTargetWithMolecule[]> {
+    async function handleSearch(
+        query: string,
+        selectedRouteLength?: number,
+        filterByPredictions?: boolean
+    ): Promise<BenchmarkTargetWithMolecule[]> {
         'use server'
-        return predictionView.searchTargets(runId, query, stockId, selectedRouteLength, 20)
+        return predictionView.searchTargets(runId, query, stockId, selectedRouteLength, filterByPredictions, 20)
     }
 
     return (
@@ -51,6 +62,7 @@ export async function TargetSearchWrapper({ runId, stockId, currentTargetId, rou
             navigation={navigationData}
             availableRouteLengths={availableRouteLengths}
             currentRouteLength={routeLengthFilter}
+            currentFilter={onlyWithPredictions}
         />
     )
 }

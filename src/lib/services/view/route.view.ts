@@ -12,6 +12,8 @@
 import type {
     BenchmarkTargetWithMolecule,
     BuyableMetadata,
+    ComparisonLayoutMode,
+    ComparisonMode,
     PredictionRunSummary,
     Route,
     RouteNodeWithDetails,
@@ -19,6 +21,7 @@ import type {
     RouteVisualizationNode,
     TargetComparisonData,
 } from '@/types'
+import { COMPARISON_LAYOUT_MODES, COMPARISON_MODES } from '@/types'
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import { layoutTree } from '@/lib/route-visualization/layout'
 import * as benchmarkData from '@/lib/services/data/benchmark.data'
@@ -49,8 +52,8 @@ function _buildComparisonNavigation(
     basePath: string,
     params: {
         mode?: string
-        displayMode?: string
-        viewMode: 'curated' | 'forensic'
+        layout?: string
+        devMode: boolean
         model1Id?: string
         model2Id?: string
         rank1: number
@@ -68,8 +71,8 @@ function _buildComparisonNavigation(
     const buildNavHref = (paramToChange: string, newValue: number) => {
         const search = new URLSearchParams()
         if (params.mode) search.set('mode', params.mode)
-        if (params.displayMode) search.set('display', params.displayMode)
-        if (params.viewMode === 'forensic') search.set('view', 'forensic')
+        if (params.layout) search.set('layout', params.layout)
+        if (params.devMode) search.set('dev', 'true')
         if (params.model1Id) search.set('model1', params.model1Id)
         if (params.model2Id) search.set('model2', params.model2Id)
         search.set('rank1', params.rank1.toString())
@@ -249,14 +252,14 @@ export async function getTargetComparisonData(
     model2Id?: string,
     rank1: number = 1,
     rank2: number = 1,
-    displayModeProp?: string,
+    layoutProp?: string,
     acceptableIndexProp: number = 0,
-    viewMode: 'curated' | 'forensic' = 'curated'
+    devMode: boolean = false
 ): Promise<TargetComparisonData> {
     // --- Wave 1: Fetch base contextual data in parallel ---
     const [benchmark, availableRunsResult, acceptableRoutes] = await Promise.all([
         benchmarkData.findBenchmarkListItemById(benchmarkId),
-        predictionView.getPredictionRunsForTarget(targetId, viewMode),
+        predictionView.getPredictionRunsForTarget(targetId, devMode),
         routeData.findAcceptableRoutesForTarget(targetId),
     ])
 
@@ -310,8 +313,8 @@ export async function getTargetComparisonData(
         `/benchmarks/${benchmarkId}/targets/${targetId}`,
         {
             mode: modeProp,
-            displayMode: displayModeProp,
-            viewMode,
+            layout: layoutProp,
+            devMode,
             model1Id,
             model2Id,
             rank1,
@@ -321,13 +324,17 @@ export async function getTargetComparisonData(
         { totalAcceptableRoutes, model1Run, model2Run }
     )
 
-    const validModes = ['gt-only', 'gt-vs-pred', 'pred-vs-pred']
     const currentMode =
-        modeProp && validModes.includes(modeProp) ? (modeProp as any) : acceptableRouteTree ? 'gt-only' : 'pred-vs-pred'
+        modeProp && (COMPARISON_MODES as readonly string[]).includes(modeProp)
+            ? (modeProp as ComparisonMode)
+            : acceptableRouteTree
+              ? 'gt-only'
+              : 'pred-vs-pred'
 
-    const validDisplayModes = ['side-by-side', 'diff-overlay']
-    const displayMode =
-        displayModeProp && validDisplayModes.includes(displayModeProp) ? (displayModeProp as any) : 'side-by-side'
+    const layout =
+        layoutProp && (COMPARISON_LAYOUT_MODES as readonly string[]).includes(layoutProp)
+            ? (layoutProp as ComparisonLayoutMode)
+            : 'side-by-side'
 
     return {
         benchmarkId,
@@ -350,7 +357,9 @@ export async function getTargetComparisonData(
                 ? {
                       runId: model1Id,
                       rank: rank1,
-                      name: `${model1Run.modelName} (${model1Run.algorithmName})`,
+                      name: model1Run.modelVersion
+                          ? `${model1Run.modelName} (${model1Run.algorithmName}) ${model1Run.modelVersion}`
+                          : `${model1Run.modelName} (${model1Run.algorithmName})`,
                       routeTree: model1RouteTree,
                       ...navState.model1Nav,
                   }
@@ -360,13 +369,15 @@ export async function getTargetComparisonData(
                 ? {
                       runId: model2Id,
                       rank: rank2,
-                      name: `${model2Run.modelName} (${model2Run.algorithmName})`,
+                      name: model2Run.modelVersion
+                          ? `${model2Run.modelName} (${model2Run.algorithmName}) ${model2Run.modelVersion}`
+                          : `${model2Run.modelName} (${model2Run.algorithmName})`,
                       routeTree: model2RouteTree,
                       ...navState.model2Nav,
                   }
                 : undefined,
         stockInfo: { inStockInchiKeys, buyableMetadataMap },
         currentMode,
-        displayMode,
+        layout,
     }
 }

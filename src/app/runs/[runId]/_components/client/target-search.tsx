@@ -8,8 +8,10 @@ import type { BenchmarkTargetWithMolecule } from '@/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 
 type NavigationData = {
     totalTargets: number
@@ -19,13 +21,24 @@ type NavigationData = {
 }
 
 type TargetSearchProps = {
-    onSearch: (query: string, routeLength?: number) => Promise<BenchmarkTargetWithMolecule[]>
+    onSearch: (
+        query: string,
+        routeLength?: number,
+        onlyWithPredictions?: boolean
+    ) => Promise<BenchmarkTargetWithMolecule[]>
     navigation: NavigationData
     availableRouteLengths: number[]
     currentRouteLength?: number
+    currentFilter?: boolean
 }
 
-export function TargetSearch({ onSearch, navigation, availableRouteLengths, currentRouteLength }: TargetSearchProps) {
+export function TargetSearch({
+    onSearch,
+    navigation,
+    availableRouteLengths,
+    currentRouteLength,
+    currentFilter,
+}: TargetSearchProps) {
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
@@ -33,14 +46,15 @@ export function TargetSearch({ onSearch, navigation, availableRouteLengths, curr
     const [open, setOpen] = useState(false)
     const [query, setQuery] = useState(searchParams.get('search') || '')
     const [selectedRouteLength, setSelectedRouteLength] = useState<number | undefined>(currentRouteLength)
+    const [onlyWithPredictions, setOnlyWithPredictions] = useState(currentFilter ?? false)
     const [results, setResults] = useState<BenchmarkTargetWithMolecule[]>([])
     const [isSearching, setIsSearching] = useState(false)
 
     // Load initial results when popover opens
     useEffect(() => {
-        if (open && results.length === 0 && !query && !selectedRouteLength) {
+        if (open && results.length === 0 && !query && !selectedRouteLength && !onlyWithPredictions) {
             setIsSearching(true)
-            onSearch('', selectedRouteLength)
+            onSearch('', selectedRouteLength, onlyWithPredictions)
                 .then(setResults)
                 .catch((error) => {
                     console.error('Failed to load initial targets:', error)
@@ -48,14 +62,14 @@ export function TargetSearch({ onSearch, navigation, availableRouteLengths, curr
                 })
                 .finally(() => setIsSearching(false))
         }
-    }, [open, onSearch, query, selectedRouteLength, results.length])
+    }, [open, onSearch, query, selectedRouteLength, onlyWithPredictions, results.length])
 
     // Debounced search effect
     useEffect(() => {
         const timer = setTimeout(async () => {
             setIsSearching(true)
             try {
-                const searchResults = await onSearch(query, selectedRouteLength)
+                const searchResults = await onSearch(query, selectedRouteLength, onlyWithPredictions)
                 setResults(searchResults)
             } catch (error) {
                 console.error('Search failed:', error)
@@ -66,7 +80,7 @@ export function TargetSearch({ onSearch, navigation, availableRouteLengths, curr
         }, 300)
 
         return () => clearTimeout(timer)
-    }, [query, selectedRouteLength, onSearch])
+    }, [query, selectedRouteLength, onlyWithPredictions, onSearch])
 
     const handleInputChange = (value: string) => {
         setQuery(value)
@@ -124,6 +138,17 @@ export function TargetSearch({ onSearch, navigation, availableRouteLengths, curr
             params.set('view', currentView)
         }
         router.push(`${pathname}?${params.toString()}`, { scroll: false })
+    }
+
+    const handleFilterChange = (checked: boolean) => {
+        setOnlyWithPredictions(checked)
+        const params = new URLSearchParams(searchParams.toString())
+        if (checked) {
+            params.set('onlyWithPredictions', 'true')
+        } else {
+            params.delete('onlyWithPredictions')
+        }
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false })
     }
 
     return (
@@ -289,6 +314,14 @@ export function TargetSearch({ onSearch, navigation, availableRouteLengths, curr
                     )}
                 </>
             )}
+
+            {/* Filter by predictions */}
+            <div className="flex items-center gap-2">
+                <Switch id="filter-predictions" checked={onlyWithPredictions} onCheckedChange={handleFilterChange} />
+                <Label htmlFor="filter-predictions" className="cursor-pointer text-sm">
+                    Only with predictions
+                </Label>
+            </div>
         </div>
     )
 }

@@ -18,9 +18,10 @@ type PageProps = {
         stock?: string
         target?: string
         rank?: string
-        view?: string
+        layout?: string
         routeLength?: string
         acceptableIndex?: string
+        onlyWithPredictions?: string
     }>
 }
 
@@ -50,18 +51,19 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
     const stockId = searchParamsValues.stock ?? defaults.stockId
     const targetId = searchParamsValues.target ?? defaults.targetId
     const rank = parseInt(searchParamsValues.rank || '1', 10)
-    const viewMode = searchParamsValues.view
+    const layout = searchParamsValues.layout
     const routeLength = searchParamsValues.routeLength
     const acceptableIndex = searchParamsValues.acceptableIndex
         ? parseInt(searchParamsValues.acceptableIndex, 10)
         : undefined
+    const onlyWithPredictions = searchParamsValues.onlyWithPredictions === 'true'
 
     // Initiate all data fetches concurrently. Do NOT await them here.
     const titleCardPromise = predictionView.getRunTitleCardData(runId)
     const stocksPromise = predictionView.getStocksForRun(runId)
     const statsPromise = stockId ? predictionView.getRunStatistics(runId, stockId) : Promise.resolve(null)
     const targetDisplayDataPromise = targetId
-        ? predictionView.getTargetDisplayData(runId, targetId, rank, stockId, acceptableIndex, viewMode)
+        ? predictionView.getTargetDisplayData(runId, targetId, rank, stockId, acceptableIndex, layout)
         : null
 
     return (
@@ -82,10 +84,16 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
                 <RunStatisticsStratified dataPromise={statsPromise} stockId={stockId} />
             </Suspense>
 
-            <TargetSearchWrapper runId={runId} stockId={stockId} currentTargetId={targetId} routeLength={routeLength} />
+            <TargetSearchWrapper
+                runId={runId}
+                stockId={stockId}
+                currentTargetId={targetId}
+                routeLength={routeLength}
+                onlyWithPredictions={onlyWithPredictions}
+            />
             {targetDisplayDataPromise && (
                 <Suspense
-                    key={`${targetId}-${rank}-${stockId}-${viewMode}-${acceptableIndex}`}
+                    key={`${targetId}-${rank}-${stockId}-${layout}-${acceptableIndex}`}
                     fallback={<RouteDisplaySkeleton />}
                 >
                     <ResolvedTargetDisplay dataPromise={targetDisplayDataPromise} />
