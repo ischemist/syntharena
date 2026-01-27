@@ -637,6 +637,18 @@ export interface ModelInstanceListItem extends ModelInstance {
 }
 
 /**
+ * Executive summary statistics for a model instance.
+ * Computed from all prediction runs for this model version.
+ */
+export interface ModelInstanceExecutiveSummary {
+    avgCostPerCompound: number | null // Average cost per compound across all runs
+    avgDurationPerCompound: number | null // Average wall time per compound in seconds
+    totalRuns: number // Total number of prediction runs
+    benchmarkCount: number // Number of distinct benchmarks evaluated on
+    bestTop10Accuracy: MetricResult | null // Best Top-10 accuracy across all benchmarks
+}
+
+/**
  * DTO for displaying best performance metrics for an algorithm.
  * Used in the algorithm detail page "Best Performance" section.
  */

@@ -23,7 +23,6 @@ export default async function ModelDetailBreadcrumb({ params }: { params: Promis
                     label: modelInstance.family.algorithm.name,
                     href: `/algorithms/${modelInstance.family.algorithm.slug}`,
                 },
-                { label: modelInstance.family.name, href: `/model-families/${modelInstance.family.slug}` },
                 { label: formatVersion(modelInstance) },
             ]}
         />

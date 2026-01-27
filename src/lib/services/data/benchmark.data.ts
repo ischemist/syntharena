@@ -103,6 +103,18 @@ export const findBenchmarkListItemById = cache(_findBenchmarkListItemById, ['ben
     tags: ['benchmarks'],
 })
 
+/** returns the number of targets in a benchmark set */
+async function _findBenchmarkTargetCount(benchmarkSetId: string): Promise<number> {
+    const result = await prisma.benchmarkSet.findUnique({
+        where: { id: benchmarkSetId },
+        select: { _count: { select: { targets: true } } },
+    })
+    return result?._count.targets ?? 0
+}
+export const findBenchmarkTargetCount = cache(_findBenchmarkTargetCount, ['benchmark-target-count'], {
+    tags: ['benchmarks', 'targets'],
+})
+
 /** returns raw data for the paginated target list view */
 async function _findBenchmarkTargetsPaginated(
     benchmarkId: string,
