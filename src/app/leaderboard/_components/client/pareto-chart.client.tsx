@@ -282,14 +282,7 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
                         const color = getSeriesColor(series.algorithmName, seriesKey, seriesIndex)
 
                         return (
-                            <Scatter
-                                key={seriesKey}
-                                name={seriesKey}
-                                data={series.data}
-                                fill={color}
-                                line
-                                shape="circle"
-                            >
+                            <Scatter key={seriesKey} name={seriesKey} data={series.data} fill={color} shape="circle">
                                 <ErrorBar
                                     dataKey="yError"
                                     width={4}
