@@ -60,7 +60,7 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
                     ],
                     algorithmName: entry.algorithmName,
                     modelFamilyName: entry.modelFamilyName,
-                    seriesKey: `${entry.modelFamilyName} v${entry.version}`,
+                    seriesKey: `${entry.modelFamilyName} ${entry.version}`,
                     version: entry.version,
                 }
             })
@@ -207,9 +207,9 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
                                 />
                                 <LabelList
                                     dataKey="modelFamilyName"
-                                    position="top"
+                                    position="right"
                                     offset={8}
-                                    fontSize={10}
+                                    fontSize={9}
                                     fill={color}
                                     fontWeight={500}
                                 />
