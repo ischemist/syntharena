@@ -18,7 +18,7 @@ export function PredictionRunTable({ runs }: PredictionRunTableProps) {
     if (runs.length === 0) {
         return (
             <div className="space-y-4">
-                <h2 className="text-xl font-semibold">Prediction Runs</h2>
+                <h2 className="text-muted-foreground text-sm font-medium tracking-wider uppercase">Prediction Runs</h2>
                 <div className="text-muted-foreground py-8 text-center">
                     <p>No prediction runs found for this model version.</p>
                 </div>
@@ -28,7 +28,7 @@ export function PredictionRunTable({ runs }: PredictionRunTableProps) {
 
     return (
         <div className="space-y-4">
-            <h2 className="text-xl font-semibold">Prediction Runs</h2>
+            <h2 className="text-muted-foreground text-sm font-medium tracking-wider uppercase">Prediction Runs</h2>
             <Table>
                 <TableHeader>
                     <TableRow>

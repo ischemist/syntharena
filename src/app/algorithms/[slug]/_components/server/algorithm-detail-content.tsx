@@ -19,24 +19,27 @@ export async function AlgorithmDetailContent({ slug }: AlgorithmDetailContentPro
             <AggregatePerformance metrics={highlightMetrics} />
 
             {/* new: render families in sections */}
-            <div className="space-y-8">
-                <h2 className="text-xl font-semibold">Model Families</h2>
-                {families.length > 0 ? (
-                    families.map((family) => (
-                        <div key={family.id} className="space-y-4">
-                            <h3 className="text-lg font-semibold">{family.name}</h3>
+            {families.length > 0 ? (
+                <div className="space-y-6">
+                    {families.map((family) => (
+                        <div key={family.id} className="border-t pt-4">
+                            <h3 className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+                                {family.name}
+                            </h3>
                             {family.description && (
-                                <p className="text-muted-foreground max-w-2xl text-sm">{family.description}</p>
+                                <p className="text-muted-foreground/70 mt-1 max-w-2xl text-sm">{family.description}</p>
                             )}
-                            <ModelInstanceTable instances={family.instances} />
+                            <div className="mt-3">
+                                <ModelInstanceTable instances={family.instances} />
+                            </div>
                         </div>
-                    ))
-                ) : (
-                    <div className="text-muted-foreground py-8 text-center">
-                        <p>no model families or versions found for this algorithm.</p>
-                    </div>
-                )}
-            </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="text-muted-foreground py-8 text-center">
+                    <p>no model families or versions found for this algorithm.</p>
+                </div>
+            )}
 
             {algorithm.bibtex && (
                 <div className="space-y-2">

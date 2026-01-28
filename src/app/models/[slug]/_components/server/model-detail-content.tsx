@@ -37,7 +37,9 @@ export async function ModelDetailContent({ slug }: ModelDetailContentProps) {
             {/* Top-10 Performance Chart */}
             {chartData.length > 0 && (
                 <div className="space-y-4">
-                    <h2 className="text-xl font-semibold">Top-10 Performance Across Benchmarks</h2>
+                    <h2 className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
+                        Top-10 Performance Across Benchmarks
+                    </h2>
                     <BenchmarkPerformanceChart data={chartData} />
                 </div>
             )}
