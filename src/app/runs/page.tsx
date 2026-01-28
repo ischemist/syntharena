@@ -48,14 +48,14 @@ export default async function RunsPage({ searchParams }: PageProps) {
     return (
         <Tabs defaultValue="market" className="flex flex-col gap-6">
             <RunsPageHeader>
-                {/* Left side of the control bar */}
-                <TabsList>
+                {/* Tabs - full width on mobile/tablet, auto on desktop */}
+                <TabsList className="w-full md:w-auto">
                     <TabsTrigger value="market">Market Series</TabsTrigger>
                     <TabsTrigger value="reference">Reference Series</TabsTrigger>
                     <TabsTrigger value="other">Other</TabsTrigger>
                 </TabsList>
-                {/* Right side of the control bar */}
-                <div className="flex items-center gap-4">
+                {/* Filters - full width on mobile/tablet, auto on desktop */}
+                <div className="flex w-full flex-wrap items-center gap-4 xl:w-auto">
                     <RunFilters modelFamilies={familyOptions} />
                     <DeveloperModeToggle />
                 </div>

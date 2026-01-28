@@ -39,40 +39,36 @@ export function RunFilters({ modelFamilies }: RunFiltersProps) {
     }
 
     return (
-        <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-                <MultiSelectCombobox
-                    options={modelFamilies}
-                    selected={currentFamilies}
-                    onChange={(value) => handleFilterChange('families', value)}
-                    className="w-[300px]"
-                    placeholder="All Model Families"
-                />
-            </div>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
+            <MultiSelectCombobox
+                options={modelFamilies}
+                selected={currentFamilies}
+                onChange={(value) => handleFilterChange('families', value)}
+                className="w-full md:max-w-[300px] md:min-w-[200px] md:flex-1"
+                placeholder="All Model Families"
+            />
 
-            <div className="flex items-center gap-2">
-                <Select
-                    value={currentSubmission || undefined}
-                    onValueChange={(value) => handleFilterChange('submission', value)}
-                >
-                    <SelectTrigger id="submission-filter" className="w-[220px]">
-                        <SelectValue placeholder="All Submissions" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectGroup>
-                            <SelectItem value="all">All Submissions</SelectItem>
-                            <SelectItem value="MAINTAINER_VERIFIED">Maintainer Verified</SelectItem>
-                            <SelectItem value="COMMUNITY_SUBMITTED">Community Submitted</SelectItem>
-                        </SelectGroup>
-                    </SelectContent>
-                </Select>
-            </div>
+            <Select
+                value={currentSubmission || undefined}
+                onValueChange={(value) => handleFilterChange('submission', value)}
+            >
+                <SelectTrigger id="submission-filter" className="w-full md:max-w-[220px] md:min-w-[180px] md:flex-1">
+                    <SelectValue placeholder="All Submissions" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectGroup>
+                        <SelectItem value="all">All Submissions</SelectItem>
+                        <SelectItem value="MAINTAINER_VERIFIED">Maintainer Verified</SelectItem>
+                        <SelectItem value="COMMUNITY_SUBMITTED">Community Submitted</SelectItem>
+                    </SelectGroup>
+                </SelectContent>
+            </Select>
 
             {(currentFamilies.length > 0 || currentSubmission) && (
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="text-muted-foreground gap-2"
+                    className="text-muted-foreground w-full gap-2 md:w-auto"
                     onClick={() => router.replace(pathname, { scroll: false })}
                 >
                     <X className="h-4 w-4" />

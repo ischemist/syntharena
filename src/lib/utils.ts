@@ -204,6 +204,26 @@ export function filterPlateauStratifiedMetrics<T extends { name: string; stratif
 }
 
 // ============================================================================
+// Bibtex Formatting
+// ============================================================================
+
+/**
+ * Formats a single-line bibtex string into a readable multiline format.
+ */
+export function formatBibtex(bibtex: string): string {
+    // Add newline after entry type opening (e.g., @article{key,)
+    let formatted = bibtex.replace(/(@\w+\{[^,]+,)\s*/, '$1\n    ')
+
+    // Add newlines before each field (word followed by =)
+    formatted = formatted.replace(/,\s+(\w+\s*=)/g, ',\n    $1')
+
+    // Put closing brace on its own line
+    formatted = formatted.replace(/\s*\}\s*$/, '\n}')
+
+    return formatted
+}
+
+// ============================================================================
 // NEW: Canonical Version Utilities
 // ============================================================================
 
