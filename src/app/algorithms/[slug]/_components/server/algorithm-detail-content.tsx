@@ -1,5 +1,3 @@
-import Link from 'next/link'
-
 import * as algorithmView from '@/lib/services/view/algorithm.view'
 
 import { CopyButton } from '../client/copy-button'
@@ -25,11 +23,7 @@ export async function AlgorithmDetailContent({ slug }: AlgorithmDetailContentPro
                 {families.length > 0 ? (
                     families.map((family) => (
                         <div key={family.id} className="space-y-4">
-                            <h3 className="text-lg font-semibold">
-                                <Link href={`/model-families/${family.slug}`} className="text-primary hover:underline">
-                                    {family.name}
-                                </Link>
-                            </h3>
+                            <h3 className="text-lg font-semibold">{family.name}</h3>
                             {family.description && (
                                 <p className="text-muted-foreground max-w-2xl text-sm">{family.description}</p>
                             )}

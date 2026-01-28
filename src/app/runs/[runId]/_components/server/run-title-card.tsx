@@ -40,7 +40,7 @@ export async function RunTitleCard({ dataPromise }: RunTitleCardProps) {
                 <div className="grid gap-1">
                     <h1 className="text-2xl font-bold tracking-tight">
                         <Link
-                            href={`/model-families/${run.modelFamilySlug}`}
+                            href={`/algorithms/${run.algorithmSlug}`}
                             className="hover:text-primary transition-colors"
                         >
                             {run.modelFamilyName}

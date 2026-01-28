@@ -27,6 +27,42 @@ export function ModelDetailHeaderSkeleton() {
 }
 
 /**
+ * Loading skeleton for the executive summary section.
+ * Shows placeholder cards for summary statistics.
+ */
+export function ExecutiveSummarySkeleton() {
+    return (
+        <div className="space-y-4">
+            <Skeleton className="h-7 w-44" />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="border-border space-y-3 rounded-lg border p-4">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-8 w-24" />
+                        <Skeleton className="h-3 w-full" />
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+}
+
+/**
+ * Loading skeleton for the performance chart.
+ * Shows placeholder for chart visualization.
+ */
+export function PerformanceChartSkeleton() {
+    return (
+        <div className="space-y-4">
+            <Skeleton className="h-7 w-80" />
+            <div className="border-border rounded-lg border p-6">
+                <Skeleton className="h-[300px] w-full" />
+            </div>
+        </div>
+    )
+}
+
+/**
  * Loading skeleton for the prediction run table.
  * Shows placeholder rows while runs are loading.
  */
@@ -73,6 +109,8 @@ export function ModelDetailSkeleton() {
     return (
         <div className="flex flex-col gap-8">
             <ModelDetailHeaderSkeleton />
+            <ExecutiveSummarySkeleton />
+            <PerformanceChartSkeleton />
             <PredictionRunTableSkeleton />
         </div>
     )
