@@ -9,6 +9,25 @@ export const metadata: Metadata = {
 
 const versions = [
     {
+        version: 'v0.4.0',
+        date: 'January 27, 2026',
+        changes: [
+            {
+                type: ChangeType.FEAT,
+                description: 'Efficiency frontier plot on the leaderboard',
+            },
+            {
+                type: ChangeType.FEAT,
+                description:
+                    'Dev mode switch to toggle between showing only the best-performing version of each model and all versions, across the runs page, leaderboard, and per-target benchmark visualization',
+            },
+            {
+                type: ChangeType.UI_UX,
+                description: 'Smoother and more consistent navigation between route steps across the app',
+            },
+        ],
+    },
+    {
         version: 'v0.3.0',
         date: 'January 20, 2026',
         changes: [
