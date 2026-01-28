@@ -1,14 +1,12 @@
 import Link from 'next/link'
+import { ExternalLink, FileCode } from 'lucide-react'
 
 import type { Algorithm, ModelFamily, ModelInstance } from '@/types'
+import { formatVersion } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 interface ModelDetailHeaderProps {
     modelInstance: ModelInstance & { family: ModelFamily & { algorithm: Algorithm } }
-}
-
-function formatVersion(instance: ModelInstance): string {
-    const base = `v${instance.versionMajor}.${instance.versionMinor}.${instance.versionPatch}`
-    return instance.versionPrerelease ? `${base}-${instance.versionPrerelease}` : base
 }
 
 export function ModelDetailHeader({ modelInstance }: ModelDetailHeaderProps) {
@@ -31,6 +29,28 @@ export function ModelDetailHeader({ modelInstance }: ModelDetailHeaderProps) {
                     {algorithm.name}
                 </Link>
             </p>
+
+            {/* External links to paper and code */}
+            {(algorithm.paper || algorithm.codeUrl) && (
+                <div className="flex flex-wrap gap-3">
+                    {algorithm.paper && (
+                        <Button variant="outline" size="sm" asChild>
+                            <a href={algorithm.paper} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                Paper
+                            </a>
+                        </Button>
+                    )}
+                    {algorithm.codeUrl && (
+                        <Button variant="outline" size="sm" asChild>
+                            <a href={algorithm.codeUrl} target="_blank" rel="noopener noreferrer">
+                                <FileCode className="mr-2 h-4 w-4" />
+                                Code
+                            </a>
+                        </Button>
+                    )}
+                </div>
+            )}
         </div>
     )
 }

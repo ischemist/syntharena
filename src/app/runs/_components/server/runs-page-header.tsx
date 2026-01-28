@@ -14,7 +14,7 @@ export function RunsPageHeader({ children }: { children: React.ReactNode }) {
                 <p className="text-muted-foreground">Browse and filter prediction runs from retrosynthesis models.</p>
             </div>
             {/* --- Row 2: Controls --- */}
-            <div className="flex items-center justify-between">{children}</div>
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">{children}</div>
         </div>
     )
 }

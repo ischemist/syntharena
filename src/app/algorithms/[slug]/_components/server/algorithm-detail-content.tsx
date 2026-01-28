@@ -1,8 +1,9 @@
 import * as algorithmView from '@/lib/services/view/algorithm.view'
+import { formatBibtex } from '@/lib/utils'
+import { CopyButton } from '@/components/ui/copy-button'
 
-import { CopyButton } from '../client/copy-button'
 import { AggregatePerformance } from './aggregate-performance'
-import { AlgorithmDetailHeader, formatBibtex } from './algorithm-detail-header'
+import { AlgorithmDetailHeader } from './algorithm-detail-header'
 import { ModelInstanceTable } from './model-instance-table'
 
 interface AlgorithmDetailContentProps {

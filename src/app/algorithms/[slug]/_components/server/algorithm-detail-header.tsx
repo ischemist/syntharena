@@ -3,22 +3,6 @@ import { ExternalLink, FileCode } from 'lucide-react'
 import type { Algorithm } from '@/types'
 import { Button } from '@/components/ui/button'
 
-/**
- * Formats a single-line bibtex string into a readable multiline format.
- */
-export function formatBibtex(bibtex: string): string {
-    // Add newline after entry type opening (e.g., @article{key,)
-    let formatted = bibtex.replace(/(@\w+\{[^,]+,)\s*/, '$1\n    ')
-
-    // Add newlines before each field (word followed by =)
-    formatted = formatted.replace(/,\s+(\w+\s*=)/g, ',\n    $1')
-
-    // Put closing brace on its own line
-    formatted = formatted.replace(/\s*\}\s*$/, '\n}')
-
-    return formatted
-}
-
 interface AlgorithmDetailHeaderProps {
     algorithm: Algorithm
 }
