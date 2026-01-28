@@ -98,7 +98,7 @@ function UnderlineVariant({ summary }: { summary: ModelInstanceExecutiveSummary 
                 <div key={stat.label} className="flex flex-col">
                     <div className="border-foreground/20 flex items-baseline gap-2 border-b-2 pb-1">
                         <span className="text-foreground text-2xl font-light tabular-nums">{stat.value}</span>
-                        {'ci' in stat && <span className="text-muted-foreground/50 text-xs">{stat.ci as string}</span>}
+                        {'ci' in stat && <span className="text-muted-foreground/50 text-xs">{stat.ci}</span>}
                     </div>
                     <span className="text-muted-foreground mt-2 text-[10px] tracking-widest uppercase">
                         {stat.label}

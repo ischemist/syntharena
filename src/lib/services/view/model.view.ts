@@ -32,12 +32,13 @@ function computeExecutiveSummary(
         }
     }
 
-    // Compute averages per compound
+    // Compute averages per compound and find best Top-10 accuracy in a single pass
     let totalCost = 0
     let totalDuration = 0
     let totalTargets = 0
     let hasCostData = false
     let hasDurationData = false
+    let bestTop10: (typeof runs)[0]['top10Accuracy'] = null
 
     for (const run of runs) {
         // Get the number of targets from the benchmark set (fetched from data layer)
@@ -56,11 +57,8 @@ function computeExecutiveSummary(
                 hasDurationData = true
             }
         }
-    }
 
-    // Find best Top-10 accuracy
-    let bestTop10: (typeof runs)[0]['top10Accuracy'] = null
-    for (const run of runs) {
+        // Find best Top-10 accuracy
         if (run.top10Accuracy) {
             if (!bestTop10 || run.top10Accuracy.value > bestTop10.value) {
                 bestTop10 = run.top10Accuracy
