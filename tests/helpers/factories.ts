@@ -10,7 +10,12 @@
  */
 
 import crypto from 'crypto'
+import * as fs from 'fs'
+import * as os from 'os'
+import * as path from 'path'
+import * as zlib from 'zlib'
 
+import type { MetricResult, ModelStatistics, StratifiedMetric } from '@/types'
 // ============================================================================
 // 2. DB Factories (for integration tests, require active Prisma client)
 // ============================================================================
@@ -376,12 +381,177 @@ export async function createPredictionRun(overrides: {
     modelInstanceId: string
     benchmarkSetId: string
     totalRoutes?: number
+    hourlyCost?: number
 }) {
     return prisma.predictionRun.create({
         data: {
             modelInstanceId: overrides.modelInstanceId,
             benchmarkSetId: overrides.benchmarkSetId,
             totalRoutes: overrides.totalRoutes ?? 0,
+            hourlyCost: overrides.hourlyCost,
         },
     })
+}
+
+/**
+ * Create a BenchmarkTarget record with sensible defaults.
+ */
+export async function createBenchmarkTarget(overrides: {
+    benchmarkSetId: string
+    moleculeId: string
+    targetId?: string
+    routeLength?: number | null
+    isConvergent?: boolean | null
+}) {
+    return prisma.benchmarkTarget.create({
+        data: {
+            benchmarkSetId: overrides.benchmarkSetId,
+            moleculeId: overrides.moleculeId,
+            targetId: overrides.targetId ?? `target-${Date.now()}`,
+            routeLength: overrides.routeLength ?? null,
+            isConvergent: overrides.isConvergent ?? null,
+        },
+    })
+}
+
+/**
+ * Create a Molecule record with sensible defaults.
+ */
+export async function createMolecule(overrides: { smiles?: string; inchikey?: string } = {}) {
+    const smiles = overrides.smiles ?? carbonChainSmiles(1)
+    return prisma.molecule.create({
+        data: {
+            smiles,
+            inchikey: overrides.inchikey ?? syntheticInchiKey(smiles),
+        },
+    })
+}
+
+// ============================================================================
+// File Factories (create temp files for integration tests)
+// ============================================================================
+
+/** Track temp files for cleanup */
+const tempFiles: string[] = []
+
+/**
+ * Clean up all temp files created by file factories.
+ * Call this in afterEach.
+ */
+export function cleanupTempFiles(): void {
+    for (const f of tempFiles) {
+        try {
+            fs.unlinkSync(f)
+        } catch {
+            // ignore missing files
+        }
+    }
+    tempFiles.length = 0
+}
+
+/**
+ * Create a temp CSV file for stock-loader tests.
+ * Returns the file path.
+ */
+export function createTestCsvFile(
+    molecules: Array<{ smiles: string; inchikey: string }>,
+    options?: { header?: string; extraLines?: string[] }
+): string {
+    const header = options?.header ?? 'SMILES,InChi Key'
+    const lines = [header]
+    for (const mol of molecules) {
+        lines.push(`${mol.smiles},${mol.inchikey}`)
+    }
+    if (options?.extraLines) {
+        lines.push(...options.extraLines)
+    }
+
+    const tmpFile = path.join(os.tmpdir(), `test-stock-${Date.now()}-${Math.random().toString(36).slice(2)}.csv`)
+    fs.writeFileSync(tmpFile, lines.join('\n'), 'utf-8')
+    tempFiles.push(tmpFile)
+    return tmpFile
+}
+
+/**
+ * Python benchmark set structure for test fixtures.
+ */
+interface TestBenchmarkTarget {
+    id: string
+    smiles: string
+    inchi_key: string
+    metadata?: Record<string, unknown>
+    acceptable_routes: Array<{
+        target: PythonMolecule
+        rank: number
+        content_hash?: string
+        signature?: string
+        length?: number
+        has_convergent_reaction?: boolean
+        solvability?: Record<string, boolean>
+        metadata?: Record<string, unknown>
+    }>
+}
+
+interface TestBenchmarkSet {
+    name: string
+    description?: string
+    stock_name?: string | null
+    targets: Record<string, TestBenchmarkTarget>
+}
+
+/**
+ * Create a temp .json.gz file for benchmark-loader tests.
+ * Returns the file path.
+ */
+export function createTestBenchmarkGzFile(data: TestBenchmarkSet): string {
+    const json = JSON.stringify(data)
+    const compressed = zlib.gzipSync(Buffer.from(json, 'utf-8'))
+
+    const tmpFile = path.join(
+        os.tmpdir(),
+        `test-benchmark-${Date.now()}-${Math.random().toString(36).slice(2)}.json.gz`
+    )
+    fs.writeFileSync(tmpFile, compressed)
+    tempFiles.push(tmpFile)
+    return tmpFile
+}
+
+/**
+ * Build a minimal valid MetricResult for test statistics.
+ */
+export function makeMetricResult(overrides: Partial<MetricResult> = {}): MetricResult {
+    return {
+        value: overrides.value ?? 0.75,
+        ciLower: overrides.ciLower ?? 0.7,
+        ciUpper: overrides.ciUpper ?? 0.8,
+        nSamples: overrides.nSamples ?? 100,
+        reliability: overrides.reliability ?? { code: 'OK', message: 'Sufficient samples' },
+    }
+}
+
+/**
+ * Build a minimal valid StratifiedMetric for test statistics.
+ */
+export function makeStratifiedMetric(overrides: Partial<StratifiedMetric> = {}): StratifiedMetric {
+    return {
+        metricName: overrides.metricName ?? 'Solvability',
+        overall: overrides.overall ?? makeMetricResult(),
+        byGroup: overrides.byGroup ?? {},
+    }
+}
+
+/**
+ * Build a minimal valid ModelStatistics object for test use.
+ */
+export function makeModelStatistics(overrides: Partial<ModelStatistics> = {}): ModelStatistics {
+    return {
+        solvability: overrides.solvability ?? makeStratifiedMetric({ metricName: 'Solvability' }),
+        topKAccuracy: overrides.topKAccuracy,
+        rankDistribution: overrides.rankDistribution,
+        expectedRank: overrides.expectedRank,
+        totalWallTime: overrides.totalWallTime,
+        totalCpuTime: overrides.totalCpuTime,
+        meanWallTime: overrides.meanWallTime,
+        meanCpuTime: overrides.meanCpuTime,
+    }
 }
