@@ -10,7 +10,12 @@ export default defineConfig({
         coverage: {
             provider: 'v8',
             reporter: ['text', 'json', 'html'],
-            include: ['src/lib/route-visualization/**/*.ts', 'src/lib/services/**/*.ts'],
+            include: [
+                'src/lib/route-visualization/**/*.ts',
+                'src/lib/services/**/*.ts',
+                'src/lib/utils.ts',
+                'src/lib/tree-builder/**/*.ts',
+            ],
             exclude: ['src/lib/route-visualization/index.ts'],
         },
         globalSetup: ['./tests/global-setup.ts'],

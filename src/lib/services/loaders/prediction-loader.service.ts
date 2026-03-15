@@ -75,7 +75,7 @@ export interface PythonModelStatistics {
 /**
  * Computes route length (number of reaction steps).
  */
-function computeRouteLength(root: PythonMolecule): number {
+export function computeRouteLength(root: PythonMolecule): number {
     if (!root.synthesis_step) return 0
     const childLengths = root.synthesis_step.reactants.map(computeRouteLength)
     return 1 + Math.max(...childLengths, 0)
@@ -84,7 +84,7 @@ function computeRouteLength(root: PythonMolecule): number {
 /**
  * Checks if route is convergent (multiple branches meet at a common node).
  */
-function isRouteConvergent(root: PythonMolecule): boolean {
+export function isRouteConvergent(root: PythonMolecule): boolean {
     if (!root.synthesis_step) return false
     const reactants = root.synthesis_step.reactants
     if (reactants.length > 1) return true // Multiple reactants = convergent
