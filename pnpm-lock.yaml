@@ -132,6 +132,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.1.17
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
       '@types/node':
         specifier: ^20
         version: 20.19.25
@@ -1607,6 +1610,9 @@ packages:
   '@tanstack/table-core@8.21.3':
     resolution: {integrity: sha512-ldZXEhOBb8Is7xLs01fR3YEc3DERiz5silj8tnGkFZytt1abEvl/GhUmCE0PMLaMPTa3Jk4HbKmRlHmu+gCftg==}
     engines: {node: '>=12'}
+
+  '@types/better-sqlite3@7.6.13':
+    resolution: {integrity: sha512-NMv9ASNARoKksWtsq/SHakpYAYnhBrQgGD8zkLYk/jaK8jUGn08CfEdTRgYhMypUQAfzSP8W6gNLe0q19/t4VA==}
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
@@ -4241,6 +4247,10 @@ snapshots:
       react-dom: 19.2.0(react@19.2.0)
 
   '@tanstack/table-core@8.21.3': {}
+
+  '@types/better-sqlite3@7.6.13':
+    dependencies:
+      '@types/node': 20.19.25
 
   '@types/chai@5.2.3':
     dependencies:
