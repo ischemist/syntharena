@@ -41,7 +41,7 @@ export interface LeaderboardPageData {
     firstTargetId: string | null
 }
 
-type RawStatsPayload = Prisma.PromiseReturnType<typeof statsData.findStatisticsForLeaderboard>
+export type RawStatsPayload = Prisma.PromiseReturnType<typeof statsData.findStatisticsForLeaderboard>
 
 // ============================================================================
 // private helpers (transformation logic)
@@ -52,7 +52,7 @@ type RawStatsPayload = Prisma.PromiseReturnType<typeof statsData.findStatisticsF
  * a champion is defined as the instance with the highest top-10 accuracy, falling back to solvability.
  * this is a pure function: array in, array out.
  */
-function _curateChampionStats(rawStats: RawStatsPayload): RawStatsPayload {
+export function _curateChampionStats(rawStats: RawStatsPayload): RawStatsPayload {
     const statsByFamilyId = new Map<string, RawStatsPayload>()
     for (const stat of rawStats) {
         const familyId = stat.predictionRun.modelInstance.family.id
@@ -91,7 +91,7 @@ function _curateChampionStats(rawStats: RawStatsPayload): RawStatsPayload {
  * performs the main data transformation pass, building all DTOs from the processed stats.
  * this pure function takes the definitive list of stats and returns the final data structures.
  */
-function _transformStatsToLeaderboardDTOs(
+export function _transformStatsToLeaderboardDTOs(
     statsToProcess: RawStatsPayload,
     hasAcceptableRoutes: boolean,
     availableTopKMetrics: string[]
