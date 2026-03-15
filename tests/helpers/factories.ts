@@ -23,6 +23,7 @@ import type { MetricResult, ModelStatistics, StratifiedMetric } from '@/types'
 import prisma from '@/lib/db'
 import type { RouteNodeWithMoleculePayload } from '@/lib/services/data/route.data'
 import type { PythonMolecule, PythonRoute } from '@/lib/services/loaders/prediction-loader.service'
+import type { RawStatsPayload } from '@/lib/services/view/leaderboard.view'
 
 // ============================================================================
 // 1. Pure Factories (no DB required)
@@ -554,4 +555,164 @@ export function makeModelStatistics(overrides: Partial<ModelStatistics> = {}): M
         meanWallTime: overrides.meanWallTime,
         meanCpuTime: overrides.meanCpuTime,
     }
+}
+
+// ============================================================================
+// Raw Stats Mock Factories (for leaderboard view tests)
+// ============================================================================
+
+/** A single raw metric row matching the full Prisma StratifiedMetricGroup shape. */
+interface RawMetric {
+    id: string
+    statisticsId: string
+    metricName: string
+    groupKey: number | null
+    value: number
+    ciLower: number
+    ciUpper: number
+    nSamples: number
+    reliabilityCode: 'OK' | 'LOW_N' | 'EXTREME_P'
+    reliabilityMessage: string
+}
+
+let rawMetricIdCounter = 0
+
+/**
+ * Build a raw metric record (matching Prisma StratifiedMetricGroup shape).
+ */
+export function makeRawMetric(overrides: Partial<RawMetric> = {}): RawMetric {
+    const id = overrides.id ?? `metric-${++rawMetricIdCounter}`
+    return {
+        id,
+        statisticsId: overrides.statisticsId ?? `stat-ref-${rawMetricIdCounter}`,
+        metricName: overrides.metricName ?? 'Solvability',
+        groupKey: overrides.groupKey ?? null,
+        value: overrides.value ?? 0.75,
+        ciLower: overrides.ciLower ?? 0.7,
+        ciUpper: overrides.ciUpper ?? 0.8,
+        nSamples: overrides.nSamples ?? 100,
+        reliabilityCode: (overrides.reliabilityCode ?? 'OK') as 'OK' | 'LOW_N' | 'EXTREME_P',
+        reliabilityMessage: overrides.reliabilityMessage ?? 'Sufficient samples',
+    }
+}
+
+let rawStatIdCounter = 0
+
+/**
+ * Build a single raw stats payload entry matching the deeply-nested Prisma
+ * include shape used by findStatisticsForLeaderboard.
+ *
+ * This is a pure in-memory mock — no database interaction.
+ */
+export function makeRawStatEntry(
+    overrides: {
+        familyId?: string
+        familyName?: string
+        algorithmName?: string
+        algorithmSlug?: string
+        instanceSlug?: string
+        versionMajor?: number
+        versionMinor?: number
+        versionPatch?: number
+        versionPrerelease?: string | null
+        stockId?: string
+        stockName?: string
+        stockDescription?: string | null
+        runId?: string
+        benchmarkSetId?: string
+        benchmarkName?: string
+        benchmarkSeries?: string
+        hasAcceptableRoutes?: boolean
+        submissionType?: string
+        isRetrained?: boolean | null
+        totalCost?: number | null
+        totalWallTime?: number | null
+        metrics?: RawMetric[]
+    } = {}
+): RawStatsPayload[number] {
+    const id = `stat-${++rawStatIdCounter}`
+    const familyId = overrides.familyId ?? `family-${rawStatIdCounter}`
+    const runId = overrides.runId ?? `run-${rawStatIdCounter}`
+    const benchmarkSetId = overrides.benchmarkSetId ?? `bench-${rawStatIdCounter}`
+    const stockId = overrides.stockId ?? `stock-${rawStatIdCounter}`
+
+    return {
+        id,
+        predictionRunId: runId,
+        benchmarkSetId,
+        stockId,
+        statisticsJson: '{}',
+        computedAt: new Date(),
+        totalWallTime: overrides.totalWallTime ?? null,
+        totalCpuTime: null,
+        meanWallTime: null,
+        meanCpuTime: null,
+        stock: {
+            id: stockId,
+            name: overrides.stockName ?? `Stock-${rawStatIdCounter}`,
+            description: overrides.stockDescription ?? null,
+        },
+        predictionRun: {
+            id: runId,
+            modelInstanceId: `instance-${rawStatIdCounter}`,
+            benchmarkSetId,
+            retrocastVersion: null,
+            commandParams: null,
+            executedAt: new Date(),
+            hourlyCost: null,
+            totalCost: overrides.totalCost ?? null,
+            totalRoutes: 0,
+            avgRouteLength: null,
+            submissionType: (overrides.submissionType ?? 'COMMUNITY_SUBMITTED') as
+                | 'COMMUNITY_SUBMITTED'
+                | 'MAINTAINER_VERIFIED',
+            isRetrained: overrides.isRetrained ?? null,
+            benchmarkSet: {
+                id: benchmarkSetId,
+                name: overrides.benchmarkName ?? `Benchmark-${rawStatIdCounter}`,
+                description: null,
+                stockId,
+                hasAcceptableRoutes: overrides.hasAcceptableRoutes ?? false,
+                createdAt: new Date(),
+                series: (overrides.benchmarkSeries ?? 'MARKET') as 'MARKET' | 'REFERENCE' | 'LEGACY' | 'OTHER',
+                isListed: true,
+            },
+            modelInstance: {
+                id: `instance-${rawStatIdCounter}`,
+                modelFamilyId: familyId,
+                slug: overrides.instanceSlug ?? `model-slug-${rawStatIdCounter}`,
+                description: null,
+                versionMajor: overrides.versionMajor ?? 1,
+                versionMinor: overrides.versionMinor ?? 0,
+                versionPatch: overrides.versionPatch ?? 0,
+                versionPrerelease: overrides.versionPrerelease ?? null,
+                metadata: null,
+                createdAt: new Date(),
+                family: {
+                    id: familyId,
+                    algorithmId: `algo-${rawStatIdCounter}`,
+                    name: overrides.familyName ?? `Family-${rawStatIdCounter}`,
+                    slug: `family-slug-${rawStatIdCounter}`,
+                    description: null,
+                    algorithm: {
+                        id: `algo-${rawStatIdCounter}`,
+                        name: overrides.algorithmName ?? `Algorithm-${rawStatIdCounter}`,
+                        slug: overrides.algorithmSlug ?? `algo-slug-${rawStatIdCounter}`,
+                        description: null,
+                        paper: null,
+                        codeUrl: null,
+                        bibtex: null,
+                    },
+                },
+            },
+        },
+        metrics: overrides.metrics ?? [makeRawMetric()],
+    }
+}
+
+/**
+ * Reset the raw stat ID counter between test files for deterministic output.
+ */
+export function resetRawStatIdCounter(): void {
+    rawStatIdCounter = 0
 }
