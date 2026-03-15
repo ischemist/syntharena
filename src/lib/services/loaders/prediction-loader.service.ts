@@ -545,9 +545,6 @@ export async function createRouteFromPython(
                 select: { id: true },
             })
             routeId = route.id
-
-            // Step 2: Store the RouteNode tree (molecules + nodes) inside the same transaction.
-            await storeRouteTree(pythonRoute.target, routeId, tx)
         } catch (createError) {
             // Route already exists (unique constraint violation on signature) — find and reuse it.
             const existingRoute = await tx.route.findUnique({
@@ -562,6 +559,12 @@ export async function createRouteFromPython(
 
             routeId = existingRoute.id
             wasReused = true
+        }
+
+        // Step 2: Store the RouteNode tree (molecules + nodes) inside the same transaction.
+        // Only needed for newly created routes (not reused ones).
+        if (!wasReused) {
+            await storeRouteTree(pythonRoute.target, routeId, tx)
         }
 
         // Step 3: Guard against duplicate prediction (same route + run + target).
@@ -730,12 +733,7 @@ export async function createModelStatistics(
             case 'EXTREME_P':
                 return ReliabilityCode.EXTREME_P
             default:
-                // Unknown code: log a warning so data issues surface rather than being silently
-                // mapped to OK (which is the opposite of what an unknown code likely conveys).
-                if (process.env.NODE_ENV !== 'test') {
-                    console.warn(`Unknown reliability code "${code}", defaulting to OK`)
-                }
-                return ReliabilityCode.OK
+                throw new Error(`Unknown reliability code "${code}" encountered.`)
         }
     }
 
