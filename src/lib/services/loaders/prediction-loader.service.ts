@@ -3,6 +3,7 @@ import { Prisma, ReliabilityCode } from '@prisma/client'
 
 import type { MetricResult, ModelStatistics, ReliabilityFlag, StratifiedMetric } from '@/types'
 import prisma from '@/lib/db'
+import { upsertReactionSteps } from '@/lib/services/loaders/reaction-step.helpers'
 
 // Convenience alias so internal helpers can accept either the real client or a tx client.
 type DbClient = typeof prisma | Prisma.TransactionClient
@@ -429,41 +430,7 @@ async function storeRouteTree(
     }
 
     // Step 3: Upsert ReactionStep records for non-leaf nodes
-    // Collect unique reactions by reactionHash
-    const reactionHashToData = new Map<string, { template: string | null; metadata: string | null }>()
-    for (const node of nodesData) {
-        if (node.reactionHash && !reactionHashToData.has(node.reactionHash)) {
-            reactionHashToData.set(node.reactionHash, {
-                template: node.template,
-                metadata: node.metadata,
-            })
-        }
-    }
-
-    // Find existing ReactionStep records
-    const reactionHashes = Array.from(reactionHashToData.keys())
-    const reactionHashToId = new Map<string, string>()
-
-    if (reactionHashes.length > 0) {
-        const existingSteps = await db.reactionStep.findMany({
-            where: { reactionHash: { in: reactionHashes } },
-            select: { id: true, reactionHash: true },
-        })
-        for (const step of existingSteps) {
-            reactionHashToId.set(step.reactionHash, step.id)
-        }
-
-        // Create missing ReactionStep records
-        for (const [hash, data] of reactionHashToData) {
-            if (!reactionHashToId.has(hash)) {
-                const created = await db.reactionStep.create({
-                    data: { reactionHash: hash, template: data.template, metadata: data.metadata },
-                    select: { id: true },
-                })
-                reactionHashToId.set(hash, created.id)
-            }
-        }
-    }
+    const reactionHashToId = await upsertReactionSteps(nodesData, db)
 
     // Step 4: Create all nodes with proper parent-child relationships
     // Build node map by parent to enable breadth-first creation

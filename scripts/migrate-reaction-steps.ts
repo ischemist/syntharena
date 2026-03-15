@@ -15,6 +15,8 @@
  *   pnpm tsx scripts/migrate-reaction-steps.ts
  */
 import crypto from 'node:crypto'
+import fs from 'node:fs'
+import { createId } from '@paralleldrive/cuid2'
 import Database from 'better-sqlite3'
 
 // ---------------------------------------------------------------------------
@@ -34,25 +36,28 @@ function computeReactionHash(productInchikey: string, reactantInchikeys: string[
     return crypto.createHash('sha256').update(content).digest('hex')
 }
 
-function generateCuid(): string {
-    const timestamp = Date.now().toString(36)
-    const random = crypto.randomBytes(8).toString('hex')
-    return `rs_${timestamp}${random}`
-}
-
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
 function main() {
+    // Create backup before migration
+    const backupPath = DB_PATH + '.backup-before-reaction-step'
+    if (!fs.existsSync(backupPath)) {
+        console.log(`Backing up database to ${backupPath}...`)
+        fs.copyFileSync(DB_PATH, backupPath)
+    } else {
+        console.log(`Backup already exists at ${backupPath}, skipping.`)
+    }
+
     const db = new Database(DB_PATH)
 
     // Performance pragmas
     db.pragma('journal_mode = WAL')
     db.pragma('synchronous = NORMAL')
-    db.pragma('foreign_keys = OFF')
+    db.pragma('foreign_keys = OFF') // Re-enabled before verification step
 
-    console.log('=== ReactionStep Data Migration ===\n')
+    console.log('\n=== ReactionStep Data Migration ===\n')
 
     // -----------------------------------------------------------------------
     // Step 0: Check current state
@@ -263,7 +268,7 @@ function main() {
             for (const [hash, data] of entries) {
                 if (hashToId.has(hash)) continue
 
-                const id = generateCuid()
+                const id = createId()
                 insertStep.run(id, hash, data.template, data.metadata)
                 hashToId.set(hash, id)
                 insertedCount++
@@ -327,6 +332,9 @@ function main() {
     // Step 4: Verify
     // -----------------------------------------------------------------------
 
+    // Re-enable foreign key enforcement before verification
+    db.pragma('foreign_keys = ON')
+
     console.log('\nStep 4: Verification...')
 
     const finalSteps = (db.prepare('SELECT COUNT(*) as cnt FROM ReactionStep').get() as { cnt: number }).cnt
@@ -370,7 +378,7 @@ function main() {
     }
 
     // Deduplication stats
-    const dedupRatio = nonLeafNodes / finalSteps
+    const dedupRatio = finalSteps > 0 ? nonLeafNodes / finalSteps : 0
     console.log(
         `\n  Deduplication ratio: ${dedupRatio.toFixed(1)}x (${nonLeafNodes.toLocaleString()} non-leaf nodes -> ${finalSteps.toLocaleString()} unique ReactionSteps)`
     )

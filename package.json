@@ -59,6 +59,7 @@
     "devDependencies": {
         "@fast-check/vitest": "^0.3.0",
         "@ianvs/prettier-plugin-sort-imports": "^4.7.0",
+        "@paralleldrive/cuid2": "^3.3.0",
         "@tailwindcss/postcss": "^4",
         "@types/better-sqlite3": "^7.6.13",
         "@types/node": "^20",

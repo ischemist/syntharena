@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client'
 
 import type { LoadBenchmarkResult } from '@/types'
 import prisma from '@/lib/db'
+import { upsertReactionSteps } from '@/lib/services/loaders/reaction-step.helpers'
 
 // ============================================================================
 // Types for internal use (from Python retrocast models)
@@ -153,6 +154,21 @@ function collectRouteTreeData(
     const reactionHash = molecule.synthesis_step
         ? computeReactionHash(molecule.synthesis_step, molecule.inchikey)
         : null
+
+    // Prepare node metadata (reagents, solvents, mapped_smiles)
+    // Aligned with prediction-loader to ensure consistent ReactionStep.metadata format
+    let metadata: string | null = null
+    if (molecule.synthesis_step) {
+        const metadataObj: Record<string, unknown> = {}
+        if (molecule.synthesis_step.reagents) metadataObj.reagents = molecule.synthesis_step.reagents
+        if (molecule.synthesis_step.solvents) metadataObj.solvents = molecule.synthesis_step.solvents
+        if (molecule.synthesis_step.mapped_smiles) metadataObj.mapped_smiles = molecule.synthesis_step.mapped_smiles
+        if (molecule.synthesis_step.metadata) metadataObj.python_metadata = molecule.synthesis_step.metadata
+        if (Object.keys(metadataObj).length > 0) {
+            metadata = JSON.stringify(metadataObj)
+        }
+    }
+
     const node: RouteNodeToCreate = {
         tempId,
         routeId,
@@ -161,7 +177,7 @@ function collectRouteTreeData(
         isLeaf,
         reactionHash,
         template: molecule.synthesis_step?.template || null,
-        metadata: molecule.synthesis_step?.metadata ? JSON.stringify(molecule.synthesis_step.metadata) : null,
+        metadata,
         smiles: molecule.smiles,
     }
     nodes.push(node)
@@ -232,38 +248,7 @@ async function storeRouteTree(
     }
 
     // Step 3: Upsert ReactionStep records for non-leaf nodes
-    const reactionHashToData = new Map<string, { template: string | null; metadata: string | null }>()
-    for (const node of nodesData) {
-        if (node.reactionHash && !reactionHashToData.has(node.reactionHash)) {
-            reactionHashToData.set(node.reactionHash, {
-                template: node.template,
-                metadata: node.metadata,
-            })
-        }
-    }
-
-    const reactionHashes = Array.from(reactionHashToData.keys())
-    const reactionHashToId = new Map<string, string>()
-
-    if (reactionHashes.length > 0) {
-        const existingSteps = await tx.reactionStep.findMany({
-            where: { reactionHash: { in: reactionHashes } },
-            select: { id: true, reactionHash: true },
-        })
-        for (const step of existingSteps) {
-            reactionHashToId.set(step.reactionHash, step.id)
-        }
-
-        for (const [hash, data] of reactionHashToData) {
-            if (!reactionHashToId.has(hash)) {
-                const created = await tx.reactionStep.create({
-                    data: { reactionHash: hash, template: data.template, metadata: data.metadata },
-                    select: { id: true },
-                })
-                reactionHashToId.set(hash, created.id)
-            }
-        }
-    }
+    const reactionHashToId = await upsertReactionSteps(nodesData, tx)
 
     // Step 4: Create all nodes with proper parent-child relationships
     const tempIdToRealId = new Map<string, string>()
