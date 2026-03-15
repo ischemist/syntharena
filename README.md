@@ -3,6 +3,7 @@
 [![isChemist Protocol v1.0.0](https://img.shields.io/badge/protocol-isChemist%20v1.0.0-blueviolet)](https://github.com/ischemist/protocol)
 [![arXiv](https://img.shields.io/badge/arXiv-2512.07079-b31b1b.svg)](https://arxiv.org/abs/2512.07079)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/anmorgunov/6077067d66b794810c2c667b79677304/raw/syntharena-coverage.json)](https://github.com/ischemist/syntharena/actions/workflows/tests.yml)
 
 Powered by [RetroCast](https://github.com/ischemist/project-procrustes)
 

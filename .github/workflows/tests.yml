@@ -1,4 +1,4 @@
-name: Testing
+name: Tests
 
 on:
     push:
@@ -7,22 +7,29 @@ on:
         branches: [master]
 
 jobs:
-    test:
-        runs-on: ubuntu-22.04
-        strategy:
-            matrix:
-                node-version: [20]
+    # ── Run tests with coverage ──────────────────────────────────────────
+
+    tests:
+        name: Tests
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+
         steps:
-            - uses: actions/checkout@v4
+            - name: Checkout code
+              uses: actions/checkout@v4
+
             - name: Install pnpm
               uses: pnpm/action-setup@v4
               with:
                   version: 10
-            - name: Use Node.js ${{ matrix.node-version }}
+
+            - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
-                  node-version: ${{ matrix.node-version }}
+                  node-version: '20'
                   cache: 'pnpm'
+
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
 
@@ -31,7 +38,91 @@ jobs:
               env:
                   DATABASE_URL: 'file:./prisma/test.db'
 
-            - name: Run tests
-              run: pnpm test:run
+            - name: Run tests with coverage
+              run: pnpm test:coverage
               env:
                   DATABASE_URL: 'file:./prisma/test.db'
+
+            - name: Upload coverage
+              uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: coverage
+                  path: coverage/
+                  retention-days: 7
+
+    # ── PR report ────────────────────────────────────────────────────────
+
+    report:
+        name: PR Report
+        needs: [tests]
+        if: always() && github.event_name == 'pull_request'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            pull-requests: write
+            actions: read
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Download PR coverage
+              uses: actions/download-artifact@v4
+              with:
+                  name: coverage
+                  path: coverage/
+
+            - name: Download master baseline coverage
+              uses: dawidd6/action-download-artifact@v17
+              continue-on-error: true
+              id: download-baseline
+              with:
+                  workflow: tests.yml
+                  branch: master
+                  name: coverage
+                  path: coverage-baseline/
+                  workflow_conclusion: success
+                  if_no_artifact_found: warn
+
+            - name: Coverage report with delta
+              uses: davelosert/vitest-coverage-report-action@v2
+              with:
+                  name: Tests
+                  json-summary-path: coverage/coverage-summary.json
+                  json-final-path: coverage/coverage-final.json
+                  json-summary-compare-path: ${{ steps.download-baseline.outcome == 'success' && 'coverage-baseline/coverage-summary.json' || '' }}
+                  file-coverage-mode: all
+
+    # ── Master push: update coverage badge ───────────────────────────────
+
+    update-badge:
+        name: Update Coverage Badge
+        needs: [tests]
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Download coverage
+              uses: actions/download-artifact@v4
+              with:
+                  name: coverage
+                  path: coverage/
+
+            - name: Generate badge JSON file
+              run: |
+                  PCT=$(node -e "const s = require('./coverage/coverage-summary.json'); console.log(s.total.lines.pct)")
+                  if (( $(echo "$PCT >= 90" | bc -l) )); then COLOR=brightgreen
+                  elif (( $(echo "$PCT >= 80" | bc -l) )); then COLOR=green
+                  elif (( $(echo "$PCT >= 70" | bc -l) )); then COLOR=yellowgreen
+                  elif (( $(echo "$PCT >= 60" | bc -l) )); then COLOR=yellow
+                  else COLOR=red; fi
+                  echo "{\"schemaVersion\":1,\"label\":\"coverage\",\"message\":\"${PCT}%\",\"color\":\"${COLOR}\"}" > badge.json
+
+            - name: Update Gist badge
+              uses: exuanbo/actions-deploy-gist@v1
+              with:
+                  token: ${{ secrets.GIST_TOKEN }}
+                  gist_id: ${{ secrets.COVERAGE_GIST_ID }}
+                  gist_file_name: syntharena-coverage.json
+                  file_path: badge.json
