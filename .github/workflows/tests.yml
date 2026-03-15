@@ -56,7 +56,7 @@ jobs:
     report:
         name: PR Report
         needs: [tests]
-        if: always() && github.event_name == 'pull_request'
+        if: "!cancelled() && github.event_name == 'pull_request'"
         runs-on: ubuntu-latest
         permissions:
             contents: read
