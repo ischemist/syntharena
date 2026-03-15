@@ -85,13 +85,22 @@ jobs:
                   workflow_conclusion: success
                   if_no_artifact_found: warn
 
+            - name: Check baseline exists
+              id: baseline-exists
+              run: |
+                  if [ -f coverage-baseline/coverage-summary.json ]; then
+                    echo "exists=true" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "exists=false" >> "$GITHUB_OUTPUT"
+                  fi
+
             - name: Coverage report with delta
               uses: davelosert/vitest-coverage-report-action@v2
               with:
                   name: Tests
                   json-summary-path: coverage/coverage-summary.json
                   json-final-path: coverage/coverage-final.json
-                  json-summary-compare-path: ${{ steps.download-baseline.outcome == 'success' && 'coverage-baseline/coverage-summary.json' || '' }}
+                  json-summary-compare-path: ${{ steps.baseline-exists.outputs.exists == 'true' && 'coverage-baseline/coverage-summary.json' || '' }}
                   file-coverage-mode: all
 
     # ── Master push: update coverage badge ───────────────────────────────
