@@ -231,9 +231,8 @@ export function pythonMoleculeToFlatNodes(
         moleculeId: `mol-${mol.inchikey.slice(0, 8)}`,
         parentId,
         isLeaf,
-        reactionHash: null,
-        template: null,
-        metadata: null,
+        reactionStepId: null,
+        reactionStep: null,
         molecule: {
             id: `mol-${mol.inchikey.slice(0, 8)}`,
             inchikey: mol.inchikey,

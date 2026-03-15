@@ -105,12 +105,13 @@ export function isRouteConvergent(root: PythonMolecule): boolean {
 }
 
 /**
- * Computes reaction hash for a synthesis step.
- * Used to detect duplicate reactions across routes.
+ * Computes reaction hash for a synthesis step using InChIKeys.
+ * Used to detect and deduplicate identical reactions across routes.
+ * Aligns with Python retrocast's ReactionSignature convention.
  */
-function computeReactionHash(step: PythonReactionStep, productSmiles: string): string {
-    const reactantSmiles = step.reactants.map((r) => r.smiles).sort()
-    const content = `${productSmiles}>>${reactantSmiles.join('.')}`
+function computeReactionHash(step: PythonReactionStep, productInchikey: string): string {
+    const reactantInchikeys = step.reactants.map((r) => r.inchikey).sort()
+    const content = `${productInchikey}>>${reactantInchikeys.join('.')}`
     return crypto.createHash('sha256').update(content).digest('hex')
 }
 
@@ -284,6 +285,8 @@ export async function createMoleculeFromPython(pythonMolecule: PythonMolecule): 
 
 /**
  * Internal structure for building route nodes in memory before bulk insert.
+ * Reaction data (reactionHash, template, metadata) is stored temporarily here
+ * for ReactionStep upsert, then only the reactionStepId is written to RouteNode.
  */
 interface RouteNodeToCreate {
     tempId: string // Temporary ID for tracking parent-child relationships
@@ -291,9 +294,9 @@ interface RouteNodeToCreate {
     moleculeInchikey: string
     parentTempId: string | null
     isLeaf: boolean
-    reactionHash: string | null
-    template: string | null
-    metadata: string | null
+    reactionHash: string | null // Used for ReactionStep dedup, not stored on RouteNode
+    template: string | null // Stored on ReactionStep, not RouteNode
+    metadata: string | null // Stored on ReactionStep, not RouteNode
 }
 
 /**
@@ -330,10 +333,10 @@ function collectRouteTreeData(
     // Determine if this is a leaf node
     const isLeaf = !pythonMol.synthesis_step || pythonMol.is_leaf === true
 
-    // Compute reaction hash if not a leaf
+    // Compute reaction hash if not a leaf (uses InChIKeys for canonical identity)
     let reactionHash: string | null = null
     if (pythonMol.synthesis_step) {
-        reactionHash = computeReactionHash(pythonMol.synthesis_step, pythonMol.smiles)
+        reactionHash = computeReactionHash(pythonMol.synthesis_step, pythonMol.inchikey)
     }
 
     // Prepare node metadata (reagents, solvents, mapped_smiles)
@@ -425,7 +428,44 @@ async function storeRouteTree(
         }
     }
 
-    // Step 3: Create all nodes with proper parent-child relationships
+    // Step 3: Upsert ReactionStep records for non-leaf nodes
+    // Collect unique reactions by reactionHash
+    const reactionHashToData = new Map<string, { template: string | null; metadata: string | null }>()
+    for (const node of nodesData) {
+        if (node.reactionHash && !reactionHashToData.has(node.reactionHash)) {
+            reactionHashToData.set(node.reactionHash, {
+                template: node.template,
+                metadata: node.metadata,
+            })
+        }
+    }
+
+    // Find existing ReactionStep records
+    const reactionHashes = Array.from(reactionHashToData.keys())
+    const reactionHashToId = new Map<string, string>()
+
+    if (reactionHashes.length > 0) {
+        const existingSteps = await db.reactionStep.findMany({
+            where: { reactionHash: { in: reactionHashes } },
+            select: { id: true, reactionHash: true },
+        })
+        for (const step of existingSteps) {
+            reactionHashToId.set(step.reactionHash, step.id)
+        }
+
+        // Create missing ReactionStep records
+        for (const [hash, data] of reactionHashToData) {
+            if (!reactionHashToId.has(hash)) {
+                const created = await db.reactionStep.create({
+                    data: { reactionHash: hash, template: data.template, metadata: data.metadata },
+                    select: { id: true },
+                })
+                reactionHashToId.set(hash, created.id)
+            }
+        }
+    }
+
+    // Step 4: Create all nodes with proper parent-child relationships
     // Build node map by parent to enable breadth-first creation
     const tempIdToRealId = new Map<string, string>()
     const nodesByParent = new Map<string | null, RouteNodeToCreate[]>()
@@ -455,6 +495,7 @@ async function storeRouteTree(
             }
 
             const parentId = nodeData.parentTempId ? tempIdToRealId.get(nodeData.parentTempId) || null : null
+            const reactionStepId = nodeData.reactionHash ? (reactionHashToId.get(nodeData.reactionHash) ?? null) : null
 
             const createdNode = await db.routeNode.create({
                 data: {
@@ -462,9 +503,7 @@ async function storeRouteTree(
                     moleculeId,
                     parentId,
                     isLeaf: nodeData.isLeaf,
-                    reactionHash: nodeData.reactionHash,
-                    template: nodeData.template,
-                    metadata: nodeData.metadata,
+                    reactionStepId,
                 },
                 select: { id: true },
             })

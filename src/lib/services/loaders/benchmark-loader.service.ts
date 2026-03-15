@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import * as fs from 'fs'
 import * as zlib from 'zlib'
 import { Prisma } from '@prisma/client'
@@ -91,7 +92,20 @@ async function parseBenchmarkFile(filePath: string): Promise<PythonBenchmarkSet>
 }
 
 /**
+ * Computes reaction hash for a synthesis step using InChIKeys.
+ * Used to detect and deduplicate identical reactions across routes.
+ * Aligns with Python retrocast's ReactionSignature convention.
+ */
+function computeReactionHash(step: PythonReactionStep, productInchikey: string): string {
+    const reactantInchikeys = step.reactants.map((r) => r.inchikey).sort()
+    const content = `${productInchikey}>>${reactantInchikeys.join('.')}`
+    return crypto.createHash('sha256').update(content).digest('hex')
+}
+
+/**
  * Internal structure for building route nodes in memory before bulk insert.
+ * Reaction data (reactionHash, template, metadata) is stored temporarily here
+ * for ReactionStep upsert, then only the reactionStepId is written to RouteNode.
  */
 interface RouteNodeToCreate {
     tempId: string // Temporary ID for tracking parent-child relationships
@@ -99,8 +113,9 @@ interface RouteNodeToCreate {
     moleculeInchikey: string
     parentTempId: string | null
     isLeaf: boolean
-    template: string | null
-    metadata: string | null
+    reactionHash: string | null // Used for ReactionStep dedup, not stored on RouteNode
+    template: string | null // Stored on ReactionStep, not RouteNode
+    metadata: string | null // Stored on ReactionStep, not RouteNode
     smiles: string
 }
 
@@ -135,12 +150,16 @@ function collectRouteTreeData(
 
     // Create node data
     const isLeaf = !molecule.synthesis_step
+    const reactionHash = molecule.synthesis_step
+        ? computeReactionHash(molecule.synthesis_step, molecule.inchikey)
+        : null
     const node: RouteNodeToCreate = {
         tempId,
         routeId,
         moleculeInchikey: molecule.inchikey,
         parentTempId,
         isLeaf,
+        reactionHash,
         template: molecule.synthesis_step?.template || null,
         metadata: molecule.synthesis_step?.metadata ? JSON.stringify(molecule.synthesis_step.metadata) : null,
         smiles: molecule.smiles,
@@ -212,12 +231,43 @@ async function storeRouteTree(
         }
     }
 
-    // Step 3: Create all nodes with proper parent-child relationships
-    // First pass: create all nodes and build a map of tempId to real ID
+    // Step 3: Upsert ReactionStep records for non-leaf nodes
+    const reactionHashToData = new Map<string, { template: string | null; metadata: string | null }>()
+    for (const node of nodesData) {
+        if (node.reactionHash && !reactionHashToData.has(node.reactionHash)) {
+            reactionHashToData.set(node.reactionHash, {
+                template: node.template,
+                metadata: node.metadata,
+            })
+        }
+    }
+
+    const reactionHashes = Array.from(reactionHashToData.keys())
+    const reactionHashToId = new Map<string, string>()
+
+    if (reactionHashes.length > 0) {
+        const existingSteps = await tx.reactionStep.findMany({
+            where: { reactionHash: { in: reactionHashes } },
+            select: { id: true, reactionHash: true },
+        })
+        for (const step of existingSteps) {
+            reactionHashToId.set(step.reactionHash, step.id)
+        }
+
+        for (const [hash, data] of reactionHashToData) {
+            if (!reactionHashToId.has(hash)) {
+                const created = await tx.reactionStep.create({
+                    data: { reactionHash: hash, template: data.template, metadata: data.metadata },
+                    select: { id: true },
+                })
+                reactionHashToId.set(hash, created.id)
+            }
+        }
+    }
+
+    // Step 4: Create all nodes with proper parent-child relationships
     const tempIdToRealId = new Map<string, string>()
 
-    // We need to create nodes in order (parent before children)
-    // Build a tree structure to ensure proper ordering
     const nodesByParent = new Map<string | null, RouteNodeToCreate[]>()
     for (const node of nodesData) {
         const parentKey = node.parentTempId
@@ -241,6 +291,7 @@ async function storeRouteTree(
             }
 
             const parentId = nodeData.parentTempId ? tempIdToRealId.get(nodeData.parentTempId) || null : null
+            const reactionStepId = nodeData.reactionHash ? (reactionHashToId.get(nodeData.reactionHash) ?? null) : null
 
             const createdNode = await tx.routeNode.create({
                 data: {
@@ -248,8 +299,7 @@ async function storeRouteTree(
                     moleculeId,
                     parentId,
                     isLeaf: nodeData.isLeaf,
-                    template: nodeData.template,
-                    metadata: nodeData.metadata,
+                    reactionStepId,
                 },
                 select: { id: true },
             })

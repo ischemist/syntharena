@@ -16,7 +16,7 @@ import prisma from '@/lib/db'
 async function _findNodesForRoute(routeId: string) {
     return prisma.routeNode.findMany({
         where: { routeId },
-        include: { molecule: true },
+        include: { molecule: true, reactionStep: true },
     })
 }
 export const findNodesForRoute = cache(_findNodesForRoute, ['nodes-for-route'], {
@@ -31,7 +31,7 @@ async function _findPredictedRouteForTarget(targetId: string, runId: string, ran
         include: {
             route: {
                 include: {
-                    nodes: { include: { molecule: true } },
+                    nodes: { include: { molecule: true, reactionStep: true } },
                 },
             },
         },
