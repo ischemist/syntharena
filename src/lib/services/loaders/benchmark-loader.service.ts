@@ -397,6 +397,7 @@ export async function loadBenchmarkFromFile(
     let moleculesCreated = 0
     let moleculesReused = 0
     let routesCreated = 0
+    let acceptableRoutesCreated = 0
 
     const BATCH_SIZE = 10 // Conservative batch size for route parsing
 
@@ -540,6 +541,7 @@ export async function loadBenchmarkFromFile(
                                 routeIndex,
                             },
                         })
+                        acceptableRoutesCreated++
                     }
                 }
             }
@@ -551,8 +553,11 @@ export async function loadBenchmarkFromFile(
         }
     }
 
-    // Update benchmark hasAcceptableRoutes flag if any acceptable routes were loaded
-    if (routesCreated > 0) {
+    // Update benchmark hasAcceptableRoutes flag if any AcceptableRoute junction records were created.
+    // Note: we intentionally use `acceptableRoutesCreated` (not `routesCreated`) here so that
+    // the flag is set even when all route structures were already in the DB from a previous load
+    // and were reused via the try/catch deduplication path (in which case routesCreated stays 0).
+    if (acceptableRoutesCreated > 0) {
         await prisma.benchmarkSet.update({
             where: { id: benchmarkId },
             data: { hasAcceptableRoutes: true },

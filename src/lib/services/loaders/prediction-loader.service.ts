@@ -4,6 +4,9 @@ import { Prisma, ReliabilityCode } from '@prisma/client'
 import type { MetricResult, ModelStatistics, ReliabilityFlag, StratifiedMetric } from '@/types'
 import prisma from '@/lib/db'
 
+// Convenience alias so internal helpers can accept either the real client or a tx client.
+type DbClient = typeof prisma | Prisma.TransactionClient
+
 // ============================================================================
 // Types for Python Data (matching retrocast Pydantic models)
 // ============================================================================
@@ -82,12 +85,22 @@ export function computeRouteLength(root: PythonMolecule): number {
 }
 
 /**
- * Checks if route is convergent (multiple branches meet at a common node).
+ * Checks if route is convergent (two or more independent multi-step sub-syntheses merge).
+ *
+ * A route is convergent only when a reaction node has 2+ non-leaf reactants —
+ * i.e. at least two reactants that are themselves synthesised (have their own steps).
+ * A simple two-component reaction where both reactants are buyable starting materials
+ * (leaves) is NOT convergent; it is just a bimolecular reaction.
+ *
+ * This definition matches the one used in benchmark-loader.service.ts
+ * (`computeRouteProperties`): a node is convergent when it has ≥2 non-leaf children.
  */
 export function isRouteConvergent(root: PythonMolecule): boolean {
     if (!root.synthesis_step) return false
     const reactants = root.synthesis_step.reactants
-    if (reactants.length > 1) return true // Multiple reactants = convergent
+    // Count non-leaf reactants (reactants that themselves have synthesis steps)
+    const nonLeafReactants = reactants.filter((r) => r.synthesis_step !== null)
+    if (nonLeafReactants.length >= 2) return true
     return reactants.some(isRouteConvergent)
 }
 
@@ -365,9 +378,14 @@ function collectRouteTreeData(
  *
  * @param pythonMol - Root molecule (target)
  * @param routeId - Route ID these nodes belong to
+ * @param db - Prisma client or transaction client (defaults to the global client)
  * @returns Created root node
  */
-async function storeRouteTree(pythonMol: PythonMolecule, routeId: string): Promise<{ id: string; moleculeId: string }> {
+async function storeRouteTree(
+    pythonMol: PythonMolecule,
+    routeId: string,
+    db: DbClient = prisma
+): Promise<{ id: string; moleculeId: string }> {
     // Step 1: Collect all unique molecules and nodes in memory
     const moleculesMap = new Map<string, { smiles: string; inchikey: string }>()
     const nodesData: RouteNodeToCreate[] = []
@@ -379,7 +397,7 @@ async function storeRouteTree(pythonMol: PythonMolecule, routeId: string): Promi
     const uniqueInchikeys = Array.from(moleculesMap.keys())
 
     // Find existing molecules
-    const existingMolecules = await prisma.molecule.findMany({
+    const existingMolecules = await db.molecule.findMany({
         where: { inchikey: { in: uniqueInchikeys } },
         select: { id: true, inchikey: true },
     })
@@ -390,10 +408,12 @@ async function storeRouteTree(pythonMol: PythonMolecule, routeId: string): Promi
     const newMolecules = Array.from(moleculesMap.values()).filter((m) => !existingInchikeyToId.has(m.inchikey))
 
     if (newMolecules.length > 0) {
-        // Create molecules individually (SQLite doesn't support skipDuplicates in createMany)
+        // Create molecules individually (SQLite doesn't support skipDuplicates in createMany).
+        // Running inside a transaction means concurrent calls cannot interleave between
+        // the findMany check above and these creates, eliminating the P2002 race.
         const createdMolecules = await Promise.all(
             newMolecules.map((m) =>
-                prisma.molecule.create({
+                db.molecule.create({
                     data: m,
                     select: { id: true, inchikey: true },
                 })
@@ -436,7 +456,7 @@ async function storeRouteTree(pythonMol: PythonMolecule, routeId: string): Promi
 
             const parentId = nodeData.parentTempId ? tempIdToRealId.get(nodeData.parentTempId) || null : null
 
-            const createdNode = await prisma.routeNode.create({
+            const createdNode = await db.routeNode.create({
                 data: {
                     routeId: nodeData.routeId,
                     moleculeId,
@@ -487,7 +507,7 @@ export async function createRouteFromPython(
     predictionRunId: string,
     targetId: string
 ): Promise<{ routeId: string; predictionRouteId: string; rank: number; wasReused: boolean }> {
-    // Verify target exists
+    // Verify target exists (outside the transaction — read-only check, safe to do early)
     const target = await prisma.benchmarkTarget.findUnique({
         where: { id: targetId },
         select: { id: true },
@@ -503,68 +523,86 @@ export async function createRouteFromPython(
     const length = computeRouteLength(pythonRoute.target)
     const isConvergent = isRouteConvergent(pythonRoute.target)
 
-    // Step 1: Check if Route exists globally by signature
-    let route = await prisma.route.findFirst({
-        where: { signature },
-        select: { id: true },
-    })
+    // Wrap the entire create-or-reuse + prediction creation in a single transaction.
+    // This eliminates two race conditions present in the original code:
+    //   1. Two concurrent calls creating the same Route (P2002 on signature).
+    //   2. Two concurrent calls creating the same Molecule inside storeRouteTree (P2002 on inchikey).
+    // The try/catch pattern mirrors benchmark-loader.service.ts.
+    return await prisma.$transaction(async (tx) => {
+        let wasReused = false
+        let routeId: string
 
-    let wasReused = false
+        try {
+            // Step 1: Try to create the Route record.
+            // Will throw a unique-constraint error if another concurrent call beat us to it.
+            const route = await tx.route.create({
+                data: {
+                    signature,
+                    contentHash,
+                    length,
+                    isConvergent,
+                },
+                select: { id: true },
+            })
+            routeId = route.id
 
-    if (!route) {
-        // Step 2a: Route doesn't exist - create new Route + RouteNode tree
-        route = await prisma.route.create({
-            data: {
-                signature,
-                contentHash,
-                length,
-                isConvergent,
+            // Step 2: Store the RouteNode tree (molecules + nodes) inside the same transaction.
+            await storeRouteTree(pythonRoute.target, routeId, tx)
+        } catch (createError) {
+            // Route already exists (unique constraint violation on signature) — find and reuse it.
+            const existingRoute = await tx.route.findUnique({
+                where: { signature },
+                select: { id: true },
+            })
+
+            if (!existingRoute) {
+                // Not a duplicate-key error — re-throw the original error.
+                throw createError
+            }
+
+            routeId = existingRoute.id
+            wasReused = true
+        }
+
+        // Step 3: Guard against duplicate prediction (same route + run + target).
+        // The unique constraint @@unique([routeId, predictionRunId, targetId]) on PredictionRoute
+        // would catch this at the DB level too, but we provide a friendlier error message here.
+        const existingPrediction = await tx.predictionRoute.findFirst({
+            where: {
+                routeId,
+                predictionRunId,
+                targetId,
             },
             select: { id: true },
         })
 
-        // Create RouteNode tree using bulk operations
-        await storeRouteTree(pythonRoute.target, route.id)
-    } else {
-        wasReused = true
-    }
+        if (existingPrediction) {
+            throw new Error(
+                `Duplicate prediction detected: route ${routeId} already predicted for target ${targetId} in run ${predictionRunId}`
+            )
+        }
 
-    // Step 3: Check if this prediction already exists (same route, run, target)
-    const existingPrediction = await prisma.predictionRoute.findFirst({
-        where: {
-            routeId: route.id,
-            predictionRunId,
-            targetId,
-        },
-        select: { id: true },
-    })
+        // Step 4: Create PredictionRoute junction record.
+        const metadata = pythonRoute.metadata ? JSON.stringify(pythonRoute.metadata) : null
 
-    if (existingPrediction) {
-        throw new Error(
-            `Duplicate prediction detected: route ${route.id} already predicted for target ${targetId} in run ${predictionRunId}`
-        )
-    }
+        const predictionRoute = await tx.predictionRoute.create({
+            data: {
+                routeId,
+                predictionRunId,
+                targetId,
+                rank: pythonRoute.rank,
+                metadata,
+            },
+            select: { id: true },
+        })
 
-    // Step 4: Create PredictionRoute junction record
-    const metadata = pythonRoute.metadata ? JSON.stringify(pythonRoute.metadata) : null
-
-    const predictionRoute = await prisma.predictionRoute.create({
-        data: {
-            routeId: route.id,
-            predictionRunId,
-            targetId,
+        return {
+            routeId,
+            predictionRouteId: predictionRoute.id,
             rank: pythonRoute.rank,
-            metadata,
-        },
-        select: { id: true },
+            wasReused,
+        }
     })
-
-    return {
-        routeId: route.id,
-        predictionRouteId: predictionRoute.id,
-        rank: pythonRoute.rank,
-        wasReused,
-    }
 }
 
 /**
@@ -692,6 +730,11 @@ export async function createModelStatistics(
             case 'EXTREME_P':
                 return ReliabilityCode.EXTREME_P
             default:
+                // Unknown code: log a warning so data issues surface rather than being silently
+                // mapped to OK (which is the opposite of what an unknown code likely conveys).
+                if (process.env.NODE_ENV !== 'test') {
+                    console.warn(`Unknown reliability code "${code}", defaulting to OK`)
+                }
                 return ReliabilityCode.OK
         }
     }

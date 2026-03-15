@@ -177,6 +177,114 @@ describe('buildRouteTree', () => {
         })
     })
 
+    describe('edge cases with hand-crafted node arrays', () => {
+        it('builds a two-node tree from a manually constructed flat array', () => {
+            // Directly construct the flat node shape without going through pythonMoleculeToFlatNodes,
+            // verifying buildRouteTree is not coupled to the factory.
+            const nodes = [
+                {
+                    id: 'root-1',
+                    routeId: 'r-1',
+                    moleculeId: 'mol-1',
+                    parentId: null,
+                    isLeaf: false,
+                    reactionHash: null,
+                    template: null,
+                    metadata: null,
+                    molecule: { id: 'mol-1', inchikey: 'ROOT-INCHIKEY-00001-N', smiles: 'CC' },
+                },
+                {
+                    id: 'child-1',
+                    routeId: 'r-1',
+                    moleculeId: 'mol-2',
+                    parentId: 'root-1',
+                    isLeaf: true,
+                    reactionHash: null,
+                    template: null,
+                    metadata: null,
+                    molecule: { id: 'mol-2', inchikey: 'LEAF-INCHIKEY-00001-N', smiles: 'C' },
+                },
+            ]
+
+            const tree = buildRouteTree(nodes)
+            expect(tree.id).toBe('root-1')
+            expect(tree.molecule.smiles).toBe('CC')
+            expect(tree.children).toHaveLength(1)
+            expect(tree.children[0].id).toBe('child-1')
+            expect(tree.children[0].isLeaf).toBe(true)
+        })
+
+        it('silently picks first root when multiple nodes have parentId === null', () => {
+            // Documents the current behaviour: Array.find returns the first match.
+            // The second "root" node and its subtree are unreachable.
+            const nodes = [
+                {
+                    id: 'root-a',
+                    routeId: 'r-x',
+                    moleculeId: 'mol-a',
+                    parentId: null,
+                    isLeaf: true,
+                    reactionHash: null,
+                    template: null,
+                    metadata: null,
+                    molecule: { id: 'mol-a', inchikey: 'ROOTA-INCHIKEY-0001-N', smiles: 'C' },
+                },
+                {
+                    id: 'root-b',
+                    routeId: 'r-x',
+                    moleculeId: 'mol-b',
+                    parentId: null, // second "root" — orphaned under current implementation
+                    isLeaf: true,
+                    reactionHash: null,
+                    template: null,
+                    metadata: null,
+                    molecule: { id: 'mol-b', inchikey: 'ROOTB-INCHIKEY-0001-N', smiles: 'CC' },
+                },
+            ]
+
+            const tree = buildRouteTree(nodes)
+            // First root wins
+            expect(tree.id).toBe('root-a')
+            // The second "root" is not reachable as a child of root-a
+            expect(tree.children).toHaveLength(0)
+        })
+
+        it('silently drops orphan nodes (parentId references non-existent node)', () => {
+            // Documents current behaviour: the orphan is added to its non-existent parent's
+            // children list (which never gets populated), so it is unreachable from the root.
+            const nodes = [
+                {
+                    id: 'root-1',
+                    routeId: 'r-y',
+                    moleculeId: 'mol-r',
+                    parentId: null,
+                    isLeaf: false,
+                    reactionHash: null,
+                    template: null,
+                    metadata: null,
+                    molecule: { id: 'mol-r', inchikey: 'ROOTR-INCHIKEY-0001-N', smiles: 'CCC' },
+                },
+                {
+                    id: 'orphan-1',
+                    routeId: 'r-y',
+                    moleculeId: 'mol-o',
+                    parentId: 'does-not-exist', // dangling parent reference
+                    isLeaf: true,
+                    reactionHash: null,
+                    template: null,
+                    metadata: null,
+                    molecule: { id: 'mol-o', inchikey: 'ORPHN-INCHIKEY-0001-N', smiles: 'C' },
+                },
+            ]
+
+            const tree = buildRouteTree(nodes)
+            expect(tree.id).toBe('root-1')
+            // Orphan is not reachable — root has no children despite having a non-leaf flag
+            const allNodes = collectAllNodes(tree)
+            expect(allNodes).toHaveLength(1)
+        })
+    })
+
     describe('invariants', () => {
         it('every node has a valid molecule with smiles and inchikey', () => {
             const route = makeConvergentPythonRoute(3)

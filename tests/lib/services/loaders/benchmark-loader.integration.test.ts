@@ -503,4 +503,78 @@ describe('loadBenchmarkFromFile', () => {
             loadBenchmarkFromFile('/nonexistent/benchmark.json.gz', benchmark.id, 'bench-ghost')
         ).rejects.toThrow('File not found')
     })
+
+    it('sets hasAcceptableRoutes even when all route structures are reused from a prior load', async () => {
+        // Regression test for the bug where routesCreated stayed 0 (all routes reused via try/catch)
+        // but hasAcceptableRoutes was never set to true.
+        const stock = await createStock({ name: 'bench-stock-reuse-flag' })
+
+        const route = makeLinearPythonRoute(1) // CC <- C
+
+        // First benchmark: loads the route for the first time, creating the Route record
+        const benchmark1 = await createBenchmarkSet({ stockId: stock.id, name: 'bench-reuse-flag-1' })
+        const data1 = {
+            name: 'bench-reuse-flag-1',
+            targets: {
+                't-a': {
+                    id: 't-a',
+                    smiles: carbonChainSmiles(10),
+                    inchi_key: syntheticInchiKey(carbonChainSmiles(10)),
+                    acceptable_routes: [
+                        {
+                            target: route.target,
+                            rank: 1,
+                            content_hash: route.content_hash,
+                            signature: route.signature,
+                            length: 1,
+                            has_convergent_reaction: false,
+                        },
+                    ],
+                },
+            },
+        }
+        const file1 = createTestBenchmarkGzFile(data1)
+        const result1 = await loadBenchmarkFromFile(file1, benchmark1.id, 'bench-reuse-flag-1')
+        expect(result1.routesCreated).toBe(1) // Route created fresh
+
+        const bench1Updated = await prisma.benchmarkSet.findUnique({ where: { id: benchmark1.id } })
+        expect(bench1Updated!.hasAcceptableRoutes).toBe(true)
+
+        // Second benchmark: uses the SAME route signature — routesCreated will be 0 (reused)
+        // but hasAcceptableRoutes must still be set to true.
+        const benchmark2 = await createBenchmarkSet({ stockId: stock.id, name: 'bench-reuse-flag-2' })
+        const data2 = {
+            name: 'bench-reuse-flag-2',
+            targets: {
+                't-b': {
+                    id: 't-b',
+                    smiles: carbonChainSmiles(11),
+                    inchi_key: syntheticInchiKey(carbonChainSmiles(11)),
+                    acceptable_routes: [
+                        {
+                            target: route.target, // same route tree as above
+                            rank: 1,
+                            content_hash: route.content_hash,
+                            signature: route.signature, // same signature → route will be reused
+                            length: 1,
+                            has_convergent_reaction: false,
+                        },
+                    ],
+                },
+            },
+        }
+        const file2 = createTestBenchmarkGzFile(data2)
+        const result2 = await loadBenchmarkFromFile(file2, benchmark2.id, 'bench-reuse-flag-2')
+
+        // routesCreated is 0 because the Route was already in DB
+        expect(result2.routesCreated).toBe(0)
+
+        // Still only 1 Route record in total (deduplicated)
+        const totalRoutes = await prisma.route.count()
+        expect(totalRoutes).toBe(1)
+
+        // The key assertion: hasAcceptableRoutes must be true even though routesCreated == 0
+        const bench2Updated = await prisma.benchmarkSet.findUnique({ where: { id: benchmark2.id } })
+        expect(bench2Updated!.hasAcceptableRoutes).toBe(true)
+    })
 })

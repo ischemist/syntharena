@@ -33,6 +33,7 @@ import {
     createFullModelChain,
     createTestBenchmarkGzFile,
     createTestCsvFile,
+    makeConvergentPythonRoute,
     makeLinearPythonRoute,
     makeModelStatistics,
     syntheticInchiKey,
@@ -230,5 +231,76 @@ describe('loader roundtrip', () => {
         // RouteNodes only created once
         const nodeCount = await prisma.routeNode.count()
         expect(nodeCount).toBe(countPythonMoleculeNodes(sharedRoute.target))
+    })
+
+    it('convergent route: isConvergent flag is consistent between benchmark-loader and prediction-loader', async () => {
+        // Use makeConvergentPythonRoute which produces two non-leaf branches —
+        // both loaders should agree this is convergent.
+        const convergentRoute = makeConvergentPythonRoute(2)
+
+        // --- Setup: stock ---
+        const stockMolecules = [
+            { smiles: carbonChainSmiles(1), inchikey: syntheticInchiKey('C') },
+            { smiles: 'O', inchikey: syntheticInchiKey('O') },
+        ]
+        const csvPath = createTestCsvFile(stockMolecules)
+        const stockResult = await loadStockFromFile(csvPath, 'conv-roundtrip-stock')
+
+        // --- Setup: benchmark with convergent acceptable route ---
+        const benchmark = await createBenchmarkSet({
+            stockId: stockResult.stockId,
+            name: 'conv-roundtrip-benchmark',
+        })
+
+        const benchData = {
+            name: 'conv-roundtrip-benchmark',
+            targets: {
+                'conv-001': {
+                    id: 'conv-001',
+                    smiles: convergentRoute.target.smiles,
+                    inchi_key: syntheticInchiKey(convergentRoute.target.smiles),
+                    acceptable_routes: [
+                        {
+                            target: convergentRoute.target,
+                            rank: 1,
+                            content_hash: convergentRoute.content_hash,
+                            signature: convergentRoute.signature,
+                            // Omit length & has_convergent_reaction — force benchmark-loader to compute them
+                        },
+                    ],
+                },
+            },
+        }
+        const gzPath = createTestBenchmarkGzFile(benchData)
+        await loadBenchmarkFromFile(gzPath, benchmark.id, 'conv-roundtrip-benchmark')
+
+        // Verify benchmark-loader computed isConvergent = true
+        const benchRoute = await prisma.route.findFirst()
+        expect(benchRoute).not.toBeNull()
+        expect(benchRoute!.isConvergent).toBe(true)
+        expect(benchRoute!.length).toBe(2)
+
+        // --- Prediction-loader: load the SAME convergent route ---
+        const { instance } = await createFullModelChain({ algorithmName: `ConvModel-${Date.now()}` })
+        const run = await createOrUpdatePredictionRun(benchmark.id, instance.id)
+        const target = await prisma.benchmarkTarget.findFirst({ where: { benchmarkSetId: benchmark.id } })
+
+        const predResult = await createRouteFromPython(convergentRoute, run.id, target!.id)
+
+        // Route is reused (same signature) — no new Route record created
+        expect(predResult.wasReused).toBe(true)
+        expect(predResult.routeId).toBe(benchRoute!.id)
+
+        // The Route record's isConvergent (set by benchmark-loader) should be true
+        const sharedRoute = await prisma.route.findUnique({ where: { id: predResult.routeId } })
+        expect(sharedRoute!.isConvergent).toBe(true)
+
+        // Only 1 Route record total
+        const routeCount = await prisma.route.count()
+        expect(routeCount).toBe(1)
+
+        // RouteNodes created only once (by benchmark-loader)
+        const nodeCount = await prisma.routeNode.count()
+        expect(nodeCount).toBe(countPythonMoleculeNodes(convergentRoute.target))
     })
 })
