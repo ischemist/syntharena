@@ -40,18 +40,18 @@ function computeReactionHash(productInchikey: string, reactantInchikeys: string[
 // Main
 // ---------------------------------------------------------------------------
 
-function main() {
-    // Create backup before migration
+async function main() {
     const backupPath = DB_PATH + '.backup-before-reaction-step'
-    if (!fs.existsSync(backupPath)) {
-        console.log(`Backing up database to ${backupPath}...`)
-        fs.copyFileSync(DB_PATH, backupPath)
-    } else {
-        console.log(`Backup already exists at ${backupPath}, skipping.`)
-    }
-
     const db = new Database(DB_PATH)
     try {
+        // Use SQLite's backup API so WAL-backed changes are included.
+        if (!fs.existsSync(backupPath)) {
+            console.log(`Backing up database to ${backupPath}...`)
+            await db.backup(backupPath)
+        } else {
+            console.log(`Backup already exists at ${backupPath}, skipping.`)
+        }
+
         // Performance pragmas
         db.pragma('journal_mode = WAL')
         db.pragma('synchronous = NORMAL')
@@ -394,4 +394,7 @@ function main() {
     }
 }
 
-main()
+void main().catch((error: unknown) => {
+    console.error(error)
+    process.exitCode = 1
+})
