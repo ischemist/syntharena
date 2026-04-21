@@ -188,9 +188,8 @@ describe('buildRouteTree', () => {
                     moleculeId: 'mol-1',
                     parentId: null,
                     isLeaf: false,
-                    reactionHash: null,
-                    template: null,
-                    metadata: null,
+                    reactionStepId: null,
+                    reactionStep: null,
                     molecule: { id: 'mol-1', inchikey: 'ROOT-INCHIKEY-00001-N', smiles: 'CC' },
                 },
                 {
@@ -199,9 +198,8 @@ describe('buildRouteTree', () => {
                     moleculeId: 'mol-2',
                     parentId: 'root-1',
                     isLeaf: true,
-                    reactionHash: null,
-                    template: null,
-                    metadata: null,
+                    reactionStepId: null,
+                    reactionStep: null,
                     molecule: { id: 'mol-2', inchikey: 'LEAF-INCHIKEY-00001-N', smiles: 'C' },
                 },
             ]
@@ -224,9 +222,8 @@ describe('buildRouteTree', () => {
                     moleculeId: 'mol-a',
                     parentId: null,
                     isLeaf: true,
-                    reactionHash: null,
-                    template: null,
-                    metadata: null,
+                    reactionStepId: null,
+                    reactionStep: null,
                     molecule: { id: 'mol-a', inchikey: 'ROOTA-INCHIKEY-0001-N', smiles: 'C' },
                 },
                 {
@@ -235,9 +232,8 @@ describe('buildRouteTree', () => {
                     moleculeId: 'mol-b',
                     parentId: null, // second "root" — orphaned under current implementation
                     isLeaf: true,
-                    reactionHash: null,
-                    template: null,
-                    metadata: null,
+                    reactionStepId: null,
+                    reactionStep: null,
                     molecule: { id: 'mol-b', inchikey: 'ROOTB-INCHIKEY-0001-N', smiles: 'CC' },
                 },
             ]
@@ -259,9 +255,8 @@ describe('buildRouteTree', () => {
                     moleculeId: 'mol-r',
                     parentId: null,
                     isLeaf: false,
-                    reactionHash: null,
-                    template: null,
-                    metadata: null,
+                    reactionStepId: null,
+                    reactionStep: null,
                     molecule: { id: 'mol-r', inchikey: 'ROOTR-INCHIKEY-0001-N', smiles: 'CCC' },
                 },
                 {
@@ -270,9 +265,8 @@ describe('buildRouteTree', () => {
                     moleculeId: 'mol-o',
                     parentId: 'does-not-exist', // dangling parent reference
                     isLeaf: true,
-                    reactionHash: null,
-                    template: null,
-                    metadata: null,
+                    reactionStepId: null,
+                    reactionStep: null,
                     molecule: { id: 'mol-o', inchikey: 'ORPHN-INCHIKEY-0001-N', smiles: 'C' },
                 },
             ]

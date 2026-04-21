@@ -252,25 +252,36 @@ export interface RouteSummary {
 }
 
 /**
+ * Shared, deduplicated reaction step data.
+ * Mirrors retrocast.models.chem.ReactionStep from the Python library.
+ */
+export interface ReactionStep {
+    id: string
+    reactionHash: string
+    template: string | null
+    metadata: string | null // JSON: reagents, solvents, mapped_smiles
+}
+
+/**
  * Represents a node in the route tree.
- * Each node is either a leaf (starting material) or has a synthesis step.
+ * Each node is either a leaf (starting material) or has a synthesis step
+ * stored in a shared ReactionStep record.
  */
 export interface RouteNode {
     id: string
     routeId: string
     moleculeId: string
     parentId: string | null
+    reactionStepId: string | null
     isLeaf: boolean
-    reactionHash: string | null
-    template: string | null
-    metadata: string | null // JSON: reagents, solvents, mapped_smiles
 }
 
 /**
- * Extended route node with molecule and children for tree traversal.
+ * Extended route node with molecule, reaction step, and children for tree traversal.
  */
 export interface RouteNodeWithDetails extends RouteNode {
     molecule: Molecule
+    reactionStep: ReactionStep | null
     children: RouteNodeWithDetails[]
 }
 

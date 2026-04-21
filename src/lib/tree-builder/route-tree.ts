@@ -29,6 +29,7 @@ export function buildRouteTree(nodes: RouteNodeWithMoleculePayload): RouteNodeWi
     nodes.forEach((node) => {
         nodeMap.set(node.id, {
             ...node,
+            reactionStep: node.reactionStep ?? null,
             children: [],
         })
     })

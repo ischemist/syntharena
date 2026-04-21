@@ -69,7 +69,7 @@ async function _findPredictedRouteNodes(targetId: string, runId: string, rank: n
         select: {
             route: {
                 select: {
-                    nodes: { include: { molecule: true } },
+                    nodes: { include: { molecule: true, reactionStep: true } },
                 },
             },
         },

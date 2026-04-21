@@ -237,26 +237,37 @@ model PredictionRoute {
   @@index([routeId])
 }
 
-model RouteNode {
-  id         String  @id @default(cuid())
-  routeId    String
-  moleculeId String
-  parentId   String? // Tree structure
+// Shared, deduplicated reaction step data.
+// Mirrors retrocast.models.chem.ReactionStep from the Python library.
+// Multiple RouteNodes across different routes can reference the same ReactionStep
+// when they represent the identical reaction (same product + reactants by InChIKey).
+model ReactionStep {
+  id           String @id @default(cuid())
+  reactionHash String @unique // SHA256 of "productInchikey>>reactant1Inchikey.reactant2Inchikey" (sorted)
+  template     String? // Reaction template (e.g., SMARTS pattern)
+  metadata     String? // JSON: reagents, solvents, mapped_smiles
 
-  // Reaction Step Data (The "Edge" info)
-  // If this node is a product, how was it made?
-  isLeaf       Boolean @default(false)
-  reactionHash String? // For checking reaction overlap
-  template     String?
-  metadata     String? // JSON: reagents, solvents, mapper output
+  nodes RouteNode[]
+}
+
+model RouteNode {
+  id              String  @id @default(cuid())
+  routeId         String
+  moleculeId      String
+  parentId        String? // Tree structure
+  reactionStepId  String? // null for leaf nodes
+
+  isLeaf Boolean @default(false)
 
   // Relations
-  route    Route       @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  molecule Molecule    @relation(fields: [moleculeId], references: [id])
-  parent   RouteNode?  @relation("ReactionTree", fields: [parentId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  children RouteNode[] @relation("ReactionTree")
+  route        Route         @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  molecule     Molecule      @relation(fields: [moleculeId], references: [id])
+  reactionStep ReactionStep? @relation(fields: [reactionStepId], references: [id])
+  parent       RouteNode?    @relation("ReactionTree", fields: [parentId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  children     RouteNode[]   @relation("ReactionTree")
 
   @@index([routeId])
+  @@index([reactionStepId])
 }
 
 // =================================================================================

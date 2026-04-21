@@ -10,6 +10,10 @@ import './env-loader'
 
 import { deleteBenchmarkAndDeps } from '../src/lib/services/data/benchmark.data'
 
+if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL environment variable is not set')
+}
+
 const adapter = new PrismaBetterSqlite3({
     url: process.env.DATABASE_URL,
 })
