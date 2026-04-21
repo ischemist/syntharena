@@ -16,7 +16,7 @@ interface TargetHeaderProps {
  * Server component that fetches and displays target header information.
  * Shows the target molecule structure prominently with metadata in a 2-column layout.
  * Left column: molecule structure with smile drawer
- * Right column: target ID, badges, SMILES, InChiKey, and route hashes
+ * Right column: target ID, badges, SMILES, InChiKey, and the primary route signature
  * Handles 404 if target not found.
  */
 export async function TargetHeader({ targetId }: TargetHeaderProps) {
@@ -27,10 +27,10 @@ export async function TargetHeader({ targetId }: TargetHeaderProps) {
         notFound()
     }
 
-    // Fetch acceptable routes to get hash/signature of primary route
+    // Fetch acceptable routes to get the topology signature of the primary route.
     let acceptableRoutes: Array<{
         routeIndex: number
-        route: { id: string; contentHash: string | null; signature: string | null }
+        route: { id: string; signature: string }
     }> = []
     try {
         const routes = await routeView.getAcceptableRoutesForTarget(targetId)
@@ -40,7 +40,7 @@ export async function TargetHeader({ targetId }: TargetHeaderProps) {
         acceptableRoutes = []
     }
 
-    // Get primary route (index 0) for displaying hash/signature
+    // Get primary route (index 0) for displaying the topology signature.
     const primaryRoute = acceptableRoutes.find((ar) => ar.routeIndex === 0)?.route
 
     return (
@@ -90,67 +90,31 @@ export async function TargetHeader({ targetId }: TargetHeaderProps) {
                                 <p className="font-mono text-xs break-all">{target.molecule.inchikey}</p>
                             </div>
 
-                            {/* Route Hashes - only show if primary acceptable route exists and has hash data */}
-                            {primaryRoute && primaryRoute.contentHash && (
-                                <>
-                                    <div>
-                                        <div className="mb-1 flex items-baseline gap-1.5">
-                                            <p className="text-muted-foreground text-xs font-semibold">
-                                                Route Content Hash
-                                            </p>
-                                            <HoverCard>
-                                                <HoverCardTrigger asChild>
-                                                    <button className="text-muted-foreground hover:text-foreground text-xs underline decoration-dotted underline-offset-2 transition-colors">
-                                                        what is this?
-                                                    </button>
-                                                </HoverCardTrigger>
-                                                <HoverCardContent className="w-80">
-                                                    <div className="space-y-2">
-                                                        <h4 className="text-sm font-semibold">Content Hash</h4>
-                                                        <p className="text-xs text-gray-600 dark:text-gray-400">
-                                                            A deterministic SHA-256 hash of the complete route content,
-                                                            including all metadata, reaction details (mapped SMILES,
-                                                            templates, reagents, solvents), rank, and provenance
-                                                            information. Used to verify that two routes are semantically
-                                                            identical in every detail.
-                                                        </p>
-                                                    </div>
-                                                </HoverCardContent>
-                                            </HoverCard>
-                                        </div>
-                                        <p className="font-mono text-xs break-all">{primaryRoute.contentHash}</p>
+                            {primaryRoute && (
+                                <div>
+                                    <div className="mb-1 flex items-baseline gap-1.5">
+                                        <p className="text-muted-foreground text-xs font-semibold">Route Signature</p>
+                                        <HoverCard>
+                                            <HoverCardTrigger asChild>
+                                                <button className="text-muted-foreground hover:text-foreground text-xs underline decoration-dotted underline-offset-2 transition-colors">
+                                                    what is this?
+                                                </button>
+                                            </HoverCardTrigger>
+                                            <HoverCardContent className="w-80">
+                                                <div className="space-y-2">
+                                                    <h4 className="text-sm font-semibold">Route Signature</h4>
+                                                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                                                        A canonical, order-invariant SHA-256 hash of the route topology
+                                                        based only on molecular structures (InChiKeys). Two routes with
+                                                        the same signature have identical synthetic trees, regardless of
+                                                        planner-specific metadata or reaction details.
+                                                    </p>
+                                                </div>
+                                            </HoverCardContent>
+                                        </HoverCard>
                                     </div>
-                                    {primaryRoute.signature && (
-                                        <div>
-                                            <div className="mb-1 flex items-baseline gap-1.5">
-                                                <p className="text-muted-foreground text-xs font-semibold">
-                                                    Route Signature
-                                                </p>
-                                                <HoverCard>
-                                                    <HoverCardTrigger asChild>
-                                                        <button className="text-muted-foreground hover:text-foreground text-xs underline decoration-dotted underline-offset-2 transition-colors">
-                                                            what is this?
-                                                        </button>
-                                                    </HoverCardTrigger>
-                                                    <HoverCardContent className="w-80">
-                                                        <div className="space-y-2">
-                                                            <h4 className="text-sm font-semibold">Route Signature</h4>
-                                                            <p className="text-xs text-gray-600 dark:text-gray-400">
-                                                                A canonical, order-invariant SHA-256 hash of the route
-                                                                topology based only on molecular structures (InChiKeys).
-                                                                Two routes with the same signature have identical
-                                                                synthetic trees, regardless of metadata or reaction
-                                                                details. Perfect for route deduplication and comparing
-                                                                topological equivalence.
-                                                            </p>
-                                                        </div>
-                                                    </HoverCardContent>
-                                                </HoverCard>
-                                            </div>
-                                            <p className="font-mono text-xs break-all">{primaryRoute.signature}</p>
-                                        </div>
-                                    )}
-                                </>
+                                    <p className="font-mono text-xs break-all">{primaryRoute.signature}</p>
+                                </div>
                             )}
                         </div>
                     </div>

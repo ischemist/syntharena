@@ -84,7 +84,6 @@ async function setupLeaderboardContext(label: string) {
                     {
                         target: route.target,
                         rank: 1,
-                        content_hash: route.content_hash,
                         signature: route.signature,
                         length: 2,
                         has_convergent_reaction: false,

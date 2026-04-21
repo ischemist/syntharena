@@ -80,7 +80,6 @@ describe('loader roundtrip', () => {
                         {
                             target: benchRoute.target,
                             rank: 1,
-                            content_hash: benchRoute.content_hash,
                             signature: benchRoute.signature,
                             length: 2,
                             has_convergent_reaction: false,
@@ -263,7 +262,6 @@ describe('loader roundtrip', () => {
                         {
                             target: convergentRoute.target,
                             rank: 1,
-                            content_hash: convergentRoute.content_hash,
                             signature: convergentRoute.signature,
                             // Omit length & has_convergent_reaction — force benchmark-loader to compute them
                         },

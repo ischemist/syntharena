@@ -48,7 +48,7 @@ async function _findAcceptableRoutesForTarget(targetId: string) {
         select: {
             routeIndex: true,
             route: {
-                select: { id: true, signature: true, contentHash: true },
+                select: { id: true, signature: true },
             },
         },
         orderBy: { routeIndex: 'asc' },

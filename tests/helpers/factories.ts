@@ -79,15 +79,12 @@ export function makeLinearPythonRoute(depth: number, rank: number = 1): PythonRo
         }
     }
 
-    // Generate deterministic content_hash and signature from the tree
     const treeJson = JSON.stringify(current)
-    const contentHash = crypto.createHash('sha256').update(treeJson).digest('hex')
     const signature = crypto.createHash('sha256').update(`sig-${treeJson}`).digest('hex')
 
     return {
         target: current,
         rank,
-        content_hash: contentHash,
         signature,
     }
 }
@@ -137,13 +134,11 @@ export function makeConvergentPythonRoute(depth: number, rank: number = 1): Pyth
     }
 
     const treeJson = JSON.stringify(final)
-    const contentHash = crypto.createHash('sha256').update(treeJson).digest('hex')
     const signature = crypto.createHash('sha256').update(`sig-${treeJson}`).digest('hex')
 
     return {
         target: final,
         rank,
-        content_hash: contentHash,
         signature,
     }
 }
@@ -183,13 +178,11 @@ export function makeBinaryTreePythonRoute(depth: number, rank: number = 1): Pyth
 
     const target = buildTree(depth)
     const treeJson = JSON.stringify(target)
-    const contentHash = crypto.createHash('sha256').update(treeJson).digest('hex')
     const signature = crypto.createHash('sha256').update(`sig-${treeJson}`).digest('hex')
 
     return {
         target,
         rank,
-        content_hash: contentHash,
         signature,
     }
 }
@@ -483,7 +476,6 @@ interface TestBenchmarkTarget {
     acceptable_routes: Array<{
         target: PythonMolecule
         rank: number
-        content_hash?: string
         signature?: string
         length?: number
         has_convergent_reaction?: boolean

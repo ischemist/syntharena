@@ -13,6 +13,7 @@
  *
  * Usage:
  *   pnpm tsx scripts/migrate-reaction-steps.ts
+ *   DB_PATH=prisma/prod.db pnpm tsx scripts/migrate-reaction-steps.ts
  */
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -23,7 +24,7 @@ import Database from 'better-sqlite3'
 // Config
 // ---------------------------------------------------------------------------
 
-const DB_PATH = 'prisma/dev.db'
+const DB_PATH = process.env.DB_PATH ?? 'prisma/dev.db'
 const BATCH_SIZE = 50_000
 
 // ---------------------------------------------------------------------------
