@@ -36,7 +36,6 @@ function makeBenchmarkTarget(
     acceptableRoutes: Array<{
         target: ReturnType<typeof makeLeafMolecule>
         rank: number
-        content_hash?: string
         signature?: string
         length?: number
         has_convergent_reaction?: boolean
@@ -102,7 +101,6 @@ describe('loadBenchmarkFromFile', () => {
                         {
                             target: route.target,
                             rank: 1,
-                            content_hash: route.content_hash,
                             signature: route.signature,
                             length: 2,
                             has_convergent_reaction: false,
@@ -160,7 +158,6 @@ describe('loadBenchmarkFromFile', () => {
                         {
                             target: route.target,
                             rank: 1,
-                            content_hash: route.content_hash,
                             signature: route.signature,
                             length: 1,
                             has_convergent_reaction: false,
@@ -175,7 +172,6 @@ describe('loadBenchmarkFromFile', () => {
                         {
                             target: route.target,
                             rank: 1,
-                            content_hash: route.content_hash,
                             signature: route.signature,
                             length: 1,
                             has_convergent_reaction: false,
@@ -201,7 +197,7 @@ describe('loadBenchmarkFromFile', () => {
         expect(acceptableRoutes).toHaveLength(2)
     })
 
-    it('throws when acceptable route is missing contentHash or signature', async () => {
+    it('throws when acceptable route is missing signature', async () => {
         const stock = await createStock({ name: 'bench-stock-missing-hash' })
         const benchmark = await createBenchmarkSet({ stockId: stock.id, name: 'bench-missing' })
 
@@ -218,7 +214,7 @@ describe('loadBenchmarkFromFile', () => {
                         {
                             target: route.target,
                             rank: 1,
-                            // Missing content_hash and signature!
+                            // Missing signature!
                         },
                     ],
                 },
@@ -248,7 +244,6 @@ describe('loadBenchmarkFromFile', () => {
                         {
                             target: route.target,
                             rank: 1,
-                            content_hash: route.content_hash,
                             signature: route.signature,
                             length: 3,
                             has_convergent_reaction: false,
@@ -283,7 +278,6 @@ describe('loadBenchmarkFromFile', () => {
                         {
                             target: route.target,
                             rank: 1,
-                            content_hash: route.content_hash,
                             signature: route.signature,
                             // No length or has_convergent_reaction — must be computed
                         },
@@ -325,7 +319,6 @@ describe('loadBenchmarkFromFile', () => {
                         {
                             target: route.target,
                             rank: 1,
-                            content_hash: route.content_hash,
                             signature: route.signature,
                             length: 1,
                             has_convergent_reaction: false,
@@ -367,7 +360,6 @@ describe('loadBenchmarkFromFile', () => {
                         {
                             target: route.target,
                             rank: 1,
-                            content_hash: route.content_hash,
                             signature: route.signature,
                             length: 2,
                             has_convergent_reaction: false,
@@ -426,7 +418,6 @@ describe('loadBenchmarkFromFile', () => {
                         {
                             target: route.target,
                             rank: 1,
-                            content_hash: route.content_hash,
                             signature: route.signature,
                             length: 2,
                             has_convergent_reaction: true,
@@ -464,7 +455,6 @@ describe('loadBenchmarkFromFile', () => {
                         {
                             target: route1.target,
                             rank: 1,
-                            content_hash: route1.content_hash,
                             signature: route1.signature,
                             length: 1,
                             has_convergent_reaction: false,
@@ -472,7 +462,6 @@ describe('loadBenchmarkFromFile', () => {
                         {
                             target: route2.target,
                             rank: 2,
-                            content_hash: route2.content_hash,
                             signature: route2.signature,
                             length: 3,
                             has_convergent_reaction: false,
@@ -524,7 +513,6 @@ describe('loadBenchmarkFromFile', () => {
                         {
                             target: route.target,
                             rank: 1,
-                            content_hash: route.content_hash,
                             signature: route.signature,
                             length: 1,
                             has_convergent_reaction: false,
@@ -554,7 +542,6 @@ describe('loadBenchmarkFromFile', () => {
                         {
                             target: route.target, // same route tree as above
                             rank: 1,
-                            content_hash: route.content_hash,
                             signature: route.signature, // same signature → route will be reused
                             length: 1,
                             has_convergent_reaction: false,

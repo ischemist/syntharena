@@ -215,8 +215,7 @@ export interface AcceptableRoute {
  */
 export interface Route {
     id: string
-    signature: string // NOW REQUIRED: SHA256 of topology (unique constraint)
-    contentHash: string // SHA256 of full content (unique constraint)
+    signature: string // SHA256 of topology (unique constraint)
     length: number
     isConvergent: boolean
 }

@@ -148,13 +148,12 @@ function _buildComparisonNavigation(
  */
 export async function getAcceptableRoutesForTarget(
     targetId: string
-): Promise<Array<{ routeIndex: number; route: { id: string; contentHash: string | null; signature: string | null } }>> {
+): Promise<Array<{ routeIndex: number; route: { id: string; signature: string } }>> {
     const acceptableRoutes = await routeData.findAcceptableRoutesForTarget(targetId)
     return acceptableRoutes.map((ar) => ({
         routeIndex: ar.routeIndex,
         route: {
             id: ar.route.id,
-            contentHash: ar.route.contentHash,
             signature: ar.route.signature,
         },
     }))
@@ -197,7 +196,6 @@ export async function getAcceptableRouteData(routeId: string, targetId: string):
     const route: Route = {
         id: routeRecord.id,
         signature: routeRecord.signature,
-        contentHash: routeRecord.contentHash,
         length: routeRecord.length,
         isConvergent: routeRecord.isConvergent,
     }

@@ -198,9 +198,8 @@ model PredictionRun {
 model Route {
   id String @id @default(cuid())
 
-  // Core Route Properties (Topology-level, unique)
-  signature   String @unique // SHA256 from get_signature() (topology only) - NOW REQUIRED & UNIQUE
-  contentHash String @unique // SHA256 from get_content_hash() - NOW UNIQUE
+  // Core route identity for visualization and benchmark deduplication.
+  signature String @unique // SHA256 from get_signature() (topology only)
 
   // Cached Computations (for fast filtering)
   length       Int
@@ -237,13 +236,12 @@ model PredictionRoute {
   @@index([routeId])
 }
 
-// Shared, deduplicated reaction step data.
-// Mirrors retrocast.models.chem.ReactionStep from the Python library.
-// Multiple RouteNodes across different routes can reference the same ReactionStep
-// when they represent the identical reaction (same product + reactants by InChIKey).
+// Shared reaction-step data used for route visualization-level deduplication.
+// This stores reaction topology plus one representative template/metadata payload,
+// not a full planner-specific reaction provenance record.
 model ReactionStep {
-  id           String @id @default(cuid())
-  reactionHash String @unique // SHA256 of "productInchikey>>reactant1Inchikey.reactant2Inchikey" (sorted)
+  id           String  @id @default(cuid())
+  reactionHash String  @unique // SHA256 of "productInchikey>>reactant1Inchikey.reactant2Inchikey" (sorted)
   template     String? // Reaction template (e.g., SMARTS pattern)
   metadata     String? // JSON: reagents, solvents, mapped_smiles
 
@@ -251,11 +249,11 @@ model ReactionStep {
 }
 
 model RouteNode {
-  id              String  @id @default(cuid())
-  routeId         String
-  moleculeId      String
-  parentId        String? // Tree structure
-  reactionStepId  String? // null for leaf nodes
+  id             String  @id @default(cuid())
+  routeId        String
+  moleculeId     String
+  parentId       String? // Tree structure
+  reactionStepId String? // null for leaf nodes
 
   isLeaf Boolean @default(false)
 

@@ -32,7 +32,6 @@ interface PythonReactionStep {
 interface PythonRoute {
     target: PythonMolecule
     rank: number
-    content_hash?: string
     signature?: string
     length?: number
     has_convergent_reaction?: boolean
@@ -495,13 +494,12 @@ export async function loadBenchmarkFromFile(
                         const routeData = targetData.acceptable_routes[routeIndex]
 
                         // Extract route properties from file
-                        const contentHash = routeData.content_hash || ''
                         const signature = routeData.signature || null
 
-                        // Enforce data quality: acceptable routes must have contentHash and signature for deduplication
-                        if (!contentHash || !signature) {
+                        // Enforce data quality: acceptable routes must have a signature for topology deduplication.
+                        if (!signature) {
                             throw new Error(
-                                `Acceptable route at index ${routeIndex} for target ${externalId} is missing contentHash or signature. Cannot ensure deduplication.`
+                                `Acceptable route at index ${routeIndex} for target ${externalId} is missing a route signature. Cannot ensure deduplication.`
                             )
                         }
 
@@ -511,10 +509,9 @@ export async function loadBenchmarkFromFile(
                         let routeIsConvergentComputed: boolean
 
                         try {
-                            // Try creating the route - will fail if signature/contentHash already exists
+                            // Try creating the route - will fail if the topology signature already exists.
                             const route = await tx.route.create({
                                 data: {
-                                    contentHash,
                                     signature,
                                     length: 0, // Will be set below
                                     isConvergent: false, // Will be set below

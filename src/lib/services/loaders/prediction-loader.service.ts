@@ -35,7 +35,6 @@ export interface PythonRoute {
     rank: number
     solvability?: Record<string, boolean>
     metadata?: Record<string, unknown>
-    content_hash: string
     signature: string
 }
 
@@ -522,9 +521,8 @@ export async function createRouteFromPython(
         throw new Error(`Target not found: ${targetId}`)
     }
 
-    // Read route properties from Python JSON
-    // Use content_hash and signature computed by Python, don't recompute
-    const contentHash = pythonRoute.content_hash
+    // Read route properties from Python JSON.
+    // SynthArena treats route identity as topology-only and deduplicates by signature.
     const signature = pythonRoute.signature
     const length = computeRouteLength(pythonRoute.target)
     const isConvergent = isRouteConvergent(pythonRoute.target)
@@ -544,7 +542,6 @@ export async function createRouteFromPython(
             const route = await tx.route.create({
                 data: {
                     signature,
-                    contentHash,
                     length,
                     isConvergent,
                 },
