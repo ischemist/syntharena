@@ -41,7 +41,7 @@ describe('Route Comparison Graph Builders', () => {
     }
 
     describe('buildSideBySideGraph', () => {
-        it('should mark all ground truth nodes as match', () => {
+        it('should mark ground truth nodes absent from prediction as ghost', () => {
             const gtInchiKeys = new Set([
                 'LFQSCWFLJHTTHZ-UHFFFAOYSA-N',
                 'OTMSDBZUPAUEDD-UHFFFAOYSA-N',
@@ -62,9 +62,9 @@ describe('Route Comparison Graph Builders', () => {
             )
 
             expect(result.nodes).toHaveLength(3)
-            result.nodes.forEach((node) => {
-                expect(node.data.status).toBe('match')
-            })
+            expect(result.nodes.find((node) => node.data.smiles === 'CCO')?.data.status).toBe('match')
+            expect(result.nodes.find((node) => node.data.smiles === 'CC')?.data.status).toBe('match')
+            expect(result.nodes.find((node) => node.data.smiles === 'O')?.data.status).toBe('ghost')
         })
 
         it('should mark prediction nodes as match or extension', () => {
@@ -132,6 +132,70 @@ describe('Route Comparison Graph Builders', () => {
                 expect(edge.source).toMatch(/^gt_/)
                 expect(edge.target).toMatch(/^gt_/)
             })
+        })
+
+        it('should highlight skipped intermediates as topology deviations', () => {
+            const acceptableRoute: RouteVisualizationNode = {
+                smiles: 'A',
+                inchikey: 'A',
+                children: [
+                    {
+                        smiles: 'B',
+                        inchikey: 'B',
+                        children: [
+                            {
+                                smiles: 'C',
+                                inchikey: 'C',
+                                children: [
+                                    {
+                                        smiles: 'D',
+                                        inchikey: 'D',
+                                        children: [],
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            }
+            const predictionRoute: RouteVisualizationNode = {
+                smiles: 'A',
+                inchikey: 'A',
+                children: [
+                    {
+                        smiles: 'C',
+                        inchikey: 'C',
+                        children: [],
+                    },
+                ],
+            }
+            const acceptableInchiKeys = new Set(['A', 'B', 'C', 'D'])
+            const predictionInchiKeys = new Set(['A', 'C'])
+
+            const acceptableGraph = buildSideBySideGraph(
+                acceptableRoute,
+                predictionRoute,
+                acceptableInchiKeys,
+                predictionInchiKeys,
+                true,
+                'acceptable_'
+            )
+            const predictionGraph = buildSideBySideGraph(
+                predictionRoute,
+                acceptableRoute,
+                acceptableInchiKeys,
+                predictionInchiKeys,
+                false,
+                'prediction_'
+            )
+
+            expect(acceptableGraph.nodes.find((node) => node.data.smiles === 'A')?.data.status).toBe('match')
+            expect(acceptableGraph.nodes.find((node) => node.data.smiles === 'B')?.data.status).toBe('ghost')
+            expect(acceptableGraph.nodes.find((node) => node.data.smiles === 'C')?.data.status).toBe('ghost')
+            expect(acceptableGraph.nodes.find((node) => node.data.smiles === 'D')?.data.status).toBe('ghost')
+
+            expect(predictionGraph.nodes.find((node) => node.data.smiles === 'A')?.data.status).toBe('match')
+            expect(predictionGraph.nodes.find((node) => node.data.smiles === 'C')?.data.status).toBe('extension')
         })
     })
 
