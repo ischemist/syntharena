@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@ischemist/route-viewer':
-        specifier: 0.0.1
-        version: 0.0.1(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        specifier: 0.0.3
+        version: 0.0.3(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@ischemist/routes':
-        specifier: 0.0.1
-        version: 0.0.1
+        specifier: 0.0.2
+        version: 0.0.2
       '@prisma/adapter-better-sqlite3':
         specifier: ^7.0.0
         version: 7.0.0
@@ -778,14 +778,14 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@ischemist/route-viewer@0.0.1':
-    resolution: {integrity: sha512-eoBkKwnsnwvEbnyqhE8VCaGS/UrYHssAUiCXtpe17ysQ5V3QlowINhqdwda/o53AkNtPpG2dl5qAnEcwYfkmEQ==}
+  '@ischemist/route-viewer@0.0.3':
+    resolution: {integrity: sha512-T6Wk5F3YOpnxF6/4s3qM2u/w/HYgnD+1nzExB6Q070cWvW5PUYmKiHK9WA8mUBWz2LUnMnn+xIrxCOzWovHtIA==}
     peerDependencies:
       react: '>=19'
       react-dom: '>=19'
 
-  '@ischemist/routes@0.0.1':
-    resolution: {integrity: sha512-nC7KE+XZ2dSPnG9UzSePyz+xbagbAgpSPYiXnKQg+9fWsx9oqYcrHw6Lym0W0zm5cusaue+iKpaTWqVeVAzwWQ==}
+  '@ischemist/routes@0.0.2':
+    resolution: {integrity: sha512-ml/jFGkIF8o3uFerQIIbXtfo6S25aF9f8y83xAtb+AXgny69AqyaaFaEBwtqAytiUyPghMDlrUbe9QN5dSo+/w==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -3639,9 +3639,9 @@ snapshots:
   '@img/sharp-win32-x64@0.34.5':
     optional: true
 
-  '@ischemist/route-viewer@0.0.1(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+  '@ischemist/route-viewer@0.0.3(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
-      '@ischemist/routes': 0.0.1
+      '@ischemist/routes': 0.0.2
       '@xyflow/react': 12.9.3(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       lucide-react: 1.9.0(react@19.2.0)
       react: 19.2.0
@@ -3651,7 +3651,7 @@ snapshots:
       - '@types/react'
       - immer
 
-  '@ischemist/routes@0.0.1': {}
+  '@ischemist/routes@0.0.2': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:

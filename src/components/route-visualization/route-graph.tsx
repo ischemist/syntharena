@@ -38,7 +38,7 @@ export function RouteGraph({
                         data: {
                             smiles: node.smiles,
                             inchikey: node.inchikey,
-                            status: inStock ? 'in-stock' : 'default',
+                            status: 'default',
                             inStock,
                             ppg: metadata?.ppg,
                             source: metadata?.source,
