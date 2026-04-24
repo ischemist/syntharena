@@ -1,3 +1,5 @@
+'use client'
+
 import { Archive, BookOpen, Circle, ShoppingCart } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
