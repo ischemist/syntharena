@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@ischemist/route-viewer':
-        specifier: 0.0.3
-        version: 0.0.3(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        specifier: 0.0.4
+        version: 0.0.4(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@ischemist/routes':
         specifier: 0.0.2
         version: 0.0.2
@@ -778,8 +778,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@ischemist/route-viewer@0.0.3':
-    resolution: {integrity: sha512-T6Wk5F3YOpnxF6/4s3qM2u/w/HYgnD+1nzExB6Q070cWvW5PUYmKiHK9WA8mUBWz2LUnMnn+xIrxCOzWovHtIA==}
+  '@ischemist/route-viewer@0.0.4':
+    resolution: {integrity: sha512-sZnf+kpvlMzzT5dizqrslcj3NCU4kX13ERj49lmPO/HHEVyDJs6+9kbwsmebK4y9fZDinWk4txEdaHxGJSjcww==}
     peerDependencies:
       react: '>=19'
       react-dom: '>=19'
@@ -3639,7 +3639,7 @@ snapshots:
   '@img/sharp-win32-x64@0.34.5':
     optional: true
 
-  '@ischemist/route-viewer@0.0.3(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+  '@ischemist/route-viewer@0.0.4(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
       '@ischemist/routes': 0.0.2
       '@xyflow/react': 12.9.3(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
