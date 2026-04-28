@@ -1,3 +1,5 @@
+'use client'
+
 import { AlertCircle, AlertTriangle } from 'lucide-react'
 
 import type { ReliabilityFlag } from '@/types'

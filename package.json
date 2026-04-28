@@ -17,6 +17,8 @@
         "format:check": "oxfmt --check"
     },
     "dependencies": {
+        "@ischemist/route-viewer": "0.0.7",
+        "@ischemist/routes": "0.0.4",
         "@prisma/adapter-better-sqlite3": "^7.0.0",
         "@prisma/client": "^7.0.0",
         "@radix-ui/react-avatar": "^1.1.11",

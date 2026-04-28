@@ -14,13 +14,14 @@ describe('buildRouteGraph', () => {
         expect(result.edges).toHaveLength(0)
 
         const node = result.nodes[0]
-        expect(node.id).toBe('test-C')
+        expect(node.id).toBe(`test-${singleNode.inchikey}`)
         expect(node.type).toBe('molecule')
         expect(node.data).toEqual({
             smiles: 'C',
             inchikey: 'VNWKTOKETHGBQD-UHFFFAOYSA-N',
             status: 'default',
             inStock: false,
+            isLeaf: true,
             ppg: undefined,
             source: undefined,
             leadTime: undefined,
@@ -34,7 +35,7 @@ describe('buildRouteGraph', () => {
         const result = buildRouteGraph(singleNode, inStockInchiKeys, 'test-')
 
         const node = result.nodes[0]
-        expect(node.data.status).toBe('in-stock')
+        expect(node.data.status).toBe('default')
         expect(node.data.inStock).toBe(true)
     })
 
@@ -46,7 +47,7 @@ describe('buildRouteGraph', () => {
         expect(result.nodes).toHaveLength(3)
         expect(result.edges).toHaveLength(2)
 
-        // Check node statuses
+        // Stock availability is carried separately from visual status.
         const nodes = result.nodes.reduce(
             (acc, node) => {
                 acc[node.data.smiles] = node
@@ -58,7 +59,7 @@ describe('buildRouteGraph', () => {
         expect(nodes['CCCO'].data.status).toBe('default')
         expect(nodes['CCCO'].data.inStock).toBe(false)
 
-        expect(nodes['CCO'].data.status).toBe('in-stock')
+        expect(nodes['CCO'].data.status).toBe('default')
         expect(nodes['CCO'].data.inStock).toBe(true)
 
         expect(nodes['C'].data.status).toBe('default')
@@ -130,7 +131,7 @@ describe('buildRouteGraph', () => {
         const result = buildRouteGraph(simpleTree, inchiKeySet, 'test-')
 
         result.nodes.forEach((node) => {
-            expect(node.data.status).toBe('in-stock')
+            expect(node.data.status).toBe('default')
             expect(node.data.inStock).toBe(true)
         })
     })
@@ -274,7 +275,7 @@ describe('Integration: buildRouteGraph + getAllRouteInchiKeysSet', () => {
         // All nodes should be in stock
         result.nodes.forEach((node) => {
             expect(node.data.inStock).toBe(true)
-            expect(node.data.status).toBe('in-stock')
+            expect(node.data.status).toBe('default')
         })
     })
 
@@ -291,7 +292,7 @@ describe('Integration: buildRouteGraph + getAllRouteInchiKeysSet', () => {
         result.nodes.forEach((node) => {
             if (node.data.inStock) {
                 inStockCount++
-                expect(node.data.status).toBe('in-stock')
+                expect(node.data.status).toBe('default')
             } else {
                 defaultCount++
                 expect(node.data.status).toBe('default')
@@ -362,7 +363,7 @@ describe('Graph Structure Integrity', () => {
 
             // Verify types
             expect(typeof node.data.smiles).toBe('string')
-            expect(['in-stock', 'default']).toContain(node.data.status)
+            expect(node.data.status).toBe('default')
             expect(typeof node.data.inStock).toBe('boolean')
         })
     })
