@@ -17,7 +17,7 @@ type Graph = { nodes: Node<RouteGraphNode>[]; edges: Edge[] }
 export function buildSideBySideGraph(
     route: RouteVisualizationNode,
     otherRoute: RouteVisualizationNode,
-    acceptableInchiKeys: Set<string>,
+    _acceptableInchiKeys: Set<string>,
     _predInchiKeys: Set<string>,
     isAcceptableRoute: boolean,
     idPrefix: string,
@@ -26,7 +26,7 @@ export function buildSideBySideGraph(
 ): Graph {
     return buildPackageSideBySideGraph(
         route,
-        isAcceptableRoute ? route : otherRoute || acceptableInchiKeys,
+        otherRoute,
         isAcceptableRoute,
         idPrefix,
         inStockInchiKeys,

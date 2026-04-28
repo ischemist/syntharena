@@ -14,13 +14,14 @@ describe('buildRouteGraph', () => {
         expect(result.edges).toHaveLength(0)
 
         const node = result.nodes[0]
-        expect(node.id).toBe('test-C')
+        expect(node.id).toBe(`test-${singleNode.inchikey}`)
         expect(node.type).toBe('molecule')
         expect(node.data).toEqual({
             smiles: 'C',
             inchikey: 'VNWKTOKETHGBQD-UHFFFAOYSA-N',
             status: 'default',
             inStock: false,
+            isLeaf: true,
             ppg: undefined,
             source: undefined,
             leadTime: undefined,
@@ -362,7 +363,7 @@ describe('Graph Structure Integrity', () => {
 
             // Verify types
             expect(typeof node.data.smiles).toBe('string')
-            expect(['in-stock', 'default']).toContain(node.data.status)
+            expect(node.data.status).toBe('default')
             expect(typeof node.data.inStock).toBe('boolean')
         })
     })

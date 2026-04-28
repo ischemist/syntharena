@@ -30,8 +30,8 @@ export function RouteComparison({
             mode={mode}
             inStockInchiKeys={inStockInchiKeys}
             buyableMetadataMap={buyableMetadataMap}
-            referenceLabel={acceptableRouteLabel || 'acceptable route'}
-            comparedLabel={modelName || 'prediction'}
+            referenceLabel={acceptableRouteLabel ?? 'Acceptable Route'}
+            comparedLabel={modelName ?? 'Prediction'}
         />
     )
 }
