@@ -50,3 +50,5 @@ prisma/dev.db*
 AGENTS.md
 
 collect/
+
+.practices/

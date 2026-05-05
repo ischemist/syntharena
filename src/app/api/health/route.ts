@@ -5,6 +5,8 @@ import prisma from '@/lib/db'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+const DATABASE_CHECK_TIMEOUT_MS = 1000
+
 type HealthPayload = {
     ok: boolean
     service: 'syntharena'
@@ -14,6 +16,16 @@ type HealthPayload = {
     timestamp: string
     code?: 'health.database_unavailable'
     message?: string
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    let timeout: NodeJS.Timeout
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('health.database_check_timeout')), timeoutMs)
+    })
+
+    return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeout))
 }
 
 export async function GET() {
@@ -27,9 +39,10 @@ export async function GET() {
     }
 
     try {
-        await prisma.$queryRaw`SELECT 1`
+        // Health probes are intentionally uncached so monitors see current app/database availability.
+        await withTimeout(prisma.$queryRaw`SELECT 1`, DATABASE_CHECK_TIMEOUT_MS)
     } catch (error) {
-        console.error('health.database_check_failed', { error })
+        console.error('health.database_check_failed', error)
         payload.ok = false
         payload.checks.database = 'error'
         payload.code = 'health.database_unavailable'

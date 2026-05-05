@@ -97,7 +97,7 @@ The platform will be available at [http://localhost:3000](http://localhost:3000)
 
 ### Health Check
 
-`GET /api/health` returns `200` when the Next.js app can reach the SQLite database and `503` when the database check fails. It is intended for uptime monitors such as Better Stack.
+`GET /api/health` returns `200` when the Next.js app can reach the SQLite database and `503` with `health.database_unavailable` when the database check fails. It is intended for uptime monitors such as Better Stack.
 
 ### Environment Configuration
 

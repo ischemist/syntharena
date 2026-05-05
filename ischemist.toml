@@ -1,0 +1,4 @@
+[practices]
+source = "/Users/morgunov/Developer/engineering-practices"
+profile = "next-prisma-app"
+output = ".practices/docs"
