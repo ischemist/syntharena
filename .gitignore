@@ -46,7 +46,8 @@ next-env.d.ts
 prompts/
 .ignore
 
-prisma/dev.db*
+prisma/*.db*
+production_data/
 AGENTS.md
 
 collect/

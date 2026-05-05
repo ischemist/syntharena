@@ -53,7 +53,7 @@ Evaluating retrosynthesis models is fragmented and unreliable:
 
 ### Option 1: Docker (Recommended)
 
-Get the latest database dump and launch the platform:
+Get the latest database dump and launch the platform. The SQLite database is mounted from `production_data/` at runtime; it is not copied into the Docker image.
 
 ```bash
 # Download the latest database
@@ -66,6 +66,10 @@ docker compose up --build -d
 The platform will be available at [http://localhost:1000](http://localhost:1000)
 
 To use a different port, edit the `ports` section in `docker-compose.yml` (e.g., change `1000:3000` to `3000:3000`).
+
+The Docker Compose service sets `DATABASE_URL=file:/app/data/prod.db`, so local `.env` files can keep using development database paths without affecting the container.
+
+On production, set `SYNTHARENA_DATA_DIR=/var/www/files.ischemist.com/syntharena/db-live` so the container mounts the live database directory directly.
 
 ### Option 2: Local Development
 
@@ -82,9 +86,8 @@ pnpm install
 cp .env.example .env
 # Edit .env to configure your database path
 
-# Get the database dump (see Docker option above)
-# Place it in production_data/syntharena.db
-# OR generate your own using the scripts below
+# Get the database dump (see Docker option above) or generate your own using the scripts below.
+# For local development, point DATABASE_URL at the database path you want to use.
 
 # Run database migrations
 pnpm prisma migrate deploy
@@ -101,10 +104,10 @@ The platform will be available at [http://localhost:3000](http://localhost:3000)
 
 ### Environment Configuration
 
-The `.env` file requires only one variable:
+For Docker, `docker-compose.yml` sets the container database path:
 
 ```bash
-DATABASE_URL="file:./production_data/syntharena.db"
+DATABASE_URL="file:/app/data/prod.db"
 ```
 
 For local development, you can use a different path:

@@ -1,10 +1,13 @@
 services:
     app:
         container_name: syntharena-app
+        image: ghcr.io/ischemist/syntharena:latest
         build: .
         ports:
             - '1000:3000'
         env_file: .env
+        environment:
+            DATABASE_URL: file:/app/data/prod.db
         volumes:
-            - ./production_data:/app/data
+            - ${SYNTHARENA_DATA_DIR:-./production_data}:/app/data
         restart: unless-stopped
