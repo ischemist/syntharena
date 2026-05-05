@@ -58,19 +58,11 @@ Get the latest database dump and launch the platform. The SQLite database is mou
 ```bash
 # Download the latest database
 curl -fsSL https://files.ischemist.com/syntharena/get-db.sh | bash -s
-
-# Launch with Docker Compose
-docker compose --profile tools run --rm migrate
-docker compose up --build -d
 ```
-
-The platform will be available at [http://localhost:1000](http://localhost:1000)
-
-To use a different port, edit the `ports` section in `docker-compose.yml` (e.g., change `1000:3000` to `3000:3000`).
 
 The Docker Compose service sets `DATABASE_URL=file:/app/data/prod.db`, so local `.env` files can keep using development database paths without affecting the container.
 
-On production, set `SYNTHARENA_DATA_DIR=/var/www/files.ischemist.com/syntharena/db-live` so the container mounts the live database directory directly.
+By default, Docker Compose mounts `./production_data` into the container. Set `SYNTHARENA_DATA_DIR` to use another host directory containing `prod.db`.
 
 Ensure the data directory exists and is writable by uid/gid `1002`, the non-root container user:
 
@@ -83,8 +75,12 @@ Run migrations with the one-shot `migrate` service before starting the app:
 
 ```bash
 docker compose --profile tools run --rm migrate
-docker compose up -d app
+docker compose up --build -d app
 ```
+
+The platform will be available at [http://localhost:1000](http://localhost:1000)
+
+To use a different port, edit the `ports` section in `docker-compose.yml` (e.g., change `1000:3000` to `3000:3000`).
 
 ### Option 2: Local Development
 
