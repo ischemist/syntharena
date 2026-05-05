@@ -72,14 +72,14 @@ The Docker Compose service sets `DATABASE_URL=file:/app/data/prod.db`, so local 
 
 On production, set `SYNTHARENA_DATA_DIR=/var/www/files.ischemist.com/syntharena/db-live` so the container mounts the live database directory directly.
 
-Run migrations with the one-shot `migrate` service before starting the app:
-
 Ensure the data directory exists and is writable by uid/gid `1002`, the non-root container user:
 
 ```bash
 mkdir -p "${SYNTHARENA_DATA_DIR:-./production_data}"
 chown -R 1002:1002 "${SYNTHARENA_DATA_DIR:-./production_data}"
 ```
+
+Run migrations with the one-shot `migrate` service before starting the app:
 
 ```bash
 docker compose --profile tools run --rm migrate
