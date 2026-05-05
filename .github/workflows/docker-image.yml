@@ -13,7 +13,7 @@ permissions:
 
 jobs:
     build:
-        name: Build Docker image
+        name: Build Docker images
         runs-on: blacksmith-4vcpu-ubuntu-2404
 
         steps:
@@ -24,14 +24,21 @@ jobs:
               id: image
               run: |
                   IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+                  MIGRATE_IMAGE="${IMAGE}-migrate"
                   TAGS="${IMAGE}:sha-${GITHUB_SHA}"
+                  MIGRATE_TAGS="${MIGRATE_IMAGE}:sha-${GITHUB_SHA}"
                   if [ "${GITHUB_REF}" = "refs/heads/master" ]; then
                     TAGS="${TAGS}"$'\n'"${IMAGE}:latest"
+                    MIGRATE_TAGS="${MIGRATE_TAGS}"$'\n'"${MIGRATE_IMAGE}:latest"
                   fi
                   {
                     echo "image=${IMAGE}"
                     echo "tags<<EOF"
                     echo "${TAGS}"
+                    echo "EOF"
+                    echo "migrate-image=${MIGRATE_IMAGE}"
+                    echo "migrate-tags<<EOF"
+                    echo "${MIGRATE_TAGS}"
                     echo "EOF"
                   } >> "$GITHUB_OUTPUT"
 
@@ -48,9 +55,18 @@ jobs:
               with:
                   max-cache-size-mb: '10240'
 
-            - name: Build image
+            - name: Build app image
               uses: useblacksmith/build-push-action@v2
               with:
                   context: .
+                  target: runner
                   push: ${{ github.event_name != 'pull_request' }}
                   tags: ${{ steps.image.outputs.tags }}
+
+            - name: Build migration image
+              uses: useblacksmith/build-push-action@v2
+              with:
+                  context: .
+                  target: migrate-runner
+                  push: ${{ github.event_name != 'pull_request' }}
+                  tags: ${{ steps.image.outputs.migrate-tags }}

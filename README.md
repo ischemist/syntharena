@@ -60,6 +60,7 @@ Get the latest database dump and launch the platform. The SQLite database is mou
 curl -fsSL https://files.ischemist.com/syntharena/get-db.sh | bash -s
 
 # Launch with Docker Compose
+docker compose --profile tools run --rm migrate
 docker compose up --build -d
 ```
 
@@ -70,6 +71,13 @@ To use a different port, edit the `ports` section in `docker-compose.yml` (e.g.,
 The Docker Compose service sets `DATABASE_URL=file:/app/data/prod.db`, so local `.env` files can keep using development database paths without affecting the container.
 
 On production, set `SYNTHARENA_DATA_DIR=/var/www/files.ischemist.com/syntharena/db-live` so the container mounts the live database directory directly.
+
+Run migrations with the one-shot `migrate` service before starting the app:
+
+```bash
+docker compose --profile tools run --rm migrate
+docker compose up -d app
+```
 
 ### Option 2: Local Development
 

@@ -1,8 +1,23 @@
 services:
+    migrate:
+        profiles:
+            - tools
+        image: ghcr.io/ischemist/syntharena-migrate:latest
+        build:
+            context: .
+            target: migrate-runner
+        env_file: .env
+        environment:
+            DATABASE_URL: file:/app/data/prod.db
+        volumes:
+            - ${SYNTHARENA_DATA_DIR:-./production_data}:/app/data
+
     app:
         container_name: syntharena-app
         image: ghcr.io/ischemist/syntharena:latest
-        build: .
+        build:
+            context: .
+            target: runner
         ports:
             - '1000:3000'
         env_file: .env
