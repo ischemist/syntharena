@@ -64,11 +64,11 @@ The Docker Compose service sets `DATABASE_URL=file:/app/data/prod.db`, so local 
 
 By default, Docker Compose mounts `./production_data` into the container. Set `SYNTHARENA_DATA_DIR` to use another host directory containing `prod.db`.
 
-Ensure the data directory exists and is writable by uid/gid `1002`, the non-root container user:
+Ensure the data directory exists and is writable by the non-root container user. Docker Compose defaults to uid/gid `1002`, but you can override that with `SYNTHARENA_UID` and `SYNTHARENA_GID` if your host directory uses different ownership.
 
 ```bash
 mkdir -p "${SYNTHARENA_DATA_DIR:-./production_data}"
-chown -R 1002:1002 "${SYNTHARENA_DATA_DIR:-./production_data}"
+chown -R "${SYNTHARENA_UID:-1002}:${SYNTHARENA_GID:-1002}" "${SYNTHARENA_DATA_DIR:-./production_data}"
 ```
 
 Run migrations with the one-shot `migrate` service before starting the app:

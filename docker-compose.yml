@@ -11,7 +11,7 @@ services:
             DATABASE_URL: file:/app/data/prod.db
         volumes:
             - ${SYNTHARENA_DATA_DIR:-./production_data}:/app/data
-        user: '1002:1002'
+        user: '${SYNTHARENA_UID:-1002}:${SYNTHARENA_GID:-1002}'
 
     app:
         container_name: syntharena-app
@@ -27,7 +27,7 @@ services:
         volumes:
             - ${SYNTHARENA_DATA_DIR:-./production_data}:/app/data
         restart: unless-stopped
-        user: '1002:1002'
+        user: '${SYNTHARENA_UID:-1002}:${SYNTHARENA_GID:-1002}'
         healthcheck:
             test:
                 [
