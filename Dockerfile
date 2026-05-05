@@ -1,33 +1,38 @@
-FROM node:22-bookworm
+FROM node:22-bookworm-slim AS base
 
 WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# install pnpm
-RUN npm install -g pnpm
-
-# copy package files
+FROM base AS deps
+RUN corepack enable
 COPY package.json pnpm-lock.yaml ./
-
-# install ALL dependencies (including devDependencies like typescript/prisma)
-# this ensures prisma.config.ts can actually be read
 RUN pnpm install --frozen-lockfile
 
-# copy source
+FROM deps AS builder
 COPY . .
-
-# rebuild sqlite bindings for this container's os
 RUN pnpm rebuild better-sqlite3
-
-# dummy env vars for build
 ENV DATABASE_URL="file:./dev.db"
-
-# generate client and build nextjs
 RUN pnpm exec prisma generate
 RUN pnpm run build
+RUN pnpm prune --prod --ignore-scripts
 
-# expose port
+FROM base AS runner
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+ENV DATABASE_URL="file:/app/data/prod.db"
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
+COPY --from=builder /app/node_modules ./node_modules
+
 EXPOSE 3000
 
-# migrate real db, then start
-# using 'pnpm start' because we have the full environment now
-CMD pnpm prisma migrate deploy && pnpm start
+CMD node node_modules/prisma/build/index.js migrate deploy && node server.js
