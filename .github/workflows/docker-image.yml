@@ -3,8 +3,6 @@ name: Docker Image
 on:
     push:
         branches: [master]
-    pull_request:
-        branches: [master]
     workflow_dispatch:
 
 permissions:
@@ -25,6 +23,7 @@ jobs:
               run: |
                   IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
                   MIGRATE_IMAGE="${IMAGE}-migrate"
+                  CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
                   TAGS="${IMAGE}:sha-${GITHUB_SHA}"
                   MIGRATE_TAGS="${MIGRATE_IMAGE}:sha-${GITHUB_SHA}"
                   if [ "${GITHUB_REF}" = "refs/heads/master" ]; then
@@ -33,6 +32,7 @@ jobs:
                   fi
                   {
                     echo "image=${IMAGE}"
+                    echo "created=${CREATED}"
                     echo "tags<<EOF"
                     echo "${TAGS}"
                     echo "EOF"
@@ -43,7 +43,6 @@ jobs:
                   } >> "$GITHUB_OUTPUT"
 
             - name: Login to GHCR
-              if: github.event_name != 'pull_request'
               uses: docker/login-action@v4
               with:
                   registry: ghcr.io
@@ -60,13 +59,21 @@ jobs:
               with:
                   context: .
                   target: runner
-                  push: ${{ github.event_name != 'pull_request' }}
+                  push: true
                   tags: ${{ steps.image.outputs.tags }}
+                  labels: |
+                      org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+                      org.opencontainers.image.revision=${{ github.sha }}
+                      org.opencontainers.image.created=${{ steps.image.outputs.created }}
 
             - name: Build migration image
               uses: useblacksmith/build-push-action@v2
               with:
                   context: .
                   target: migrate-runner
-                  push: ${{ github.event_name != 'pull_request' }}
+                  push: true
                   tags: ${{ steps.image.outputs.migrate-tags }}
+                  labels: |
+                      org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+                      org.opencontainers.image.revision=${{ github.sha }}
+                      org.opencontainers.image.created=${{ steps.image.outputs.created }}

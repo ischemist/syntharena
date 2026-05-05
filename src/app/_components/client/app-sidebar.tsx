@@ -18,7 +18,6 @@ import {
 
 import { ModeToggle } from '@/components/mode-toggle'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar'
-import packageJson from '../../../../package.json'
 
 import { NavDropdowns } from './nav-dropdowns'
 import { NavLinks } from './nav-links'
@@ -113,7 +112,7 @@ const data = {
     ],
 }
 
-const appVersion = `v${packageJson.version}`
+const appVersion = `v${process.env.NEXT_PUBLIC_APP_VERSION ?? '0.0.0'}`
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return (
