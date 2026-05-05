@@ -11,7 +11,7 @@ jobs:
 
     tests:
         name: Tests
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2404
         permissions:
             contents: read
 
@@ -57,7 +57,7 @@ jobs:
         name: PR Report
         needs: [tests]
         if: "!cancelled() && github.event_name == 'pull_request'"
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2404
         permissions:
             contents: read
             pull-requests: write
@@ -109,7 +109,7 @@ jobs:
         name: Update Coverage Badge
         needs: [tests]
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2404
 
         steps:
             - name: Download coverage

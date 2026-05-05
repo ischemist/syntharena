@@ -18,7 +18,7 @@ jobs:
         permissions:
             contents: write
             pull-requests: write
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-2vcpu-ubuntu-2404
         steps:
             - name: Assign labels from commits
               if: github.event_name == 'pull_request'
