@@ -112,6 +112,8 @@ const data = {
     ],
 }
 
+const appVersion = `v${process.env.NEXT_PUBLIC_APP_VERSION ?? '0.0.0'}`
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return (
         <Sidebar variant="inset" {...props}>
@@ -123,7 +125,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         </div>
                         <div className="grid flex-1 text-left text-sm leading-tight">
                             <span className="truncate font-medium">SynthArena</span>
-                            <span className="truncate text-xs">v0.4.0</span>
+                            <span className="truncate text-xs">{appVersion}</span>
                         </div>
                     </div>
                     <ModeToggle />
