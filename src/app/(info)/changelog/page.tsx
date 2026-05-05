@@ -9,6 +9,26 @@ export const metadata: Metadata = {
 
 const versions = [
     {
+        version: 'v0.4.1',
+        date: 'May 5, 2026',
+        changes: [
+            {
+                type: ChangeType.FEAT,
+                description:
+                    'Added a health endpoint for uptime monitoring and the public status page at status.ischemist.com',
+            },
+            {
+                type: ChangeType.BUGFIX,
+                description: 'Security dependency updates across Next.js, Rollup, flatted, and related npm packages',
+            },
+            {
+                type: ChangeType.PERF,
+                description:
+                    'Shared route visualization packages and route payload cleanup for faster, leaner route pages',
+            },
+        ],
+    },
+    {
         version: 'v0.4.0',
         date: 'January 27, 2026',
         changes: [
