@@ -10,7 +10,7 @@ RUN apt-get update \
     && chown syntharena:syntharena /app
 
 FROM base AS deps
-RUN corepack enable && corepack prepare pnpm@10.33.4 --activate
+RUN corepack enable && corepack prepare pnpm@11.0.8 --activate
 USER syntharena
 COPY --chown=syntharena:syntharena package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
