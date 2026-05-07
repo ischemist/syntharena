@@ -1,8 +1,10 @@
+import type { ReactNode } from 'react'
+
 import { ChangeType, ChangeTypeBadge } from './change-type-badge'
 
 interface Change {
     type: ChangeType
-    description: string
+    description: ReactNode
 }
 
 interface VersionBlockProps {

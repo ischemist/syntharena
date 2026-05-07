@@ -3,6 +3,8 @@ import Link from 'next/link'
 
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
+import { IschemistUpdatesSection } from '../../_components/server/ischemist-updates-section'
+
 export const metadata: Metadata = {
     title: 'Documentation',
     description: 'Learn how SynthArena evaluates multistep retrosynthesis models',
@@ -111,6 +113,8 @@ export default function DocsPage() {
                         </a>
                     </div>
                 </section>
+
+                <IschemistUpdatesSection />
             </div>
         </div>
     )

@@ -1,6 +1,9 @@
 export function HeroSection() {
     return (
         <header className="space-y-6">
+            <p className="text-muted-foreground text-sm font-medium tracking-wide uppercase">
+                First published December 10, 2025
+            </p>
             <h1 className="text-3xl leading-tight tracking-tight">
                 The most transformative successes in artificial intelligence have a common pattern:{' '}
                 <span className="font-normal">they solved </span> <span className="font-bold">structural</span> problems

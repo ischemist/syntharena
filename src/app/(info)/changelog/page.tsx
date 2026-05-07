@@ -14,8 +14,19 @@ const versions = [
         changes: [
             {
                 type: ChangeType.FEAT,
-                description:
-                    'Added a health endpoint for uptime monitoring and the public status page at status.ischemist.com',
+                description: (
+                    <>
+                        Added a health endpoint for uptime monitoring and the public status page at{' '}
+                        <a
+                            href="https://status.ischemist.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-foreground hover:underline"
+                        >
+                            status.ischemist.com
+                        </a>
+                    </>
+                ),
             },
             {
                 type: ChangeType.BUGFIX,
