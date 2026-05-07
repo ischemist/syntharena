@@ -7,12 +7,11 @@ export function IschemistUpdatesSection() {
         <section className="border-t py-8">
             <div className="max-w-xl space-y-4">
                 <div className="space-y-2">
-                    <p className="text-foreground text-xs font-medium tracking-wide uppercase">From isChemist</p>
-                    <p className="text-foreground text-sm leading-relaxed">
-                        Software, essays, and tools that make better scientific questions possible.
+                    <p className="text-foreground text-xs font-medium tracking-wide uppercase">
+                        From isChemist: Structure precedes quantity.
                     </p>
                     <p className="text-muted-foreground text-sm leading-relaxed">
-                        Subscribe for notes from the edge of AI for chemistry.
+                        Essays and software that make better scientific questions possible.
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2">

@@ -143,7 +143,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <div className="border-sidebar-border text-sidebar-foreground/70 space-y-2 border-t px-2 pt-3 text-xs">
                         <p className="font-medium text-sidebar-foreground">From isChemist</p>
                         <p className="leading-snug">
-                            Software, essays, and tools that make better scientific questions possible.
+                            Essays and software that make better scientific questions possible.
                         </p>
                         <div className="flex items-center gap-3">
                             <a
