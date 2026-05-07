@@ -27,7 +27,30 @@ export default function ThesisPage() {
                 <ValiditySection />
                 <EvaluationTrackSection />
 
-                <footer className="text-muted-foreground not-prose border-t pt-8 text-sm">
+                <footer className="text-muted-foreground not-prose !mt-8 space-y-4 border-t pt-6 text-sm">
+                    <div className="space-y-2">
+                        <p>
+                            This December 2025 thesis was the first statement of the argument. It later broadened into{' '}
+                            <a
+                                href="https://ischemist.com/thesis"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-foreground hover:underline"
+                            >
+                                ischemist.com/thesis
+                            </a>
+                            , then into{' '}
+                            <a
+                                href="https://ischemist.com/syntax-of-matter"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-foreground hover:underline"
+                            >
+                                Syntax of Matter
+                            </a>
+                            .
+                        </p>
+                    </div>
                     <p>
                         <a
                             href="https://arxiv.org/abs/2512.07079"

@@ -6,10 +6,12 @@ import {
     Beaker,
     BookOpen,
     Cpu,
+    Activity,
     FlaskConical,
     History,
     LayoutDashboard,
     Lightbulb,
+    Mail,
     Map,
     Trophy,
     Upload,
@@ -136,7 +138,36 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <NavDropdowns items={data.navDropdowns} />
                 <NavSecondary items={data.navSecondary} className="mt-auto" />
             </SidebarContent>
-            <SidebarFooter>{/*<NavUser user={data.user} />*/}</SidebarFooter>
+            <SidebarFooter>
+                <div className="group-data-[collapsible=icon]:hidden">
+                    <div className="border-sidebar-border text-sidebar-foreground/70 space-y-2 border-t px-2 pt-3 text-xs">
+                        <p className="font-medium text-sidebar-foreground">From isChemist</p>
+                        <p className="leading-snug">
+                            Essays and software that make better scientific questions possible.
+                        </p>
+                        <div className="flex items-center gap-3">
+                            <a
+                                href="https://ischemist.com/newsletter"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:text-sidebar-foreground inline-flex items-center gap-1 transition-colors"
+                            >
+                                <Mail className="size-3" />
+                                Newsletter
+                            </a>
+                            <a
+                                href="https://status.ischemist.com"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:text-sidebar-foreground inline-flex items-center gap-1 transition-colors"
+                            >
+                                <Activity className="size-3" />
+                                Status
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </SidebarFooter>
         </Sidebar>
     )
 }

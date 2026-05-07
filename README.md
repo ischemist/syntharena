@@ -113,6 +113,8 @@ The platform will be available at [http://localhost:3000](http://localhost:3000)
 
 `GET /api/health` returns `200` when the Next.js app can reach the SQLite database and `503` with `health.database_unavailable` when the database check fails. It is intended for uptime monitors such as Better Stack.
 
+The hosted deployment is monitored at [status.ischemist.com](https://status.ischemist.com).
+
 ### Environment Configuration
 
 For Docker, `docker-compose.yml` sets the container database path:
@@ -310,6 +312,7 @@ MIT License. See [LICENSE](LICENSE) for details.
 - **Paper:** [arxiv.org/abs/2512.07079](https://arxiv.org/abs/2512.07079)
 - **Publication Data:** [files.ischemist.com/retrocast/publication-data](https://files.ischemist.com/retrocast/publication-data)
 - **Live Platform:** [syntharena.ischemist.com](https://syntharena.ischemist.com)
+- **Service Status:** [status.ischemist.com](https://status.ischemist.com)
 
 ---
 
