@@ -1,6 +1,8 @@
 packages:
     - '.'
 
+# pnpm 11 replaced onlyBuiltDependencies with allowBuilds.
+# Keep native/prisma build scripts explicit so strict dependency builds stay on.
 allowBuilds:
     '@prisma/engines': true
     better-sqlite3: true
