@@ -2,7 +2,7 @@
  * Shared helper for upserting ReactionStep records during route loading.
  * Used by both the prediction loader and benchmark loader.
  */
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 
 import type prisma from '@/lib/db'
 
@@ -51,13 +51,21 @@ export async function upsertReactionSteps(nodes: NodeWithReactionData[], db: DbC
     const missingReactions = Array.from(reactionHashToData.entries()).filter(([hash]) => !reactionHashToId.has(hash))
 
     if (missingReactions.length > 0) {
-        await db.reactionStep.createMany({
-            data: missingReactions.map(([reactionHash, data]) => ({
-                reactionHash,
-                template: data.template,
-                metadata: data.metadata,
-            })),
-        })
+        try {
+            await db.reactionStep.createMany({
+                data: missingReactions.map(([reactionHash, data]) => ({
+                    reactionHash,
+                    template: data.template,
+                    metadata: data.metadata,
+                })),
+            })
+        } catch (error) {
+            // Concurrent loaders can race between the existence check and the batch insert.
+            // Ignore unique conflicts and re-read the ids below.
+            if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+                throw error
+            }
+        }
 
         const createdSteps = await db.reactionStep.findMany({
             where: { reactionHash: { in: missingReactions.map(([hash]) => hash) } },

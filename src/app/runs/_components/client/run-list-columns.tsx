@@ -1,8 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { ColumnDef } from '@tanstack/react-table'
-import { format, formatDistanceToNow } from 'date-fns'
 
 import type { PredictionRunWithStats } from '@/types'
 import { compareVersions, formatVersion } from '@/lib/utils'
@@ -10,22 +8,7 @@ import { SubmissionBadge } from '@/components/badges/submission'
 import { DataTableColumnHeader } from '@/components/data-table-column-header'
 import { MetricCell } from '@/components/metrics'
 import { Badge } from '@/components/ui/badge'
-
-function RelativeExecutedAt({ executedAt }: { executedAt: Date }) {
-    const date = new Date(executedAt)
-    const absoluteLabel = format(date, 'MMM d, yyyy')
-    const [label, setLabel] = useState(absoluteLabel)
-
-    useEffect(() => {
-        setLabel(formatDistanceToNow(date, { addSuffix: true }))
-    }, [date])
-
-    return (
-        <span className="text-muted-foreground text-sm" title={absoluteLabel}>
-            {label}
-        </span>
-    )
-}
+import { RelativeTime } from '@/components/ui/relative-time'
 
 export const columns: ColumnDef<PredictionRunWithStats>[] = [
     {
@@ -125,7 +108,7 @@ export const columns: ColumnDef<PredictionRunWithStats>[] = [
         header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Executed" />,
         cell: ({ row }) => (
             <div className="flex justify-center">
-                <RelativeExecutedAt executedAt={row.original.executedAt} />
+                <RelativeTime date={row.original.executedAt} className="text-muted-foreground text-sm" />
             </div>
         ),
     },

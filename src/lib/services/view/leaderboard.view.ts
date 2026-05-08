@@ -221,6 +221,7 @@ export function _transformStatsToLeaderboardDTOs(
                     byGroup[metric.groupKey] = toMetricResult(metric)
                 }
             }
+            if (!overall) return null
             return { metricName: name, overall: toMetricResult(overall), byGroup }
         }
 

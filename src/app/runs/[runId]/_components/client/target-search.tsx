@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useEffectEvent, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ChevronLeft, ChevronRight, ChevronsUpDown, X } from 'lucide-react'
 
@@ -56,35 +56,44 @@ export function TargetSearch({
     const query = searchParams.get('search') || ''
     const selectedRouteLength = currentRouteLength
     const onlyWithPredictions = currentFilter ?? false
+    const onSearchRef = useRef(onSearch)
 
-    const runSearch = useEffectEvent(async (nextQuery: string, routeLength?: number, filterByPredictions?: boolean) => {
-        setSearchState((currentState) => ({ ...currentState, isSearching: true }))
-
-        try {
-            const results = await onSearch(nextQuery, routeLength, filterByPredictions)
-            setSearchState({
-                results,
-                isSearching: false,
-            })
-        } catch (error) {
-            console.error('Search failed:', error)
-            setSearchState({
-                results: [],
-                isSearching: false,
-            })
-        }
-    })
+    useEffect(() => {
+        onSearchRef.current = onSearch
+    }, [onSearch])
 
     useEffect(() => {
         if (!open) {
             return
         }
 
+        let isCancelled = false
         const timer = setTimeout(() => {
-            void runSearch(query, selectedRouteLength, onlyWithPredictions)
+            setSearchState((currentState) => ({ ...currentState, isSearching: true }))
+
+            void onSearchRef
+                .current(query, selectedRouteLength, onlyWithPredictions)
+                .then((results) => {
+                    if (isCancelled) return
+                    setSearchState({
+                        results,
+                        isSearching: false,
+                    })
+                })
+                .catch((error) => {
+                    console.error('Search failed:', error)
+                    if (isCancelled) return
+                    setSearchState({
+                        results: [],
+                        isSearching: false,
+                    })
+                })
         }, 300)
 
-        return () => clearTimeout(timer)
+        return () => {
+            isCancelled = true
+            clearTimeout(timer)
+        }
     }, [open, query, selectedRouteLength, onlyWithPredictions])
 
     const handleInputChange = (value: string) => {

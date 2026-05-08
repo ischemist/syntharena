@@ -101,16 +101,10 @@ export async function searchMolecules(
         const hasMore = molecules.length > take
         const results = hasMore ? molecules.slice(0, take) : molecules
         const mapped = results.map((mol) => {
-            let selectedStockItem: (typeof mol.stockItems)[number] | undefined
-            const stocks = stockId
-                ? mol.stockItems.flatMap((stockItem) => {
-                      if (stockItem.stockId === stockId) {
-                          selectedStockItem = stockItem
-                      }
-
-                      return [stockItem.stock]
-                  })
-                : mol.stockItems.map((stockItem) => stockItem.stock)
+            const stocks = mol.stockItems.map((stockItem) => stockItem.stock)
+            const selectedStockItem = stockId
+                ? mol.stockItems.find((stockItem) => stockItem.stockId === stockId)
+                : undefined
 
             return {
                 id: mol.id,

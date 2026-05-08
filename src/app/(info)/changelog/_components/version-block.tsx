@@ -22,12 +22,12 @@ export function VersionBlock({ version, date, changes }: VersionBlockProps) {
                 </h2>
             </div>
             <ul className="space-y-2">
-                {changes.map((change) => (
+                {changes.map((change, index) => (
                     <li
                         key={
                             typeof change.description === 'string'
                                 ? `${version}-${change.type}-${change.description}`
-                                : `${version}-${change.type}-${date}`
+                                : `${version}-${change.type}-${date}-${index}`
                         }
                         className="flex items-start gap-3"
                     >

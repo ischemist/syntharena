@@ -9,13 +9,13 @@ interface RelativeTimeProps {
 }
 
 export function RelativeTime({ date, className }: RelativeTimeProps) {
-    const resolvedDate = new Date(date)
-    const absoluteLabel = format(resolvedDate, 'MMM d, yyyy')
+    const resolvedTimestamp = typeof date === 'string' ? Date.parse(date) : date.getTime()
+    const absoluteLabel = format(new Date(resolvedTimestamp), 'MMM d, yyyy')
     const [label, setLabel] = useState(absoluteLabel)
 
     useEffect(() => {
-        setLabel(formatDistanceToNow(resolvedDate, { addSuffix: true }))
-    }, [resolvedDate])
+        setLabel(formatDistanceToNow(new Date(resolvedTimestamp), { addSuffix: true }))
+    }, [resolvedTimestamp])
 
     return (
         <span className={className} title={absoluteLabel}>

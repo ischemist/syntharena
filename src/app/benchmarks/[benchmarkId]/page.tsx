@@ -103,7 +103,7 @@ async function ResolvedTargetGrid({
         )
         .catch((error) => {
             unstable_rethrow(error)
-            return null
+            throw error
         })
 
     if (!targetsResult) {
