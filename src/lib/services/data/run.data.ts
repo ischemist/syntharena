@@ -108,13 +108,19 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput,
     // for each group, select the champion based on metric performance
     const champions: typeof allRuns = []
     for (const [, groupRuns] of runsByCompositeKey) {
+        const groupRunsWithMetrics = groupRuns.map((run) => ({
+            run,
+            metricsByName: new Map(
+                (run.statistics[0]?.metrics ?? []).map((metric) => [metric.metricName, metric.value])
+            ),
+        }))
+
         // helper to extract a metric value from a run
-        const getMetric = (run: (typeof groupRuns)[0], metricName: string): number => {
-            return run.statistics[0]?.metrics.find((m) => m.metricName === metricName)?.value ?? -1
-        }
+        const getMetric = (entry: (typeof groupRunsWithMetrics)[0], metricName: string): number =>
+            entry.metricsByName.get(metricName) ?? -1
 
         // find the champion using the same logic as leaderboard
-        const champion = groupRuns.reduce((best, current) => {
+        const champion = groupRunsWithMetrics.reduce((best, current) => {
             const bestTop10 = getMetric(best, 'Top-10')
             const currentTop10 = getMetric(current, 'Top-10')
 
@@ -129,7 +135,7 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput,
             return currentSolvability > bestSolvability ? current : best
         })
 
-        champions.push(champion)
+        champions.push(champion.run)
     }
 
     return champions
@@ -137,7 +143,6 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput,
 export const findPredictionRunsForList = cache(_findPredictionRunsForList, ['prediction-run-list'], {
     tags: ['runs'],
 })
-export type PredictionRunListItemPayload = Prisma.PromiseReturnType<typeof _findPredictionRunsForList>[0]
 
 /** returns all data for a single prediction run detail page. */
 async function _findPredictionRunDetailsById(runId: string) {
@@ -175,9 +180,6 @@ async function _findPredictionRunHeaderById(runId: string) {
     if (!run) throw new Error('prediction run not found.')
     return run
 }
-export const findPredictionRunHeaderById = cache(_findPredictionRunHeaderById, ['prediction-run-header-by-id'], {
-    tags: ['runs'],
-})
 
 /** finds all runs for a specific benchmark, used in dropdowns. */
 async function _findPredictionRunsForBenchmark(benchmarkId: string) {
@@ -207,11 +209,6 @@ async function _findPredictionRunsForBenchmark(benchmarkId: string) {
         orderBy: { executedAt: 'desc' },
     })
 }
-export const findPredictionRunsForBenchmark = cache(
-    _findPredictionRunsForBenchmark,
-    ['prediction-runs-for-benchmark'],
-    { tags: ['runs', 'benchmarks'] }
-)
 
 /** returns only the data needed for the run detail breadcrumb. */
 async function _findPredictionRunBreadcrumbData(runId: string) {

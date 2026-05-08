@@ -32,7 +32,7 @@ const ALGORITHM_SORT_CACHE = new Map<string, number>()
  * 2. Maximum color diversity (no hash collisions)
  * 3. New algorithms get next available color
  */
-export function getAlgorithmColorFamily(algorithmName: string): ColorFamily {
+function getAlgorithmColorFamily(algorithmName: string): ColorFamily {
     // Check cache first
     if (ALGORITHM_SORT_CACHE.has(algorithmName)) {
         const index = ALGORITHM_SORT_CACHE.get(algorithmName)!

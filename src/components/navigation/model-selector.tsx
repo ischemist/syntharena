@@ -10,6 +10,12 @@ import { Button } from '@/components/ui/button'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
+const modelSelectorDateFormatter = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+})
+
 interface ModelSelectorProps {
     runs: PredictionRunSummary[]
     selectedRunId?: string
@@ -20,6 +26,7 @@ interface ModelSelectorProps {
 
 export function ModelSelector({ runs, selectedRunId, paramName, rankParamName }: ModelSelectorProps) {
     const [open, setOpen] = React.useState(false)
+    const commandListId = React.useId()
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
@@ -40,8 +47,7 @@ export function ModelSelector({ runs, selectedRunId, paramName, rankParamName }:
         setOpen(false)
     }
 
-    const formatDate = (date: Date) =>
-        new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(date))
+    const formatDate = (date: Date) => modelSelectorDateFormatter.format(new Date(date))
 
     const getSearchValue = (run: PredictionRunSummary) => {
         const parts = [run.modelName, run.algorithmName, run.modelVersion ?? ''].filter(Boolean)
@@ -52,7 +58,13 @@ export function ModelSelector({ runs, selectedRunId, paramName, rankParamName }:
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" aria-expanded={open} className="w-[400px] justify-between">
+                <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-controls={commandListId}
+                    aria-expanded={open}
+                    className="w-[400px] justify-between"
+                >
                     {selectedRun ? (
                         <span className="flex items-center gap-2 truncate">
                             <span className="font-medium">{selectedRun.modelName}</span>
@@ -61,15 +73,15 @@ export function ModelSelector({ runs, selectedRunId, paramName, rankParamName }:
                             )}
                         </span>
                     ) : (
-                        <span className="text-muted-foreground">Select model prediction...</span>
+                        <span className="text-muted-foreground">Select model prediction…</span>
                     )}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[400px] p-0">
                 <Command>
                     <CommandInput placeholder="Search models..." className="h-9" />
-                    <CommandList>
+                    <CommandList id={commandListId}>
                         <CommandEmpty>No models found.</CommandEmpty>
                         <CommandGroup>
                             {runs.map((run) => (
@@ -95,7 +107,7 @@ export function ModelSelector({ runs, selectedRunId, paramName, rankParamName }:
                                         </div>
                                         <Check
                                             className={cn(
-                                                'ml-2 h-4 w-4',
+                                                'ml-2 size-4',
                                                 selectedRunId === run.id ? 'opacity-100' : 'opacity-0'
                                             )}
                                         />

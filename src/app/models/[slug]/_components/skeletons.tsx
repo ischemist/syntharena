@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  * Loading skeleton for the model instance detail header.
  * Matches layout of ModelDetailHeader to minimize CLS.
  */
-export function ModelDetailHeaderSkeleton() {
+function ModelDetailHeaderSkeleton() {
     return (
         <div className="space-y-4">
             {/* Back link */}
@@ -30,7 +30,7 @@ export function ModelDetailHeaderSkeleton() {
  * Loading skeleton for the executive summary section.
  * Shows placeholder cards for summary statistics.
  */
-export function ExecutiveSummarySkeleton() {
+function ExecutiveSummarySkeleton() {
     return (
         <div className="space-y-4">
             <Skeleton className="h-7 w-44" />
@@ -51,7 +51,7 @@ export function ExecutiveSummarySkeleton() {
  * Loading skeleton for the performance chart.
  * Shows placeholder for chart visualization.
  */
-export function PerformanceChartSkeleton() {
+function PerformanceChartSkeleton() {
     return (
         <div className="space-y-4">
             <Skeleton className="h-7 w-80" />
@@ -66,7 +66,7 @@ export function PerformanceChartSkeleton() {
  * Loading skeleton for the prediction run table.
  * Shows placeholder rows while runs are loading.
  */
-export function PredictionRunTableSkeleton() {
+function PredictionRunTableSkeleton() {
     return (
         <div className="space-y-4">
             <Skeleton className="h-7 w-36" />

@@ -22,8 +22,15 @@ export function VersionBlock({ version, date, changes }: VersionBlockProps) {
                 </h2>
             </div>
             <ul className="space-y-2">
-                {changes.map((change, index) => (
-                    <li key={index} className="flex items-start gap-3">
+                {changes.map((change) => (
+                    <li
+                        key={
+                            typeof change.description === 'string'
+                                ? `${version}-${change.type}-${change.description}`
+                                : `${version}-${change.type}-${date}`
+                        }
+                        className="flex items-start gap-3"
+                    >
                         <ChangeTypeBadge type={change.type} className="mt-0.5" />
                         <span className="flex-1 leading-relaxed">{change.description}</span>
                     </li>
@@ -34,4 +41,3 @@ export function VersionBlock({ version, date, changes }: VersionBlockProps) {
 }
 
 export { ChangeType }
-export type { Change }

@@ -2,7 +2,6 @@
  * data access layer for the ModelInstance model.
  */
 import { unstable_cache as cache } from 'next/cache'
-import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/db'
 
@@ -38,7 +37,6 @@ async function _findModelInstancesByFamilyId(modelFamilyIds: string | string[]) 
 export const findModelInstancesByFamilyId = cache(_findModelInstancesByFamilyId, ['models-by-family-id'], {
     tags,
 })
-export type ModelInstanceListItemPayload = Prisma.PromiseReturnType<typeof _findModelInstancesByFamilyId>[0]
 
 /** returns all data for a single model instance detail page. */
 async function _findModelInstanceBySlug(slug: string) {

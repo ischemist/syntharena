@@ -43,8 +43,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function RunDetailPage({ params, searchParams }: PageProps) {
     // --- Await promises at the top level ---
-    const { runId } = await params
-    const searchParamsValues = await searchParams
+    const [{ runId }, searchParamsValues] = await Promise.all([params, searchParams])
+
+    const titleCardPromise = predictionView.getRunTitleCardData(runId)
+    const stocksPromise = predictionView.getStocksForRun(runId)
 
     // --- Data Orchestration ---
     const defaults = await predictionView.getRunDefaults(runId, searchParamsValues.stock, searchParamsValues.target)
@@ -59,8 +61,6 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
     const onlyWithPredictions = searchParamsValues.onlyWithPredictions === 'true'
 
     // Initiate all data fetches concurrently. Do NOT await them here.
-    const titleCardPromise = predictionView.getRunTitleCardData(runId)
-    const stocksPromise = predictionView.getStocksForRun(runId)
     const statsPromise = stockId ? predictionView.getRunStatistics(runId, stockId) : Promise.resolve(null)
     const targetDisplayDataPromise = targetId
         ? predictionView.getTargetDisplayData(runId, targetId, rank, stockId, acceptableIndex, layout)

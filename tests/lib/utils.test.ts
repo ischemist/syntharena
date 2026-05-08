@@ -155,7 +155,7 @@ describe('compareVersions', () => {
                 fc.array(fc.tuple(fc.nat(10), fc.nat(10), fc.nat(10)), { minLength: 2, maxLength: 20 }),
                 (versions) => {
                     const versionables = versions.map(([major, minor, patch]) => v(major, minor, patch))
-                    const sorted = [...versionables].sort(compareVersions)
+                    const sorted = versionables.toSorted(compareVersions)
 
                     // every adjacent pair should be non-decreasing
                     for (let i = 1; i < sorted.length; i++) {

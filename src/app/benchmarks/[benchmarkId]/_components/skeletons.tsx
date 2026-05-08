@@ -25,22 +25,6 @@ export function BenchmarkDetailHeaderSkeleton() {
 }
 
 /**
- * Loading skeleton for the compact filter toolbar.
- * Shows placeholder controls in a single row while benchmark stats are loading.
- */
-export function TargetFilterBarSkeleton() {
-    return (
-        <div className="flex items-center gap-2">
-            <Skeleton className="h-9 max-w-sm flex-1" /> {/* Search input */}
-            <Skeleton className="h-9 w-28" /> {/* Search type dropdown */}
-            <Skeleton className="h-9 w-28" /> {/* Convergence dropdown */}
-            <Skeleton className="h-9 w-24" /> {/* Min length */}
-            <Skeleton className="h-9 w-24" /> {/* Max length */}
-        </div>
-    )
-}
-
-/**
  * Loading skeleton for the target grid view.
  * Shows placeholder target molecule cards while data is loading.
  */

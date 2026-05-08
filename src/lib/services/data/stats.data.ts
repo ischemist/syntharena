@@ -57,9 +57,6 @@ async function _findStatisticsJson(runId: string, stockId: string) {
     if (!stats) throw new Error('statistics not found for this run and stock.')
     return stats
 }
-export const findStatisticsJson = cache(_findStatisticsJson, ['stats-json-by-id'], {
-    tags: ['statistics'],
-})
 
 /**
  * fetches all stocks that have statistics for a given run.

@@ -2,7 +2,6 @@
  * data access layer for the Algorithm model.
  */
 import { unstable_cache as cache } from 'next/cache'
-import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/db'
 
@@ -21,7 +20,6 @@ async function _findAlgorithmListItems() {
     })
 }
 export const findAlgorithmListItems = cache(_findAlgorithmListItems, ['algorithm-list-items'], { tags })
-export type AlgorithmListItemPayload = Prisma.PromiseReturnType<typeof _findAlgorithmListItems>
 
 /** efficiently computes total instance counts for all algorithms. */
 async function _getAlgorithmInstanceCountsMap(): Promise<Record<string, number>> {

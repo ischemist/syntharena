@@ -1,6 +1,6 @@
 'use client'
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Code2, Trophy } from 'lucide-react'
 
 import { Label } from '@/components/ui/label'
@@ -9,7 +9,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 export function DeveloperModeToggle() {
     const router = useRouter()
-    const pathname = usePathname()
     const searchParams = useSearchParams()
 
     const isDevMode = searchParams.get('dev') === 'true'
@@ -21,12 +20,12 @@ export function DeveloperModeToggle() {
         } else {
             params.delete('dev')
         }
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+        router.replace(`${window.location.pathname}?${params.toString()}`, { scroll: false })
     }
 
     return (
         <TooltipProvider delayDuration={200}>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2">
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <Label htmlFor="dev-mode-toggle" className="flex cursor-pointer items-center gap-1.5">

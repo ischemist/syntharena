@@ -470,8 +470,9 @@ export async function loadBenchmarkFromFile(
                 // Compute routeLength and isConvergent from PRIMARY acceptable route (index 0)
                 let routeLength: number | null = null
                 let isConvergent: boolean | null = null
-                if (targetData.acceptable_routes && targetData.acceptable_routes.length > 0) {
-                    const primaryRoute = targetData.acceptable_routes[0]
+                const acceptableRoutes = targetData.acceptable_routes
+                if (acceptableRoutes && acceptableRoutes.length > 0) {
+                    const primaryRoute = acceptableRoutes[0]
                     routeLength = primaryRoute.length ?? null
                     isConvergent = primaryRoute.has_convergent_reaction ?? null
                 }

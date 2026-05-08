@@ -48,7 +48,7 @@ export function TargetGridSkeleton() {
     )
 }
 
-export function MetricsChartSkeleton() {
+function MetricsChartSkeleton() {
     return (
         <div className="space-y-4">
             {/* Toggle buttons */}
@@ -63,18 +63,6 @@ export function MetricsChartSkeleton() {
             {/* Footer */}
             <Skeleton className="h-4 w-48" />
         </div>
-    )
-}
-
-export function TargetSearchSkeleton() {
-    return (
-        <Card>
-            <CardContent className="pt-6">
-                <div className="flex items-center gap-2">
-                    <Skeleton className="h-10 flex-1" />
-                </div>
-            </CardContent>
-        </Card>
     )
 }
 

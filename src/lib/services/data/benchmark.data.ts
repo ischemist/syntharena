@@ -77,7 +77,6 @@ async function _findBenchmarkListItems() {
 export const findBenchmarkListItems = cache(_findBenchmarkListItems, ['benchmark-list'], {
     tags: ['benchmarks'],
 })
-export type BenchmarkListItemPayload = Prisma.PromiseReturnType<typeof _findBenchmarkListItems>[0]
 
 /** returns data needed to build a `BenchmarkListItem` for a single benchmark */
 async function _findBenchmarkListItemById(benchmarkId: string) {
@@ -167,10 +166,9 @@ async function _findTargetWithDetailsById(targetId: string) {
 export const findTargetWithDetailsById = cache(_findTargetWithDetailsById, ['target-details-by-id'], {
     tags: ['targets'],
 })
-export type TargetWithDetailsPayload = Prisma.PromiseReturnType<typeof _findTargetWithDetailsById>
 
 /** computes aggregate stats for a benchmark set */
-export async function _computeBenchmarkStats(benchmarkId: string): Promise<BenchmarkStats> {
+async function _computeBenchmarkStats(benchmarkId: string): Promise<BenchmarkStats> {
     const [targets, targetsWithAcceptableRoutes] = await Promise.all([
         prisma.benchmarkTarget.findMany({
             where: { benchmarkSetId: benchmarkId },
@@ -181,7 +179,7 @@ export async function _computeBenchmarkStats(benchmarkId: string): Promise<Bench
         }),
     ])
 
-    const routeLengths = targets.map((t) => t.routeLength).filter((l): l is number => l !== null)
+    const routeLengths = targets.flatMap((target) => (target.routeLength === null ? [] : [target.routeLength]))
     const totalLength = routeLengths.reduce((a, b) => a + b, 0)
 
     return {
@@ -230,7 +228,7 @@ async function _findAvailableRouteLengths(benchmarkId: string) {
         distinct: ['routeLength'],
         orderBy: { routeLength: 'asc' },
     })
-    return targets.map((t) => t.routeLength!).filter((l): l is number => l !== null)
+    return targets.flatMap((target) => (target.routeLength === null ? [] : [target.routeLength]))
 }
 export const findAvailableRouteLengths = cache(_findAvailableRouteLengths, ['available-route-lengths'], {
     tags: ['benchmarks', 'targets'],

@@ -94,9 +94,10 @@ async function exportLatexTable(
         const modelName = MODEL_NAME_MAPPING[instanceSlug] || stat.predictionRun.modelInstance.family.name
 
         // Find metrics
-        const solvability = stat.metrics.find((m) => m.metricName === 'Solvability')
-        const top1 = stat.metrics.find((m) => m.metricName === 'Top-1')
-        const top10 = stat.metrics.find((m) => m.metricName === 'Top-10')
+        const metricsByName = new Map(stat.metrics.map((metric) => [metric.metricName, metric]))
+        const solvability = metricsByName.get('Solvability')
+        const top1 = metricsByName.get('Top-1')
+        const top10 = metricsByName.get('Top-10')
 
         if (!solvability) {
             console.error(`Warning: No solvability metric found for model ${modelName}`)

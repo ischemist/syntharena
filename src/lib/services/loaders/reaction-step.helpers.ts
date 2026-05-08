@@ -48,14 +48,23 @@ export async function upsertReactionSteps(nodes: NodeWithReactionData[], db: DbC
         reactionHashToId.set(step.reactionHash, step.id)
     }
 
-    // Create missing ReactionStep records
-    for (const [hash, data] of reactionHashToData) {
-        if (!reactionHashToId.has(hash)) {
-            const created = await db.reactionStep.create({
-                data: { reactionHash: hash, template: data.template, metadata: data.metadata },
-                select: { id: true },
-            })
-            reactionHashToId.set(hash, created.id)
+    const missingReactions = Array.from(reactionHashToData.entries()).filter(([hash]) => !reactionHashToId.has(hash))
+
+    if (missingReactions.length > 0) {
+        await db.reactionStep.createMany({
+            data: missingReactions.map(([reactionHash, data]) => ({
+                reactionHash,
+                template: data.template,
+                metadata: data.metadata,
+            })),
+        })
+
+        const createdSteps = await db.reactionStep.findMany({
+            where: { reactionHash: { in: missingReactions.map(([hash]) => hash) } },
+            select: { id: true, reactionHash: true },
+        })
+        for (const step of createdSteps) {
+            reactionHashToId.set(step.reactionHash, step.id)
         }
     }
 

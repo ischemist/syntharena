@@ -5,9 +5,9 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
-export type BadgeStyle = 'soft' | 'outline'
+type BadgeStyle = 'soft' | 'outline'
 
-export interface VendorBadgeProps {
+interface VendorBadgeProps {
     source: VendorSource
     showFullName?: boolean
     size?: 'sm' | 'md'
@@ -20,13 +20,7 @@ const vendorColors = {
     outline: 'bg-transparent text-gray-700 border-gray-400 dark:text-gray-400 dark:border-gray-600',
 }
 
-export function VendorBadge({
-    source,
-    showFullName = false,
-    size = 'md',
-    badgeStyle = 'soft',
-    className,
-}: VendorBadgeProps) {
+function VendorBadge({ source, showFullName = false, size = 'md', badgeStyle = 'soft', className }: VendorBadgeProps) {
     const displayText = showFullName ? VENDOR_NAMES[source] : source
 
     return (
@@ -89,7 +83,7 @@ function getPriceColors(ppg: number): { soft: string; outline: string } {
     }
 }
 
-export function formatPrice(ppg: number): string {
+function formatPrice(ppg: number): string {
     if (ppg < 1) {
         return `$${ppg.toFixed(2)}/g`
     } else if (ppg < 100) {
@@ -103,14 +97,14 @@ export function formatPrice(ppg: number): string {
     }
 }
 
-export interface PriceBadgeProps {
+interface PriceBadgeProps {
     ppg: number
     size?: 'sm' | 'md'
     badgeStyle?: BadgeStyle
     className?: string
 }
 
-export function PriceBadge({ ppg, size = 'md', badgeStyle = 'soft', className }: PriceBadgeProps) {
+function PriceBadge({ ppg, size = 'md', badgeStyle = 'soft', className }: PriceBadgeProps) {
     const priceColors = getPriceColors(ppg)
     const priceRange =
         ppg < 10

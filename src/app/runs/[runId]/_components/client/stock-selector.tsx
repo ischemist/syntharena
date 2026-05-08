@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
 import type { StockListItem } from '@/types'
 import { Label } from '@/components/ui/label'
@@ -13,10 +13,9 @@ interface StockSelectorProps {
 
 export function StockSelector({ stocks, currentStockId }: StockSelectorProps) {
     const router = useRouter()
-    const searchParams = useSearchParams()
 
     const handleStockChange = (value: string) => {
-        const params = new URLSearchParams(searchParams)
+        const params = new URLSearchParams(window.location.search)
         params.set('stock', value)
         // Reset to first page when changing stock
         params.delete('page')

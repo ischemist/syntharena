@@ -7,7 +7,7 @@ import type { MetricResult } from '@/types'
 import { metricColors } from '@/components/theme/chart-palette'
 import { ChartContainer, ChartTooltip } from '@/components/ui/chart'
 
-export interface BenchmarkPerformanceData {
+interface BenchmarkPerformanceData {
     benchmarkId: string
     benchmarkName: string
     top10Accuracy: MetricResult

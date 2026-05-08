@@ -79,7 +79,6 @@ async function _findPredictedRouteNodes(targetId: string, runId: string, rank: n
 export const findPredictedRouteNodes = cache(_findPredictedRouteNodes, ['predicted-route-nodes'], {
     tags: ['routes', 'targets', 'runs'],
 })
-export type RouteNodeWithMoleculePayload = NonNullable<Prisma.PromiseReturnType<typeof _findPredictedRouteNodes>>
 
 /**
  * finds benchmark targets for a run and counts the number of predicted routes for each.
@@ -158,9 +157,9 @@ async function _findTargetIdsWithPredictionsForRun(runId: string, routeLength?: 
     })
 
     // filter by route length if specified and collect IDs
-    const targetIds = predictions
-        .filter((p) => routeLength === undefined || p.target.routeLength === routeLength)
-        .map((p) => p.target.id)
+    const targetIds = predictions.flatMap((prediction) =>
+        routeLength === undefined || prediction.target.routeLength === routeLength ? [prediction.target.id] : []
+    )
 
     // fetch full targets to maintain proper ordering by targetId
     const orderedTargets = await prisma.benchmarkTarget.findMany({

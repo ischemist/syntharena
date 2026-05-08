@@ -329,7 +329,7 @@ describe('layoutTree', () => {
         const level1Nodes = result.nodes.filter((n) => n.y === NODE_HEIGHT + VERTICAL_SPACING)
 
         // Sort by x position
-        const sorted = [...level1Nodes].sort((a, b) => a.x - b.x)
+        const sorted = level1Nodes.toSorted((a, b) => a.x - b.x)
 
         // Check no overlaps
         for (let i = 0; i < sorted.length - 1; i++) {
@@ -532,7 +532,7 @@ describe('Global Layout Invariants', () => {
 
         // Check each level for overlaps
         nodesByLevel.forEach((nodesAtLevel) => {
-            const sorted = [...nodesAtLevel].sort((a, b) => a.x - b.x)
+            const sorted = nodesAtLevel.toSorted((a, b) => a.x - b.x)
 
             for (let i = 0; i < sorted.length - 1; i++) {
                 const current = sorted[i]

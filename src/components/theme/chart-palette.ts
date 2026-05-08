@@ -4,7 +4,7 @@
  */
 
 // Primary blue color scheme for bar charts
-export const chartColors = {
+const chartColors = {
     // Primary bar colors (use for main data series)
     primary: 'hsl(261, 100%, 79%)',
     primaryDark: 'hsl(220 70% 35%)', // For error bars on primary
@@ -52,7 +52,7 @@ export const metricColors = {
 /**
  * Get bar color and corresponding error bar color for a series index
  */
-export function getSeriesColors(index: number): { bar: string; errorBar: string } {
+function getSeriesColors(index: number): { bar: string; errorBar: string } {
     const seriesIndex = index % chartColors.series.length
     return {
         bar: chartColors.series[seriesIndex],

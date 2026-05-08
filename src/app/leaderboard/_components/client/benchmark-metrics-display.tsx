@@ -203,18 +203,18 @@ export function BenchmarkMetricsDisplay({
  */
 function ModelComparisonChart({ metricName, entries }: { metricName: string; entries: LeaderboardEntry[] }) {
     // Transform data: one data point per model
-    const chartData = entries
-        .map((entry) => {
-            const metric =
-                metricName === 'Solvability' ? entry.metrics.solvability : entry.metrics.topKAccuracy?.[metricName]
+    const chartData = entries.flatMap((entry) => {
+        const metric =
+            metricName === 'Solvability' ? entry.metrics.solvability : entry.metrics.topKAccuracy?.[metricName]
 
-            if (!metric) return null
+        if (!metric) return []
 
-            const value = metric.value * 100
-            const ciLower = metric.ciLower * 100
-            const ciUpper = metric.ciUpper * 100
+        const value = metric.value * 100
+        const ciLower = metric.ciLower * 100
+        const ciUpper = metric.ciUpper * 100
 
-            return {
+        return [
+            {
                 model: entry.modelName,
                 value,
                 ciLower,
@@ -223,9 +223,9 @@ function ModelComparisonChart({ metricName, entries }: { metricName: string; ent
                 errorUpper: ciUpper - value,
                 nSamples: metric.nSamples,
                 reliability: metric.reliability,
-            }
-        })
-        .filter((d): d is NonNullable<typeof d> => d !== null)
+            },
+        ]
+    })
 
     if (chartData.length === 0) {
         return null

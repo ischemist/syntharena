@@ -284,7 +284,7 @@ export async function createStock(overrides: { name?: string; description?: stri
 /**
  * Create an Algorithm record with sensible defaults.
  */
-export async function createAlgorithm(overrides: { name?: string; slug?: string } = {}) {
+async function createAlgorithm(overrides: { name?: string; slug?: string } = {}) {
     const name = overrides.name ?? `TestAlgo-${Date.now()}`
     return prisma.algorithm.create({
         data: {
@@ -297,7 +297,7 @@ export async function createAlgorithm(overrides: { name?: string; slug?: string 
 /**
  * Create a ModelFamily record with sensible defaults.
  */
-export async function createModelFamily(overrides: { algorithmId: string; name?: string; slug?: string }) {
+async function createModelFamily(overrides: { algorithmId: string; name?: string; slug?: string }) {
     const name = overrides.name ?? `TestFamily-${Date.now()}`
     return prisma.modelFamily.create({
         data: {
@@ -311,7 +311,7 @@ export async function createModelFamily(overrides: { algorithmId: string; name?:
 /**
  * Create a ModelInstance record with sensible defaults.
  */
-export async function createModelInstance(overrides: {
+async function createModelInstance(overrides: {
     modelFamilyId: string
     slug?: string
     versionMajor?: number
@@ -364,26 +364,6 @@ export async function createFullModelChain(
         slug: overrides.instanceSlug,
     })
     return { algorithm, family, instance }
-}
-
-/**
- * Create a PredictionRun record with sensible defaults.
- * Requires existing modelInstance and benchmarkSet.
- */
-export async function createPredictionRun(overrides: {
-    modelInstanceId: string
-    benchmarkSetId: string
-    totalRoutes?: number
-    hourlyCost?: number
-}) {
-    return prisma.predictionRun.create({
-        data: {
-            modelInstanceId: overrides.modelInstanceId,
-            benchmarkSetId: overrides.benchmarkSetId,
-            totalRoutes: overrides.totalRoutes ?? 0,
-            hourlyCost: overrides.hourlyCost,
-        },
-    })
 }
 
 /**
@@ -511,7 +491,7 @@ export function createTestBenchmarkGzFile(data: TestBenchmarkSet): string {
 /**
  * Build a minimal valid MetricResult for test statistics.
  */
-export function makeMetricResult(overrides: Partial<MetricResult> = {}): MetricResult {
+function makeMetricResult(overrides: Partial<MetricResult> = {}): MetricResult {
     return {
         value: overrides.value ?? 0.75,
         ciLower: overrides.ciLower ?? 0.7,
@@ -699,11 +679,4 @@ export function makeRawStatEntry(
         },
         metrics: overrides.metrics ?? [makeRawMetric()],
     }
-}
-
-/**
- * Reset the raw stat ID counter between test files for deterministic output.
- */
-export function resetRawStatIdCounter(): void {
-    rawStatIdCounter = 0
 }

@@ -32,7 +32,7 @@ const BATCH_SIZE = 50_000
 // ---------------------------------------------------------------------------
 
 function computeReactionHash(productInchikey: string, reactantInchikeys: string[]): string {
-    const sorted = [...reactantInchikeys].sort()
+    const sorted = reactantInchikeys.toSorted()
     const content = `${productInchikey}>>${sorted.join('.')}`
     return crypto.createHash('sha256').update(content).digest('hex')
 }

@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 
-export type BadgeStyle = 'soft' | 'outline'
+type BadgeStyle = 'soft' | 'outline'
 
 export interface SubmissionBadgeProps {
     submissionType: 'MAINTAINER_VERIFIED' | 'COMMUNITY_SUBMITTED'
