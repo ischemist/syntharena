@@ -30,6 +30,7 @@ export function MultiSelectCombobox({
     placeholder = 'Select options...',
 }: MultiSelectComboboxProps) {
     const [open, setOpen] = React.useState(false)
+    const commandListId = React.useId()
 
     const handleSelect = (value: string) => {
         const isSelected = selected.includes(value)
@@ -43,6 +44,7 @@ export function MultiSelectCombobox({
                 <Button
                     variant="outline"
                     role="combobox"
+                    aria-controls={commandListId}
                     aria-expanded={open}
                     className={cn('w-full justify-between', className)}
                     onClick={() => setOpen(!open)}
@@ -65,13 +67,13 @@ export function MultiSelectCombobox({
                             </Badge>
                         )}
                     </div>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                 <Command>
                     <CommandInput placeholder="Search..." />
-                    <CommandList>
+                    <CommandList id={commandListId}>
                         <CommandEmpty>No options found.</CommandEmpty>
                         <CommandGroup>
                             {options.map((option) => (
@@ -82,7 +84,7 @@ export function MultiSelectCombobox({
                                 >
                                     <Check
                                         className={cn(
-                                            'mr-2 h-4 w-4',
+                                            'mr-2 size-4',
                                             selected.includes(option.value) ? 'opacity-100' : 'opacity-0'
                                         )}
                                     />

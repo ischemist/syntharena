@@ -35,7 +35,7 @@ export async function getStockMoleculeFilters(stockId: string): Promise<StockMol
     const { total, vendorAgg } = await stockData.aggregateStockFilters(stockId)
     const buyableCount = vendorAgg.reduce((sum, item) => sum + item._count, 0)
     return {
-        availableVendors: vendorAgg.map((i) => i.source as VendorSource).filter(Boolean),
+        availableVendors: vendorAgg.flatMap((item) => (item.source ? [item.source as VendorSource] : [])),
         counts: { total, buyable: buyableCount, nonBuyable: total - buyableCount },
     }
 }
@@ -100,13 +100,20 @@ export async function searchMolecules(
 
         const hasMore = molecules.length > take
         const results = hasMore ? molecules.slice(0, take) : molecules
-        const mapped = results.map((mol) => ({
-            id: mol.id,
-            smiles: mol.smiles,
-            inchikey: mol.inchikey,
-            stocks: mol.stockItems.map((si) => si.stock),
-            stockItem: stockId ? mol.stockItems.find((si) => si.stockId === stockId) : undefined,
-        }))
+        const mapped = results.map((mol) => {
+            const stocks = mol.stockItems.map((stockItem) => stockItem.stock)
+            const selectedStockItem = stockId
+                ? mol.stockItems.find((stockItem) => stockItem.stockId === stockId)
+                : undefined
+
+            return {
+                id: mol.id,
+                smiles: mol.smiles,
+                inchikey: mol.inchikey,
+                stocks,
+                stockItem: selectedStockItem,
+            }
+        })
         return { total, hasMore, molecules: mapped }
     }
 }

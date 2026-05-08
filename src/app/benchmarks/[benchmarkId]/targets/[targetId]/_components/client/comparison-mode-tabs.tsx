@@ -1,10 +1,10 @@
 'use client'
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-export type ComparisonMode = 'gt-only' | 'gt-vs-pred' | 'pred-vs-pred'
+type ComparisonMode = 'gt-only' | 'gt-vs-pred' | 'pred-vs-pred'
 
 interface ComparisonModeTabsProps {
     currentMode: ComparisonMode
@@ -22,11 +22,9 @@ interface ComparisonModeTabsProps {
  */
 export function ComparisonModeTabs({ currentMode, hasAcceptableRoutes, children }: ComparisonModeTabsProps) {
     const router = useRouter()
-    const pathname = usePathname()
-    const searchParams = useSearchParams()
 
     const handleModeChange = (mode: string) => {
-        const params = new URLSearchParams(searchParams.toString())
+        const params = new URLSearchParams(window.location.search)
         params.set('mode', mode)
 
         // Clear model selections when switching modes
@@ -46,7 +44,7 @@ export function ComparisonModeTabs({ currentMode, hasAcceptableRoutes, children 
             params.delete('acceptableIndex')
         }
 
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+        router.replace(`${window.location.pathname}?${params.toString()}`, { scroll: false })
     }
 
     return (

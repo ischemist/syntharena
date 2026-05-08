@@ -1,7 +1,6 @@
 'use client'
 
 import { ColumnDef } from '@tanstack/react-table'
-import { formatDistanceToNow } from 'date-fns'
 
 import type { PredictionRunWithStats } from '@/types'
 import { compareVersions, formatVersion } from '@/lib/utils'
@@ -9,6 +8,7 @@ import { SubmissionBadge } from '@/components/badges/submission'
 import { DataTableColumnHeader } from '@/components/data-table-column-header'
 import { MetricCell } from '@/components/metrics'
 import { Badge } from '@/components/ui/badge'
+import { RelativeTime } from '@/components/ui/relative-time'
 
 export const columns: ColumnDef<PredictionRunWithStats>[] = [
     {
@@ -108,9 +108,7 @@ export const columns: ColumnDef<PredictionRunWithStats>[] = [
         header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Executed" />,
         cell: ({ row }) => (
             <div className="flex justify-center">
-                <span className="text-muted-foreground text-sm">
-                    {formatDistanceToNow(new Date(row.original.executedAt), { addSuffix: true })}
-                </span>
+                <RelativeTime date={row.original.executedAt} className="text-muted-foreground text-sm" />
             </div>
         ),
     },

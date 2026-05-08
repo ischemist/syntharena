@@ -19,13 +19,17 @@ export async function ModelDetailContent({ slug }: ModelDetailContentProps) {
     const { modelInstance, runs, summary } = await modelView.getModelInstanceDetailPageData(slug)
 
     // Prepare chart data from runs with Top-10 accuracy
-    const chartData = runs
-        .filter((run) => run.top10Accuracy != null)
-        .map((run) => ({
-            benchmarkId: run.benchmarkSetId,
-            benchmarkName: run.benchmarkSet.name,
-            top10Accuracy: run.top10Accuracy!,
-        }))
+    const chartData = runs.flatMap((run) =>
+        run.top10Accuracy == null
+            ? []
+            : [
+                  {
+                      benchmarkId: run.benchmarkSetId,
+                      benchmarkName: run.benchmarkSet.name,
+                      top10Accuracy: run.top10Accuracy,
+                  },
+              ]
+    )
 
     return (
         <div className="flex flex-col gap-8">

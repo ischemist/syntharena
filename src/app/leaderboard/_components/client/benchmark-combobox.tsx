@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Check, ChevronsUpDown } from 'lucide-react'
 
@@ -33,6 +33,7 @@ export function BenchmarkCombobox({ benchmarks, selectedId }: BenchmarkComboboxP
     const pathname = usePathname()
     const searchParams = useSearchParams()
     const [open, setOpen] = useState(false)
+    const commandListId = useId()
 
     const selectedBenchmark = benchmarks.find((b) => b.id === selectedId)
 
@@ -51,15 +52,21 @@ export function BenchmarkCombobox({ benchmarks, selectedId }: BenchmarkComboboxP
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" aria-expanded={open} className="w-[300px] justify-between">
+                <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-controls={commandListId}
+                    aria-expanded={open}
+                    className="w-[300px] justify-between"
+                >
                     {selectedBenchmark ? selectedBenchmark.name : 'Select benchmark...'}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[300px] p-0">
                 <Command>
                     <CommandInput placeholder="Search benchmarks..." className="h-9" />
-                    <CommandList>
+                    <CommandList id={commandListId}>
                         <CommandEmpty>No benchmark found.</CommandEmpty>
                         {[
                             { title: 'Market Series', benchmarks: marketBenchmarks },
@@ -78,7 +85,7 @@ export function BenchmarkCombobox({ benchmarks, selectedId }: BenchmarkComboboxP
                                                 {benchmark.name}
                                                 <Check
                                                     className={cn(
-                                                        'ml-auto h-4 w-4',
+                                                        'ml-auto size-4',
                                                         selectedId === benchmark.id ? 'opacity-100' : 'opacity-0'
                                                     )}
                                                 />

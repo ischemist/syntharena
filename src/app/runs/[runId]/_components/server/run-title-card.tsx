@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { format, formatDistanceToNow } from 'date-fns'
+import { format } from 'date-fns'
 import { Check, Clock, Coins, Zap } from 'lucide-react'
 
 import type { RunTitleCardData } from '@/lib/services/view/prediction.view'
@@ -93,7 +93,7 @@ export async function RunTitleCard({ dataPromise }: RunTitleCardProps) {
                     icon={Check}
                     value={format(new Date(run.executedAt), 'MMM d, yyyy')}
                     label="Executed"
-                    tooltip={`Executed ${formatDistanceToNow(new Date(run.executedAt), { addSuffix: true })}`}
+                    tooltip={`Executed on ${format(new Date(run.executedAt), 'MMM d, yyyy')}.`}
                 />
             </div>
         </div>

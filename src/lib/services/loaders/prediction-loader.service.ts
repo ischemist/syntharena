@@ -20,7 +20,7 @@ export interface PythonMolecule {
     is_leaf?: boolean
 }
 
-export interface PythonReactionStep {
+interface PythonReactionStep {
     reactants: PythonMolecule[]
     mapped_smiles?: string | null
     template?: string | null
@@ -39,7 +39,7 @@ export interface PythonRoute {
 }
 
 // Types for Python statistics data (snake_case)
-export interface PythonMetricResult {
+interface PythonMetricResult {
     value: number
     ci_lower: number
     ci_upper: number
@@ -50,7 +50,7 @@ export interface PythonMetricResult {
     }
 }
 
-export interface PythonStratifiedMetric {
+interface PythonStratifiedMetric {
     metric_name: string
     overall: PythonMetricResult
     by_group?: Record<string, PythonMetricResult>

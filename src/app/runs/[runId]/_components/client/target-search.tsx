@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ChevronLeft, ChevronRight, ChevronsUpDown, X } from 'lucide-react'
 
@@ -42,48 +42,61 @@ export function TargetSearch({
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
+    const commandListId = useId()
 
     const [open, setOpen] = useState(false)
-    const [query, setQuery] = useState(searchParams.get('search') || '')
-    const [selectedRouteLength, setSelectedRouteLength] = useState<number | undefined>(currentRouteLength)
-    const [onlyWithPredictions, setOnlyWithPredictions] = useState(currentFilter ?? false)
-    const [results, setResults] = useState<BenchmarkTargetWithMolecule[]>([])
-    const [isSearching, setIsSearching] = useState(false)
+    const [searchState, setSearchState] = useState<{
+        results: BenchmarkTargetWithMolecule[]
+        isSearching: boolean
+    }>({
+        results: [],
+        isSearching: false,
+    })
 
-    // Load initial results when popover opens
+    const query = searchParams.get('search') || ''
+    const selectedRouteLength = currentRouteLength
+    const onlyWithPredictions = currentFilter ?? false
+    const onSearchRef = useRef(onSearch)
+
     useEffect(() => {
-        if (open && results.length === 0 && !query && !selectedRouteLength && !onlyWithPredictions) {
-            setIsSearching(true)
-            onSearch('', selectedRouteLength, onlyWithPredictions)
-                .then(setResults)
-                .catch((error) => {
-                    console.error('Failed to load initial targets:', error)
-                    setResults([])
-                })
-                .finally(() => setIsSearching(false))
+        onSearchRef.current = onSearch
+    }, [onSearch])
+
+    useEffect(() => {
+        if (!open) {
+            return
         }
-    }, [open, onSearch, query, selectedRouteLength, onlyWithPredictions, results.length])
 
-    // Debounced search effect
-    useEffect(() => {
-        const timer = setTimeout(async () => {
-            setIsSearching(true)
-            try {
-                const searchResults = await onSearch(query, selectedRouteLength, onlyWithPredictions)
-                setResults(searchResults)
-            } catch (error) {
-                console.error('Search failed:', error)
-                setResults([])
-            } finally {
-                setIsSearching(false)
-            }
+        let isCancelled = false
+        const timer = setTimeout(() => {
+            setSearchState((currentState) => ({ ...currentState, isSearching: true }))
+
+            void onSearchRef
+                .current(query, selectedRouteLength, onlyWithPredictions)
+                .then((results) => {
+                    if (isCancelled) return
+                    setSearchState({
+                        results,
+                        isSearching: false,
+                    })
+                })
+                .catch((error) => {
+                    console.error('Search failed:', error)
+                    if (isCancelled) return
+                    setSearchState({
+                        results: [],
+                        isSearching: false,
+                    })
+                })
         }, 300)
 
-        return () => clearTimeout(timer)
-    }, [query, selectedRouteLength, onlyWithPredictions, onSearch])
+        return () => {
+            isCancelled = true
+            clearTimeout(timer)
+        }
+    }, [open, query, selectedRouteLength, onlyWithPredictions])
 
     const handleInputChange = (value: string) => {
-        setQuery(value)
         // Update URL with search query
         const params = new URLSearchParams(searchParams.toString())
         if (value.trim()) {
@@ -108,8 +121,7 @@ export function TargetSearch({
     }
 
     const handleClear = () => {
-        setQuery('')
-        setResults([])
+        setSearchState((currentState) => ({ ...currentState, results: [] }))
         const params = new URLSearchParams(searchParams.toString())
         params.delete('search')
         router.replace(`${pathname}?${params.toString()}`, { scroll: false })
@@ -118,11 +130,8 @@ export function TargetSearch({
     const handleRouteLengthChange = (value: string) => {
         const params = new URLSearchParams(searchParams.toString())
         if (value === 'all') {
-            setSelectedRouteLength(undefined)
             params.delete('routeLength')
         } else {
-            const length = parseInt(value, 10)
-            setSelectedRouteLength(length)
             params.set('routeLength', value)
         }
         router.replace(`${pathname}?${params.toString()}`, { scroll: false })
@@ -141,7 +150,6 @@ export function TargetSearch({
     }
 
     const handleFilterChange = (checked: boolean) => {
-        setOnlyWithPredictions(checked)
         const params = new URLSearchParams(searchParams.toString())
         if (checked) {
             params.set('onlyWithPredictions', 'true')
@@ -150,6 +158,8 @@ export function TargetSearch({
         }
         router.replace(`${pathname}?${params.toString()}`, { scroll: false })
     }
+
+    const { results, isSearching } = searchState
 
     return (
         <div className="flex gap-2">
@@ -162,7 +172,7 @@ export function TargetSearch({
                     disabled={!navigation.previousTargetId}
                     title="Previous target"
                 >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="size-4" />
                 </Button>
                 {navigation.currentIndex !== undefined && (
                     <div className="text-muted-foreground text-sm whitespace-nowrap">
@@ -181,18 +191,24 @@ export function TargetSearch({
                     disabled={!navigation.nextTargetId}
                     title="Next target"
                 >
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="size-4" />
                 </Button>
             </div>
 
             {/* Search Popover */}
             <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
-                    <Button variant="outline" role="combobox" aria-expanded={open} className="flex-1 justify-between">
+                    <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-controls={commandListId}
+                        aria-expanded={open}
+                        className="flex-1 justify-between"
+                    >
                         <span className="text-muted-foreground truncate">
-                            {query || 'Search by target ID or SMILES...'}
+                            {query || 'Search by target ID or SMILES…'}
                         </span>
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
@@ -210,14 +226,14 @@ export function TargetSearch({
                                     onClick={handleClear}
                                     className="absolute top-1/2 right-1 -translate-y-1/2"
                                 >
-                                    <X className="h-4 w-4" />
+                                    <X className="size-4" />
                                 </Button>
                             )}
                         </div>
-                        <CommandList>
+                        <CommandList id={commandListId}>
                             {isSearching && (
                                 <div className="py-6 text-center text-sm">
-                                    <p className="text-muted-foreground">Searching...</p>
+                                    <p className="text-muted-foreground">Searching…</p>
                                 </div>
                             )}
                             {!isSearching && query.trim() && results.length === 0 && (
@@ -276,7 +292,7 @@ export function TargetSearch({
                                     )}
                                     {results.length === 20 && query.trim() && (
                                         <div className="text-muted-foreground border-t px-3 py-2 text-center text-xs">
-                                            Showing first 20 matches. Refine search to see more.
+                                            Showing first 20 matches. Refine search to see more…
                                         </div>
                                     )}
                                 </>
@@ -309,7 +325,7 @@ export function TargetSearch({
                             onClick={() => handleRouteLengthChange('all')}
                             title="Clear route length filter"
                         >
-                            <X className="h-4 w-4" />
+                            <X className="size-4" />
                         </Button>
                     )}
                 </>

@@ -1,4 +1,10 @@
+import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
+
+export const metadata: Metadata = {
+    title: 'Models',
+    description: 'Model listings now live under Algorithms; this route redirects for compatibility.',
+}
 
 /**
  * Redirect /models to /algorithms.

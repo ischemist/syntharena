@@ -35,7 +35,6 @@ async function _findModelFamilyBySlug(slug: string) {
     if (!family) throw new Error(`model family with slug "${slug}" not found.`)
     return family
 }
-export const findModelFamilyBySlug = cache(_findModelFamilyBySlug, ['family-by-slug'], { tags })
 
 /** returns all model families that have at least one run, for filtering. */
 async function _findAllModelFamiliesWithRuns() {

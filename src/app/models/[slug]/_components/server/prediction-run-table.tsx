@@ -1,9 +1,8 @@
 import Link from 'next/link'
-import { formatDistanceToNow } from 'date-fns'
-
 import type { PredictionRunWithStats } from '@/types'
 import { SubmissionBadge } from '@/components/badges/submission'
 import { Badge } from '@/components/ui/badge'
+import { RelativeTime } from '@/components/ui/relative-time'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 interface PredictionRunTableProps {
@@ -76,7 +75,7 @@ export function PredictionRunTable({ runs }: PredictionRunTableProps) {
                                 {run.totalCost ? `$${run.totalCost.toFixed(2)}` : '—'}
                             </TableCell>
                             <TableCell className="text-muted-foreground text-right">
-                                {formatDistanceToNow(new Date(run.executedAt), { addSuffix: true })}
+                                <RelativeTime date={run.executedAt} className="text-muted-foreground" />
                             </TableCell>
                             <TableCell className="text-right">
                                 <SubmissionBadge

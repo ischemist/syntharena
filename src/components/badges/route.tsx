@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
-export type BadgeStyle = 'soft' | 'outline'
+type BadgeStyle = 'soft' | 'outline'
 
 export interface RouteLengthBadgeProps {
     length: number

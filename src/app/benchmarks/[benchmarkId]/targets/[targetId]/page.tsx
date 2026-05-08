@@ -32,8 +32,8 @@ export async function generateMetadata({ params }: TargetDetailPageProps): Promi
 }
 
 export default async function TargetDetailPage({ params, searchParams }: TargetDetailPageProps) {
-    const { benchmarkId, targetId } = await params
-    const { mode, model1, model2, layout, rank1, rank2, acceptableIndex, dev } = await searchParams
+    const [{ benchmarkId, targetId }, { mode, model1, model2, layout, rank1, rank2, acceptableIndex, dev }] =
+        await Promise.all([params, searchParams])
     const devMode = dev === 'true'
 
     // Fetch ALL data for the page with a single, parallelized call.

@@ -56,43 +56,6 @@ export function MoleculeGridSkeleton() {
 }
 
 /**
- * Loading skeleton for the molecule table view.
- * Shows placeholder table rows while search results are loading.
- */
-export function MoleculeTableSkeleton() {
-    return (
-        <Table>
-            <TableHeader>
-                <TableRow>
-                    <TableHead>Structure</TableHead>
-                    <TableHead>SMILES</TableHead>
-                    <TableHead>InChiKey</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i}>
-                        <TableCell>
-                            <Skeleton className="h-[100px] w-[100px]" />
-                        </TableCell>
-                        <TableCell>
-                            <Skeleton className="h-4 w-full" />
-                        </TableCell>
-                        <TableCell>
-                            <Skeleton className="h-4 w-full" />
-                        </TableCell>
-                        <TableCell>
-                            <Skeleton className="h-8 w-20" />
-                        </TableCell>
-                    </TableRow>
-                ))}
-            </TableBody>
-        </Table>
-    )
-}
-
-/**
  * Loading skeleton for stock detail header.
  * Matches exact layout of StockDetailPage header to minimize CLS.
  */
@@ -119,7 +82,7 @@ export function StockDetailHeaderSkeleton() {
  * Loading skeleton for the search interface.
  * Matches layout of MoleculeSearchBar + results.
  */
-export function SearchInterfaceSkeleton() {
+function SearchInterfaceSkeleton() {
     return (
         <div className="space-y-4">
             {/* Search bar */}

@@ -478,7 +478,7 @@ describe('createModelStatistics', () => {
         // 1 solvability overall + 1 Top-1 overall + 1 Top-5 overall = 3
         expect(metrics).toHaveLength(3)
 
-        const metricNames = [...new Set(metrics.map((m) => m.metricName))].sort()
+        const metricNames = [...new Set(metrics.map((m) => m.metricName))].toSorted()
         expect(metricNames).toEqual(['Solvability', 'Top-1', 'Top-5'])
     })
 

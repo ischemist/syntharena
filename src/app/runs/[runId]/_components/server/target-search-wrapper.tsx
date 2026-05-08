@@ -21,11 +21,10 @@ export async function TargetSearchWrapper({
     // Parse route length filter
     const routeLengthFilter = routeLength ? parseInt(routeLength, 10) : undefined
 
-    // Get target IDs for this run (ordered) - filtered by route length and predictions if specified
-    const targetIds = await predictionView.getTargetIdsByRun(runId, routeLengthFilter, onlyWithPredictions)
-
-    // Get available route lengths (empty if no acceptable routes)
-    const availableRouteLengths = await predictionView.getAvailableRouteLengths(runId)
+    const [targetIds, availableRouteLengths] = await Promise.all([
+        predictionView.getTargetIdsByRun(runId, routeLengthFilter, onlyWithPredictions),
+        predictionView.getAvailableRouteLengths(runId),
+    ])
 
     // Find current position
     let currentIndex = -1

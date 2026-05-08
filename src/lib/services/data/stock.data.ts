@@ -72,19 +72,6 @@ export const aggregateStockFilters = cache(_aggregateStockFilters, ['stock-filte
     tags: ['stocks'],
 })
 
-/** checks which of a given set of inchikeys exist in a stock. */
-export async function findInchiKeysInStock(inchikeyArray: string[], stockId: string): Promise<Set<string>> {
-    if (inchikeyArray.length === 0) return new Set()
-    const found = await prisma.molecule.findMany({
-        where: {
-            inchikey: { in: inchikeyArray },
-            stockItems: { some: { stockId } },
-        },
-        select: { inchikey: true },
-    })
-    return new Set(found.map((m) => m.inchikey))
-}
-
 /**
  * [OPTIMIZED] fetches all relevant stock data for a set of inchikeys in a single query.
  * this function replaces `findInchiKeysInStock` and `findBuyableMetadata` to prevent redundant queries.

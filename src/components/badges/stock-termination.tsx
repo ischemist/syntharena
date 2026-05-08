@@ -11,7 +11,7 @@ interface StockTerminationBadgeProps {
     stockName?: string
 }
 
-export type BadgeStyle = 'soft' | 'outline'
+type BadgeStyle = 'soft' | 'outline'
 
 interface StockTerminationBadgeProps {
     isTerminated: boolean

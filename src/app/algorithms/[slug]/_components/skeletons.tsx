@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  * Loading skeleton for the algorithm detail header.
  * Matches layout of AlgorithmDetailHeader to minimize CLS.
  */
-export function AlgorithmDetailHeaderSkeleton() {
+function AlgorithmDetailHeaderSkeleton() {
     return (
         <div className="space-y-6">
             {/* Back link */}
@@ -42,7 +42,7 @@ export function AlgorithmDetailHeaderSkeleton() {
  * Loading skeleton for the aggregate performance section.
  * Shows placeholder cards for highlight metrics.
  */
-export function AggregatePerformanceSkeleton() {
+function AggregatePerformanceSkeleton() {
     return (
         <div className="space-y-4">
             <Skeleton className="h-7 w-40" />
@@ -68,7 +68,7 @@ export function AggregatePerformanceSkeleton() {
  * Loading skeleton for the model instance table.
  * Shows placeholder rows while instances are loading.
  */
-export function ModelInstanceTableSkeleton() {
+function ModelInstanceTableSkeleton() {
     return (
         <div className="space-y-4">
             <Skeleton className="h-7 w-40" />

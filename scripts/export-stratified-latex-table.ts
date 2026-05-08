@@ -96,6 +96,7 @@ async function exportStratifiedLatexTable(
     for (const stat of statistics) {
         const instanceSlug = stat.predictionRun.modelInstance.slug
         const modelName = MODEL_NAME_MAPPING[instanceSlug] || stat.predictionRun.modelInstance.family.name
+        const metricsByLength = new Map(stat.metrics.map((metric) => [metric.groupKey, metric]))
 
         // Convert to percentages and format to 1 decimal place
         const formatMetric = (value: number) => (value * 100).toFixed(1)
@@ -104,7 +105,7 @@ async function exportStratifiedLatexTable(
 
         // For each route length, find the corresponding metric
         for (const length of routeLengths) {
-            const metric = stat.metrics.find((m) => m.groupKey === length)
+            const metric = metricsByLength.get(length)
 
             if (metric) {
                 if (noCi) {

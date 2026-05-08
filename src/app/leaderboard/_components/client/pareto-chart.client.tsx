@@ -56,13 +56,13 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
     }
 
     const chartDataByFamily = useMemo(() => {
-        const data: ChartDataPoint[] = entries
-            .map((entry) => {
-                const metric = entry.metrics.topKAccuracy?.[selectedY]
-                const xValue = selectedX === 'time' ? entry.totalWallTime : entry.totalCost
-                if (!metric || xValue == null) return null
+        const data: ChartDataPoint[] = entries.flatMap((entry) => {
+            const metric = entry.metrics.topKAccuracy?.[selectedY]
+            const xValue = selectedX === 'time' ? entry.totalWallTime : entry.totalCost
+            if (!metric || xValue == null) return []
 
-                return {
+            return [
+                {
                     x: selectedX === 'time' ? xValue / 60 : xValue,
                     y: metric.value * 100,
                     yError: [metric.value * 100 - metric.ciLower * 100, metric.ciUpper * 100 - metric.value * 100] as [
@@ -73,9 +73,9 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
                     modelFamilyName: entry.modelFamilyName,
                     seriesKey: `${entry.modelFamilyName} ${entry.version}`,
                     version: entry.version,
-                }
-            })
-            .filter((d): d is NonNullable<typeof d> => d !== null)
+                },
+            ]
+        })
 
         const grouped = new Map<string, { algorithmName: string; data: ChartDataPoint[] }>()
         for (const point of data) {
@@ -131,7 +131,7 @@ export function ParetoChartClientWrapper({ entries, availableTopKMetrics }: Pare
         if (allData.length === 0) return []
 
         // Sort by x-axis (cost/time) ascending
-        const sorted = [...allData].sort((a, b) => a.x - b.x)
+        const sorted = allData.toSorted((a, b) => a.x - b.x)
 
         // Build frontier: keep points where y increases (or stays same for first occurrence)
         const frontier: Array<{ x: number; y: number }> = []

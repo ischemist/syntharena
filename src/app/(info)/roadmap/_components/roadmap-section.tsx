@@ -14,8 +14,8 @@ export function RoadmapSection({ title, subtitle, items }: RoadmapSectionProps) 
                 <p className="text-muted-foreground text-sm">{subtitle}</p>
             </div>
             <ul className="space-y-1">
-                {items.map((item, index) => (
-                    <RoadmapItem key={index} text={item} />
+                {items.map((item) => (
+                    <RoadmapItem key={`${title}-${item}`} text={item} />
                 ))}
             </ul>
         </section>

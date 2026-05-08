@@ -15,7 +15,6 @@ import type {
     PredictionRunWithStats,
     ReliabilityCode,
     RouteLayoutMode,
-    RouteNodeWithDetails,
     RunStatistics,
     StockListItem,
     StratifiedMetric,
@@ -24,6 +23,7 @@ import type {
     TargetInfo,
     VendorSource,
 } from '@/types'
+
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
 import * as benchmarkData from '@/lib/services/data/benchmark.data'
 import * as modelFamilyData from '@/lib/services/data/model-family.data'
@@ -166,11 +166,15 @@ export async function getPredictionRuns(
     return runs.map((run) => {
         const solvabilitySummary: Record<string, number> = {}
         for (const stat of run.statistics) {
-            const solvabilityMetric = stat.metrics.find((m) => m.metricName === 'Solvability')
+            const metricsByName = new Map(stat.metrics.map((metric) => [metric.metricName, metric]))
+            const solvabilityMetric = metricsByName.get('Solvability')
             if (solvabilityMetric) {
                 solvabilitySummary[stat.stockId] = solvabilityMetric.value
             }
         }
+        const summaryMetricsByName = new Map(
+            (run.statistics[0]?.metrics ?? []).map((metric) => [metric.metricName, metric])
+        )
         const toMetricResult = (metric?: (typeof run.statistics)[0]['metrics'][0]): MetricResult | null => {
             if (!metric) return null
             return {
@@ -185,8 +189,8 @@ export async function getPredictionRuns(
             }
         }
 
-        const top1Accuracy = toMetricResult(run.statistics[0]?.metrics.find((m) => m.metricName === 'Top-1'))
-        const top10Accuracy = toMetricResult(run.statistics[0]?.metrics.find((m) => m.metricName === 'Top-10'))
+        const top1Accuracy = toMetricResult(summaryMetricsByName.get('Top-1'))
+        const top10Accuracy = toMetricResult(summaryMetricsByName.get('Top-10'))
 
         return {
             id: run.id,
@@ -218,17 +222,6 @@ export async function getPredictionRuns(
 /** returns all model families that have at least one prediction run. */
 export async function getModelFamiliesWithRuns() {
     return modelFamilyData.findAllModelFamiliesWithRuns()
-}
-
-/** DTO for prediction summaries, used for navigation. FAST. */
-export interface PredictionSummary {
-    rank: number
-    routeId: string
-}
-
-/** fetches a lightweight list of prediction summaries for a target. */
-export async function getPredictionSummaries(targetId: string, runId: string): Promise<PredictionSummary[]> {
-    return routeData.findPredictionSummaries(targetId, runId)
 }
 
 /** DTO for prediction run summary used in model selectors. */
@@ -389,20 +382,6 @@ export async function searchTargets(
     }))
 }
 
-/** fetches acceptable route with full node tree built. */
-export async function getAcceptableRouteWithNodes(routeId: string): Promise<RouteNodeWithDetails | null> {
-    try {
-        const nodes = await routeData.findNodesForRoute(routeId)
-        if (nodes.length === 0) {
-            return null
-        }
-        return buildRouteTree(nodes)
-    } catch (error) {
-        console.error('Failed to fetch acceptable route:', error)
-        return null
-    }
-}
-
 /** Fallback for when JSON parsing fails. */
 function reconstructStatisticsFromMetrics(
     metrics: Array<{
@@ -448,12 +427,26 @@ function reconstructStatisticsFromMetrics(
     }
     const topKAccuracy: Record<string, StratifiedMetric> = {}
     const topKNames = [...new Set(topKMetrics.map((m) => m.metricName))]
+    const topKMetricsByName = new Map<string, typeof topKMetrics>()
+    for (const metric of topKMetrics) {
+        const existing = topKMetricsByName.get(metric.metricName)
+        if (existing) {
+            existing.push(metric)
+        } else {
+            topKMetricsByName.set(metric.metricName, [metric])
+        }
+    }
     for (const metricName of topKNames) {
-        const metricsForK = topKMetrics.filter((m) => m.metricName === metricName)
-        const overall = metricsForK.find((m) => m.groupKey === null)
+        const metricsForK = topKMetricsByName.get(metricName) ?? []
+        let overall: (typeof metricsForK)[number] | undefined
         const byGroup: Record<number, MetricResult> = {}
-        for (const metric of metricsForK.filter((m) => m.groupKey !== null)) {
-            byGroup[metric.groupKey!] = {
+        for (const metric of metricsForK) {
+            if (metric.groupKey === null) {
+                overall = metric
+                continue
+            }
+
+            byGroup[metric.groupKey] = {
                 value: metric.value,
                 ciLower: metric.ciLower,
                 ciUpper: metric.ciUpper,

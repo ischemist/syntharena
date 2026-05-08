@@ -37,9 +37,6 @@ async function _findPredictedRouteForTarget(targetId: string, runId: string, ran
         },
     })
 }
-export const findPredictedRouteForTarget = cache(_findPredictedRouteForTarget, ['predicted-route-for-target'], {
-    tags: ['routes', 'targets', 'runs'],
-})
 
 /** fetches all acceptable routes for a given target. */
 async function _findAcceptableRoutesForTarget(targetId: string) {

@@ -163,7 +163,7 @@ export async function getAcceptableRoutesForTarget(
  * fetches complete acceptable route data for visualization.
  * composes route metadata, target info, and full node tree.
  */
-export async function getAcceptableRouteData(routeId: string, targetId: string): Promise<RouteVisualizationData> {
+async function getAcceptableRouteData(routeId: string, targetId: string): Promise<RouteVisualizationData> {
     // parallel fetch: route metadata, route nodes, and target data
     const [routeRecord, nodes, targetPayload] = await Promise.all([
         routeData.findRouteById(routeId),
@@ -211,7 +211,7 @@ export async function getAcceptableRouteData(routeId: string, targetId: string):
  * fetches a route and builds its visualization tree.
  * returns lightweight RouteVisualizationNode format for client components.
  */
-export async function getRouteTreeForVisualization(routeId: string): Promise<RouteVisualizationNode> {
+async function getRouteTreeForVisualization(routeId: string): Promise<RouteVisualizationNode> {
     const nodes = await routeData.findNodesForRoute(routeId)
 
     if (nodes.length === 0) {
@@ -227,7 +227,7 @@ export async function getRouteTreeForVisualization(routeId: string): Promise<Rou
  * performs all layout calculations server-side to minimize client-side work.
  * returns positioned nodes and edges ready for React Flow rendering.
  */
-export async function getRouteTreeWithLayout(
+async function getRouteTreeWithLayout(
     routeId: string,
     idPrefix: string
 ): Promise<{

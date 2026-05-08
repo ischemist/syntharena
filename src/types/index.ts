@@ -1,31 +1,11 @@
 // ============================================================================
-// Server Action Response Type
-// ============================================================================
-
-/**
- * A standard wrapper for server action responses, providing a consistent
- * structure for handling success and failure states on the client.
- */
-export type ActionState<T> =
-    | {
-          isSuccess: true
-          message: string
-          data: T
-      }
-    | {
-          isSuccess: false
-          message: string
-          data?: undefined // Explicitly forbid data on failure for type safety
-      }
-
-// ============================================================================
 // Shared Enums & Types (The "Canonical Pattern")
 // ============================================================================
 
-export const BENCHMARK_SERIES = ['MARKET', 'REFERENCE', 'LEGACY', 'OTHER'] as const
+const BENCHMARK_SERIES = ['MARKET', 'REFERENCE', 'LEGACY', 'OTHER'] as const
 export type BenchmarkSeries = (typeof BENCHMARK_SERIES)[number]
 
-export const SUBMISSION_TYPES = ['MAINTAINER_VERIFIED', 'COMMUNITY_SUBMITTED'] as const
+const SUBMISSION_TYPES = ['MAINTAINER_VERIFIED', 'COMMUNITY_SUBMITTED'] as const
 export type SubmissionType = (typeof SUBMISSION_TYPES)[number]
 
 // ============================================================================
@@ -46,7 +26,7 @@ export interface Molecule {
 /**
  * Vendor source enumeration for buyable molecules.
  */
-export const VENDOR_SOURCES = ['MC', 'LN', 'EM', 'SA', 'CB'] as const
+const VENDOR_SOURCES = ['MC', 'LN', 'EM', 'SA', 'CB'] as const
 export type VendorSource = (typeof VENDOR_SOURCES)[number]
 
 /**
@@ -80,7 +60,7 @@ export interface MoleculeWithStocks extends Molecule {
  * Represents a collection/library of commercially available molecules.
  * Stocks are loaded from CSV files and can have overlapping molecules.
  */
-export interface Stock {
+interface Stock {
     id: string
     name: string
     description?: string | null
@@ -92,33 +72,6 @@ export interface Stock {
  */
 export interface StockListItem extends Stock {
     itemCount: number
-}
-
-/**
- * Represents the junction table entry linking a Stock to a Molecule.
- * Ensures no duplicate molecules within a stock (unique constraint).
- * Includes optional commercial metadata for buyable stocks.
- */
-export interface StockItem {
-    id: string
-    stockId: string
-    moleculeId: string
-    // Commercial metadata (optional, only for buyable stocks)
-    ppg?: number | null // Price per gram in USD
-    source?: VendorSource | null // Vendor source
-    leadTime?: string | null // Lead time (e.g., '7-21days', '1week')
-    link?: string | null // Vendor product page URL
-}
-
-/**
- * Search/filter parameters for querying molecules.
- */
-export interface MoleculeSearchParams {
-    query: string
-    stockId?: string
-    searchType?: 'smiles' | 'inchikey' | 'all'
-    limit?: number
-    offset?: number
 }
 
 /**
@@ -176,7 +129,7 @@ export interface BenchmarkListItem extends BenchmarkSet {
  * Represents a single retrosynthesis problem within a benchmark.
  * Matches the Python BenchmarkTarget model.
  */
-export interface BenchmarkTarget {
+interface BenchmarkTarget {
     id: string
     benchmarkSetId: string
     targetId: string // External ID like "n5-00123"
@@ -195,17 +148,6 @@ export interface BenchmarkTargetWithMolecule extends BenchmarkTarget {
     hasAcceptableRoutes: boolean
     acceptableRoutesCount?: number // Number of acceptable routes for this target
     routeCount?: number // Number of predicted routes (for list views)
-}
-
-/**
- * Junction table: Links BenchmarkTarget to multiple acceptable routes.
- * Preserves array order from Python model via routeIndex (0 = primary route).
- */
-export interface AcceptableRoute {
-    id: string
-    benchmarkTargetId: string
-    routeId: string
-    routeIndex: number // 0-based index (0 = primary route used for stratification)
 }
 
 /**
@@ -239,22 +181,10 @@ export interface PredictionRoute {
 }
 
 /**
- * Lightweight route summary for list views.
- * Now uses PredictionRoute for rank information.
- */
-export interface RouteSummary {
-    id: string
-    rank: number
-    length: number
-    isConvergent: boolean
-    matchesAcceptable: boolean // Does this route match any acceptable route?
-}
-
-/**
  * Shared, deduplicated reaction step data.
  * Mirrors retrocast.models.chem.ReactionStep from the Python library.
  */
-export interface ReactionStep {
+interface ReactionStep {
     id: string
     reactionHash: string
     template: string | null
@@ -266,7 +196,7 @@ export interface ReactionStep {
  * Each node is either a leaf (starting material) or has a synthesis step
  * stored in a shared ReactionStep record.
  */
-export interface RouteNode {
+interface RouteNode {
     id: string
     routeId: string
     moleculeId: string
@@ -324,29 +254,6 @@ export interface BenchmarkStats {
 }
 
 /**
- * Input for creating a new benchmark set.
- * Phase 9: stockId is now required (no more runtime lookups).
- */
-export interface CreateBenchmarkInput {
-    name: string
-    description?: string
-    stockId: string // REQUIRED: Must reference an existing stock
-}
-
-/**
- * Search/filter parameters for querying benchmark targets.
- */
-export interface BenchmarkTargetSearchParams {
-    benchmarkId: string
-    page?: number
-    limit?: number
-    hasAcceptableRoutes?: boolean
-    minRouteLength?: number
-    maxRouteLength?: number
-    isConvergent?: boolean
-}
-
-/**
  * Result set from a benchmark target search query.
  */
 export interface BenchmarkTargetSearchResult {
@@ -355,16 +262,6 @@ export interface BenchmarkTargetSearchResult {
     hasMore: boolean
     page: number
     limit: number
-}
-
-/**
- * DTO for the entire benchmark detail page.
- * Contains all pre-fetched data needed for rendering, eliminating horizontal waterfalls.
- */
-export interface BenchmarkDetailPageData {
-    benchmark: BenchmarkListItem
-    stats: BenchmarkStats
-    targetsResult: BenchmarkTargetSearchResult
 }
 
 /**
@@ -435,7 +332,7 @@ export type BuyableMetadata = {
  *   - "pred-1-only": Node unique to first prediction (sky blue)
  *   - "pred-2-only": Node unique to second prediction (violet)
  */
-export type NodeStatus =
+type NodeStatus =
     | 'in-stock'
     | 'default'
     | 'match'
@@ -450,7 +347,7 @@ export type NodeStatus =
 // ============================================================================
 
 // Canonical constants for runtime validation and type derivation.
-export const ROUTE_LAYOUT_MODES = ['prediction-only', 'side-by-side', 'diff-overlay'] as const
+const ROUTE_LAYOUT_MODES = ['prediction-only', 'side-by-side', 'diff-overlay'] as const
 export const COMPARISON_MODES = ['gt-only', 'gt-vs-pred', 'pred-vs-pred'] as const
 export const COMPARISON_LAYOUT_MODES = ['side-by-side', 'diff-overlay'] as const
 
@@ -468,28 +365,6 @@ export type ComparisonMode = (typeof COMPARISON_MODES)[number]
  * A specific subset of RouteLayoutMode used only for comparisons.
  */
 export type ComparisonLayoutMode = (typeof COMPARISON_LAYOUT_MODES)[number]
-
-/**
- * Configuration for tree layout algorithm.
- * Controls spacing and node dimensions.
- */
-export interface RouteLayoutConfig {
-    nodeWidth: number
-    nodeHeight: number
-    horizontalSpacing: number
-    verticalSpacing: number
-}
-
-/**
- * Merged node structure for diff overlay visualization.
- * Combines acceptable route and prediction routes into a single tree.
- */
-export interface MergedRouteNode {
-    smiles: string
-    inchikey: string
-    status: NodeStatus
-    children: MergedRouteNode[]
-}
 
 // ============================================================================
 // Model Predictions: Phase 1 Types
@@ -555,34 +430,6 @@ export interface ModelStatistics {
 // ============================================================================
 // Model Predictions: Evaluation Types
 // ============================================================================
-
-/**
- * Route with solvability information for evaluation.
- * Stripped from full Route with just essential data.
- */
-export interface ScoredRoute {
-    rank: number
-    isSolved: boolean
-    matchesAcceptable: boolean // Does this route match ANY acceptable route?
-    matchedAcceptableIndex: number | null // Which acceptable route was matched (0-based, null if no match)
-}
-
-/**
- * All scored routes for one target against one stock.
- * Maps the Python TargetEvaluation model.
- */
-export interface TargetEvaluation {
-    targetId: string
-    routes: ScoredRoute[] // Ordered by rank
-}
-
-/**
- * Complete evaluation results for a scoring run.
- * Maps Python EvaluationResults: target_id -> TargetEvaluation
- */
-export interface EvaluationResults {
-    [targetId: string]: TargetEvaluation
-}
 
 // ============================================================================
 // Model Predictions: Display DTOs
@@ -698,28 +545,11 @@ export interface PredictionRunWithStats {
 }
 
 /**
- * Extended route information for predictions.
- * Includes solvability status across stocks.
- * Now combines Route (structure) with PredictionRoute (prediction metadata).
- */
-export interface ScoredRouteWithSolvability {
-    route: Route
-    predictionRoute: PredictionRoute
-    solvability: Array<{
-        stockId: string
-        stockName: string
-        isSolvable: boolean
-        matchesAcceptable: boolean
-        matchedAcceptableIndex: number | null
-    }>
-}
-
-/**
  * Complete prediction detail for a target.
  * Includes all routes and acceptable route comparison.
  * Updated to use PredictionRoute for prediction metadata.
  */
-export interface TargetPredictionDetail {
+interface TargetPredictionDetail {
     targetId: string
     molecule: Molecule
     routeLength: number | null

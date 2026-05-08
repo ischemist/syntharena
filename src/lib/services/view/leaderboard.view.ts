@@ -64,10 +64,22 @@ export function _curateChampionStats(rawStats: RawStatsPayload): RawStatsPayload
 
     const championStats: RawStatsPayload = []
     for (const [, familyStats] of statsByFamilyId) {
+        const familyStatsWithMetrics = familyStats.map((stat) => ({
+            stat,
+            metricsByName: new Map(
+                stat.metrics.reduce<Array<readonly [string, number]>>((pairs, metric) => {
+                    if (metric.groupKey === null) {
+                        pairs.push([metric.metricName, metric.value] as const)
+                    }
+                    return pairs
+                }, [])
+            ),
+        }))
+
         // determine the best instance for this family
-        const champion = familyStats.reduce((best, current) => {
-            const getMetric = (s: typeof best, metricName: string) =>
-                s.metrics.find((m) => m.metricName === metricName && m.groupKey === null)?.value ?? -1
+        const champion = familyStatsWithMetrics.reduce((best, current) => {
+            const getMetric = (entry: (typeof familyStatsWithMetrics)[0], metricName: string) =>
+                entry.metricsByName.get(metricName) ?? -1
 
             const bestTop10 = getMetric(best, 'Top-10')
             const currentTop10 = getMetric(current, 'Top-10')
@@ -82,7 +94,7 @@ export function _curateChampionStats(rawStats: RawStatsPayload): RawStatsPayload
             const currentSolvability = getMetric(current, 'Solvability')
             return currentSolvability > bestSolvability ? current : best
         })
-        championStats.push(champion)
+        championStats.push(champion.stat)
     }
     return championStats
 }
@@ -137,15 +149,30 @@ export function _transformStatsToLeaderboardDTOs(
 
     for (const stat of statsToProcess) {
         const { stock, predictionRun, metrics } = stat
+        const metricsByName = new Map<string, typeof metrics>()
+        const overallMetricsByName = new Map<string, (typeof metrics)[number]>()
+        for (const metric of metrics) {
+            const existing = metricsByName.get(metric.metricName)
+            if (existing) {
+                existing.push(metric)
+            } else {
+                metricsByName.set(metric.metricName, [metric])
+            }
+            if (metric.groupKey === null) {
+                overallMetricsByName.set(metric.metricName, metric)
+            }
+        }
         const { modelInstance } = predictionRun
         const modelFamilyName = modelInstance.family.name
         const algorithmName = modelInstance.family.algorithm.name
         const algorithmSlug = modelInstance.family.algorithm.slug
 
         // -- 1. build leaderboard entry (flat list) --
-        const solvabilityMetric = metrics.find((m) => m.metricName === 'Solvability' && m.groupKey === null)
+        const solvabilityMetric = overallMetricsByName.get('Solvability')
         const topKMetrics = hasAcceptableRoutes
-            ? metrics.filter((m) => m.metricName.startsWith('Top-') && m.groupKey === null)
+            ? Array.from(metricsByName.entries()).flatMap(([metricName, groupedMetrics]) =>
+                  metricName.startsWith('Top-') ? groupedMetrics.filter((metric) => metric.groupKey === null) : []
+              )
             : []
 
         const topKAccuracy: Record<string, MetricResult> = {}
@@ -183,12 +210,18 @@ export function _transformStatsToLeaderboardDTOs(
         const modelMap = stratifiedMetricsByStock.get(stock.id)!
 
         const buildStratifiedMetric = (name: string): StratifiedMetric | null => {
-            const metricsForName = metrics.filter((m) => m.metricName === name)
+            const metricsForName = metricsByName.get(name) ?? []
             if (metricsForName.length === 0) return null
-            const overall = metricsForName.find((m) => m.groupKey === null)
-            const byGroup = Object.fromEntries(
-                metricsForName.filter((m) => m.groupKey !== null).map((m) => [m.groupKey!, toMetricResult(m)])
-            )
+            let overall: (typeof metricsForName)[number] | undefined
+            const byGroup: Record<number, MetricResult> = {}
+            for (const metric of metricsForName) {
+                if (metric.groupKey === null) {
+                    overall = metric
+                } else {
+                    byGroup[metric.groupKey] = toMetricResult(metric)
+                }
+            }
+            if (!overall) return null
             return { metricName: name, overall: toMetricResult(overall), byGroup }
         }
 
@@ -198,7 +231,7 @@ export function _transformStatsToLeaderboardDTOs(
         let stratifiedTopK: Record<string, StratifiedMetric> | undefined
         if (hasAcceptableRoutes) {
             const acc: Record<string, StratifiedMetric> = {}
-            ;[...availableTopKMetrics].forEach((name) => {
+            availableTopKMetrics.forEach((name) => {
                 const metric = buildStratifiedMetric(name)
                 if (metric) acc[name] = metric
             })
