@@ -3,8 +3,6 @@ import type { MetadataRoute } from 'next'
 import { getSiteUrl } from '@/lib/constants'
 import { getStocks } from '@/lib/services/view/stock.view'
 
-export const dynamic = 'force-dynamic'
-
 const STATIC_ROUTES: MetadataRoute.Sitemap = [
     { url: getSiteUrl('/'), changeFrequency: 'weekly', priority: 1.0 },
     { url: getSiteUrl('/stocks'), changeFrequency: 'weekly', priority: 0.9 },

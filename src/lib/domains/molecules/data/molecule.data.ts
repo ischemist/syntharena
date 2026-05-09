@@ -1,3 +1,4 @@
+import { unstable_cache as cache } from 'next/cache'
 import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/db'
@@ -40,14 +41,17 @@ export type MoleculeDetailRow = Prisma.MoleculeGetPayload<{
     select: typeof moleculeDetailSelect
 }>
 
-export async function findMoleculeByInchiKey(inchikey: string): Promise<MoleculeDetailRow | null> {
+async function _findMoleculeByInchiKey(inchikey: string): Promise<MoleculeDetailRow | null> {
     return prisma.molecule.findUnique({
         where: { inchikey },
         select: moleculeDetailSelect,
     })
 }
+export const findMoleculeByInchiKey = cache(_findMoleculeByInchiKey, ['molecule-by-inchikey'], {
+    tags: ['molecules', 'stocks'],
+})
 
-export async function findCanonicalInchiKeyByInchiKey(inchikey: string): Promise<string | null> {
+async function _findCanonicalInchiKeyByInchiKey(inchikey: string): Promise<string | null> {
     const molecule = await prisma.molecule.findUnique({
         where: { inchikey },
         select: { inchikey: true },
@@ -55,19 +59,30 @@ export async function findCanonicalInchiKeyByInchiKey(inchikey: string): Promise
 
     return molecule?.inchikey ?? null
 }
+export const findCanonicalInchiKeyByInchiKey = cache(_findCanonicalInchiKeyByInchiKey, ['canonical-inchikey'], {
+    tags: ['molecules'],
+})
 
-export async function findCanonicalInchiKeysBySmiles(smiles: string): Promise<string[]> {
+async function _findCanonicalInchiKeysBySmiles(smiles: string): Promise<string[]> {
     const molecules = await prisma.molecule.findMany({
         where: { smiles },
         orderBy: { inchikey: 'asc' },
         select: { inchikey: true },
+        // Fetch at most two matches so the caller can distinguish unique from ambiguous SMILES lookups.
         take: 2,
     })
 
     return molecules.map((molecule) => molecule.inchikey)
 }
+export const findCanonicalInchiKeysBySmiles = cache(
+    _findCanonicalInchiKeysBySmiles,
+    ['canonical-inchikeys-by-smiles'],
+    {
+        tags: ['molecules'],
+    }
+)
 
-export async function countIndexedMolecules(): Promise<number> {
+async function _countIndexedMolecules(): Promise<number> {
     return prisma.molecule.count({
         where: {
             stockItems: {
@@ -76,11 +91,11 @@ export async function countIndexedMolecules(): Promise<number> {
         },
     })
 }
+export const countIndexedMolecules = cache(_countIndexedMolecules, ['indexed-molecule-count'], {
+    tags: ['molecules', 'stocks'],
+})
 
-export async function findIndexedMoleculesForSitemap(
-    limit: number,
-    offset: number
-): Promise<Array<{ inchikey: string }>> {
+async function _findIndexedMoleculesForSitemap(limit: number, offset: number): Promise<Array<{ inchikey: string }>> {
     return prisma.molecule.findMany({
         where: {
             stockItems: {
@@ -97,3 +112,10 @@ export async function findIndexedMoleculesForSitemap(
         skip: offset,
     })
 }
+export const findIndexedMoleculesForSitemap = cache(
+    _findIndexedMoleculesForSitemap,
+    ['indexed-molecules-for-sitemap'],
+    {
+        tags: ['molecules', 'stocks'],
+    }
+)

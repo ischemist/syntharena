@@ -28,8 +28,19 @@ export default async function MoleculeResolvePage({ searchParams }: ResolvePageP
         redirect('/stocks')
     }
 
-    const inchikey = await resolveMoleculeCanonicalInchiKey(rawQuery)
+    let inchikey: string | null
+    try {
+        inchikey = await resolveMoleculeCanonicalInchiKey(rawQuery)
+    } catch (error) {
+        console.error('molecule resolve: failed to resolve query', {
+            rawQuery,
+            error,
+        })
+        notFound()
+    }
+
     if (!inchikey) {
+        console.error('molecule resolve: no canonical inchikey found', { rawQuery })
         notFound()
     }
 

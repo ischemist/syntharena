@@ -10,7 +10,11 @@ export default async function MoleculeDetailBreadcrumb({ params }: { params: Pro
     try {
         const molecule = await getMoleculeDetailPageData(normalizedInchikey)
         label = molecule.inchikey
-    } catch {
+    } catch (error) {
+        console.error('molecule breadcrumb: failed to load molecule details', {
+            normalizedInchikey,
+            error,
+        })
         // Keep the normalized input as the last-resort label for invalid or missing molecules.
     }
 

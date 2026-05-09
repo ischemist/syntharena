@@ -61,7 +61,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
                 canonical: `/molecules/${normalizedInchikey}`,
             },
         }
-    } catch {
+    } catch (error) {
+        console.error('molecule page metadata: failed to load molecule details', {
+            normalizedInchikey,
+            error,
+        })
         return {
             title: 'Molecule Not Found',
             description: 'The requested molecule could not be found in SynthArena.',
@@ -80,7 +84,11 @@ export default async function MoleculeDetailPage({ params }: PageProps) {
     let molecule
     try {
         molecule = await getMoleculeDetailPageData(normalizedInchikey)
-    } catch {
+    } catch (error) {
+        console.error('molecule page: failed to load molecule details', {
+            normalizedInchikey,
+            error,
+        })
         notFound()
     }
 

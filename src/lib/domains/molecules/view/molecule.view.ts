@@ -29,7 +29,7 @@ export interface MoleculeDetailPageData {
 export const getMoleculeDetailPageData = cache(async (inchikey: string): Promise<MoleculeDetailPageData> => {
     const molecule = await moleculeData.findMoleculeByInchiKey(inchikey)
     if (!molecule) {
-        throw new Error('molecule not found.')
+        throw new Error('Molecule not found')
     }
 
     const buyableStockCount = molecule.stockItems.filter(

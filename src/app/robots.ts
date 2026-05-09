@@ -3,11 +3,14 @@ import type { MetadataRoute } from 'next'
 import { MOLECULE_SITEMAP_PAGE_SIZE, getSiteUrl } from '@/lib/constants'
 import { countIndexedMolecules } from '@/lib/domains/molecules/data/molecule.data'
 
-export const dynamic = 'force-dynamic'
-
 export default async function robots(): Promise<MetadataRoute.Robots> {
-    const totalIndexedMolecules = await countIndexedMolecules()
-    const moleculeSitemapCount = Math.max(1, Math.ceil(totalIndexedMolecules / MOLECULE_SITEMAP_PAGE_SIZE))
+    let moleculeSitemapCount = 1
+    try {
+        const totalIndexedMolecules = await countIndexedMolecules()
+        moleculeSitemapCount = Math.max(1, Math.ceil(totalIndexedMolecules / MOLECULE_SITEMAP_PAGE_SIZE))
+    } catch (error) {
+        console.error('robots: failed to count indexed molecules', { error })
+    }
 
     return {
         rules: {
