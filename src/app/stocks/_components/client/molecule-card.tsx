@@ -121,6 +121,16 @@ export function MoleculeCard({ molecule, index = 0 }: MoleculeCardProps) {
                                 <p className="text-foreground font-mono text-xs break-all">{molecule.inchikey}</p>
                             </div>
 
+                            <div className="space-y-1 border-t pt-3">
+                                <span className="text-muted-foreground text-xs font-semibold">Canonical Page</span>
+                                <Link
+                                    href={`/molecules/${molecule.inchikey}`}
+                                    className="text-primary block text-xs font-medium break-all underline-offset-2 hover:underline"
+                                >
+                                    {`/molecules/${molecule.inchikey}`}
+                                </Link>
+                            </div>
+
                             {hasBuyableData && molecule.stockItem && (
                                 <BuyableInfoSection
                                     source={molecule.stockItem.source!}

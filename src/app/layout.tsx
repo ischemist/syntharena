@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 
+import { SITE_URL } from '@/lib/constants'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
@@ -21,6 +22,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
+    metadataBase: new URL(SITE_URL),
     title: {
         template: '%s | SynthArena by isChemist Group',
         default: 'Evaluating MultiStep Retrosynthetic Solutions | SynthArena by isChemist Group',
