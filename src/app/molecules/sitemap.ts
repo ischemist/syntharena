@@ -4,7 +4,13 @@ import { MOLECULE_SITEMAP_PAGE_SIZE, getSiteUrl } from '@/lib/constants'
 import { countIndexedMolecules, findIndexedMoleculesForSitemap } from '@/lib/domains/molecules/data/molecule.data'
 
 export async function generateSitemaps() {
-    const totalIndexedMolecules = await countIndexedMolecules()
+    let totalIndexedMolecules = 0
+    try {
+        totalIndexedMolecules = await countIndexedMolecules()
+    } catch (error) {
+        console.error('molecule sitemap: failed to count indexed molecules', { error })
+    }
+
     const sitemapCount = Math.max(1, Math.ceil(totalIndexedMolecules / MOLECULE_SITEMAP_PAGE_SIZE))
 
     return Array.from({ length: sitemapCount }, (_, id) => ({ id }))
