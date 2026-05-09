@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import type { VendorSource } from '@/types'
 
 import * as moleculeData from '../data/molecule.data'
@@ -25,7 +26,7 @@ export interface MoleculeDetailPageData {
     }>
 }
 
-export async function getMoleculeDetailPageData(inchikey: string): Promise<MoleculeDetailPageData> {
+export const getMoleculeDetailPageData = cache(async (inchikey: string): Promise<MoleculeDetailPageData> => {
     const molecule = await moleculeData.findMoleculeByInchiKey(inchikey)
     if (!molecule) {
         throw new Error('molecule not found.')
@@ -56,8 +57,15 @@ export async function getMoleculeDetailPageData(inchikey: string): Promise<Molec
             },
         })),
     }
-}
+})
 
+/**
+ * Resolves a canonical molecule page from either:
+ * - an exact InChIKey, or
+ * - an exact canonical SMILES string already stored in the database.
+ *
+ * Non-canonical/equivalent SMILES representations are intentionally out of scope for now.
+ */
 export async function resolveMoleculeCanonicalInchiKey(rawQuery: string): Promise<string | null> {
     const parsedQuery = parseMoleculeLookupQuery(rawQuery)
 
