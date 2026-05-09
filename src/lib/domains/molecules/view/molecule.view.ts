@@ -4,6 +4,19 @@ import type { VendorSource } from '@/types'
 import * as moleculeData from '../data/molecule.data'
 import { parseMoleculeLookupQuery } from '../logic/molecule-query.logic'
 
+export interface MoleculeStockEntry {
+    id: string
+    source?: VendorSource | null
+    ppg?: number | null
+    leadTime?: string | null
+    link?: string | null
+    stock: {
+        id: string
+        name: string
+        description?: string | null
+    }
+}
+
 export interface MoleculeDetailPageData {
     id: string
     inchikey: string
@@ -12,18 +25,7 @@ export interface MoleculeDetailPageData {
     benchmarkTargetCount: number
     routeNodeCount: number
     buyableStockCount: number
-    stockEntries: Array<{
-        id: string
-        source?: VendorSource | null
-        ppg?: number | null
-        leadTime?: string | null
-        link?: string | null
-        stock: {
-            id: string
-            name: string
-            description?: string | null
-        }
-    }>
+    stockEntries: MoleculeStockEntry[]
 }
 
 export const getMoleculeDetailPageData = cache(async (inchikey: string): Promise<MoleculeDetailPageData> => {

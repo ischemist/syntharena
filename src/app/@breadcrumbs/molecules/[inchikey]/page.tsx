@@ -1,10 +1,10 @@
 import { getMoleculeDetailPageData } from '@/lib/domains/molecules/view/molecule.view'
-import { normalizeInchiKeyCandidate } from '@/lib/domains/molecules/logic/molecule-query.logic'
 import { BreadcrumbShell } from '@/components/breadcrumb-shell'
+import { normalizeMoleculeRouteInchiKey } from '@/app/molecules/_lib/molecule-routing'
 
 export default async function MoleculeDetailBreadcrumb({ params }: { params: Promise<{ inchikey: string }> }) {
     const { inchikey: rawInchikey } = await params
-    const normalizedInchikey = normalizeInchiKeyCandidate(rawInchikey) ?? rawInchikey
+    const normalizedInchikey = normalizeMoleculeRouteInchiKey(rawInchikey) ?? rawInchikey
 
     let label = normalizedInchikey
     try {

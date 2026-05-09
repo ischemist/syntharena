@@ -21,14 +21,18 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
 ]
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-    const stocks = await getStocks()
+    let stocks: Awaited<ReturnType<typeof getStocks>> = []
+    try {
+        stocks = await getStocks()
+    } catch (error) {
+        console.error('sitemap: failed to fetch stocks', { error })
+    }
 
-    return [
-        ...STATIC_ROUTES,
-        ...stocks.map((stock) => ({
-            url: getSiteUrl(`/stocks/${stock.id}`),
-            changeFrequency: 'weekly' as const,
-            priority: 0.8,
-        })),
-    ]
+    const stockRoutes: MetadataRoute.Sitemap = stocks.map((stock) => ({
+        url: getSiteUrl(`/stocks/${stock.id}`),
+        changeFrequency: 'weekly',
+        priority: 0.8,
+    }))
+
+    return [...STATIC_ROUTES, ...stockRoutes]
 }

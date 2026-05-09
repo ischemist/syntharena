@@ -19,12 +19,13 @@ export default async function sitemap(props: { id: Promise<string> }): Promise<M
     const offset = resolvedId * MOLECULE_SITEMAP_PAGE_SIZE
     try {
         const molecules = await findIndexedMoleculesForSitemap(MOLECULE_SITEMAP_PAGE_SIZE, offset)
-
-        return molecules.map((molecule) => ({
+        const moleculeRoutes: MetadataRoute.Sitemap = molecules.map((molecule) => ({
             url: getSiteUrl(`/molecules/${molecule.inchikey}`),
             changeFrequency: 'weekly',
             priority: 0.7,
         }))
+
+        return moleculeRoutes
     } catch (error) {
         console.error('molecule sitemap: failed to fetch molecules', {
             resolvedId,

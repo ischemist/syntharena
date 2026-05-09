@@ -12,15 +12,17 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
         console.error('robots: failed to count indexed molecules', { error })
     }
 
+    const sitemapUrls = [
+        getSiteUrl('/sitemap.xml'),
+        ...Array.from({ length: moleculeSitemapCount }, (_, id) => getSiteUrl(`/molecules/sitemap/${id}.xml`)),
+    ]
+
     return {
         rules: {
             userAgent: '*',
             allow: '/',
             disallow: ['/api/health', '/molecules/resolve'],
         },
-        sitemap: [
-            getSiteUrl('/sitemap.xml'),
-            ...Array.from({ length: moleculeSitemapCount }, (_, id) => getSiteUrl(`/molecules/sitemap/${id}.xml`)),
-        ],
+        sitemap: sitemapUrls,
     }
 }

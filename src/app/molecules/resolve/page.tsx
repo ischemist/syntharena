@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 
+import { getFirstSearchParamValue } from '../_lib/molecule-routing'
 import { resolveMoleculeCanonicalInchiKey } from '@/lib/domains/molecules/view/molecule.view'
 
 type ResolvePageProps = {
@@ -17,12 +18,7 @@ export const metadata: Metadata = {
 
 export default async function MoleculeResolvePage({ searchParams }: ResolvePageProps) {
     const resolvedSearchParams = await searchParams
-    const rawQuery =
-        typeof resolvedSearchParams.q === 'string'
-            ? resolvedSearchParams.q
-            : Array.isArray(resolvedSearchParams.q)
-              ? (resolvedSearchParams.q[0] ?? '')
-              : ''
+    const rawQuery = getFirstSearchParamValue(resolvedSearchParams.q)
 
     if (!rawQuery.trim()) {
         redirect('/stocks')
