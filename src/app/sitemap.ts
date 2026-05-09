@@ -1,0 +1,36 @@
+import type { MetadataRoute } from 'next'
+
+import { getSiteUrl } from '@/lib/constants'
+import { getStocks } from '@/lib/services/view/stock.view'
+
+export const dynamic = 'force-dynamic'
+
+const STATIC_ROUTES: MetadataRoute.Sitemap = [
+    { url: getSiteUrl('/'), changeFrequency: 'weekly', priority: 1.0 },
+    { url: getSiteUrl('/stocks'), changeFrequency: 'weekly', priority: 0.9 },
+    { url: getSiteUrl('/benchmarks'), changeFrequency: 'weekly', priority: 0.9 },
+    { url: getSiteUrl('/runs'), changeFrequency: 'weekly', priority: 0.8 },
+    { url: getSiteUrl('/leaderboard'), changeFrequency: 'daily', priority: 0.9 },
+    { url: getSiteUrl('/algorithms'), changeFrequency: 'weekly', priority: 0.8 },
+    { url: getSiteUrl('/docs'), changeFrequency: 'monthly', priority: 0.7 },
+    { url: getSiteUrl('/docs/how-it-works'), changeFrequency: 'monthly', priority: 0.7 },
+    { url: getSiteUrl('/docs/benchmarks'), changeFrequency: 'monthly', priority: 0.7 },
+    { url: getSiteUrl('/docs/metrics'), changeFrequency: 'monthly', priority: 0.7 },
+    { url: getSiteUrl('/thesis'), changeFrequency: 'monthly', priority: 0.6 },
+    { url: getSiteUrl('/changelog'), changeFrequency: 'weekly', priority: 0.6 },
+    { url: getSiteUrl('/roadmap'), changeFrequency: 'monthly', priority: 0.5 },
+    { url: getSiteUrl('/submit-results'), changeFrequency: 'monthly', priority: 0.6 },
+]
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+    const stocks = await getStocks()
+
+    return [
+        ...STATIC_ROUTES,
+        ...stocks.map((stock) => ({
+            url: getSiteUrl(`/stocks/${stock.id}`),
+            changeFrequency: 'weekly' as const,
+            priority: 0.8,
+        })),
+    ]
+}

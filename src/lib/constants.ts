@@ -2,6 +2,16 @@
  * Application constants and configuration.
  */
 
+export const SITE_URL = 'https://syntharena.ischemist.com'
+export const ISCHEMIST_URL = 'https://ischemist.com'
+export const NEWSLETTER_URL = `${ISCHEMIST_URL}/newsletter`
+export const STATUS_URL = 'https://status.ischemist.com'
+export const MOLECULE_SITEMAP_PAGE_SIZE = 50_000
+
+export function getSiteUrl(path: string = '/') {
+    return new URL(path, SITE_URL).toString()
+}
+
 /**
  * Benchmark IDs used for algorithm highlight metrics on detail pages.
  * These benchmarks are shown in the "Best Performance" section.
