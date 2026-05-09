@@ -40,6 +40,19 @@ function getNormalizedInchiKeyOr404(rawInchikey: string): string {
     return normalizedInchikey
 }
 
+function getSafeExternalHref(value: string | null | undefined): string | null {
+    if (!value) {
+        return null
+    }
+
+    try {
+        const url = new URL(value)
+        return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null
+    } catch {
+        return null
+    }
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
     const { inchikey: rawInchikey } = await params
     const normalizedInchikey = normalizeInchiKeyCandidate(rawInchikey)
@@ -169,51 +182,7 @@ export default async function MoleculeDetailPage({ params }: PageProps) {
                             </TableHeader>
                             <TableBody>
                                 {molecule.stockEntries.map((stockEntry) => (
-                                    <TableRow key={stockEntry.id}>
-                                        <TableCell className="align-top">
-                                            <div className="space-y-1">
-                                                <Link
-                                                    href={`/stocks/${stockEntry.stock.id}`}
-                                                    className="text-foreground font-medium underline-offset-2 hover:underline"
-                                                >
-                                                    {stockEntry.stock.name}
-                                                </Link>
-                                                {stockEntry.stock.description && (
-                                                    <p className="text-muted-foreground text-xs leading-relaxed">
-                                                        {stockEntry.stock.description}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="align-top">
-                                            {stockEntry.source != null && stockEntry.ppg != null ? (
-                                                <BuyableMetadataStrip
-                                                    source={stockEntry.source}
-                                                    ppg={stockEntry.ppg}
-                                                    badgeStyle="outline"
-                                                />
-                                            ) : (
-                                                <Badge variant="outline">Indexed, vendor metadata unavailable</Badge>
-                                            )}
-                                        </TableCell>
-                                        <TableCell className="text-muted-foreground align-top text-sm">
-                                            {stockEntry.leadTime ?? '—'}
-                                        </TableCell>
-                                        <TableCell className="align-top">
-                                            {stockEntry.link && stockEntry.source ? (
-                                                <a
-                                                    href={stockEntry.link}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-primary text-sm font-medium underline-offset-2 hover:underline"
-                                                >
-                                                    {`View on ${VENDOR_NAMES[stockEntry.source]}`}
-                                                </a>
-                                            ) : (
-                                                <span className="text-muted-foreground text-sm">—</span>
-                                            )}
-                                        </TableCell>
-                                    </TableRow>
+                                    <StockEntryRow key={stockEntry.id} stockEntry={stockEntry} />
                                 ))}
                             </TableBody>
                         </Table>
@@ -248,5 +217,53 @@ function IdentifierBlock({ label, value }: { label: string; value: string }) {
             </div>
             <p className="font-mono text-xs break-all">{value}</p>
         </div>
+    )
+}
+
+function StockEntryRow({
+    stockEntry,
+}: {
+    stockEntry: Awaited<ReturnType<typeof getMoleculeDetailPageData>>['stockEntries'][number]
+}) {
+    const safeVendorHref = getSafeExternalHref(stockEntry.link)
+
+    return (
+        <TableRow key={stockEntry.id}>
+            <TableCell className="align-top">
+                <div className="space-y-1">
+                    <Link
+                        href={`/stocks/${stockEntry.stock.id}`}
+                        className="text-foreground font-medium underline-offset-2 hover:underline"
+                    >
+                        {stockEntry.stock.name}
+                    </Link>
+                    {stockEntry.stock.description && (
+                        <p className="text-muted-foreground text-xs leading-relaxed">{stockEntry.stock.description}</p>
+                    )}
+                </div>
+            </TableCell>
+            <TableCell className="align-top">
+                {stockEntry.source != null && stockEntry.ppg != null ? (
+                    <BuyableMetadataStrip source={stockEntry.source} ppg={stockEntry.ppg} badgeStyle="outline" />
+                ) : (
+                    <Badge variant="outline">Indexed, vendor metadata unavailable</Badge>
+                )}
+            </TableCell>
+            <TableCell className="text-muted-foreground align-top text-sm">{stockEntry.leadTime ?? '—'}</TableCell>
+            <TableCell className="align-top">
+                {safeVendorHref && stockEntry.source ? (
+                    <a
+                        href={safeVendorHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary text-sm font-medium underline-offset-2 hover:underline"
+                    >
+                        {`View on ${VENDOR_NAMES[stockEntry.source]}`}
+                    </a>
+                ) : (
+                    <span className="text-muted-foreground text-sm">—</span>
+                )}
+            </TableCell>
+        </TableRow>
     )
 }
