@@ -16,6 +16,9 @@ export async function setup() {
         console.log('Removed existing test database')
     }
 
+    // Prisma 7.8.0 fails when db push creates the SQLite file itself.
+    fs.closeSync(fs.openSync(testDatabasePath, 'w'))
+
     // Create test database with schema
     try {
         console.log('Setting up test database...')
