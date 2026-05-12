@@ -3,6 +3,8 @@ packages:
 
 minimumReleaseAge: 10080
 minimumReleaseAgeStrict: true
+minimumReleaseAgeExclude:
+    - '@ischemist/*'
 
 # pnpm 11 replaced onlyBuiltDependencies with allowBuilds.
 # Keep native/prisma build scripts explicit so strict dependency builds stay on.
