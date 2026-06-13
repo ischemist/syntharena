@@ -52,7 +52,7 @@ describe('buildRouteTree', () => {
             const nodes = pythonMoleculeToFlatNodes({
                 smiles: 'C',
                 inchikey: 'TEST-INCHIKEY-1',
-                synthesis_step: null,
+                product_of: null,
             })
 
             const tree = buildRouteTree(nodes)
@@ -69,7 +69,7 @@ describe('buildRouteTree', () => {
             const nodes = pythonMoleculeToFlatNodes({
                 smiles: 'C',
                 inchikey: 'TEST',
-                synthesis_step: null,
+                product_of: null,
             })
             // Corrupt the data: give root a parent
             nodes[0].parentId = 'fake-parent'

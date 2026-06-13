@@ -163,7 +163,7 @@ describe('createRouteFromPython', () => {
 
         // Verify Route in DB
         const dbRoute = await prisma.route.findUnique({ where: { id: result.routeId } })
-        expect(dbRoute!.signature).toBe(pyRoute.signature)
+        expect(dbRoute!.signature).toBeTruthy()
         expect(dbRoute!.length).toBe(2)
         expect(dbRoute!.isConvergent).toBe(false)
 
@@ -176,6 +176,57 @@ describe('createRouteFromPython', () => {
         expect(predRoute!.routeId).toBe(result.routeId)
         expect(predRoute!.predictionRunId).toBe(run.id)
         expect(predRoute!.targetId).toBe(target.id)
+    })
+
+    it('creates a route from RetroCast v0.7 product_of payload without serialized signature', async () => {
+        const { instance, benchmark, target } = await setupPredictionContext()
+        const run = await createOrUpdatePredictionRun(benchmark.id, instance.id)
+        const route = {
+            rank: 1,
+            schema_version: '2',
+            annotations: { score: 0.7 },
+            target: {
+                smiles: 'CC',
+                inchikey: 'OTMSDBZUPAUEDD-UHFFFAOYSA-N',
+                product_of: {
+                    reactants: [
+                        {
+                            smiles: 'C',
+                            inchikey: 'VNWKTOKETHGBQD-UHFFFAOYSA-N',
+                            annotations: {},
+                        },
+                    ],
+                    mapped_reaction_smiles: 'C>>CC',
+                    template: 'template-a',
+                    annotations: { source: 'retrocast-v0.7-test' },
+                },
+                annotations: {},
+            },
+        }
+
+        const result = await createRouteFromPython(route, run.id, target.id)
+
+        const dbRoute = await prisma.route.findUnique({ where: { id: result.routeId } })
+        expect(dbRoute!.signature).toBeTruthy()
+        expect(dbRoute!.length).toBe(1)
+        expect(dbRoute!.isConvergent).toBe(false)
+
+        const nodes = await prisma.routeNode.findMany({ where: { routeId: result.routeId } })
+        expect(nodes).toHaveLength(2)
+
+        const predictionRoute = await prisma.predictionRoute.findUnique({ where: { id: result.predictionRouteId } })
+        expect(JSON.parse(predictionRoute!.metadata!)).toEqual({ score: 0.7 })
+
+        const reactionNode = await prisma.routeNode.findFirst({
+            where: { routeId: result.routeId, reactionStepId: { not: null } },
+            include: { reactionStep: true },
+        })
+        const reactionStep = reactionNode!.reactionStep
+        expect(reactionStep!.template).toBe('template-a')
+        expect(JSON.parse(reactionStep!.metadata!)).toMatchObject({
+            mapped_reaction_smiles: 'C>>CC',
+            annotations: { source: 'retrocast-v0.7-test' },
+        })
     })
 
     it('deduplicates route by signature — reuses Route, creates new PredictionRoute', async () => {

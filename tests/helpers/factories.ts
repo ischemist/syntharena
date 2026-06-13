@@ -53,7 +53,7 @@ export function makeLeafMolecule(smiles: string = 'C'): PythonMolecule {
     return {
         smiles,
         inchikey: syntheticInchiKey(smiles),
-        synthesis_step: null,
+        product_of: null,
         is_leaf: true,
     }
 }
@@ -75,17 +75,13 @@ export function makeLinearPythonRoute(depth: number, rank: number = 1): PythonRo
         current = {
             smiles: productSmiles,
             inchikey: syntheticInchiKey(productSmiles),
-            synthesis_step: { reactants: [current] },
+            product_of: { reactants: [current] },
         }
     }
-
-    const treeJson = JSON.stringify(current)
-    const signature = crypto.createHash('sha256').update(`sig-${treeJson}`).digest('hex')
 
     return {
         target: current,
         rank,
-        signature,
     }
 }
 
@@ -110,7 +106,7 @@ export function makeConvergentPythonRoute(depth: number, rank: number = 1): Pyth
         branch1 = {
             smiles,
             inchikey: syntheticInchiKey(`branch1_${smiles}`),
-            synthesis_step: { reactants: [branch1] },
+            product_of: { reactants: [branch1] },
         }
     }
 
@@ -121,7 +117,7 @@ export function makeConvergentPythonRoute(depth: number, rank: number = 1): Pyth
         branch2 = {
             smiles,
             inchikey: syntheticInchiKey(`branch2_${smiles}`),
-            synthesis_step: { reactants: [branch2] },
+            product_of: { reactants: [branch2] },
         }
     }
 
@@ -130,16 +126,12 @@ export function makeConvergentPythonRoute(depth: number, rank: number = 1): Pyth
     const final: PythonMolecule = {
         smiles: finalSmiles,
         inchikey: syntheticInchiKey(finalSmiles),
-        synthesis_step: { reactants: [branch1, branch2] },
+        product_of: { reactants: [branch1, branch2] },
     }
-
-    const treeJson = JSON.stringify(final)
-    const signature = crypto.createHash('sha256').update(`sig-${treeJson}`).digest('hex')
 
     return {
         target: final,
         rank,
-        signature,
     }
 }
 
@@ -160,7 +152,7 @@ export function makeBinaryTreePythonRoute(depth: number, rank: number = 1): Pyth
             return {
                 smiles: 'C',
                 inchikey: syntheticInchiKey(`leaf_${leafCounter}`),
-                synthesis_step: null,
+                product_of: null,
                 is_leaf: true,
             }
         }
@@ -172,18 +164,14 @@ export function makeBinaryTreePythonRoute(depth: number, rank: number = 1): Pyth
         return {
             smiles: productSmiles,
             inchikey: syntheticInchiKey(`node_${currentDepth}_${leafCounter}`),
-            synthesis_step: { reactants: [left, right] },
+            product_of: { reactants: [left, right] },
         }
     }
 
     const target = buildTree(depth)
-    const treeJson = JSON.stringify(target)
-    const signature = crypto.createHash('sha256').update(`sig-${treeJson}`).digest('hex')
-
     return {
         target,
         rank,
-        signature,
     }
 }
 
@@ -216,7 +204,7 @@ export function pythonMoleculeToFlatNodes(
     parentId: string | null = null
 ): FlatNode[] {
     const nodeId = nextNodeId()
-    const isLeaf = !mol.synthesis_step
+    const isLeaf = !mol.product_of
 
     const node: FlatNode = {
         id: nodeId,
@@ -235,8 +223,8 @@ export function pythonMoleculeToFlatNodes(
 
     const result: FlatNode[] = [node]
 
-    if (mol.synthesis_step) {
-        for (const reactant of mol.synthesis_step.reactants) {
+    if (mol.product_of) {
+        for (const reactant of mol.product_of.reactants) {
             result.push(...pythonMoleculeToFlatNodes(reactant, routeId, nodeId))
         }
     }
@@ -248,24 +236,24 @@ export function pythonMoleculeToFlatNodes(
  * Count total nodes in a PythonMolecule tree.
  */
 export function countPythonMoleculeNodes(mol: PythonMolecule): number {
-    if (!mol.synthesis_step) return 1
-    return 1 + mol.synthesis_step.reactants.reduce((sum, r) => sum + countPythonMoleculeNodes(r), 0)
+    if (!mol.product_of) return 1
+    return 1 + mol.product_of.reactants.reduce((sum, r) => sum + countPythonMoleculeNodes(r), 0)
 }
 
 /**
  * Count leaf nodes in a PythonMolecule tree.
  */
 export function countLeafNodes(mol: PythonMolecule): number {
-    if (!mol.synthesis_step) return 1
-    return mol.synthesis_step.reactants.reduce((sum, r) => sum + countLeafNodes(r), 0)
+    if (!mol.product_of) return 1
+    return mol.product_of.reactants.reduce((sum, r) => sum + countLeafNodes(r), 0)
 }
 
 /**
  * Compute expected depth of a PythonMolecule tree (number of reaction steps on longest path).
  */
 export function computeExpectedDepth(mol: PythonMolecule): number {
-    if (!mol.synthesis_step) return 0
-    const childDepths = mol.synthesis_step.reactants.map(computeExpectedDepth)
+    if (!mol.product_of) return 0
+    const childDepths = mol.product_of.reactants.map(computeExpectedDepth)
     return 1 + Math.max(...childDepths, 0)
 }
 
@@ -311,6 +299,8 @@ async function createModelFamily(overrides: { algorithmId: string; name?: string
 /**
  * Create a ModelInstance record with sensible defaults.
  */
+let modelInstanceCounter = 0
+
 async function createModelInstance(overrides: {
     modelFamilyId: string
     slug?: string
@@ -322,7 +312,7 @@ async function createModelInstance(overrides: {
     return prisma.modelInstance.create({
         data: {
             modelFamilyId: overrides.modelFamilyId,
-            slug: overrides.slug ?? `test-model-${Date.now()}`,
+            slug: overrides.slug ?? `test-model-${Date.now()}-${++modelInstanceCounter}`,
             versionMajor: overrides.versionMajor ?? 1,
             versionMinor: overrides.versionMinor ?? 0,
             versionPatch: overrides.versionPatch ?? 0,
@@ -451,16 +441,15 @@ export function createTestCsvFile(
 interface TestBenchmarkTarget {
     id: string
     smiles: string
-    inchi_key: string
-    metadata?: Record<string, unknown>
+    inchikey: string
+    annotations?: Record<string, unknown>
     acceptable_routes: Array<{
         target: PythonMolecule
         rank: number
-        signature?: string
         length?: number
         has_convergent_reaction?: boolean
         solvability?: Record<string, boolean>
-        metadata?: Record<string, unknown>
+        annotations?: Record<string, unknown>
     }>
 }
 

@@ -1,18 +1,17 @@
 /**
  * Unit tests for pure functions in prediction-loader.service.ts
  *
- * Tests transformPythonStatistics (snake_case -> camelCase conversion),
- * computeRouteLength, and isRouteConvergent using carbon chain factories.
+ * Tests computeRouteLength, isRouteConvergent, and RetroCast analysis transforms.
  */
 
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 
-import type { PythonModelStatistics, PythonMolecule } from '@/lib/services/loaders/prediction-loader.service'
+import type { PythonMolecule } from '@/lib/services/loaders/prediction-loader.service'
 import {
     computeRouteLength,
     isRouteConvergent,
-    transformPythonStatistics,
+    transformRetrocastAnalysis,
 } from '@/lib/services/loaders/prediction-loader.service'
 
 import {
@@ -31,6 +30,22 @@ describe('computeRouteLength', () => {
     it('returns 0 for a leaf molecule', () => {
         const leaf = makeLeafMolecule('C')
         expect(computeRouteLength(leaf)).toBe(0)
+    })
+
+    it('supports RetroCast v0.7 product_of route trees', () => {
+        const leaf = {
+            smiles: 'C',
+            inchikey: syntheticInchiKey('C'),
+            annotations: {},
+        }
+        const route: PythonMolecule = {
+            smiles: 'CC',
+            inchikey: syntheticInchiKey('CC'),
+            product_of: { reactants: [leaf] },
+            annotations: {},
+        }
+
+        expect(computeRouteLength(route)).toBe(1)
     })
 
     it.each([1, 2, 3, 4, 5, 6])('returns %d for a linear route of depth %d', (depth) => {
@@ -149,9 +164,29 @@ describe('isRouteConvergent', () => {
         const bimolecular: PythonMolecule = {
             smiles: 'CO',
             inchikey: syntheticInchiKey('CO'),
-            synthesis_step: { reactants: [leaf1, leaf2] },
+            product_of: { reactants: [leaf1, leaf2] },
         }
         expect(isRouteConvergent(bimolecular)).toBe(false)
+    })
+
+    it('detects convergence in RetroCast v0.7 product_of route trees', () => {
+        const left: PythonMolecule = {
+            smiles: 'CC',
+            inchikey: syntheticInchiKey('left'),
+            product_of: { reactants: [makeLeafMolecule('C')] },
+        }
+        const right: PythonMolecule = {
+            smiles: 'CO',
+            inchikey: syntheticInchiKey('right'),
+            product_of: { reactants: [makeLeafMolecule('O')] },
+        }
+        const root: PythonMolecule = {
+            smiles: 'CCO',
+            inchikey: syntheticInchiKey('root'),
+            product_of: { reactants: [left, right] },
+        }
+
+        expect(isRouteConvergent(root)).toBe(true)
     })
 
     it('detects convergence deep in a tree (two non-leaf branches merge)', () => {
@@ -171,242 +206,121 @@ describe('isRouteConvergent', () => {
         const branch1: PythonMolecule = {
             smiles: 'CC',
             inchikey: syntheticInchiKey('branch1_CC'),
-            synthesis_step: { reactants: [leaf_c] },
+            product_of: { reactants: [leaf_c] },
         }
         // Branch 2: O (synthesised from CC)
         const branch2: PythonMolecule = {
             smiles: 'O',
             inchikey: syntheticInchiKey('branch2_O'),
-            synthesis_step: { reactants: [leaf_c2] },
+            product_of: { reactants: [leaf_c2] },
         }
         // Convergent node: two NON-leaf branches merge
         const convergentNode: PythonMolecule = {
             smiles: 'CCO',
             inchikey: syntheticInchiKey('CCO'),
-            synthesis_step: { reactants: [branch1, branch2] },
+            product_of: { reactants: [branch1, branch2] },
         }
         // Linear step above the convergent node
         const linearAbove: PythonMolecule = {
             smiles: 'CCCO',
             inchikey: syntheticInchiKey('CCCO'),
-            synthesis_step: { reactants: [convergentNode] },
+            product_of: { reactants: [convergentNode] },
         }
 
         expect(isRouteConvergent(linearAbove)).toBe(true)
     })
 })
 
-// ============================================================================
-// transformPythonStatistics
-// ============================================================================
-
-describe('transformPythonStatistics', () => {
-    const minimalPythonStats: PythonModelStatistics = {
-        solvability: {
-            metric_name: 'solvability',
-            overall: {
-                value: 0.75,
-                ci_lower: 0.7,
-                ci_upper: 0.8,
-                n_samples: 100,
-                reliability: { code: 'OK', message: 'Sufficient samples' },
+describe('transformRetrocastAnalysis', () => {
+    it('maps v0.7 analysis metrics into solvability and top-k statistics', () => {
+        const result = transformRetrocastAnalysis({
+            schema_version: '2',
+            metrics: {
+                'solv_0[buyables-stock]_rate': {
+                    value: 0.8,
+                    count: 100,
+                    ci_low: 0.7,
+                    ci_high: 0.9,
+                    reliability: { code: 'OK', message: 'Reliable.' },
+                },
+                'acceptable_reconstruction_top_1[buyables-stock]': {
+                    value: 0.4,
+                    count: 100,
+                    ci_low: 0.3,
+                    ci_high: 0.5,
+                    reliability: { code: 'OK', message: 'Reliable.' },
+                },
             },
-        },
-    }
-
-    it('transforms snake_case to camelCase for solvability', () => {
-        const result = transformPythonStatistics(minimalPythonStats)
-
-        expect(result.solvability.metricName).toBe('solvability')
-        expect(result.solvability.overall.value).toBe(0.75)
-        expect(result.solvability.overall.ciLower).toBe(0.7)
-        expect(result.solvability.overall.ciUpper).toBe(0.8)
-        expect(result.solvability.overall.nSamples).toBe(100)
-        expect(result.solvability.overall.reliability.code).toBe('OK')
-        expect(result.solvability.overall.reliability.message).toBe('Sufficient samples')
-    })
-
-    it('preserves all numeric values exactly', () => {
-        const result = transformPythonStatistics(minimalPythonStats)
-
-        expect(result.solvability.overall.value).toStrictEqual(0.75)
-        expect(result.solvability.overall.ciLower).toStrictEqual(0.7)
-        expect(result.solvability.overall.ciUpper).toStrictEqual(0.8)
-        expect(result.solvability.overall.nSamples).toStrictEqual(100)
-    })
-
-    it('transforms top_k_accuracy when present', () => {
-        const statsWithTopK: PythonModelStatistics = {
-            ...minimalPythonStats,
-            top_k_accuracy: {
-                '1': {
-                    metric_name: 'Top-1',
-                    overall: {
-                        value: 0.3,
-                        ci_lower: 0.25,
-                        ci_upper: 0.35,
-                        n_samples: 100,
-                        reliability: { code: 'OK', message: 'OK' },
+            by_stratum: {
+                'depth 2': {
+                    'solv_0[buyables-stock]_rate': {
+                        value: 0.9,
+                        count: 40,
+                        ci_low: 0.8,
+                        ci_high: 1,
+                        reliability: { code: 'EXTREME_P', message: 'Boundary value.' },
                     },
-                    by_group: {
-                        '3': {
-                            value: 0.5,
-                            ci_lower: 0.4,
-                            ci_upper: 0.6,
-                            n_samples: 50,
-                            reliability: { code: 'OK', message: 'OK' },
-                        },
+                    'acceptable_reconstruction_top_1[buyables-stock]': {
+                        value: 0.5,
+                        count: 40,
+                        ci_low: 0.35,
+                        ci_high: 0.65,
+                        reliability: { code: 'OK', message: 'Reliable.' },
                     },
                 },
             },
-        }
+            runtime: {
+                total_wall_time: 12,
+                total_cpu_time: 10,
+                mean_wall_time: 1.2,
+                mean_cpu_time: 1,
+            },
+        })
 
-        const result = transformPythonStatistics(statsWithTopK)
-
-        expect(result.topKAccuracy).toBeDefined()
-        expect(result.topKAccuracy!['1'].metricName).toBe('Top-1')
-        expect(result.topKAccuracy!['1'].overall.value).toBe(0.3)
-
-        // Stratified by group
-        expect(result.topKAccuracy!['1'].byGroup[3]).toBeDefined()
-        expect(result.topKAccuracy!['1'].byGroup[3].value).toBe(0.5)
+        expect(result.solvability.overall.value).toBe(0.8)
+        expect(result.solvability.byGroup[2].value).toBe(0.9)
+        expect(result.topKAccuracy?.['1'].overall.value).toBe(0.4)
+        expect(result.topKAccuracy?.['1'].byGroup[2].value).toBe(0.5)
+        expect(result.totalWallTime).toBe(12)
+        expect(result.meanCpuTime).toBe(1)
     })
 
-    it('handles missing optional fields gracefully', () => {
-        const result = transformPythonStatistics(minimalPythonStats)
-
-        expect(result.topKAccuracy).toBeUndefined()
-        expect(result.rankDistribution).toBeUndefined()
-        expect(result.expectedRank).toBeUndefined()
-        expect(result.totalWallTime).toBeUndefined()
-        expect(result.totalCpuTime).toBeUndefined()
-        expect(result.meanWallTime).toBeUndefined()
-        expect(result.meanCpuTime).toBeUndefined()
-    })
-
-    it('transforms rank_distribution when present', () => {
-        const statsWithRank: PythonModelStatistics = {
-            ...minimalPythonStats,
-            rank_distribution: [
-                { rank: 1, probability: 0.6 },
-                { rank: 2, probability: 0.3 },
-                { rank: 3, probability: 0.1 },
-            ],
-            expected_rank: 1.5,
-        }
-
-        const result = transformPythonStatistics(statsWithRank)
-
-        expect(result.rankDistribution).toHaveLength(3)
-        expect(result.rankDistribution![0]).toEqual({ rank: 1, probability: 0.6 })
-        expect(result.expectedRank).toBe(1.5)
-    })
-
-    it('transforms runtime metrics when present', () => {
-        const statsWithRuntime: PythonModelStatistics = {
-            ...minimalPythonStats,
-            total_wall_time: 3600.5,
-            total_cpu_time: 7200.0,
-            mean_wall_time: 12.5,
-            mean_cpu_time: 25.0,
-        }
-
-        const result = transformPythonStatistics(statsWithRuntime)
-
-        expect(result.totalWallTime).toBe(3600.5)
-        expect(result.totalCpuTime).toBe(7200.0)
-        expect(result.meanWallTime).toBe(12.5)
-        expect(result.meanCpuTime).toBe(25.0)
-    })
-
-    it('treats null runtime metrics as absent', () => {
-        const statsWithNulls: PythonModelStatistics = {
-            ...minimalPythonStats,
-            total_wall_time: null,
-            total_cpu_time: null,
-            mean_wall_time: null,
-            mean_cpu_time: null,
-        }
-
-        const result = transformPythonStatistics(statsWithNulls)
-
-        expect(result.totalWallTime).toBeUndefined()
-        expect(result.totalCpuTime).toBeUndefined()
-        expect(result.meanWallTime).toBeUndefined()
-        expect(result.meanCpuTime).toBeUndefined()
-    })
-
-    it('(property) all solvability values are preserved through transformation', () => {
-        fc.assert(
-            fc.property(
-                fc.double({ min: 0, max: 1, noNaN: true }),
-                fc.double({ min: 0, max: 1, noNaN: true }),
-                fc.double({ min: 0, max: 1, noNaN: true }),
-                fc.integer({ min: 1, max: 10000 }),
-                (value, ciLower, ciUpper, nSamples) => {
-                    const stats: PythonModelStatistics = {
-                        solvability: {
-                            metric_name: 'solvability',
-                            overall: {
-                                value,
-                                ci_lower: ciLower,
-                                ci_upper: ciUpper,
-                                n_samples: nSamples,
-                                reliability: { code: 'OK', message: 'OK' },
-                            },
-                        },
-                    }
-
-                    const result = transformPythonStatistics(stats)
-
-                    return (
-                        result.solvability.overall.value === value &&
-                        result.solvability.overall.ciLower === ciLower &&
-                        result.solvability.overall.ciUpper === ciUpper &&
-                        result.solvability.overall.nSamples === nSamples
-                    )
-                }
-            )
-        )
-    })
-
-    it('(property) byGroup keys are parsed as integers', () => {
-        fc.assert(
-            fc.property(fc.array(fc.integer({ min: 1, max: 10 }), { minLength: 1, maxLength: 5 }), (groupKeys) => {
-                const uniqueKeys = [...new Set(groupKeys)]
-                const byGroup: Record<string, PythonModelStatistics['solvability']['overall']> = {}
-                for (const key of uniqueKeys) {
-                    byGroup[String(key)] = {
-                        value: 0.5,
-                        ci_lower: 0.4,
-                        ci_upper: 0.6,
-                        n_samples: 50,
-                        reliability: { code: 'OK', message: 'OK' },
-                    }
-                }
-
-                const stats: PythonModelStatistics = {
-                    solvability: {
-                        metric_name: 'solvability',
-                        overall: {
-                            value: 0.75,
-                            ci_lower: 0.7,
-                            ci_upper: 0.8,
-                            n_samples: 100,
-                            reliability: { code: 'OK', message: 'OK' },
-                        },
-                        by_group: byGroup,
-                    },
-                }
-
-                const result = transformPythonStatistics(stats)
-
-                // All group keys should be numeric
-                for (const key of Object.keys(result.solvability.byGroup)) {
-                    if (isNaN(Number(key))) return false
-                }
-                return Object.keys(result.solvability.byGroup).length === uniqueKeys.length
+    it('throws a clear error when analysis metrics are missing', () => {
+        expect(() =>
+            transformRetrocastAnalysis({
+                schema_version: '2',
+                metrics: undefined as never,
             })
-        )
+        ).toThrow('RetroCast analysis is missing the metrics object')
+    })
+
+    it('ignores strata without a route-length key', () => {
+        const result = transformRetrocastAnalysis({
+            schema_version: '2',
+            metrics: {
+                'solv_0[buyables-stock]_rate': {
+                    value: 0.8,
+                    count: 100,
+                },
+            },
+            by_stratum: {
+                top_10_route_length_5: {
+                    'solv_0[buyables-stock]_rate': {
+                        value: 0.9,
+                        count: 40,
+                    },
+                },
+                route_length_5: {
+                    'solv_0[buyables-stock]_rate': {
+                        value: 0.7,
+                        count: 20,
+                    },
+                },
+            },
+        })
+
+        expect(result.solvability.byGroup).toEqual({
+            5: expect.objectContaining({ value: 0.7 }),
+        })
     })
 })

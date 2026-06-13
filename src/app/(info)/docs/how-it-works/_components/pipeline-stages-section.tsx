@@ -75,7 +75,7 @@ export function PipelineStagesSection() {
                             <div className="font-mono text-xs">
                                 data/3-processed/<span className="text-blue-600 dark:text-blue-400">&lt;model&gt;</span>
                                 /<span className="text-green-600 dark:text-green-400">&lt;benchmark&gt;</span>
-                                /routes.json.gz
+                                /candidates.json.gz
                             </div>
                         </div>
                         <div className="space-y-2">

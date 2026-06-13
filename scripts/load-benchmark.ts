@@ -29,9 +29,9 @@
  *         "target-id": {
  *           "id": "target-id",
  *           "smiles": "target-smiles",
- *           "inchi_key": "...",
+ *           "inchikey": "...",
  *           "acceptable_routes": [...],
- *           "metadata": {...}
+ *           "annotations": {...}
  *         }
  *       }
  *     }

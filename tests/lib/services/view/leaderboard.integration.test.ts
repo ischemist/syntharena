@@ -79,12 +79,11 @@ async function setupLeaderboardContext(label: string) {
             [`${label}-t-001`]: {
                 id: `${label}-t-001`,
                 smiles: targetSmiles,
-                inchi_key: syntheticInchiKey(targetSmiles),
+                inchikey: syntheticInchiKey(targetSmiles),
                 acceptable_routes: [
                     {
                         target: route.target,
                         rank: 1,
-                        signature: route.signature,
                         length: 2,
                         has_convergent_reaction: false,
                     },
