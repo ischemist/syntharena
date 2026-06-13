@@ -71,7 +71,7 @@ export interface RetrocastAnalysis {
  * Computes route length (number of reaction steps).
  */
 export function computeRouteLength(root: PythonMolecule): number {
-    const step = getSynthesisStep(root)
+    const step = getProductOf(root)
     if (!step) return 0
     const childLengths = step.reactants.map(computeRouteLength)
     return 1 + Math.max(...childLengths, 0)
@@ -89,16 +89,16 @@ export function computeRouteLength(root: PythonMolecule): number {
  * (`computeRouteProperties`): a node is convergent when it has ≥2 non-leaf children.
  */
 export function isRouteConvergent(root: PythonMolecule): boolean {
-    const step = getSynthesisStep(root)
+    const step = getProductOf(root)
     if (!step) return false
     const reactants = step.reactants
     // Count non-leaf reactants (reactants that themselves have synthesis steps)
-    const nonLeafReactants = reactants.filter((r) => getSynthesisStep(r) !== null)
+    const nonLeafReactants = reactants.filter((r) => getProductOf(r) !== null)
     if (nonLeafReactants.length >= 2) return true
     return reactants.some(isRouteConvergent)
 }
 
-function getSynthesisStep(molecule: PythonMolecule): PythonReactionStep | null {
+function getProductOf(molecule: PythonMolecule): PythonReactionStep | null {
     return molecule.product_of ?? null
 }
 
@@ -107,7 +107,7 @@ function getAnnotations(value: { annotations?: Record<string, unknown> }): Recor
 }
 
 function normalizeMoleculeForRetrocast(molecule: PythonMolecule): RetrocastMolecule {
-    const step = getSynthesisStep(molecule)
+    const step = getProductOf(molecule)
     return {
         smiles: molecule.smiles,
         inchikey: molecule.inchikey,
@@ -164,7 +164,10 @@ function metricResultFromAnalysisMetric(metric: RetrocastAnalysisMetric): Metric
     }
 }
 
-function metricKeyForSolvability(metrics: Record<string, RetrocastAnalysisMetric>): string {
+function metricKeyForSolvability(metrics: Record<string, RetrocastAnalysisMetric> | undefined): string {
+    if (!metrics) {
+        throw new Error('RetroCast analysis is missing the metrics object')
+    }
     const solvabilityKey = Object.keys(metrics).find((key) => /^solv_0\[.+\]_rate$/.test(key))
     if (!solvabilityKey) {
         throw new Error('RetroCast analysis is missing a solv_0[...]_rate metric')
@@ -178,8 +181,8 @@ function topKFromMetricName(metricName: string): string | null {
 }
 
 function stratumGroupKey(stratum: string): number | null {
-    const match = stratum.match(/\d+/)
-    return match ? parseInt(match[0], 10) : null
+    const match = stratum.match(/^(?:depth|route_length)[ _-](\d+)$/)
+    return match ? parseInt(match[1], 10) : null
 }
 
 /**
@@ -379,7 +382,7 @@ function collectRouteTreeData(
     const tempId = `temp-${tempIdCounter.value++}`
 
     // Determine if this is a leaf node
-    const step = getSynthesisStep(pythonMol)
+    const step = getProductOf(pythonMol)
     const isLeaf = !step || pythonMol.is_leaf === true
 
     // Compute reaction hash if not a leaf (uses InChIKeys for canonical identity)

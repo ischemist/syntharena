@@ -48,6 +48,22 @@ function makeBenchmarkTarget(
     }
 }
 
+async function findAcceptableRouteForTarget(benchmarkSetId: string, targetId: string) {
+    const target = await prisma.benchmarkTarget.findUnique({
+        where: { benchmarkSetId_targetId: { benchmarkSetId, targetId } },
+        include: {
+            acceptableRoutes: {
+                include: { route: true },
+                orderBy: { routeIndex: 'asc' },
+            },
+        },
+    })
+
+    expect(target).not.toBeNull()
+    expect(target!.acceptableRoutes).toHaveLength(1)
+    return target!.acceptableRoutes[0]!.route
+}
+
 // ============================================================================
 // loadBenchmarkFromFile — basic target loading
 // ============================================================================
@@ -221,8 +237,10 @@ describe('loadBenchmarkFromFile', () => {
         const result = await loadBenchmarkFromFile(filePath, benchmark.id, 'bench-missing')
 
         expect(result.routesCreated).toBe(1)
-        const routeCount = await prisma.route.count()
-        expect(routeCount).toBe(1)
+        const dbRoute = await findAcceptableRouteForTarget(benchmark.id, 't-001')
+        expect(dbRoute.signature).toBeTruthy()
+        expect(dbRoute.length).toBe(1)
+        expect(dbRoute.isConvergent).toBe(false)
     })
 
     it('uses file data for route length and isConvergent when present', async () => {
@@ -253,9 +271,9 @@ describe('loadBenchmarkFromFile', () => {
 
         await loadBenchmarkFromFile(filePath, benchmark.id, 'bench-props')
 
-        const dbRoute = await prisma.route.findFirst()
-        expect(dbRoute!.length).toBe(3)
-        expect(dbRoute!.isConvergent).toBe(false)
+        const dbRoute = await findAcceptableRouteForTarget(benchmark.id, 't-001')
+        expect(dbRoute.length).toBe(3)
+        expect(dbRoute.isConvergent).toBe(false)
     })
 
     it('computes route properties when not present in file data', async () => {
@@ -285,9 +303,9 @@ describe('loadBenchmarkFromFile', () => {
 
         await loadBenchmarkFromFile(filePath, benchmark.id, 'bench-compute')
 
-        const dbRoute = await prisma.route.findFirst()
-        expect(dbRoute!.length).toBe(2)
-        expect(dbRoute!.isConvergent).toBe(true)
+        const dbRoute = await findAcceptableRouteForTarget(benchmark.id, 't-001')
+        expect(dbRoute.length).toBe(2)
+        expect(dbRoute.isConvergent).toBe(true)
     })
 
     it('reuses molecules already in the database (e.g., from stock loading)', async () => {

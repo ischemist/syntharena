@@ -104,7 +104,7 @@ function computeReactionHash(step: PythonReactionStep, productInchikey: string):
     return crypto.createHash('sha256').update(content).digest('hex')
 }
 
-function getSynthesisStep(molecule: PythonMolecule): PythonReactionStep | null {
+function getProductOf(molecule: PythonMolecule): PythonReactionStep | null {
     return molecule.product_of ?? null
 }
 
@@ -113,7 +113,7 @@ function getAnnotations(value: { annotations?: Record<string, unknown> }): Recor
 }
 
 function normalizeMoleculeForRetrocast(molecule: PythonMolecule): RetrocastMolecule {
-    const step = getSynthesisStep(molecule)
+    const step = getProductOf(molecule)
     return {
         smiles: molecule.smiles,
         inchikey: molecule.inchikey,
@@ -192,7 +192,7 @@ function collectRouteTreeData(
     const tempId = `temp-${tempIdCounter.value++}`
 
     // Create node data
-    const step = getSynthesisStep(molecule)
+    const step = getProductOf(molecule)
     const isLeaf = !step || molecule.is_leaf === true
     const reactionHash = step ? computeReactionHash(step, molecule.inchikey) : null
 

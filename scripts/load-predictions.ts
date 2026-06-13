@@ -259,7 +259,7 @@ function routeFromCandidate(candidate: CandidatesFile[string][number]): PythonRo
 }
 
 function candidateIsSolved(candidate: RetrocastEvaluationArtifact['targets'][string]['candidates'][number]): boolean {
-    const constraintsPass = candidate.constraints?.status === 'pass'
+    const constraintsPass = !candidate.constraints || candidate.constraints.status === 'pass'
     const tierZeroStatus = candidate.validity?.tiers?.['0']?.status
     return constraintsPass && (tierZeroStatus === undefined || tierZeroStatus === 'pass')
 }

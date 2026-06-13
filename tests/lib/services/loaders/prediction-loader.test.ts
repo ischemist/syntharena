@@ -284,4 +284,43 @@ describe('transformRetrocastAnalysis', () => {
         expect(result.totalWallTime).toBe(12)
         expect(result.meanCpuTime).toBe(1)
     })
+
+    it('throws a clear error when analysis metrics are missing', () => {
+        expect(() =>
+            transformRetrocastAnalysis({
+                schema_version: '2',
+                metrics: undefined as never,
+            })
+        ).toThrow('RetroCast analysis is missing the metrics object')
+    })
+
+    it('ignores strata without a route-length key', () => {
+        const result = transformRetrocastAnalysis({
+            schema_version: '2',
+            metrics: {
+                'solv_0[buyables-stock]_rate': {
+                    value: 0.8,
+                    count: 100,
+                },
+            },
+            by_stratum: {
+                top_10_route_length_5: {
+                    'solv_0[buyables-stock]_rate': {
+                        value: 0.9,
+                        count: 40,
+                    },
+                },
+                route_length_5: {
+                    'solv_0[buyables-stock]_rate': {
+                        value: 0.7,
+                        count: 20,
+                    },
+                },
+            },
+        })
+
+        expect(result.solvability.byGroup).toEqual({
+            5: expect.objectContaining({ value: 0.7 }),
+        })
+    })
 })
