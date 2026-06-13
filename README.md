@@ -142,9 +142,9 @@ If you want to evaluate your own models or create a custom benchmark, you can ge
 3. Ensure you have the following outputs:
     - Benchmark definitions: `data/1-benchmarks/definitions/*.json.gz`
     - Stock definitions: `data/1-benchmarks/stocks/*.txt`
-    - Processed routes: `data/3-processed/<benchmark>/<model>/routes.json.gz`
+    - Processed candidates: `data/3-processed/<benchmark>/<model>/candidates.json.gz`
     - Evaluations: `data/4-scored/<benchmark>/<model>/<stock>/evaluation.json.gz`
-    - Statistics: `data/5-results/<benchmark>/<model>/<stock>/statistics.json.gz`
+    - Analysis: `data/5-results/<benchmark>/<model>/<stock>/analysis.json.gz`
 
 ### Loading Data
 

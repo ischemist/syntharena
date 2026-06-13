@@ -75,12 +75,11 @@ describe('loader roundtrip', () => {
                 'rt-001': {
                     id: 'rt-001',
                     smiles: benchRoute.target.smiles,
-                    inchi_key: syntheticInchiKey(benchRoute.target.smiles),
+                    inchikey: syntheticInchiKey(benchRoute.target.smiles),
                     acceptable_routes: [
                         {
                             target: benchRoute.target,
                             rank: 1,
-                            signature: benchRoute.signature,
                             length: 2,
                             has_convergent_reaction: false,
                         },
@@ -187,7 +186,7 @@ describe('loader roundtrip', () => {
                 'tm-001': {
                     id: 'tm-001',
                     smiles: targetSmiles,
-                    inchi_key: syntheticInchiKey(targetSmiles),
+                    inchikey: syntheticInchiKey(targetSmiles),
                     acceptable_routes: [],
                 },
             },
@@ -257,12 +256,11 @@ describe('loader roundtrip', () => {
                 'conv-001': {
                     id: 'conv-001',
                     smiles: convergentRoute.target.smiles,
-                    inchi_key: syntheticInchiKey(convergentRoute.target.smiles),
+                    inchikey: syntheticInchiKey(convergentRoute.target.smiles),
                     acceptable_routes: [
                         {
                             target: convergentRoute.target,
                             rank: 1,
-                            signature: convergentRoute.signature,
                             // Omit length & has_convergent_reaction — force benchmark-loader to compute them
                         },
                     ],

@@ -188,7 +188,7 @@ interface ReactionStep {
     id: string
     reactionHash: string
     template: string | null
-    metadata: string | null // JSON: reagents, solvents, mapped_smiles
+    metadata: string | null // JSON: reagents, solvents, mapped_reaction_smiles
 }
 
 /**

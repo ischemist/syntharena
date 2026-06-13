@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@ischemist/route-viewer':
-        specifier: 0.0.7
-        version: 0.0.7(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        specifier: 0.1.0
+        version: 0.1.0(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@ischemist/routes':
-        specifier: 0.0.4
-        version: 0.0.4
+        specifier: 0.1.0
+        version: 0.1.0
       '@prisma/adapter-better-sqlite3':
         specifier: ^7.0.0
         version: 7.0.0
@@ -782,14 +782,14 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@ischemist/route-viewer@0.0.7':
-    resolution: {integrity: sha512-hUGiJMTEeA79WV3svi7c6M3gHyRBck6jH/GLVYTUysG0LWyvZjfaP04rv2phQMvQPqK4ATaAqUYLJPuE2eWh8w==}
+  '@ischemist/route-viewer@0.1.0':
+    resolution: {integrity: sha512-qvBZSl70/INZFvqLPFFocXuTa/mckVs/qa0NZaefcvdnSub9mHV+IiiKLxmyhuLtSKar8/BJVWWKS8hUzn/idg==}
     peerDependencies:
       react: '>=19'
       react-dom: '>=19'
 
-  '@ischemist/routes@0.0.4':
-    resolution: {integrity: sha512-TNiBaDxbTtegRPIqJMj1Vc+viZIED1VM3oRrGeltpGUZS1EEz7aC9FFxd8/AnjfVf4M6ob+OCqkhUSkfJDGorg==}
+  '@ischemist/routes@0.1.0':
+    resolution: {integrity: sha512-1KuNTjeyL1SUlNOLnSIlpVMCYvmdzaXIJeRqti7C6nR6EWOTEjEe38vfgeOOtH0VFjNrILtC5AdUdxSqKlG6rw==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -1980,6 +1980,19 @@ packages:
   '@vitest/utils@4.0.14':
     resolution: {integrity: sha512-hLqXZKAWNg8pI+SQXyXxWCTOpA3MvsqcbVeNgSi8x/CSN2wi26dSzn1wrOhmCmFjEvN9p8/kLFRHa6PI8jHazw==}
 
+  '@xyflow/react@12.11.0':
+    resolution: {integrity: sha512-na4IO33FSs2OS72hASgZDmTYwFAkef7Z74uBUVrong3ARmQQHfnRUVaCFn1kTt5LbS6pK03TbYjCPGLjLFfziA==}
+    peerDependencies:
+      '@types/react': '>=17'
+      '@types/react-dom': '>=17'
+      react: '>=17'
+      react-dom: '>=17'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      '@types/react-dom':
+        optional: true
+
   '@xyflow/react@12.9.3':
     resolution: {integrity: sha512-PSWoJ8vHiEqSIkLIkge+0eiHWiw4C6dyFDA03VKWJkqbU4A13VlDIVwKqf/Znuysn2GQw/zA61zpHE4rGgax7Q==}
     peerDependencies:
@@ -1988,6 +2001,9 @@ packages:
 
   '@xyflow/system@0.0.73':
     resolution: {integrity: sha512-C2ymH2V4mYDkdVSiRx0D7R0s3dvfXiupVBcko6tXP5K4tVdSBMo22/e3V9yRNdn+2HQFv44RFKzwOyCcUUDAVQ==}
+
+  '@xyflow/system@0.0.77':
+    resolution: {integrity: sha512-qCDCMCQAAgUu8yHnhloHG9F5mwPX5E+Wl8McpYIOPSSXfzFJJoZcwOcsDiAjitVKIg2de1WmJbCHfpcvxprsgg==}
 
   ajv@8.20.0:
     resolution: {integrity: sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==}
@@ -2590,8 +2606,8 @@ packages:
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
-  lucide-react@1.9.0:
-    resolution: {integrity: sha512-6qVAmbgCjcJz7sAGSPSSJ++RAwjlK2XCbRrZKv63Ciko1KT8jX0//CXxgI3jg2HlJu8tADqdYlNDebmYjeoruA==}
+  lucide-react@1.17.0:
+    resolution: {integrity: sha512-9FA9evdox/JQL5PT57fdA1x/yg8T7knJ98+zjTL3UfKza6pflQUUh3XtaQIHKvnsJw1lmsEyHVlt5jchYxOQ5w==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -3024,6 +3040,9 @@ packages:
 
   smiles-drawer@2.1.7:
     resolution: {integrity: sha512-gApm5tsWrAYDkjbGYQb5OhwIyHvtM2kIO40DfATaOV0DPm0wA63yn4Ow7us27BT49lDdU9busCOPN9fpyonzaA==}
+
+  smiles-drawer@2.2.1:
+    resolution: {integrity: sha512-PM49IH6DbkURkxivNPU9k6TpTlSPdyNpPmPDx/C7sbMqxvlPs3plaMVcDOH0GHnjHYdorQuYL/CJ5vkZkYKqUQ==}
 
   sonner@2.0.7:
     resolution: {integrity: sha512-W6ZN4p58k8aDKA4XPcx2hpIQXBRAgyiWVkYhT7CvK6D3iAu7xjvVyhQHg2/iaKJZ1XVJ4r7XuwGL+WGEK37i9w==}
@@ -3669,19 +3688,20 @@ snapshots:
   '@img/sharp-win32-x64@0.34.5':
     optional: true
 
-  '@ischemist/route-viewer@0.0.7(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+  '@ischemist/route-viewer@0.1.0(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
-      '@ischemist/routes': 0.0.4
-      '@xyflow/react': 12.9.3(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      lucide-react: 1.9.0(react@19.2.0)
+      '@ischemist/routes': 0.1.0
+      '@xyflow/react': 12.11.0(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      lucide-react: 1.17.0(react@19.2.0)
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
-      smiles-drawer: 2.1.7
+      smiles-drawer: 2.2.1
     transitivePeerDependencies:
       - '@types/react'
+      - '@types/react-dom'
       - immer
 
-  '@ischemist/routes@0.0.4': {}
+  '@ischemist/routes@0.1.0': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -4760,6 +4780,19 @@ snapshots:
       '@vitest/pretty-format': 4.0.14
       tinyrainbow: 3.0.3
 
+  '@xyflow/react@12.11.0(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+    dependencies:
+      '@xyflow/system': 0.0.77
+      classcat: 5.0.5
+      react: 19.2.0
+      react-dom: 19.2.0(react@19.2.0)
+      zustand: 4.5.7(@types/react@19.2.7)(react@19.2.0)
+    optionalDependencies:
+      '@types/react': 19.2.7
+      '@types/react-dom': 19.2.3(@types/react@19.2.7)
+    transitivePeerDependencies:
+      - immer
+
   '@xyflow/react@12.9.3(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
       '@xyflow/system': 0.0.73
@@ -4772,6 +4805,18 @@ snapshots:
       - immer
 
   '@xyflow/system@0.0.73':
+    dependencies:
+      '@types/d3-drag': 3.0.7
+      '@types/d3-interpolate': 3.0.4
+      '@types/d3-selection': 3.0.11
+      '@types/d3-transition': 3.0.9
+      '@types/d3-zoom': 3.0.8
+      d3-drag: 3.0.0
+      d3-interpolate: 3.0.1
+      d3-selection: 3.0.0
+      d3-zoom: 3.0.0
+
+  '@xyflow/system@0.0.77':
     dependencies:
       '@types/d3-drag': 3.0.7
       '@types/d3-interpolate': 3.0.4
@@ -5342,7 +5387,7 @@ snapshots:
     dependencies:
       react: 19.2.0
 
-  lucide-react@1.9.0(react@19.2.0):
+  lucide-react@1.17.0(react@19.2.0):
     dependencies:
       react: 19.2.0
 
@@ -5797,6 +5842,10 @@ snapshots:
       is-fullwidth-code-point: 5.1.0
 
   smiles-drawer@2.1.7:
+    dependencies:
+      chroma-js: 2.6.0
+
+  smiles-drawer@2.2.1:
     dependencies:
       chroma-js: 2.6.0
 

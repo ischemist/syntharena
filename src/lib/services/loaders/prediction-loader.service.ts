@@ -1,4 +1,6 @@
 import crypto from 'crypto'
+import { projectRetrocastRoute } from '@ischemist/routes'
+import type { RetrocastMolecule, RetrocastReaction, RetrocastRoute } from '@ischemist/routes'
 import { Prisma, ReliabilityCode } from '@prisma/client'
 
 import type { MetricResult, ModelStatistics, ReliabilityFlag, StratifiedMetric } from '@/types'
@@ -15,18 +17,18 @@ type DbClient = typeof prisma | Prisma.TransactionClient
 export interface PythonMolecule {
     smiles: string
     inchikey: string
-    synthesis_step: PythonReactionStep | null
-    metadata?: Record<string, unknown>
+    product_of?: PythonReactionStep | null
+    annotations?: Record<string, unknown>
     is_leaf?: boolean
 }
 
 interface PythonReactionStep {
     reactants: PythonMolecule[]
-    mapped_smiles?: string | null
+    mapped_reaction_smiles?: string | null
     template?: string | null
     reagents?: string[] | null
     solvents?: string[] | null
-    metadata?: Record<string, unknown>
+    annotations?: Record<string, unknown>
     is_convergent?: boolean
 }
 
@@ -34,41 +36,31 @@ export interface PythonRoute {
     target: PythonMolecule
     rank: number
     solvability?: Record<string, boolean>
-    metadata?: Record<string, unknown>
-    signature: string
+    annotations?: Record<string, unknown>
+    schema_version?: string
 }
 
-// Types for Python statistics data (snake_case)
-interface PythonMetricResult {
+interface RetrocastAnalysisMetric {
     value: number
-    ci_lower: number
-    ci_upper: number
-    n_samples: number
-    reliability: {
+    count: number
+    ci_low?: number
+    ci_high?: number
+    reliability?: {
         code: string
         message: string
     }
 }
 
-interface PythonStratifiedMetric {
-    metric_name: string
-    overall: PythonMetricResult
-    by_group?: Record<string, PythonMetricResult>
-}
-
-export interface PythonModelStatistics {
-    solvability: PythonStratifiedMetric
-    top_k_accuracy?: Record<string, PythonStratifiedMetric>
-    rank_distribution?: {
-        rank: number
-        probability: number
-    }[]
-    expected_rank?: number
-    // Runtime metrics (in seconds) from Python ModelStatistics
-    total_wall_time?: number | null
-    total_cpu_time?: number | null
-    mean_wall_time?: number | null
-    mean_cpu_time?: number | null
+export interface RetrocastAnalysis {
+    schema_version?: string
+    metrics: Record<string, RetrocastAnalysisMetric>
+    by_stratum?: Record<string, Record<string, RetrocastAnalysisMetric>>
+    runtime?: {
+        total_wall_time?: number | null
+        total_cpu_time?: number | null
+        mean_wall_time?: number | null
+        mean_cpu_time?: number | null
+    }
 }
 
 // ============================================================================
@@ -79,8 +71,9 @@ export interface PythonModelStatistics {
  * Computes route length (number of reaction steps).
  */
 export function computeRouteLength(root: PythonMolecule): number {
-    if (!root.synthesis_step) return 0
-    const childLengths = root.synthesis_step.reactants.map(computeRouteLength)
+    const step = getSynthesisStep(root)
+    if (!step) return 0
+    const childLengths = step.reactants.map(computeRouteLength)
     return 1 + Math.max(...childLengths, 0)
 }
 
@@ -96,12 +89,50 @@ export function computeRouteLength(root: PythonMolecule): number {
  * (`computeRouteProperties`): a node is convergent when it has ≥2 non-leaf children.
  */
 export function isRouteConvergent(root: PythonMolecule): boolean {
-    if (!root.synthesis_step) return false
-    const reactants = root.synthesis_step.reactants
+    const step = getSynthesisStep(root)
+    if (!step) return false
+    const reactants = step.reactants
     // Count non-leaf reactants (reactants that themselves have synthesis steps)
-    const nonLeafReactants = reactants.filter((r) => r.synthesis_step !== null)
+    const nonLeafReactants = reactants.filter((r) => getSynthesisStep(r) !== null)
     if (nonLeafReactants.length >= 2) return true
     return reactants.some(isRouteConvergent)
+}
+
+function getSynthesisStep(molecule: PythonMolecule): PythonReactionStep | null {
+    return molecule.product_of ?? null
+}
+
+function getAnnotations(value: { annotations?: Record<string, unknown> }): Record<string, unknown> {
+    return value.annotations ?? {}
+}
+
+function normalizeMoleculeForRetrocast(molecule: PythonMolecule): RetrocastMolecule {
+    const step = getSynthesisStep(molecule)
+    return {
+        smiles: molecule.smiles,
+        inchikey: molecule.inchikey,
+        ...(step ? { product_of: normalizeReactionForRetrocast(step) } : {}),
+        annotations: getAnnotations(molecule),
+    }
+}
+
+function normalizeReactionForRetrocast(step: PythonReactionStep): RetrocastReaction {
+    return {
+        reactants: step.reactants.map(normalizeMoleculeForRetrocast),
+        mapped_reaction_smiles: step.mapped_reaction_smiles ?? null,
+        template: step.template ?? null,
+        reagents: step.reagents ?? null,
+        solvents: step.solvents ?? null,
+        annotations: getAnnotations(step),
+    }
+}
+
+function normalizeRouteForRetrocast(route: PythonRoute): RetrocastRoute {
+    return {
+        target: normalizeMoleculeForRetrocast(route.target),
+        annotations: getAnnotations(route),
+        schema_version: '2',
+    }
 }
 
 /**
@@ -115,76 +146,93 @@ function computeReactionHash(step: PythonReactionStep, productInchikey: string):
     return crypto.createHash('sha256').update(content).digest('hex')
 }
 
-/**
- * Transforms Python snake_case statistics JSON to TypeScript camelCase.
- * Converts field names to match TypeScript ModelStatistics interface.
- *
- * @param pythonStats - Raw Python statistics object with snake_case keys
- * @returns ModelStatistics object with camelCase keys
- */
-export function transformPythonStatistics(pythonStats: PythonModelStatistics): ModelStatistics {
-    // Helper to transform a single metric result
-    const transformMetricResult = (pythonResult: PythonMetricResult): MetricResult => ({
-        value: pythonResult.value,
-        ciLower: pythonResult.ci_lower,
-        ciUpper: pythonResult.ci_upper,
-        nSamples: pythonResult.n_samples,
+function routeMetadata(route: PythonRoute): Record<string, unknown> | undefined {
+    const metadata = getAnnotations(route)
+    return Object.keys(metadata).length > 0 ? metadata : undefined
+}
+
+function metricResultFromAnalysisMetric(metric: RetrocastAnalysisMetric): MetricResult {
+    return {
+        value: metric.value,
+        ciLower: metric.ci_low ?? metric.value,
+        ciUpper: metric.ci_high ?? metric.value,
+        nSamples: metric.count,
         reliability: {
-            code: pythonResult.reliability.code as ReliabilityFlag['code'],
-            message: pythonResult.reliability.message,
+            code: (metric.reliability?.code ?? 'OK') as ReliabilityFlag['code'],
+            message: metric.reliability?.message ?? 'Reliable.',
         },
-    })
+    }
+}
 
-    // Helper to transform a stratified metric
-    const transformStratifiedMetric = (pythonMetric: PythonStratifiedMetric): StratifiedMetric => ({
-        metricName: pythonMetric.metric_name,
-        overall: transformMetricResult(pythonMetric.overall),
-        byGroup: Object.fromEntries(
-            Object.entries(pythonMetric.by_group || {}).map(([key, value]: [string, PythonMetricResult]) => [
-                parseInt(key, 10),
-                transformMetricResult(value),
-            ])
-        ),
-    })
+function metricKeyForSolvability(metrics: Record<string, RetrocastAnalysisMetric>): string {
+    const solvabilityKey = Object.keys(metrics).find((key) => /^solv_0\[.+\]_rate$/.test(key))
+    if (!solvabilityKey) {
+        throw new Error('RetroCast analysis is missing a solv_0[...]_rate metric')
+    }
+    return solvabilityKey
+}
 
-    // Transform the full statistics object
-    const result: ModelStatistics = {
-        solvability: transformStratifiedMetric(pythonStats.solvability),
-    }
+function topKFromMetricName(metricName: string): string | null {
+    const match = metricName.match(/^acceptable_reconstruction_top_(\d+)\[.+\]$/)
+    return match?.[1] ?? null
+}
 
-    // Transform top_k_accuracy if present
-    if (pythonStats.top_k_accuracy) {
-        result.topKAccuracy = Object.fromEntries(
-            Object.entries(pythonStats.top_k_accuracy).map(([k, metric]: [string, PythonStratifiedMetric]) => [
-                k,
-                transformStratifiedMetric(metric),
-            ])
-        )
-    }
+function stratumGroupKey(stratum: string): number | null {
+    const match = stratum.match(/\d+/)
+    return match ? parseInt(match[0], 10) : null
+}
 
-    // Transform optional fields if present
-    if (pythonStats.rank_distribution) {
-        result.rankDistribution = pythonStats.rank_distribution
-    }
-    if (pythonStats.expected_rank !== undefined) {
-        result.expectedRank = pythonStats.expected_rank
-    }
+/**
+ * Converts RetroCast v0.7 analysis.json.gz payloads into SynthArena's metric DTO.
+ */
+export function transformRetrocastAnalysis(analysis: RetrocastAnalysis): ModelStatistics {
+    const solvabilityKey = metricKeyForSolvability(analysis.metrics)
+    const solvabilityByGroup: Record<number, MetricResult> = {}
+    const topKAccuracy: Record<string, StratifiedMetric> = {}
 
-    // Transform runtime metrics (in seconds)
-    if (pythonStats.total_wall_time !== undefined && pythonStats.total_wall_time !== null) {
-        result.totalWallTime = pythonStats.total_wall_time
-    }
-    if (pythonStats.total_cpu_time !== undefined && pythonStats.total_cpu_time !== null) {
-        result.totalCpuTime = pythonStats.total_cpu_time
-    }
-    if (pythonStats.mean_wall_time !== undefined && pythonStats.mean_wall_time !== null) {
-        result.meanWallTime = pythonStats.mean_wall_time
-    }
-    if (pythonStats.mean_cpu_time !== undefined && pythonStats.mean_cpu_time !== null) {
-        result.meanCpuTime = pythonStats.mean_cpu_time
+    for (const [stratum, metrics] of Object.entries(analysis.by_stratum ?? {})) {
+        const groupKey = stratumGroupKey(stratum)
+        if (groupKey === null) continue
+
+        const solvabilityMetric = metrics[solvabilityKey]
+        if (solvabilityMetric) {
+            solvabilityByGroup[groupKey] = metricResultFromAnalysisMetric(solvabilityMetric)
+        }
+
+        for (const [metricName, metric] of Object.entries(metrics)) {
+            const topK = topKFromMetricName(metricName)
+            if (!topK) continue
+            topKAccuracy[topK] ??= {
+                metricName: `Top-${topK}`,
+                overall: metricResultFromAnalysisMetric(analysis.metrics[metricName] ?? metric),
+                byGroup: {},
+            }
+            topKAccuracy[topK].byGroup[groupKey] = metricResultFromAnalysisMetric(metric)
+        }
     }
 
-    return result
+    for (const [metricName, metric] of Object.entries(analysis.metrics)) {
+        const topK = topKFromMetricName(metricName)
+        if (!topK) continue
+        topKAccuracy[topK] ??= {
+            metricName: `Top-${topK}`,
+            overall: metricResultFromAnalysisMetric(metric),
+            byGroup: {},
+        }
+    }
+
+    return {
+        solvability: {
+            metricName: 'Solvability',
+            overall: metricResultFromAnalysisMetric(analysis.metrics[solvabilityKey]),
+            byGroup: solvabilityByGroup,
+        },
+        ...(Object.keys(topKAccuracy).length > 0 && { topKAccuracy }),
+        totalWallTime: analysis.runtime?.total_wall_time,
+        totalCpuTime: analysis.runtime?.total_cpu_time,
+        meanWallTime: analysis.runtime?.mean_wall_time,
+        meanCpuTime: analysis.runtime?.mean_cpu_time,
+    }
 }
 
 // ============================================================================
@@ -331,22 +379,24 @@ function collectRouteTreeData(
     const tempId = `temp-${tempIdCounter.value++}`
 
     // Determine if this is a leaf node
-    const isLeaf = !pythonMol.synthesis_step || pythonMol.is_leaf === true
+    const step = getSynthesisStep(pythonMol)
+    const isLeaf = !step || pythonMol.is_leaf === true
 
     // Compute reaction hash if not a leaf (uses InChIKeys for canonical identity)
     let reactionHash: string | null = null
-    if (pythonMol.synthesis_step) {
-        reactionHash = computeReactionHash(pythonMol.synthesis_step, pythonMol.inchikey)
+    if (step) {
+        reactionHash = computeReactionHash(step, pythonMol.inchikey)
     }
 
-    // Prepare node metadata (reagents, solvents, mapped_smiles)
+    // Prepare node metadata (reagents, solvents, mapped_reaction_smiles)
     let metadata: string | null = null
-    if (pythonMol.synthesis_step) {
+    if (step) {
         const metadataObj: Record<string, unknown> = {}
-        if (pythonMol.synthesis_step.reagents) metadataObj.reagents = pythonMol.synthesis_step.reagents
-        if (pythonMol.synthesis_step.solvents) metadataObj.solvents = pythonMol.synthesis_step.solvents
-        if (pythonMol.synthesis_step.mapped_smiles) metadataObj.mapped_smiles = pythonMol.synthesis_step.mapped_smiles
-        if (pythonMol.synthesis_step.metadata) metadataObj.python_metadata = pythonMol.synthesis_step.metadata
+        if (step.reagents) metadataObj.reagents = step.reagents
+        if (step.solvents) metadataObj.solvents = step.solvents
+        if (step.mapped_reaction_smiles) metadataObj.mapped_reaction_smiles = step.mapped_reaction_smiles
+        const stepAnnotations = getAnnotations(step)
+        if (Object.keys(stepAnnotations).length > 0) metadataObj.annotations = stepAnnotations
         if (Object.keys(metadataObj).length > 0) {
             metadata = JSON.stringify(metadataObj)
         }
@@ -360,14 +410,14 @@ function collectRouteTreeData(
         parentTempId,
         isLeaf,
         reactionHash,
-        template: pythonMol.synthesis_step?.template ?? null,
+        template: step?.template ?? null,
         metadata,
     }
     nodes.push(node)
 
     // Recursively process reactants
-    if (pythonMol.synthesis_step?.reactants) {
-        for (const reactant of pythonMol.synthesis_step.reactants) {
+    if (step?.reactants) {
+        for (const reactant of step.reactants) {
             collectRouteTreeData(reactant, routeId, tempId, molecules, nodes, tempIdCounter)
         }
     }
@@ -523,9 +573,10 @@ export async function createRouteFromPython(
 
     // Read route properties from Python JSON.
     // SynthArena treats route identity as topology-only and deduplicates by signature.
-    const signature = pythonRoute.signature
-    const length = computeRouteLength(pythonRoute.target)
-    const isConvergent = isRouteConvergent(pythonRoute.target)
+    const routeProjection = projectRetrocastRoute(normalizeRouteForRetrocast(pythonRoute))
+    const signature = routeProjection.route.signature
+    const length = routeProjection.route.length
+    const isConvergent = routeProjection.route.hasConvergentReaction
 
     // Wrap the entire create-or-reuse + prediction creation in a single transaction.
     // This eliminates two race conditions present in the original code:
@@ -589,7 +640,7 @@ export async function createRouteFromPython(
         }
 
         // Step 4: Create PredictionRoute junction record.
-        const metadata = pythonRoute.metadata ? JSON.stringify(pythonRoute.metadata) : null
+        const metadata = routeMetadata(pythonRoute)
 
         const predictionRoute = await tx.predictionRoute.create({
             data: {
@@ -597,7 +648,7 @@ export async function createRouteFromPython(
                 predictionRunId,
                 targetId,
                 rank: pythonRoute.rank,
-                metadata,
+                metadata: metadata ? JSON.stringify(metadata) : null,
             },
             select: { id: true },
         })

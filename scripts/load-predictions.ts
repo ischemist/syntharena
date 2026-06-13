@@ -51,8 +51,8 @@
  * The script will:
  *   1. Resolve or create Algorithm, ModelFamily, and ModelInstance.
  *   2. Create or update PredictionRun for benchmark+instance combination.
- *   3. Load routes from 3-processed.
- *   4. If --stock specified, load evaluations from 4-scored and statistics from 5-results.
+ *   3. Load candidates from 3-processed.
+ *   4. If --stock specified, load evaluations from 4-scored and analysis from 5-results.
  *   5. Update aggregate statistics on PredictionRun and report summary.
  */
 import * as fs from 'fs'
@@ -67,10 +67,10 @@ import {
     createOrUpdatePredictionRun,
     createRouteFromPython,
     createRouteSolvability,
-    transformPythonStatistics,
+    transformRetrocastAnalysis,
     updatePredictionRunCost,
     updatePredictionRunStats,
-    type PythonModelStatistics,
+    type RetrocastAnalysis,
     type PythonRoute,
 } from '../src/lib/services/loaders/prediction-loader.service'
 
@@ -78,30 +78,32 @@ import {
 // Types for File Formats
 // ============================================================================
 
-interface RoutesFile {
-    [targetId: string]: PythonRoute[]
+interface CandidatesFile {
+    [targetId: string]: Array<{
+        rank: number
+        route?: (Omit<PythonRoute, 'rank'> & { rank?: number }) | null
+        failure?: unknown
+    }>
 }
 
-interface EvaluationFile {
-    model_name: string
-    benchmark_name: string
-    stock_name: string
-    has_acceptable_routes: boolean
-    results: {
+interface RetrocastEvaluationArtifact {
+    targets: {
         [targetId: string]: {
-            target_id: string
-            routes: Array<{
+            target: {
+                acceptable_routes?: Array<Omit<PythonRoute, 'rank'> & { rank?: number }>
+            }
+            candidates: Array<{
                 rank: number
-                is_solved: boolean
-                matches_acceptable: boolean
-                matched_acceptable_index: number | null
+                route?: (Omit<PythonRoute, 'rank'> & { rank?: number }) | null
+                validity?: {
+                    tiers?: Record<string, { status?: string }>
+                }
+                constraints?: {
+                    status?: string
+                }
+                matches_acceptable?: boolean
+                matched_acceptable_index?: number | null
             }>
-            is_solvable: boolean
-            acceptable_rank: number | null
-            // Stratification fields (renamed in Python TargetEvaluation)
-            stratification_length: number | null
-            stratification_is_convergent: boolean | null
-            // Runtime metrics (in seconds)
             wall_time: number | null
             cpu_time: number | null
         }
@@ -248,6 +250,20 @@ function fileExists(filePath: string): boolean {
     }
 }
 
+function routeFromCandidate(candidate: CandidatesFile[string][number]): PythonRoute | null {
+    if (!candidate.route) return null
+    return {
+        ...candidate.route,
+        rank: candidate.rank,
+    }
+}
+
+function candidateIsSolved(candidate: RetrocastEvaluationArtifact['targets'][string]['candidates'][number]): boolean {
+    const constraintsPass = candidate.constraints?.status === 'pass'
+    const tierZeroStatus = candidate.validity?.tiers?.['0']?.status
+    return constraintsPass && (tierZeroStatus === undefined || tierZeroStatus === 'pass')
+}
+
 // ============================================================================
 // Main Loading Logic
 // ============================================================================
@@ -380,8 +396,8 @@ async function main() {
         console.log('')
 
         // --- Step 2: File Paths & Run Creation ---
-        const routesFile = path.join(dataDir, '3-processed', benchmark.name, modelPathName, 'routes.json.gz')
-        if (!fileExists(routesFile)) throw new Error(`routes file not found: ${routesFile}`)
+        const candidatesFile = path.join(dataDir, '3-processed', benchmark.name, modelPathName, 'candidates.json.gz')
+        if (!fileExists(candidatesFile)) throw new Error(`candidates file not found: ${candidatesFile}`)
 
         const manifestFile = path.join(dataDir, '3-processed', benchmark.name, modelPathName, 'manifest.json')
         const manifest = fileExists(manifestFile)
@@ -396,11 +412,11 @@ async function main() {
         console.log(`prediction run upserted: ${predictionRun.id}`)
         console.log('')
 
-        // --- Step 3: Load Routes ---
-        console.log(`loading routes from ${routesFile}...`)
-        const routesData = await readGzipJson<RoutesFile>(routesFile)
+        // --- Step 3: Load Candidates ---
+        console.log(`loading candidates from ${candidatesFile}...`)
+        const candidatesData = await readGzipJson<CandidatesFile>(candidatesFile)
         let routesCreated = 0
-        const targetIdsInFile = Object.keys(routesData)
+        const targetIdsInFile = Object.keys(candidatesData)
 
         for (const [i, externalTargetId] of targetIdsInFile.entries()) {
             if (i % 20 === 0) console.log(`  target ${i + 1}/${targetIdsInFile.length}...`)
@@ -412,7 +428,10 @@ async function main() {
                 console.warn(`  skipping: target '${externalTargetId}' not found in benchmark '${benchmark.name}'`)
                 continue
             }
-            for (const pythonRoute of routesData[externalTargetId]) {
+            const routes = candidatesData[externalTargetId]
+                .map(routeFromCandidate)
+                .filter((route): route is PythonRoute => route !== null)
+            for (const pythonRoute of routes) {
                 await createRouteFromPython(pythonRoute, predictionRun.id, target.id)
                 routesCreated++
             }
@@ -434,27 +453,29 @@ async function main() {
                 stockPathName,
                 'evaluation.json.gz'
             )
-            const statisticsFile = path.join(
+            const analysisFile = path.join(
                 dataDir,
                 '5-results',
                 benchmark.name,
                 modelPathName,
                 stockPathName,
-                'statistics.json.gz'
+                'analysis.json.gz'
             )
 
             if (!fileExists(evaluationFile)) throw new Error(`evaluation file not found: ${evaluationFile}`)
-            if (!fileExists(statisticsFile)) throw new Error(`statistics file not found: ${statisticsFile}`)
+            if (!fileExists(analysisFile)) throw new Error(`analysis file not found: ${analysisFile}`)
 
             // Load Evaluations
             console.log(`loading evaluations for stock '${stock.name}'...`)
-            const evaluationData = await readGzipJson<EvaluationFile>(evaluationFile)
+            const evaluationData = await readGzipJson<RetrocastEvaluationArtifact>(evaluationFile)
             let solvabilityRecordsCreated = 0
-            for (const externalTargetId in evaluationData.results) {
-                const targetEval = evaluationData.results[externalTargetId]
+            for (const externalTargetId in evaluationData.targets) {
+                const targetEval = evaluationData.targets[externalTargetId]
                 const target = await prisma.benchmarkTarget.findUnique({
-                    where: { benchmarkSetId_targetId: { benchmarkSetId: benchmark.id, targetId: externalTargetId } },
-                    select: { id: true },
+                    where: {
+                        benchmarkSetId_targetId: { benchmarkSetId: benchmark.id, targetId: externalTargetId },
+                    },
+                    select: { id: true, routeLength: true, isConvergent: true },
                 })
                 if (!target) continue
 
@@ -464,17 +485,17 @@ async function main() {
                 })
                 const rankToIdMap = new Map(predictionRoutes.map((pr) => [pr.rank, pr.id]))
 
-                for (const routeEval of targetEval.routes) {
-                    const predictionRouteId = rankToIdMap.get(routeEval.rank)
+                for (const candidate of targetEval.candidates) {
+                    const predictionRouteId = rankToIdMap.get(candidate.rank)
                     if (!predictionRouteId) continue
                     await createRouteSolvability(
                         predictionRouteId,
                         stock.id,
-                        routeEval.is_solved,
-                        routeEval.matches_acceptable,
-                        routeEval.matched_acceptable_index,
-                        targetEval.stratification_length,
-                        targetEval.stratification_is_convergent,
+                        candidateIsSolved(candidate),
+                        candidate.matches_acceptable ?? false,
+                        candidate.matched_acceptable_index ?? null,
+                        target.routeLength,
+                        target.isConvergent,
                         targetEval.wall_time,
                         targetEval.cpu_time
                     )
@@ -484,12 +505,11 @@ async function main() {
             console.log(`  solvability records created: ${solvabilityRecordsCreated}`)
             console.log('')
 
-            // Load Statistics
-            console.log('loading statistics...')
-            const rawStats = await readGzipJson<PythonModelStatistics>(statisticsFile)
-            const transformedStats = transformPythonStatistics(rawStats)
+            // Load Analysis
+            console.log('loading analysis...')
+            const transformedStats = transformRetrocastAnalysis(await readGzipJson<RetrocastAnalysis>(analysisFile))
             await createModelStatistics(predictionRun.id, benchmark.id, stock.id, transformedStats)
-            console.log(`  statistics loaded.`)
+            console.log(`  analysis loaded.`)
             console.log('')
         }
 

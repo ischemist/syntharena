@@ -36,7 +36,6 @@ function makeBenchmarkTarget(
     acceptableRoutes: Array<{
         target: ReturnType<typeof makeLeafMolecule>
         rank: number
-        signature?: string
         length?: number
         has_convergent_reaction?: boolean
     }> = []
@@ -44,7 +43,7 @@ function makeBenchmarkTarget(
     return {
         id,
         smiles,
-        inchi_key: syntheticInchiKey(smiles),
+        inchikey: syntheticInchiKey(smiles),
         acceptable_routes: acceptableRoutes,
     }
 }
@@ -96,12 +95,11 @@ describe('loadBenchmarkFromFile', () => {
                 't-001': {
                     id: 't-001',
                     smiles: route.target.smiles,
-                    inchi_key: syntheticInchiKey(route.target.smiles),
+                    inchikey: syntheticInchiKey(route.target.smiles),
                     acceptable_routes: [
                         {
                             target: route.target,
                             rank: 1,
-                            signature: route.signature,
                             length: 2,
                             has_convergent_reaction: false,
                         },
@@ -119,7 +117,7 @@ describe('loadBenchmarkFromFile', () => {
         // Verify Route in DB
         const routes = await prisma.route.findMany()
         expect(routes).toHaveLength(1)
-        expect(routes[0].signature).toBe(route.signature)
+        expect(routes[0].signature).toBeTruthy()
         expect(routes[0].length).toBe(2)
         expect(routes[0].isConvergent).toBe(false)
 
@@ -153,12 +151,11 @@ describe('loadBenchmarkFromFile', () => {
                 't-001': {
                     id: 't-001',
                     smiles: target1Smiles,
-                    inchi_key: syntheticInchiKey(target1Smiles),
+                    inchikey: syntheticInchiKey(target1Smiles),
                     acceptable_routes: [
                         {
                             target: route.target,
                             rank: 1,
-                            signature: route.signature,
                             length: 1,
                             has_convergent_reaction: false,
                         },
@@ -167,12 +164,11 @@ describe('loadBenchmarkFromFile', () => {
                 't-002': {
                     id: 't-002',
                     smiles: target2Smiles,
-                    inchi_key: syntheticInchiKey(target2Smiles),
+                    inchikey: syntheticInchiKey(target2Smiles),
                     acceptable_routes: [
                         {
                             target: route.target,
                             rank: 1,
-                            signature: route.signature,
                             length: 1,
                             has_convergent_reaction: false,
                         },
@@ -197,7 +193,7 @@ describe('loadBenchmarkFromFile', () => {
         expect(acceptableRoutes).toHaveLength(2)
     })
 
-    it('throws when acceptable route is missing signature', async () => {
+    it('computes route signatures from v0.7 route payloads', async () => {
         const stock = await createStock({ name: 'bench-stock-missing-hash' })
         const benchmark = await createBenchmarkSet({ stockId: stock.id, name: 'bench-missing' })
 
@@ -209,12 +205,12 @@ describe('loadBenchmarkFromFile', () => {
                 't-001': {
                     id: 't-001',
                     smiles: route.target.smiles,
-                    inchi_key: syntheticInchiKey(route.target.smiles),
+                    inchikey: syntheticInchiKey(route.target.smiles),
                     acceptable_routes: [
                         {
                             target: route.target,
                             rank: 1,
-                            // Missing signature!
+                            // Signature is computed from the route tree.
                         },
                     ],
                 },
@@ -222,9 +218,11 @@ describe('loadBenchmarkFromFile', () => {
         }
         const filePath = createTestBenchmarkGzFile(data)
 
-        await expect(loadBenchmarkFromFile(filePath, benchmark.id, 'bench-missing')).rejects.toThrow(
-            'Cannot ensure deduplication'
-        )
+        const result = await loadBenchmarkFromFile(filePath, benchmark.id, 'bench-missing')
+
+        expect(result.routesCreated).toBe(1)
+        const routeCount = await prisma.route.count()
+        expect(routeCount).toBe(1)
     })
 
     it('uses file data for route length and isConvergent when present', async () => {
@@ -239,12 +237,11 @@ describe('loadBenchmarkFromFile', () => {
                 't-001': {
                     id: 't-001',
                     smiles: route.target.smiles,
-                    inchi_key: syntheticInchiKey(route.target.smiles),
+                    inchikey: syntheticInchiKey(route.target.smiles),
                     acceptable_routes: [
                         {
                             target: route.target,
                             rank: 1,
-                            signature: route.signature,
                             length: 3,
                             has_convergent_reaction: false,
                         },
@@ -256,7 +253,7 @@ describe('loadBenchmarkFromFile', () => {
 
         await loadBenchmarkFromFile(filePath, benchmark.id, 'bench-props')
 
-        const dbRoute = await prisma.route.findUnique({ where: { signature: route.signature } })
+        const dbRoute = await prisma.route.findFirst()
         expect(dbRoute!.length).toBe(3)
         expect(dbRoute!.isConvergent).toBe(false)
     })
@@ -273,12 +270,11 @@ describe('loadBenchmarkFromFile', () => {
                 't-001': {
                     id: 't-001',
                     smiles: route.target.smiles,
-                    inchi_key: syntheticInchiKey(route.target.smiles),
+                    inchikey: syntheticInchiKey(route.target.smiles),
                     acceptable_routes: [
                         {
                             target: route.target,
                             rank: 1,
-                            signature: route.signature,
                             // No length or has_convergent_reaction — must be computed
                         },
                     ],
@@ -289,7 +285,7 @@ describe('loadBenchmarkFromFile', () => {
 
         await loadBenchmarkFromFile(filePath, benchmark.id, 'bench-compute')
 
-        const dbRoute = await prisma.route.findUnique({ where: { signature: route.signature } })
+        const dbRoute = await prisma.route.findFirst()
         expect(dbRoute!.length).toBe(2)
         expect(dbRoute!.isConvergent).toBe(true)
     })
@@ -314,12 +310,11 @@ describe('loadBenchmarkFromFile', () => {
                 't-001': {
                     id: 't-001',
                     smiles: route.target.smiles,
-                    inchi_key: syntheticInchiKey(route.target.smiles),
+                    inchikey: syntheticInchiKey(route.target.smiles),
                     acceptable_routes: [
                         {
                             target: route.target,
                             rank: 1,
-                            signature: route.signature,
                             length: 1,
                             has_convergent_reaction: false,
                         },
@@ -355,12 +350,11 @@ describe('loadBenchmarkFromFile', () => {
                 't-001': {
                     id: 't-001',
                     smiles: route.target.smiles,
-                    inchi_key: syntheticInchiKey(route.target.smiles),
+                    inchikey: syntheticInchiKey(route.target.smiles),
                     acceptable_routes: [
                         {
                             target: route.target,
                             rank: 1,
-                            signature: route.signature,
                             length: 2,
                             has_convergent_reaction: false,
                         },
@@ -413,12 +407,11 @@ describe('loadBenchmarkFromFile', () => {
                 't-001': {
                     id: 't-001',
                     smiles: route.target.smiles,
-                    inchi_key: syntheticInchiKey(route.target.smiles),
+                    inchikey: syntheticInchiKey(route.target.smiles),
                     acceptable_routes: [
                         {
                             target: route.target,
                             rank: 1,
-                            signature: route.signature,
                             length: 2,
                             has_convergent_reaction: true,
                         },
@@ -450,19 +443,17 @@ describe('loadBenchmarkFromFile', () => {
                 't-001': {
                     id: 't-001',
                     smiles: carbonChainSmiles(10),
-                    inchi_key: syntheticInchiKey(carbonChainSmiles(10)),
+                    inchikey: syntheticInchiKey(carbonChainSmiles(10)),
                     acceptable_routes: [
                         {
                             target: route1.target,
                             rank: 1,
-                            signature: route1.signature,
                             length: 1,
                             has_convergent_reaction: false,
                         },
                         {
                             target: route2.target,
                             rank: 2,
-                            signature: route2.signature,
                             length: 3,
                             has_convergent_reaction: false,
                         },
@@ -508,12 +499,11 @@ describe('loadBenchmarkFromFile', () => {
                 't-a': {
                     id: 't-a',
                     smiles: carbonChainSmiles(10),
-                    inchi_key: syntheticInchiKey(carbonChainSmiles(10)),
+                    inchikey: syntheticInchiKey(carbonChainSmiles(10)),
                     acceptable_routes: [
                         {
                             target: route.target,
                             rank: 1,
-                            signature: route.signature,
                             length: 1,
                             has_convergent_reaction: false,
                         },
@@ -528,7 +518,7 @@ describe('loadBenchmarkFromFile', () => {
         const bench1Updated = await prisma.benchmarkSet.findUnique({ where: { id: benchmark1.id } })
         expect(bench1Updated!.hasAcceptableRoutes).toBe(true)
 
-        // Second benchmark: uses the SAME route signature — routesCreated will be 0 (reused)
+        // Second benchmark: uses the same route tree — routesCreated will be 0 (reused)
         // but hasAcceptableRoutes must still be set to true.
         const benchmark2 = await createBenchmarkSet({ stockId: stock.id, name: 'bench-reuse-flag-2' })
         const data2 = {
@@ -537,12 +527,11 @@ describe('loadBenchmarkFromFile', () => {
                 't-b': {
                     id: 't-b',
                     smiles: carbonChainSmiles(11),
-                    inchi_key: syntheticInchiKey(carbonChainSmiles(11)),
+                    inchikey: syntheticInchiKey(carbonChainSmiles(11)),
                     acceptable_routes: [
                         {
                             target: route.target, // same route tree as above
                             rank: 1,
-                            signature: route.signature, // same signature → route will be reused
                             length: 1,
                             has_convergent_reaction: false,
                         },

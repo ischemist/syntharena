@@ -1,6 +1,8 @@
 import crypto from 'crypto'
 import * as fs from 'fs'
 import * as zlib from 'zlib'
+import { projectRetrocastRoute } from '@ischemist/routes'
+import type { RetrocastMolecule, RetrocastReaction, RetrocastRoute } from '@ischemist/routes'
 import { Prisma } from '@prisma/client'
 
 import type { LoadBenchmarkResult } from '@/types'
@@ -14,36 +16,36 @@ import { upsertReactionSteps } from '@/lib/services/loaders/reaction-step.helper
 interface PythonMolecule {
     smiles: string
     inchikey: string
-    synthesis_step: PythonReactionStep | null
-    metadata?: Record<string, unknown>
+    product_of?: PythonReactionStep | null
+    annotations?: Record<string, unknown>
     is_leaf?: boolean
 }
 
 interface PythonReactionStep {
     reactants: PythonMolecule[]
-    mapped_smiles?: string | null
+    mapped_reaction_smiles?: string | null
     template?: string | null
     reagents?: string[] | null
     solvents?: string[] | null
-    metadata?: Record<string, unknown>
+    annotations?: Record<string, unknown>
     is_convergent?: boolean
 }
 
 interface PythonRoute {
     target: PythonMolecule
-    rank: number
-    signature?: string
+    rank?: number
     length?: number
     has_convergent_reaction?: boolean
     solvability?: Record<string, boolean>
-    metadata?: Record<string, unknown>
+    annotations?: Record<string, unknown>
+    schema_version?: string
 }
 
 interface PythonBenchmarkTarget {
     id: string
     smiles: string
-    inchi_key: string // NOW REQUIRED: included directly in target (from Python model update)
-    metadata?: Record<string, unknown>
+    inchikey: string
+    annotations?: Record<string, unknown>
     acceptable_routes: PythonRoute[] // Array of acceptable routes (empty = pure prediction task)
 }
 
@@ -102,6 +104,47 @@ function computeReactionHash(step: PythonReactionStep, productInchikey: string):
     return crypto.createHash('sha256').update(content).digest('hex')
 }
 
+function getSynthesisStep(molecule: PythonMolecule): PythonReactionStep | null {
+    return molecule.product_of ?? null
+}
+
+function getAnnotations(value: { annotations?: Record<string, unknown> }): Record<string, unknown> {
+    return value.annotations ?? {}
+}
+
+function normalizeMoleculeForRetrocast(molecule: PythonMolecule): RetrocastMolecule {
+    const step = getSynthesisStep(molecule)
+    return {
+        smiles: molecule.smiles,
+        inchikey: molecule.inchikey,
+        ...(step ? { product_of: normalizeReactionForRetrocast(step) } : {}),
+        annotations: getAnnotations(molecule),
+    }
+}
+
+function normalizeReactionForRetrocast(step: PythonReactionStep): RetrocastReaction {
+    return {
+        reactants: step.reactants.map(normalizeMoleculeForRetrocast),
+        mapped_reaction_smiles: step.mapped_reaction_smiles ?? null,
+        template: step.template ?? null,
+        reagents: step.reagents ?? null,
+        solvents: step.solvents ?? null,
+        annotations: getAnnotations(step),
+    }
+}
+
+function normalizeRouteForRetrocast(route: PythonRoute): RetrocastRoute {
+    return {
+        target: normalizeMoleculeForRetrocast(route.target),
+        annotations: getAnnotations(route),
+        schema_version: '2',
+    }
+}
+
+function routeProjection(route: PythonRoute) {
+    return projectRetrocastRoute(normalizeRouteForRetrocast(route))
+}
+
 /**
  * Internal structure for building route nodes in memory before bulk insert.
  * Reaction data (reactionHash, template, metadata) is stored temporarily here
@@ -149,20 +192,20 @@ function collectRouteTreeData(
     const tempId = `temp-${tempIdCounter.value++}`
 
     // Create node data
-    const isLeaf = !molecule.synthesis_step
-    const reactionHash = molecule.synthesis_step
-        ? computeReactionHash(molecule.synthesis_step, molecule.inchikey)
-        : null
+    const step = getSynthesisStep(molecule)
+    const isLeaf = !step || molecule.is_leaf === true
+    const reactionHash = step ? computeReactionHash(step, molecule.inchikey) : null
 
-    // Prepare node metadata (reagents, solvents, mapped_smiles)
+    // Prepare node metadata (reagents, solvents, mapped_reaction_smiles)
     // Aligned with prediction-loader to ensure consistent ReactionStep.metadata format
     let metadata: string | null = null
-    if (molecule.synthesis_step) {
+    if (step) {
         const metadataObj: Record<string, unknown> = {}
-        if (molecule.synthesis_step.reagents) metadataObj.reagents = molecule.synthesis_step.reagents
-        if (molecule.synthesis_step.solvents) metadataObj.solvents = molecule.synthesis_step.solvents
-        if (molecule.synthesis_step.mapped_smiles) metadataObj.mapped_smiles = molecule.synthesis_step.mapped_smiles
-        if (molecule.synthesis_step.metadata) metadataObj.python_metadata = molecule.synthesis_step.metadata
+        if (step.reagents) metadataObj.reagents = step.reagents
+        if (step.solvents) metadataObj.solvents = step.solvents
+        if (step.mapped_reaction_smiles) metadataObj.mapped_reaction_smiles = step.mapped_reaction_smiles
+        const stepAnnotations = getAnnotations(step)
+        if (Object.keys(stepAnnotations).length > 0) metadataObj.annotations = stepAnnotations
         if (Object.keys(metadataObj).length > 0) {
             metadata = JSON.stringify(metadataObj)
         }
@@ -175,15 +218,15 @@ function collectRouteTreeData(
         parentTempId,
         isLeaf,
         reactionHash,
-        template: molecule.synthesis_step?.template || null,
+        template: step?.template || null,
         metadata,
         smiles: molecule.smiles,
     }
     nodes.push(node)
 
     // Recursively process reactants
-    if (molecule.synthesis_step?.reactants) {
-        for (const reactant of molecule.synthesis_step.reactants) {
+    if (step?.reactants) {
+        for (const reactant of step.reactants) {
             collectRouteTreeData(reactant, routeId, tempId, molecules, nodes, tempIdCounter)
         }
     }
@@ -300,102 +343,6 @@ async function storeRouteTree(
 }
 
 /**
- * Internal structure for in-memory route node representation.
- */
-interface InMemoryRouteNode {
-    id: string
-    isLeaf: boolean
-    childIds: string[]
-}
-
-/**
- * Computes route length and convergence in-memory using a single database query.
- * Fetches all nodes at once and performs graph traversal in memory.
- *
- * @param routeId - The route ID
- * @param tx - Transaction client
- * @returns Object with length and isConvergent properties
- */
-async function computeRouteProperties(
-    routeId: string,
-    tx: Prisma.TransactionClient
-): Promise<{ length: number; isConvergent: boolean }> {
-    // Fetch all nodes for this route in a single query
-    const nodes = await tx.routeNode.findMany({
-        where: { routeId },
-        select: {
-            id: true,
-            parentId: true,
-            isLeaf: true,
-        },
-    })
-
-    if (nodes.length === 0) {
-        return { length: 0, isConvergent: false }
-    }
-
-    // Build in-memory graph structure
-    const nodeMap = new Map<string, InMemoryRouteNode>()
-    let rootId: string | null = null
-
-    for (const node of nodes) {
-        nodeMap.set(node.id, {
-            id: node.id,
-            isLeaf: node.isLeaf,
-            childIds: [],
-        })
-
-        if (node.parentId === null) {
-            rootId = node.id
-        }
-    }
-
-    // Build parent-child relationships
-    for (const node of nodes) {
-        if (node.parentId) {
-            const parent = nodeMap.get(node.parentId)
-            if (parent) {
-                parent.childIds.push(node.id)
-            }
-        }
-    }
-
-    if (!rootId) {
-        return { length: 0, isConvergent: false }
-    }
-
-    // Compute length using in-memory DFS
-    function getDepth(nodeId: string): number {
-        const node = nodeMap.get(nodeId)
-        if (!node || node.childIds.length === 0) {
-            return 0
-        }
-
-        const childDepths = node.childIds.map((childId) => getDepth(childId))
-        return 1 + Math.max(...childDepths)
-    }
-
-    const length = getDepth(rootId)
-
-    // Compute convergence in-memory
-    let isConvergent = false
-    for (const node of nodeMap.values()) {
-        // Count non-leaf children
-        const nonLeafChildren = node.childIds.filter((childId) => {
-            const child = nodeMap.get(childId)
-            return child && !child.isLeaf
-        })
-
-        if (nonLeafChildren.length >= 2) {
-            isConvergent = true
-            break
-        }
-    }
-
-    return { length, isConvergent }
-}
-
-/**
  * Loads a benchmark from a JSON.gz file.
  * Parses targets, creates molecules, benchmark targets, and routes.
  *
@@ -443,7 +390,7 @@ export async function loadBenchmarkFromFile(
                 const targetData = benchmarkData.targets[externalId]
 
                 // Get or create target molecule
-                const targetInchikey = targetData.inchi_key
+                const targetInchikey = targetData.inchikey
 
                 if (!targetInchikey) {
                     throw new Error(`Target ${externalId} is missing inchikey`)
@@ -473,8 +420,9 @@ export async function loadBenchmarkFromFile(
                 const acceptableRoutes = targetData.acceptable_routes
                 if (acceptableRoutes && acceptableRoutes.length > 0) {
                     const primaryRoute = acceptableRoutes[0]
-                    routeLength = primaryRoute.length ?? null
-                    isConvergent = primaryRoute.has_convergent_reaction ?? null
+                    const primaryProjection = routeProjection(primaryRoute)
+                    routeLength = primaryRoute.length ?? primaryProjection.route.length
+                    isConvergent = primaryRoute.has_convergent_reaction ?? primaryProjection.route.hasConvergentReaction
                 }
 
                 // Create benchmark target
@@ -485,7 +433,10 @@ export async function loadBenchmarkFromFile(
                         moleculeId: targetMol.id,
                         routeLength,
                         isConvergent,
-                        metadata: targetData.metadata ? JSON.stringify(targetData.metadata) : null,
+                        metadata:
+                            Object.keys(getAnnotations(targetData)).length > 0
+                                ? JSON.stringify(getAnnotations(targetData))
+                                : null,
                     },
                 })
 
@@ -495,14 +446,8 @@ export async function loadBenchmarkFromFile(
                         const routeData = targetData.acceptable_routes[routeIndex]
 
                         // Extract route properties from file
-                        const signature = routeData.signature || null
-
-                        // Enforce data quality: acceptable routes must have a signature for topology deduplication.
-                        if (!signature) {
-                            throw new Error(
-                                `Acceptable route at index ${routeIndex} for target ${externalId} is missing a route signature. Cannot ensure deduplication.`
-                            )
-                        }
+                        const projection = routeProjection(routeData)
+                        const signature = projection.route.signature
 
                         // Attempt to create route or reuse if exists (handles race conditions via unique constraints)
                         let routeId: string
@@ -530,10 +475,8 @@ export async function loadBenchmarkFromFile(
                                 routeLengthComputed = routeData.length
                                 routeIsConvergentComputed = routeData.has_convergent_reaction
                             } else {
-                                // Compute route properties (in-memory using single query)
-                                const computed = await computeRouteProperties(route.id, tx)
-                                routeLengthComputed = computed.length
-                                routeIsConvergentComputed = computed.isConvergent
+                                routeLengthComputed = projection.route.length
+                                routeIsConvergentComputed = projection.route.hasConvergentReaction
                             }
 
                             // Update route with final properties
