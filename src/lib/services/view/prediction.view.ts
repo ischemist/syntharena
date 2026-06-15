@@ -601,7 +601,7 @@ export async function getTargetDisplayData(
 
     const solvabilityRecord = prediction?.solvabilityStatus.find((s) => s.stockId === stockId)
     let currentPrediction: TargetDisplayData['currentPrediction'] = null
-    if (prediction && predictedVizNode && (prediction.route.length > 0 || solvabilityRecord?.isSolvable === true)) {
+    if (prediction && predictedVizNode) {
         currentPrediction = {
             predictionRoute: prediction,
             route: prediction.route,

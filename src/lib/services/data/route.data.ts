@@ -92,7 +92,11 @@ export const findFirstAcceptableMatchRank = cache(_findFirstAcceptableMatchRank,
 /** fetches a lightweight list of prediction summaries (rank, routeId) for a target in a run. */
 async function _findPredictionSummaries(targetId: string, runId: string) {
     return prisma.predictionRoute.findMany({
-        where: { targetId, predictionRunId: runId },
+        where: {
+            targetId,
+            predictionRunId: runId,
+            route: { length: { gt: 0 } },
+        },
         select: {
             rank: true,
             routeId: true,
@@ -106,13 +110,12 @@ export const findPredictionSummaries = cache(_findPredictionSummaries, ['predict
 
 /** fetches a single predicted route by rank, with its solvability status. */
 async function _findSinglePredictionForTarget(targetId: string, runId: string, rank: number, stockId?: string) {
-    return prisma.predictionRoute.findUnique({
+    return prisma.predictionRoute.findFirst({
         where: {
-            predictionRunId_targetId_rank: {
-                predictionRunId: runId,
-                targetId: targetId,
-                rank: rank,
-            },
+            predictionRunId: runId,
+            targetId: targetId,
+            rank: rank,
+            route: { length: { gt: 0 } },
         },
         include: {
             route: true, // we need the route metadata
