@@ -252,7 +252,7 @@ function fileExists(filePath: string): boolean {
 }
 
 function routeFromCandidate(candidate: CandidatesFile[string][number]): PythonRoute | null {
-    if (!candidate.route) return null
+    if (!candidate.route?.target) return null
     if (computeRouteLength(candidate.route.target) === 0) return null
     return {
         ...candidate.route,

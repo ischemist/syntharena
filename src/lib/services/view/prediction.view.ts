@@ -600,27 +600,23 @@ export async function getTargetDisplayData(
     )
 
     const solvabilityRecord = prediction?.solvabilityStatus.find((s) => s.stockId === stockId)
-    const shouldDisplayPrediction =
-        prediction && predictedVizNode && (prediction.route.length > 0 || solvabilityRecord?.isSolvable === true)
-    const currentPrediction =
-        shouldDisplayPrediction && prediction && predictedVizNode
-            ? (() => {
-                  return {
-                      predictionRoute: prediction,
-                      route: prediction.route,
-                      visualizationNode: predictedVizNode,
-                      // FIX: correctly map the record to the DTO shape
-                      solvability: solvabilityRecord
-                          ? {
-                                stockId: solvabilityRecord.stockId,
-                                stockName: solvabilityRecord.stock.name,
-                                isSolvable: solvabilityRecord.isSolvable,
-                                matchesAcceptable: solvabilityRecord.matchesAcceptable,
-                            }
-                          : undefined,
+    let currentPrediction: TargetDisplayData['currentPrediction'] = null
+    if (prediction && predictedVizNode && (prediction.route.length > 0 || solvabilityRecord?.isSolvable === true)) {
+        currentPrediction = {
+            predictionRoute: prediction,
+            route: prediction.route,
+            visualizationNode: predictedVizNode,
+            // FIX: correctly map the record to the DTO shape
+            solvability: solvabilityRecord
+                ? {
+                      stockId: solvabilityRecord.stockId,
+                      stockName: solvabilityRecord.stock.name,
+                      isSolvable: solvabilityRecord.isSolvable,
+                      matchesAcceptable: solvabilityRecord.matchesAcceptable,
                   }
-              })()
-            : null
+                : undefined,
+        }
+    }
 
     return {
         targetInfo: { ...targetInfo, hasNoPredictions: !hasPredictions },
