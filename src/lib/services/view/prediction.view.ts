@@ -599,10 +599,12 @@ export async function getTargetDisplayData(
         { availableRanks: predictionSummaries.map((s) => s.rank), totalAcceptableRoutes }
     )
 
+    const solvabilityRecord = prediction?.solvabilityStatus.find((s) => s.stockId === stockId)
+    const shouldDisplayPrediction =
+        prediction && predictedVizNode && (prediction.route.length > 0 || solvabilityRecord?.isSolvable === true)
     const currentPrediction =
-        prediction && predictedVizNode
+        shouldDisplayPrediction && prediction && predictedVizNode
             ? (() => {
-                  const solvabilityRecord = prediction.solvabilityStatus.find((s) => s.stockId === stockId)
                   return {
                       predictionRoute: prediction,
                       route: prediction.route,
