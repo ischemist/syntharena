@@ -599,26 +599,24 @@ export async function getTargetDisplayData(
         { availableRanks: predictionSummaries.map((s) => s.rank), totalAcceptableRoutes }
     )
 
-    const currentPrediction =
-        prediction && predictedVizNode
-            ? (() => {
-                  const solvabilityRecord = prediction.solvabilityStatus.find((s) => s.stockId === stockId)
-                  return {
-                      predictionRoute: prediction,
-                      route: prediction.route,
-                      visualizationNode: predictedVizNode,
-                      // FIX: correctly map the record to the DTO shape
-                      solvability: solvabilityRecord
-                          ? {
-                                stockId: solvabilityRecord.stockId,
-                                stockName: solvabilityRecord.stock.name,
-                                isSolvable: solvabilityRecord.isSolvable,
-                                matchesAcceptable: solvabilityRecord.matchesAcceptable,
-                            }
-                          : undefined,
+    const solvabilityRecord = prediction?.solvabilityStatus.find((s) => s.stockId === stockId)
+    let currentPrediction: TargetDisplayData['currentPrediction'] = null
+    if (prediction && predictedVizNode) {
+        currentPrediction = {
+            predictionRoute: prediction,
+            route: prediction.route,
+            visualizationNode: predictedVizNode,
+            // FIX: correctly map the record to the DTO shape
+            solvability: solvabilityRecord
+                ? {
+                      stockId: solvabilityRecord.stockId,
+                      stockName: solvabilityRecord.stock.name,
+                      isSolvable: solvabilityRecord.isSolvable,
+                      matchesAcceptable: solvabilityRecord.matchesAcceptable,
                   }
-              })()
-            : null
+                : undefined,
+        }
+    }
 
     return {
         targetInfo: { ...targetInfo, hasNoPredictions: !hasPredictions },

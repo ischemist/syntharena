@@ -12,7 +12,7 @@ interface RouteGraphProps {
     inStockInchiKeys: Set<string>
     buyableMetadataMap?: Map<string, BuyableMetadata>
     idPrefix?: string
-    preCalculatedNodes?: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number }>
+    preCalculatedNodes?: Array<{ id: string; smiles: string; inchikey: string; x: number; y: number; isLeaf?: boolean }>
     preCalculatedEdges?: Array<{ source: string; target: string }>
 }
 
@@ -26,10 +26,13 @@ export function RouteGraph({
 }: RouteGraphProps) {
     const { nodes, edges } = useMemo(() => {
         if (preCalculatedNodes && preCalculatedEdges) {
+            const parentNodeIds = new Set(preCalculatedEdges.map((edge) => edge.source))
+
             return {
                 nodes: preCalculatedNodes.map((node) => {
                     const inStock = inStockInchiKeys.has(node.inchikey)
                     const metadata = buyableMetadataMap?.get(node.inchikey)
+                    const isLeaf = node.isLeaf ?? !parentNodeIds.has(node.id)
 
                     return {
                         id: node.id,
@@ -40,6 +43,7 @@ export function RouteGraph({
                             inchikey: node.inchikey,
                             status: 'default',
                             inStock,
+                            isLeaf,
                             ppg: metadata?.ppg,
                             source: metadata?.source,
                             leadTime: metadata?.leadTime,

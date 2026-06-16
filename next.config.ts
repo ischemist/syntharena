@@ -2,6 +2,7 @@ import type { NextConfig } from 'next'
 import packageJson from './package.json'
 
 const nextConfig: NextConfig = {
+    allowedDevOrigins: ['100.120.112.3'],
     env: {
         NEXT_PUBLIC_APP_VERSION: packageJson.version,
     },
