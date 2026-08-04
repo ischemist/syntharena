@@ -16,6 +16,7 @@ CREATE TABLE "Molecule" (
 CREATE TABLE "BenchmarkSet" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
     "description" TEXT,
     "stockId" TEXT NOT NULL,
     "hasAcceptableRoutes" BOOLEAN NOT NULL DEFAULT false,
@@ -31,6 +32,14 @@ CREATE TABLE "BenchmarkSet" (
 );
 
 -- CreateTable
+CREATE TABLE "BenchmarkUrlAlias" (
+    "alias" TEXT NOT NULL PRIMARY KEY,
+    "benchmarkSetId" TEXT NOT NULL,
+    "reason" TEXT NOT NULL,
+    CONSTRAINT "BenchmarkUrlAlias_benchmarkSetId_fkey" FOREIGN KEY ("benchmarkSetId") REFERENCES "BenchmarkSet" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "BenchmarkTarget" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "benchmarkSetId" TEXT NOT NULL,
@@ -42,6 +51,14 @@ CREATE TABLE "BenchmarkTarget" (
     "metadata" TEXT,
     CONSTRAINT "BenchmarkTarget_benchmarkSetId_fkey" FOREIGN KEY ("benchmarkSetId") REFERENCES "BenchmarkSet" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT "BenchmarkTarget_moleculeId_fkey" FOREIGN KEY ("moleculeId") REFERENCES "Molecule" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "BenchmarkTargetUrlAlias" (
+    "alias" TEXT NOT NULL PRIMARY KEY,
+    "benchmarkTargetId" TEXT NOT NULL,
+    "reason" TEXT NOT NULL,
+    CONSTRAINT "BenchmarkTargetUrlAlias_benchmarkTargetId_fkey" FOREIGN KEY ("benchmarkTargetId") REFERENCES "BenchmarkTarget" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -123,6 +140,14 @@ CREATE TABLE "PredictionRun" (
 );
 
 -- CreateTable
+CREATE TABLE "PredictionRunUrlAlias" (
+    "alias" TEXT NOT NULL PRIMARY KEY,
+    "predictionRunId" TEXT NOT NULL,
+    "reason" TEXT NOT NULL,
+    CONSTRAINT "PredictionRunUrlAlias_predictionRunId_fkey" FOREIGN KEY ("predictionRunId") REFERENCES "PredictionRun" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "Route" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "signature" TEXT NOT NULL,
@@ -160,21 +185,73 @@ CREATE TABLE "ReactionStep" (
 );
 
 -- CreateTable
-CREATE TABLE "RouteNode" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "routeId" TEXT NOT NULL,
+CREATE TABLE "RouteNodePayload" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "contentHash" TEXT NOT NULL,
     "moleculeId" TEXT NOT NULL,
     "smiles" TEXT NOT NULL,
-    "parentId" TEXT,
     "reactionStepId" TEXT,
     "template" TEXT,
     "metadata" TEXT,
+    CONSTRAINT "RouteNodePayload_moleculeId_fkey" FOREIGN KEY ("moleculeId") REFERENCES "Molecule" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "RouteNodePayload_reactionStepId_fkey" FOREIGN KEY ("reactionStepId") REFERENCES "ReactionStep" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "RouteNode" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "routeId" TEXT NOT NULL,
+    "moleculeId" TEXT NOT NULL,
+    "payloadId" INTEGER NOT NULL,
+    "parentId" INTEGER,
     "isLeaf" BOOLEAN NOT NULL DEFAULT false,
     CONSTRAINT "RouteNode_routeId_fkey" FOREIGN KEY ("routeId") REFERENCES "Route" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "RouteNode_moleculeId_fkey" FOREIGN KEY ("moleculeId") REFERENCES "Molecule" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT "RouteNode_reactionStepId_fkey" FOREIGN KEY ("reactionStepId") REFERENCES "ReactionStep" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
-    CONSTRAINT "RouteNode_parentId_routeId_fkey" FOREIGN KEY ("parentId", "routeId") REFERENCES "RouteNode" ("id", "routeId") ON DELETE NO ACTION ON UPDATE NO ACTION
+    CONSTRAINT "RouteNode_payloadId_fkey" FOREIGN KEY ("payloadId") REFERENCES "RouteNodePayload" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "RouteNode_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "RouteNode" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION
 );
+
+CREATE TRIGGER "RouteNode_parent_same_route_insert"
+BEFORE INSERT ON "RouteNode"
+WHEN NEW."parentId" IS NOT NULL
+ AND NOT EXISTS (
+    SELECT 1 FROM "RouteNode" parent
+    WHERE parent."id" = NEW."parentId" AND parent."routeId" = NEW."routeId"
+ )
+BEGIN
+    SELECT RAISE(ABORT, 'RouteNode parent must belong to the same route');
+END;
+
+CREATE TRIGGER "RouteNode_parent_same_route_update"
+BEFORE UPDATE OF "parentId", "routeId" ON "RouteNode"
+WHEN NEW."parentId" IS NOT NULL
+ AND NOT EXISTS (
+    SELECT 1 FROM "RouteNode" parent
+    WHERE parent."id" = NEW."parentId" AND parent."routeId" = NEW."routeId"
+ )
+BEGIN
+    SELECT RAISE(ABORT, 'RouteNode parent must belong to the same route');
+END;
+
+CREATE TRIGGER "RouteNode_payload_molecule_insert"
+BEFORE INSERT ON "RouteNode"
+WHEN NOT EXISTS (
+    SELECT 1 FROM "RouteNodePayload" payload
+    WHERE payload."id" = NEW."payloadId" AND payload."moleculeId" = NEW."moleculeId"
+)
+BEGIN
+    SELECT RAISE(ABORT, 'RouteNode payload and occurrence molecule must agree');
+END;
+
+CREATE TRIGGER "RouteNode_payload_molecule_update"
+BEFORE UPDATE OF "payloadId", "moleculeId" ON "RouteNode"
+WHEN NOT EXISTS (
+    SELECT 1 FROM "RouteNodePayload" payload
+    WHERE payload."id" = NEW."payloadId" AND payload."moleculeId" = NEW."moleculeId"
+)
+BEGIN
+    SELECT RAISE(ABORT, 'RouteNode payload and occurrence molecule must agree');
+END;
 
 -- CreateTable
 CREATE TABLE "RunEvaluation" (
@@ -270,7 +347,13 @@ CREATE TABLE "Stock" (
     "description" TEXT,
     "sourcePath" TEXT,
     "sourceSha256" TEXT,
-    "schemaVersion" TEXT
+    "schemaVersion" TEXT,
+    "enrichmentPath" TEXT,
+    "enrichmentSha256" TEXT,
+    "enrichmentSchemaVersion" TEXT,
+    "enrichmentManifestPath" TEXT,
+    "enrichmentManifestSha256" TEXT,
+    "enrichmentSourceDatabaseSha256" TEXT
 );
 
 -- CreateTable
@@ -294,6 +377,10 @@ CREATE TABLE "DatabaseMetadata" (
     "artifactSchemaVersion" TEXT NOT NULL,
     "inventorySchemaVersion" TEXT NOT NULL,
     "inventorySha256" TEXT NOT NULL,
+    "catalogSha256" TEXT NOT NULL,
+    "legacyUrlAliasesSha256" TEXT,
+    "identityBaselineSha256" TEXT,
+    "producerTrustPolicySha256" TEXT NOT NULL,
     "retrocastVersion" TEXT NOT NULL,
     "publicationStatus" TEXT NOT NULL,
     "benchmarkCount" INTEGER NOT NULL,
@@ -331,13 +418,22 @@ CREATE INDEX "Molecule_inchikey_smiles_idx" ON "Molecule"("inchikey", "smiles");
 CREATE UNIQUE INDEX "BenchmarkSet_name_key" ON "BenchmarkSet"("name");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "BenchmarkSet_slug_key" ON "BenchmarkSet"("slug");
+
+-- CreateIndex
 CREATE INDEX "BenchmarkSet_series_isListed_name_idx" ON "BenchmarkSet"("series", "isListed", "name");
+
+-- CreateIndex
+CREATE INDEX "BenchmarkUrlAlias_benchmarkSetId_idx" ON "BenchmarkUrlAlias"("benchmarkSetId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "BenchmarkTarget_benchmarkSetId_targetId_key" ON "BenchmarkTarget"("benchmarkSetId", "targetId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "BenchmarkTarget_id_benchmarkSetId_key" ON "BenchmarkTarget"("id", "benchmarkSetId");
+
+-- CreateIndex
+CREATE INDEX "BenchmarkTargetUrlAlias_benchmarkTargetId_idx" ON "BenchmarkTargetUrlAlias"("benchmarkTargetId");
 
 -- CreateIndex
 CREATE INDEX "AcceptableRoute_benchmarkTargetId_idx" ON "AcceptableRoute"("benchmarkTargetId");
@@ -382,6 +478,9 @@ CREATE UNIQUE INDEX "PredictionRun_modelInstanceId_benchmarkSetId_key" ON "Predi
 CREATE UNIQUE INDEX "PredictionRun_id_benchmarkSetId_key" ON "PredictionRun"("id", "benchmarkSetId");
 
 -- CreateIndex
+CREATE INDEX "PredictionRunUrlAlias_predictionRunId_idx" ON "PredictionRunUrlAlias"("predictionRunId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Route_contentHash_key" ON "Route"("contentHash");
 
 -- CreateIndex
@@ -406,13 +505,13 @@ CREATE UNIQUE INDEX "PredictionCandidate_id_predictionRunId_targetId_benchmarkSe
 CREATE UNIQUE INDEX "ReactionStep_reactionHash_key" ON "ReactionStep"("reactionHash");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "RouteNodePayload_contentHash_key" ON "RouteNodePayload"("contentHash");
+
+-- CreateIndex
 CREATE INDEX "RouteNode_routeId_idx" ON "RouteNode"("routeId");
 
 -- CreateIndex
-CREATE INDEX "RouteNode_reactionStepId_idx" ON "RouteNode"("reactionStepId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "RouteNode_id_routeId_key" ON "RouteNode"("id", "routeId");
+CREATE INDEX "RouteNode_moleculeId_idx" ON "RouteNode"("moleculeId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "RunEvaluation_manifestSha256_key" ON "RunEvaluation"("manifestSha256");

@@ -46,13 +46,14 @@ function createFixture(databasePath: string, generatedAt: string): void {
             .prepare(
                 `INSERT INTO DatabaseMetadata
                  (id, databaseSchemaVersion, artifactSchemaVersion, inventorySchemaVersion,
-                  inventorySha256, retrocastVersion, publicationStatus, benchmarkCount,
+                  inventorySha256, catalogSha256, legacyUrlAliasesSha256, identityBaselineSha256,
+                  producerTrustPolicySha256, retrocastVersion, publicationStatus, benchmarkCount,
                   modelCount, expectedRunCount, importedRunCount, evaluationTargetCount,
                   candidateCount, routeCount, failureCount, generatedAt)
-                 VALUES ('syntharena', 2, '2', '1', ?, '0.8.3', 'local-provisional',
+                 VALUES ('syntharena', 2, '2', '1', ?, ?, NULL, NULL, ?, '0.8.3', 'local-provisional',
                          0, 0, 0, 0, 0, 0, 0, 0, ?)`
             )
-            .run('a'.repeat(64), generatedAt)
+            .run('a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64), generatedAt)
     } finally {
         database.close()
     }

@@ -8,16 +8,38 @@ import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/db'
 
+const routeNodeInclude = {
+    molecule: true,
+    payload: { include: { reactionStep: true } },
+} satisfies Prisma.RouteNodeInclude
+
+type RawRouteNode = Prisma.RouteNodeGetPayload<{ include: typeof routeNodeInclude }>
+
+export function flattenRouteNode(node: RawRouteNode) {
+    const { payload, payloadId: _payloadId, ...occurrence } = node
+    return {
+        ...occurrence,
+        id: String(node.id),
+        parentId: node.parentId == null ? null : String(node.parentId),
+        smiles: payload.smiles,
+        reactionStepId: payload.reactionStepId,
+        template: payload.template,
+        metadata: payload.metadata,
+        reactionStep: payload.reactionStep,
+    }
+}
+
 // ============================================================================
 // reads
 // ============================================================================
 
 /** fetches all nodes for a given route id. this is the primary way to get a route's structure. */
 async function _findNodesForRoute(routeId: string) {
-    return prisma.routeNode.findMany({
+    const nodes = await prisma.routeNode.findMany({
         where: { routeId },
-        include: { molecule: true, reactionStep: true },
+        include: routeNodeInclude,
     })
+    return nodes.map(flattenRouteNode)
 }
 export const findNodesForRoute = cache(_findNodesForRoute, ['nodes-for-route'], {
     tags: ['routes'],
@@ -31,7 +53,7 @@ async function _findPredictedRouteForTarget(targetId: string, runId: string, ran
         include: {
             route: {
                 include: {
-                    nodes: { include: { molecule: true, reactionStep: true } },
+                    nodes: { include: routeNodeInclude },
                 },
             },
         },

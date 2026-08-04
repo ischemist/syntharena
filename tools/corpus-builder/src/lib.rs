@@ -3,33 +3,45 @@ mod config;
 mod contract;
 mod identity;
 mod loader;
+mod stock_enrichment;
 mod stream;
+mod trust;
 mod wire;
+mod workspace;
 
 use std::{
+    collections::BTreeMap,
     fs::{self, File},
     path::{Path, PathBuf},
     time::Instant,
 };
 
 use anyhow::{Context, Result, bail};
-use rusqlite::Connection;
+use rusqlite::{Connection, OpenFlags};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tempfile::Builder as TempBuilder;
 
+pub use config::{CoverageMode, ModelVersion};
 pub use contract::{RETROCAST_RELEASE_COMMIT, RETROCAST_RELEASE_TAG, RETROCAST_VERSION};
+pub use workspace::{
+    AddBenchmarkOptions, AddModelOptions, AddRunOptions, AddStockEnrichmentOptions,
+    AddStockOptions, add_benchmark, add_model, add_run, add_stock, add_stock_enrichment,
+    adopt_workspace, init_workspace, set_coverage, set_legacy_url_aliases, set_producer_trust,
+    validate_workspace,
+};
 
 const BASELINE_SQL: &str =
     include_str!("../../../prisma/migrations/20260803000000_initial_solv_n/migration.sql");
 const BASELINE_MIGRATION: &str = "20260803000000_initial_solv_n";
-const BASELINE_CHECKSUM: &str = "aba1674a7724db90a2203c6b5718c46631914fbd4eda2c5d8d7833341c4c3ee3";
+const BASELINE_CHECKSUM: &str = "8831c6dab4dd0414e44453328aac9b9cb6f68171d0d2b081162eca4bd645bd36";
 
 #[derive(Clone, Debug)]
 pub struct BuildOptions {
     pub corpus_root: PathBuf,
     pub output: PathBuf,
     pub limit: Option<usize>,
+    pub identity_baseline: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -43,6 +55,9 @@ pub struct BuildReport {
 }
 
 pub fn build_corpus(options: BuildOptions) -> Result<BuildReport> {
+    if options.limit.is_some() && options.identity_baseline.is_some() {
+        bail!("--identity-baseline requires a complete build without --limit");
+    }
     let started = Instant::now();
     let output = absolute_path(&options.output)?;
     if output.exists() {
@@ -93,9 +108,19 @@ fn build_staging_database(options: &BuildOptions, path: &Path) -> Result<Staging
         .execute_batch(BASELINE_SQL)
         .context("apply SynthArena baseline migration")?;
     record_baseline_migration(&connection)?;
+    let catalog_path = stream::resolve_confined_regular(&options.corpus_root, "catalog.json")?;
+    let (catalog, catalog_sha256) = config::load_catalog(&catalog_path)?;
     let inventory_path = stream::resolve_confined_regular(&options.corpus_root, "inventory.json")?;
-    let (inventory, inventory_sha256) = contract::load_inventory(&inventory_path, options.limit)?;
-    let bindings = loader::load_reference_data(&mut connection, &options.corpus_root)?;
+    let (inventory, inventory_sha256) =
+        contract::load_inventory(&inventory_path, options.limit, &catalog)?;
+    let trust_policy = trust::load_workspace_policy(
+        &options.corpus_root,
+        catalog
+            .producer_trust
+            .as_ref()
+            .context("corpus build requires a reviewed producer trust policy")?,
+    )?;
+    let bindings = loader::load_reference_data(&mut connection, &options.corpus_root, &catalog)?;
     let status = if options.limit.is_some() {
         "local-provisional"
     } else {
@@ -104,8 +129,14 @@ fn build_staging_database(options: &BuildOptions, path: &Path) -> Result<Staging
     let run_count = options.limit.unwrap_or(inventory.runs.len());
     let mut totals = bundle::ImportTotals::default();
     for (index, entry) in inventory.runs.iter().take(run_count).enumerate() {
-        let run = bundle::import_run(&mut connection, &options.corpus_root, entry, &bindings)
-            .with_context(|| format!("import run {} ({}/{run_count})", entry.run_id, index + 1))?;
+        let run = bundle::import_run(
+            &mut connection,
+            &options.corpus_root,
+            entry,
+            &bindings,
+            &trust_policy,
+        )
+        .with_context(|| format!("import run {} ({}/{run_count})", entry.run_id, index + 1))?;
         totals.runs += run.runs;
         totals.targets += run.targets;
         totals.candidates += run.candidates;
@@ -120,14 +151,39 @@ fn build_staging_database(options: &BuildOptions, path: &Path) -> Result<Staging
             run.candidates
         );
     }
+    if options.limit.is_none() {
+        loader::load_legacy_url_aliases(&mut connection, &options.corpus_root, &catalog)?;
+    }
+    let identity_baseline_sha256 = options
+        .identity_baseline
+        .as_deref()
+        .map(stream::sha256_file)
+        .transpose()?;
+    if let Some(baseline) = options.identity_baseline.as_deref() {
+        assert_identity_continuity(&connection, baseline)?;
+    }
     connection.execute(
-        "INSERT INTO DatabaseMetadata (id, databaseSchemaVersion, artifactSchemaVersion, inventorySchemaVersion, inventorySha256, retrocastVersion, publicationStatus, benchmarkCount, modelCount, expectedRunCount, importedRunCount, evaluationTargetCount, candidateCount, routeCount, failureCount) VALUES ('syntharena', 2, ?1, ?2, ?3, ?4, ?5, 6, 14, 84, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT INTO DatabaseMetadata (id, databaseSchemaVersion, artifactSchemaVersion, inventorySchemaVersion, inventorySha256, catalogSha256, legacyUrlAliasesSha256, identityBaselineSha256, producerTrustPolicySha256, retrocastVersion, publicationStatus, benchmarkCount, modelCount, expectedRunCount, importedRunCount, evaluationTargetCount, candidateCount, routeCount, failureCount) VALUES ('syntharena', 2, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
         rusqlite::params![
             inventory.evaluation_parameters.schema_version,
             inventory.schema_version,
             inventory_sha256,
+            catalog_sha256,
+            catalog
+                .legacy_url_aliases
+                .as_ref()
+                .map(|value| value.manifest_sha256.as_str()),
+            identity_baseline_sha256,
+            catalog
+                .producer_trust
+                .as_ref()
+                .expect("trust policy presence checked")
+                .policy_sha256,
             contract::RETROCAST_VERSION,
             status,
+            catalog.benchmarks.len() as i64,
+            catalog.models.len() as i64,
+            catalog.expected_run_count(inventory.runs.len()) as i64,
             totals.runs as i64,
             totals.targets as i64,
             totals.candidates as i64,
@@ -135,6 +191,7 @@ fn build_staging_database(options: &BuildOptions, path: &Path) -> Result<Staging
             totals.failures as i64,
         ],
     )?;
+    assert_portable_text_values(&connection)?;
     assert_database_integrity(&connection)?;
     connection.execute_batch(
         "PRAGMA optimize; PRAGMA temp_store=FILE; PRAGMA cache_size=-32768; PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL;",
@@ -145,6 +202,125 @@ fn build_staging_database(options: &BuildOptions, path: &Path) -> Result<Staging
         publication_status: status.to_owned(),
         imported_runs: totals.runs,
     })
+}
+
+fn assert_identity_continuity(candidate: &Connection, baseline_path: &Path) -> Result<()> {
+    let baseline = Connection::open_with_flags(
+        baseline_path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .with_context(|| format!("open identity baseline {}", baseline_path.display()))?;
+    let schema_version: i64 = baseline
+        .query_row(
+            "SELECT databaseSchemaVersion FROM DatabaseMetadata WHERE id = 'syntharena'",
+            [],
+            |row| row.get(0),
+        )
+        .context("identity baseline is not a SynthArena corpus database")?;
+    if schema_version != 2 {
+        bail!("identity baseline must use database schema version 2");
+    }
+    compare_identity_rows(
+        "stock",
+        stock_identity_rows(&baseline)?,
+        stock_identity_rows(candidate)?,
+    )?;
+    compare_identity_rows(
+        "benchmark",
+        benchmark_identity_rows(&baseline)?,
+        benchmark_identity_rows(candidate)?,
+    )?;
+    compare_identity_rows(
+        "model instance",
+        model_identity_rows(&baseline)?,
+        model_identity_rows(candidate)?,
+    )?;
+    compare_identity_rows(
+        "prediction run",
+        run_identity_rows(&baseline)?,
+        run_identity_rows(candidate)?,
+    )
+}
+
+fn stock_identity_rows(connection: &Connection) -> Result<BTreeMap<String, String>> {
+    collect_identity_rows(
+        connection,
+        "SELECT name, COALESCE(sourceSha256, ''), COALESCE(schemaVersion, ''), COALESCE(enrichmentSha256, ''), COALESCE(enrichmentSchemaVersion, ''), COALESCE(enrichmentManifestSha256, ''), COALESCE(enrichmentSourceDatabaseSha256, '') FROM Stock ORDER BY name",
+        7,
+    )
+}
+
+fn benchmark_identity_rows(connection: &Connection) -> Result<BTreeMap<String, String>> {
+    collect_identity_rows(
+        connection,
+        "SELECT slug, id, COALESCE(sourceSha256, ''), COALESCE(schemaVersion, '') FROM BenchmarkSet ORDER BY slug",
+        4,
+    )
+}
+
+fn model_identity_rows(connection: &Connection) -> Result<BTreeMap<String, String>> {
+    collect_identity_rows(
+        connection,
+        "SELECT mi.slug, a.slug, a.name, f.slug, f.name, CAST(mi.versionMajor AS TEXT), CAST(mi.versionMinor AS TEXT), CAST(mi.versionPatch AS TEXT), mi.versionPrerelease FROM ModelInstance mi JOIN ModelFamily f ON f.id = mi.modelFamilyId JOIN Algorithm a ON a.id = f.algorithmId ORDER BY mi.slug",
+        9,
+    )
+}
+
+fn run_identity_rows(connection: &Connection) -> Result<BTreeMap<String, String>> {
+    let mut statement = connection.prepare(
+        "SELECT b.slug || '/' || mi.slug, re.manifestSha256 FROM RunEvaluation re JOIN PredictionRun pr ON pr.id = re.predictionRunId JOIN BenchmarkSet b ON b.id = pr.benchmarkSetId JOIN ModelInstance mi ON mi.id = pr.modelInstanceId ORDER BY b.slug, mi.slug",
+    )?;
+    let rows = statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get(1)?)))?;
+    let mut output = BTreeMap::new();
+    for row in rows {
+        let (key, value) = row?;
+        if output.insert(key.clone(), value).is_some() {
+            bail!("identity database has duplicate prediction-run key {key}");
+        }
+    }
+    Ok(output)
+}
+
+fn collect_identity_rows(
+    connection: &Connection,
+    sql: &str,
+    columns: usize,
+) -> Result<BTreeMap<String, String>> {
+    let mut statement = connection.prepare(sql)?;
+    let rows = statement.query_map([], |row| {
+        let key: String = row.get(0)?;
+        let values = (1..columns)
+            .map(|index| row.get::<_, String>(index))
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok((
+            key,
+            serde_json::to_string(&values).expect("identity values serialize"),
+        ))
+    })?;
+    let mut output = BTreeMap::new();
+    for row in rows {
+        let (key, value) = row?;
+        if output.insert(key.clone(), value).is_some() {
+            bail!("identity database has duplicate key {key}");
+        }
+    }
+    Ok(output)
+}
+
+fn compare_identity_rows(
+    label: &str,
+    baseline: BTreeMap<String, String>,
+    candidate: BTreeMap<String, String>,
+) -> Result<()> {
+    for (key, prior) in baseline {
+        let current = candidate
+            .get(&key)
+            .with_context(|| format!("identity baseline {label} disappeared: {key}"))?;
+        if current != &prior {
+            bail!("identity baseline {label} changed scientific content: {key}");
+        }
+    }
+    Ok(())
 }
 
 fn record_baseline_migration(connection: &Connection) -> Result<()> {
@@ -190,6 +366,49 @@ fn assert_database_integrity(connection: &Connection) -> Result<()> {
         })?;
     if foreign_key_errors != 0 {
         bail!("SQLite foreign_key_check found {foreign_key_errors} violations");
+    }
+    Ok(())
+}
+
+fn assert_portable_text_values(connection: &Connection) -> Result<()> {
+    fn quote_identifier(value: &str) -> String {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    }
+
+    let mut tables = connection.prepare(
+        "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    )?;
+    let table_names = tables
+        .query_map([], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    drop(tables);
+    for table in table_names {
+        let quoted_table = quote_identifier(&table);
+        let mut columns = connection.prepare(&format!("PRAGMA table_info({quoted_table})"))?;
+        let text_columns = columns
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+            })?
+            .filter_map(|row| match row {
+                Ok((name, kind)) if kind.to_ascii_uppercase().contains("TEXT") => Some(Ok(name)),
+                Ok(_) => None,
+                Err(error) => Some(Err(error)),
+            })
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        drop(columns);
+        for column in text_columns {
+            let quoted_column = quote_identifier(&column);
+            let leaked: bool = connection.query_row(
+                &format!(
+                    "SELECT EXISTS(SELECT 1 FROM {quoted_table} WHERE instr({quoted_column}, '/Users/') > 0 OR instr({quoted_column}, '/home/') > 0 OR instr({quoted_column}, 'C:\\Users\\') > 0 LIMIT 1)"
+                ),
+                [],
+                |row| row.get(0),
+            )?;
+            if leaked {
+                bail!("database contains an absolute home path in {table}.{column}");
+            }
+        }
     }
     Ok(())
 }
@@ -309,6 +528,63 @@ mod tests {
     }
 
     #[test]
+    fn route_node_trigger_rejects_cross_route_parenting() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch("PRAGMA foreign_keys=ON;").unwrap();
+        connection.execute_batch(BASELINE_SQL).unwrap();
+        connection
+            .execute_batch(
+                "INSERT INTO Route (id, signature, contentHash, length, isConvergent)
+             VALUES ('r1', 's1', 'h1', 1, 0), ('r2', 's2', 'h2', 1, 0);
+             INSERT INTO Molecule (id, inchikey, smiles) VALUES ('m', 'IK', 'C'), ('m2', 'IK2', 'N');
+             INSERT INTO ReactionStep (id, reactionHash) VALUES ('reaction', 'reaction-hash');
+             INSERT INTO RouteNodePayload (contentHash, moleculeId, smiles, reactionStepId) VALUES ('p', 'm', 'C', 'reaction');
+             INSERT INTO RouteNode (routeId, moleculeId, payloadId, parentId, isLeaf)
+             VALUES ('r1', 'm', 1, NULL, 0);",
+            )
+            .unwrap();
+        assert!(connection.execute(
+            "INSERT INTO RouteNode (routeId, moleculeId, payloadId, parentId, isLeaf) VALUES ('r2', 'm', 1, 1, 1)",
+            [],
+        ).is_err());
+        connection
+            .execute(
+                "INSERT INTO RouteNode (routeId, moleculeId, payloadId, parentId, isLeaf) VALUES ('r1', 'm', 1, 1, 1)",
+                [],
+            )
+            .unwrap();
+        assert!(
+            connection
+                .execute("UPDATE RouteNode SET routeId = 'r2' WHERE id = 2", [])
+                .is_err()
+        );
+        assert!(
+            connection
+                .execute(
+                    "INSERT INTO RouteNode (routeId, moleculeId, payloadId, parentId, isLeaf) VALUES ('r1', 'm2', 1, NULL, 1)",
+                    [],
+                )
+                .is_err()
+        );
+        assert!(
+            connection
+                .execute("DELETE FROM ReactionStep WHERE id = 'reaction'", [])
+                .is_err()
+        );
+        connection
+            .execute("DELETE FROM Route WHERE id = 'r1'", [])
+            .unwrap();
+        let remaining: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM RouteNode WHERE routeId = 'r1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(remaining, 0);
+    }
+
+    #[test]
     fn no_clobber_promotion_preserves_existing_output() {
         let directory = tempfile::tempdir().unwrap();
         let staging = directory.path().join("staging");
@@ -318,5 +594,18 @@ mod tests {
         assert!(promote_noclobber(&staging, &output).is_err());
         assert_eq!(fs::read(&output).unwrap(), b"existing");
         assert_eq!(fs::read(&staging).unwrap(), b"new");
+    }
+
+    #[test]
+    fn portable_text_audit_rejects_absolute_home_paths() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch("CREATE TABLE Evidence (value TEXT); INSERT INTO Evidence VALUES ('/Users/example/input.json');")
+            .unwrap();
+        assert!(assert_portable_text_values(&connection).is_err());
+        connection
+            .execute("UPDATE Evidence SET value = 'external/input.json'", [])
+            .unwrap();
+        assert_portable_text_values(&connection).unwrap();
     }
 }

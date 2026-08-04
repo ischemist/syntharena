@@ -59,6 +59,7 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput,
                 select: {
                     id: true,
                     name: true,
+                    slug: true,
                     stockId: true,
                     createdAt: true,
                     hasAcceptableRoutes: true,

@@ -131,47 +131,109 @@ DATABASE_URL="file:./prisma/dev.db"
 
 ---
 
-## Production Database Builder
+## Rust Corpus Workflow
 
-SynthArena's production corpus path is an offline Rust builder. It streams RetroCast targets into prepared SQLite statements with bounded memory, executes the checked-in Prisma baseline SQL, records the applied migration, validates every artifact and database invariant, and promotes a completed database without overwriting an existing path. The TypeScript/Prisma importer remains a correctness and parity reference.
+SynthArena has one ingestion path: the offline Rust corpus tool. It manages a self-contained workspace and compiles that workspace into a new SQLite database. It never incrementally mutates an existing database and never overwrites its output.
 
-A corpus contains an `inventory.json` with `publication_status: "staging"`, benchmark and stock inputs, and one fused bundle per benchmark/model pair. The builder accepts only the exact RetroCast v0.8.3 release and schema-v2 Tier-0 contract. It requires Rust 1.85 or newer; Node.js is only needed for the reference importer and application.
+The authored `catalog.json` defines stocks, benchmarks, model versions, coverage, and an optional hash-bound legacy URL alias manifest. The generated `inventory.json` locks verified run evidence. Artifacts live under `inputs/` and `bundles/`; registration copies them into those confined paths atomically. The current capability gate intentionally accepts only RetroCast v0.8.3 schema-v2 Tier-0 bundles.
 
-### Prerequisites
+Each benchmark's database ID is the full lowercase SHA-256 of its registered gzip artifact. Its unique human name is also its public slug, so the readable URL remains `/benchmarks/mkt-lin-500`; database-backed aliases resolve historical IDs and content-addressed ID URLs to that slug. Reusing a slug for different benchmark bytes is rejected by identity continuity. Scientifically changed benchmark content must use a new versioned slug.
 
-1. Produce schema-v2 fused evaluation bundles with RetroCast.
-2. Build an inventory covering the complete benchmark/model matrix.
-3. Choose a new output path; the command refuses to overwrite an existing database.
+Create a workspace and register data:
 
-### Build the staging database
+```bash
+pnpm corpus -- init --corpus /path/to/corpus
+
+pnpm corpus -- add-stock \
+  --corpus /path/to/corpus --name buyables-stock \
+  --artifact /path/to/buyables-stock.csv.gz \
+  --manifest /path/to/buyables-stock.manifest.json
+
+pnpm corpus -- add-stock-enrichment \
+  --corpus /path/to/corpus --stock buyables-stock \
+  --artifact /path/to/buyables-stock.enrichment.csv.gz \
+  --manifest /path/to/buyables-stock.enrichment.manifest.json
+
+pnpm corpus -- add-benchmark \
+  --corpus /path/to/corpus --stock buyables-stock --series market \
+  --artifact /path/to/mkt-lin-500.json.gz \
+  --manifest /path/to/mkt-lin-500.manifest.json
+
+pnpm corpus -- add-model \
+  --corpus /path/to/corpus --key askcos \
+  --algorithm-name ASKCOS --algorithm-slug askcos \
+  --family-name ASKCOS --family-slug askcos \
+  --instance-slug askcos-v2-0-0 --version 2.0.0
+
+pnpm corpus -- trust-policy \
+  --corpus /path/to/corpus \
+  --policy corpus/retrocast-v0.8.3.trust-policy.json
+
+pnpm corpus -- add-run \
+  --corpus /path/to/corpus --benchmark mkt-lin-500 --model askcos \
+  --bundle /path/to/retrocast-evaluate-output
+```
+
+Stock enrichment is optional and hash-bound to one registered stock. Its gzip CSV must have exactly
+`InChIKey,ppg,source,lead_time,link`, with one row per stock member in strictly ascending InChIKey
+order. `ppg` may be empty or a finite non-negative number; `source` may be empty or one of
+`MC`, `LN`, `EM`, `SA`, and `CB`; non-empty links must use HTTP(S). The schema-v1 JSON manifest is:
+
+```json
+{
+  "schema_version": 1,
+  "action": "export-stock-enrichment",
+  "stock_name": "buyables-stock",
+  "source": {
+    "database_sha256": "<64 lowercase hex characters>",
+    "description": "How the enrichment source was produced"
+  },
+  "artifact": {
+    "path": "buyables-stock.enrichment.csv.gz",
+    "sha256": "<64 lowercase hex characters>",
+    "rows": 313458
+  }
+}
+```
+
+Registration streams and validates the complete artifact, proves exact stock membership, and copies
+both files without overwriting. The compiler repeats those checks, uses one prepared update statement
+inside the stock transaction, and records the enrichment path, SHA-256, and schema version on `Stock`.
+
+`add-run` verifies every manifest output and source hash while producer paths are available. It also requires `producer.json` to match the hash-bound reviewed trust policy across release version, tag, commit, URL, release asset SHA-256, and executable SHA-256. Later builds recheck the self-contained bundle and producer lock without depending on producer-machine paths. Absolute producer-machine paths are redacted from stored `manifestJson`; the SHA-256 of the original manifest remains the provenance identity.
+
+Coverage is explicit by default. After registering a complete matrix, require every benchmark/model combination and optionally register the legacy redirect map:
+
+```bash
+pnpm corpus -- coverage --corpus /path/to/corpus --mode cross-product
+pnpm corpus -- aliases --corpus /path/to/corpus --manifest corpus/legacy-url-aliases.v1.json
+pnpm corpus -- validate --corpus /path/to/corpus
+```
+
+Compile a staging database:
 
 ```bash
 pnpm rebuild:corpus -- \
-  --corpus /path/to/syntharena-corpus \
+  --corpus /path/to/corpus \
   --output /path/to/new/syntharena-staging.db
 ```
 
-The command builds beside `--output`, applies rebuild-only SQLite settings, loads the three stocks, six benchmarks, and 14 model instances, then verifies and imports all 84 bundles one transaction at a time. Candidate and evaluation streams must agree target by target. Tier/Solv metrics, strata, counts, hashes, exact target bindings, foreign keys, provenance, and SQLite integrity are checked before a hard-link no-clobber promotion. The final report includes elapsed time, peak RSS, size, status, and imported-run count.
-
-`--limit N` builds a nonempty inventory prefix for parity work and forces `publicationStatus` to `local-provisional`. A full build remains `staging`. Both outputs are review artifacts: this command does not copy them into `production_data`, publish them, merge them into a release, or deploy SynthArena.
-
-### Run the reference importer
+The first database is a bootstrap and may omit an identity baseline. Every later reviewed corpus build should protect existing public identities and scientific bindings:
 
 ```bash
-pnpm rebuild:corpus:reference -- \
-  --corpus /path/to/syntharena-corpus \
-  --output /path/to/new/syntharena-reference.db \
-  --allow-provisional
+pnpm rebuild:corpus -- \
+  --corpus /path/to/corpus \
+  --output /path/to/new/syntharena-staging.db \
+  --identity-baseline /path/to/current/published.db
 ```
 
-`--allow-provisional` is required for the official staging corpus and does not
-promote or publish the resulting database. Use
-`pnpm audit:database-parity -- --reference ... --candidate ...` to compare
-semantic table counts, metrics, provenance, and normalized schema metadata. The
-lower-level TypeScript importer remains useful for development and differential
-testing; Rust is the production rebuild path.
+The continuity audit rejects removed or scientifically changed existing stock, benchmark, model-instance, and benchmark/model-instance run identities while allowing new ones. This is the code-enforced continuity boundary; a slug is not globally immutable without a baseline.
 
-For a single independently prepared bundle, use `scripts/load-predictions.ts --bundle ... --benchmark ... --model ...` after its stock, benchmark, and model rows exist.
+The builder streams targets into prepared SQLite statements with bounded memory, executes the checked-in Prisma baseline, and verifies candidate/evaluation alignment, Tier/Solv metrics, provenance, aliases, foreign keys, and SQLite integrity before no-clobber promotion. Repeated route-node producer payload is stored once in a content-addressed dictionary, while compact integer occurrences retain topology and molecule identity. `--limit N` is available for local parity work and always marks the result `local-provisional`. No corpus command copies into `production_data`, publishes, merges, or deploys SynthArena.
+
+The compiler carries a small local deserialization projection of the pinned RetroCast v0.8.3 wire format; it does not link `retrocast-core`. The v0.8.3 core is not published as a standalone crate and its Git package includes the complete execution engine, a CXX build script, chemistry code, HTTP clients, randomization, and parallel execution. Pulling that surface into a streaming SQLite compiler would make the offline loader materially heavier without removing the need for corpus-specific validation. A checked-in v0.8.3 golden wire fixture, the exact producer trust lock, and full-bundle validation define the compatibility boundary. Supporting another RetroCast artifact schema requires a new explicit capability gate and fixture; if multiple consumers need to evolve these types together, the right follow-up is a lean, published schema crate extracted from Procrustes rather than a dependency on the execution core.
+
+The compiler rejects a second run for the same benchmark/model version. One result must be designated canonical until the schema gains a submission or replicate identity. Only a genuinely changed model or planner configuration should receive a new model instance/version.
 
 ---
 
@@ -209,13 +271,11 @@ prisma/
 └── migrations/                  # Database migrations
 
 scripts/
-├── load-benchmark.ts            # Load benchmark definitions
-├── load-predictions.ts          # Load model predictions
-├── load-stock.ts                # Load stock catalogs
-└── rebuild-corpus.ts            # TypeScript correctness/reference rebuild
+├── audit-database-parity.ts     # Compare generated databases
+└── export-*.ts                  # Export publication tables
 
 tools/
-└── corpus-builder/              # Production offline Rust database builder
+└── corpus-builder/              # Rust workspace manager and database compiler
 ```
 
 ---
@@ -227,7 +287,7 @@ SynthArena displays data processed through the RetroCast pipeline:
 1. **Raw Predictions:** Model outputs in native formats (JSON, YAML, etc.)
 2. **RetroCast Standardization:** `retrocast adapt` translates to canonical schema
 3. **Evaluation:** `retrocast evaluate` emits one manifest-verified fused bundle with explicit validity tiers and constraints
-4. **Database Load:** The corpus inventory orchestrates a resumable, verified SQLite rebuild
+4. **Database Build:** The Rust corpus compiler creates a verified, immutable SQLite artifact
 5. **SynthArena:** Interactive visualization and exploration
 
 For details on generating predictions and scores, see the [RetroCast documentation](https://github.com/ischemist/project-procrustes).

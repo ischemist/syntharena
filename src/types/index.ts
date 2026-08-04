@@ -108,6 +108,7 @@ export interface StockMoleculeFilters {
 export interface BenchmarkSet {
     id: string
     name: string
+    slug: string
     description?: string | null
     stockId: string // REQUIRED: Direct reference to stock (enforced by DB)
     stock?: Stock // Optional: included when relation is loaded
@@ -644,6 +645,7 @@ export interface HomePageStats {
 export interface BenchmarkOverview {
     id: string
     name: string
+    slug: string
     description: string | null
     series: BenchmarkSeries
     targetCount: number

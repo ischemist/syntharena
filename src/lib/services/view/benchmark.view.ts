@@ -16,6 +16,7 @@ export async function getBenchmarkSets(): Promise<BenchmarkListItem[]> {
     return rawBenchmarks.map((b) => ({
         id: b.id,
         name: b.name,
+        slug: b.slug,
         description: b.description || undefined,
         stockId: b.stockId,
         stock: b.stock,
@@ -32,6 +33,7 @@ export async function getBenchmarkById(benchmarkId: string): Promise<BenchmarkLi
     return {
         id: b.id,
         name: b.name,
+        slug: b.slug,
         description: b.description || undefined,
         stockId: b.stockId,
         stock: b.stock,

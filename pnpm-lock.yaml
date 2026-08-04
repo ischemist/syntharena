@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@ischemist/retrocast-io':
-        specifier: 0.2.0
-        version: 0.2.0
       '@ischemist/route-viewer':
         specifier: 0.1.2
         version: 0.1.2(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -801,10 +798,6 @@ packages:
     engines: {node: ^18.17.0 || ^20.3.0 || >=21.0.0}
     cpu: [x64]
     os: [win32]
-
-  '@ischemist/retrocast-io@0.2.0':
-    resolution: {integrity: sha512-Qx8IcJ5rEkLYp7Ys3c7+E5iZjEBYTSTQ4o+RCySZRbAnBsREsks9pbOgFaV5y/FVjXQ1dThB+fzxWXC1xux2cQ==}
-    engines: {node: '>=22.12.0'}
 
   '@ischemist/route-viewer@0.1.2':
     resolution: {integrity: sha512-dfl6tQ4Eobk7JX0uXnAAlp+meBQ+P31cWgcmATJdXXnt3F5HP1UTqxudvaw1hLYHRK0kA367K/6DYDgJtzw/qQ==}
@@ -3733,10 +3726,6 @@ snapshots:
 
   '@img/sharp-win32-x64@0.34.5':
     optional: true
-
-  '@ischemist/retrocast-io@0.2.0':
-    dependencies:
-      '@ischemist/routes': 0.2.0
 
   '@ischemist/route-viewer@0.1.2(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:

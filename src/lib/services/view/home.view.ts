@@ -33,6 +33,7 @@ export async function getBenchmarkOverview(): Promise<BenchmarkOverview[]> {
     return benchmarks.map((b) => ({
         id: b.id,
         name: b.name,
+        slug: b.slug,
         description: b.description,
         series: b.series,
         targetCount: b._count.targets,

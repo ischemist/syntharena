@@ -34,7 +34,8 @@ const DATASETS: Dataset[] = [
         name: 'database metadata',
         sql: `
             SELECT id, databaseSchemaVersion, artifactSchemaVersion, inventorySchemaVersion,
-                   inventorySha256, retrocastVersion, publicationStatus, benchmarkCount,
+                   inventorySha256, catalogSha256, legacyUrlAliasesSha256, identityBaselineSha256,
+                   producerTrustPolicySha256, retrocastVersion, publicationStatus, benchmarkCount,
                    modelCount, expectedRunCount, importedRunCount, evaluationTargetCount,
                    candidateCount, routeCount, failureCount
             FROM DatabaseMetadata ORDER BY id
@@ -43,14 +44,18 @@ const DATASETS: Dataset[] = [
     {
         name: 'stocks and provenance',
         sql: `
-            SELECT name, description, sourcePath, sourceSha256, schemaVersion
+            SELECT name, description, sourcePath, sourceSha256, schemaVersion,
+                   enrichmentPath, enrichmentSha256, enrichmentSchemaVersion,
+                   enrichmentManifestPath, enrichmentManifestSha256,
+                   enrichmentSourceDatabaseSha256
             FROM Stock ORDER BY name
         `,
     },
     {
         name: 'stock occurrence smiles',
         sql: `
-            SELECT s.name AS stock, m.inchikey, si.smiles
+            SELECT s.name AS stock, m.inchikey, si.smiles, si.ppg, si.source,
+                   si.leadTime, si.link
             FROM StockItem si
             JOIN Stock s ON s.id = si.stockId
             JOIN Molecule m ON m.id = si.moleculeId
@@ -64,13 +69,22 @@ const DATASETS: Dataset[] = [
     {
         name: 'benchmarks and provenance',
         sql: `
-            SELECT b.name, b.description, s.name AS stock, b.hasAcceptableRoutes,
+            SELECT b.name, b.slug, b.description, s.name AS stock, b.hasAcceptableRoutes,
                    b.sourcePath, b.sourceSha256, b.schemaVersion,
                    b.defaultConstraintsJson, b.targetConstraintsJson, b.series, b.isListed
             FROM BenchmarkSet b JOIN Stock s ON s.id = b.stockId
             ORDER BY b.name
         `,
         jsonColumns: ['defaultConstraintsJson', 'targetConstraintsJson'],
+    },
+    {
+        name: 'benchmark URL aliases',
+        sql: `
+            SELECT a.alias, a.reason, b.slug AS benchmark
+            FROM BenchmarkUrlAlias a
+            JOIN BenchmarkSet b ON b.id = a.benchmarkSetId
+            ORDER BY a.alias, benchmark
+        `,
     },
     {
         name: 'benchmark target chemistry',
@@ -83,6 +97,16 @@ const DATASETS: Dataset[] = [
             ORDER BY benchmark, bt.targetId
         `,
         jsonColumns: ['metadata'],
+    },
+    {
+        name: 'benchmark target URL aliases',
+        sql: `
+            SELECT a.alias, a.reason, b.slug AS benchmark, bt.targetId
+            FROM BenchmarkTargetUrlAlias a
+            JOIN BenchmarkTarget bt ON bt.id = a.benchmarkTargetId
+            JOIN BenchmarkSet b ON b.id = bt.benchmarkSetId
+            ORDER BY a.alias, benchmark, bt.targetId
+        `,
     },
     {
         name: 'acceptable routes',
@@ -135,6 +159,17 @@ const DATASETS: Dataset[] = [
         timestampColumns: ['executedAt'],
     },
     {
+        name: 'prediction run URL aliases',
+        sql: `
+            SELECT a.alias, a.reason, b.slug AS benchmark, mi.slug AS model
+            FROM PredictionRunUrlAlias a
+            JOIN PredictionRun pr ON pr.id = a.predictionRunId
+            JOIN BenchmarkSet b ON b.id = pr.benchmarkSetId
+            JOIN ModelInstance mi ON mi.id = pr.modelInstanceId
+            ORDER BY a.alias, benchmark, model
+        `,
+    },
+    {
         name: 'route identity sets',
         sql: `
             SELECT contentHash, signature, length, isConvergent
@@ -148,17 +183,19 @@ const DATASETS: Dataset[] = [
     {
         name: 'route-node occurrence evidence',
         sql: `
-            SELECT r.contentHash, n.smiles, m.inchikey, n.isLeaf, n.template,
-                   n.metadata, rs.reactionHash,
-                   parent.smiles AS parentSmiles, pm.inchikey AS parentInchikey
+            SELECT r.contentHash, np.smiles, m.inchikey, n.isLeaf, np.template,
+                   np.metadata, rs.reactionHash,
+                   pp.smiles AS parentSmiles, pm.inchikey AS parentInchikey
             FROM RouteNode n
             JOIN Route r ON r.id = n.routeId
             JOIN Molecule m ON m.id = n.moleculeId
-            LEFT JOIN ReactionStep rs ON rs.id = n.reactionStepId
+            JOIN RouteNodePayload np ON np.id = n.payloadId
+            LEFT JOIN ReactionStep rs ON rs.id = np.reactionStepId
             LEFT JOIN RouteNode parent ON parent.id = n.parentId
+            LEFT JOIN RouteNodePayload pp ON pp.id = parent.payloadId
             LEFT JOIN Molecule pm ON pm.id = parent.moleculeId
-            ORDER BY r.contentHash, n.smiles, m.inchikey, n.isLeaf, n.template,
-                     n.metadata, rs.reactionHash, parentSmiles, parentInchikey
+            ORDER BY r.contentHash, np.smiles, m.inchikey, n.isLeaf, np.template,
+                     np.metadata, rs.reactionHash, parentSmiles, parentInchikey
         `,
         jsonColumns: ['metadata'],
     },

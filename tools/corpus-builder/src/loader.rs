@@ -2,12 +2,17 @@ use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, Params, Transaction, params};
+use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    config::{BENCHMARKS, MODELS, STOCKS},
-    stream::{parse_hashed_json_gz, resolve_confined_regular, stream_stock_csv},
+    config::CorpusCatalog,
+    stock_enrichment,
+    stream::{
+        parse_hashed_json_gz, resolve_confined_regular, stream_stock_csv,
+        stream_stock_enrichment_csv,
+    },
     wire::{
         BenchmarkDefinition, Molecule, Reaction, Route, effective_constraints, route_content_hash,
         route_depth, route_is_convergent, route_signature, validate_stock_termination_constraint,
@@ -17,11 +22,17 @@ use crate::{
 pub struct CorpusBindings {
     pub stocks: HashMap<String, String>,
     pub benchmarks: HashMap<String, BenchmarkBinding>,
-    pub models: HashMap<String, String>,
+    pub models: HashMap<String, ModelBinding>,
+}
+
+pub struct ModelBinding {
+    pub id: String,
+    pub instance_slug: String,
 }
 
 pub struct BenchmarkBinding {
     pub id: String,
+    pub stock: String,
     pub default_constraints: Vec<Value>,
     pub target_constraints: std::collections::BTreeMap<String, Vec<Value>>,
 }
@@ -29,10 +40,11 @@ pub struct BenchmarkBinding {
 pub fn load_reference_data(
     connection: &mut Connection,
     corpus_root: &Path,
+    catalog: &CorpusCatalog,
 ) -> Result<CorpusBindings> {
-    let models = load_models(connection)?;
-    let stocks = load_stocks(connection, corpus_root)?;
-    let benchmarks = load_benchmarks(connection, corpus_root, &stocks)?;
+    let models = load_models(connection, catalog)?;
+    let stocks = load_stocks(connection, corpus_root, catalog)?;
+    let benchmarks = load_benchmarks(connection, corpus_root, catalog, &stocks)?;
     Ok(CorpusBindings {
         stocks,
         benchmarks,
@@ -40,11 +52,269 @@ pub fn load_reference_data(
     })
 }
 
-fn load_models(connection: &mut Connection) -> Result<HashMap<String, String>> {
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegacyUrlAliasManifest {
+    schema_version: u8,
+    source: LegacyAliasSource,
+    #[serde(default)]
+    benchmark_aliases: Vec<BenchmarkAlias>,
+    #[serde(default)]
+    prediction_run_aliases: Vec<PredictionRunAlias>,
+    #[serde(default)]
+    benchmark_target_aliases: Vec<BenchmarkTargetAlias>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegacyAliasSource {
+    database_sha256: String,
+    description: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BenchmarkAlias {
+    alias: String,
+    benchmark_slug: String,
+    reason: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PredictionRunAlias {
+    alias: String,
+    benchmark_slug: String,
+    model_instance_slug: String,
+    reason: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BenchmarkTargetAlias {
+    alias: String,
+    benchmark_slug: String,
+    target_id: String,
+    reason: String,
+}
+
+pub fn load_legacy_url_aliases(
+    connection: &mut Connection,
+    corpus_root: &Path,
+    catalog: &CorpusCatalog,
+) -> Result<()> {
+    let Some(config) = &catalog.legacy_url_aliases else {
+        return Ok(());
+    };
+    let path = resolve_confined_regular(corpus_root, &config.manifest_path)?;
+    let bytes = fs::read(&path)?;
+    if crate::sha256_bytes(&bytes) != config.manifest_sha256 {
+        bail!("legacy URL alias manifest SHA-256 disagrees with catalog");
+    }
+    let manifest: LegacyUrlAliasManifest = serde_json::from_slice(&bytes)?;
+    if manifest.schema_version != 1
+        || manifest.source.description.trim().is_empty()
+        || !valid_sha256(&manifest.source.database_sha256)
+    {
+        bail!("legacy URL alias manifest metadata is invalid");
+    }
+    let transaction = connection.transaction()?;
+    let mut seen_benchmarks = std::collections::HashSet::new();
+    for alias in manifest.benchmark_aliases {
+        validate_alias(&alias.alias, &alias.reason, &mut seen_benchmarks)?;
+        let canonical_collision: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM BenchmarkSet WHERE id = ?1 OR slug = ?1)",
+            [&alias.alias],
+            |row| row.get(0),
+        )?;
+        if canonical_collision {
+            bail!("benchmark alias collides with a canonical benchmark identifier");
+        }
+        let benchmark_id: String = transaction
+            .query_row(
+                "SELECT id FROM BenchmarkSet WHERE slug = ?1",
+                [&alias.benchmark_slug],
+                |row| row.get(0),
+            )
+            .with_context(|| {
+                format!(
+                    "alias references unknown benchmark {}",
+                    alias.benchmark_slug
+                )
+            })?;
+        execute_cached(
+            &transaction,
+            "INSERT INTO BenchmarkUrlAlias (alias, benchmarkSetId, reason) VALUES (?1, ?2, ?3)",
+            params![alias.alias, benchmark_id, alias.reason],
+        )?;
+    }
+    let mut seen_runs = std::collections::HashSet::new();
+    for alias in manifest.prediction_run_aliases {
+        validate_alias(&alias.alias, &alias.reason, &mut seen_runs)?;
+        let canonical_collision: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM PredictionRun WHERE id = ?1)",
+            [&alias.alias],
+            |row| row.get(0),
+        )?;
+        if canonical_collision {
+            bail!("prediction-run alias collides with a canonical run identifier");
+        }
+        let run_id: String = transaction
+            .query_row(
+                "SELECT PredictionRun.id FROM PredictionRun JOIN BenchmarkSet ON BenchmarkSet.id = PredictionRun.benchmarkSetId JOIN ModelInstance ON ModelInstance.id = PredictionRun.modelInstanceId WHERE BenchmarkSet.slug = ?1 AND ModelInstance.slug = ?2",
+                params![alias.benchmark_slug, alias.model_instance_slug],
+                |row| row.get(0),
+            )
+            .context("prediction-run alias destination is absent or ambiguous")?;
+        execute_cached(
+            &transaction,
+            "INSERT INTO PredictionRunUrlAlias (alias, predictionRunId, reason) VALUES (?1, ?2, ?3)",
+            params![alias.alias, run_id, alias.reason],
+        )?;
+    }
+    let mut seen_targets = std::collections::HashSet::new();
+    for alias in manifest.benchmark_target_aliases {
+        validate_alias(&alias.alias, &alias.reason, &mut seen_targets)?;
+        let canonical_collision: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM BenchmarkTarget JOIN BenchmarkSet ON BenchmarkSet.id = BenchmarkTarget.benchmarkSetId WHERE BenchmarkSet.slug = ?1 AND (BenchmarkTarget.id = ?2 OR BenchmarkTarget.targetId = ?2))",
+            params![alias.benchmark_slug, alias.alias],
+            |row| row.get(0),
+        )?;
+        if canonical_collision {
+            bail!("benchmark-target alias collides with a canonical target identifier");
+        }
+        let target_id: String = transaction
+            .query_row(
+                "SELECT BenchmarkTarget.id FROM BenchmarkTarget JOIN BenchmarkSet ON BenchmarkSet.id = BenchmarkTarget.benchmarkSetId WHERE BenchmarkSet.slug = ?1 AND BenchmarkTarget.targetId = ?2",
+                params![alias.benchmark_slug, alias.target_id],
+                |row| row.get(0),
+            )
+            .context("benchmark-target alias destination is absent or ambiguous")?;
+        execute_cached(
+            &transaction,
+            "INSERT INTO BenchmarkTargetUrlAlias (alias, benchmarkTargetId, reason) VALUES (?1, ?2, ?3)",
+            params![alias.alias, target_id, alias.reason],
+        )?;
+    }
+    transaction.commit()?;
+    Ok(())
+}
+
+pub fn validate_legacy_url_alias_contract(
+    corpus_root: &Path,
+    catalog: &CorpusCatalog,
+    inventory: &crate::contract::Inventory,
+    benchmark_targets: &HashMap<String, std::collections::HashSet<String>>,
+) -> Result<()> {
+    let Some(config) = &catalog.legacy_url_aliases else {
+        return Ok(());
+    };
+    let path = resolve_confined_regular(corpus_root, &config.manifest_path)?;
+    let bytes = fs::read(&path)?;
+    if crate::sha256_bytes(&bytes) != config.manifest_sha256 {
+        bail!("legacy URL alias manifest SHA-256 disagrees with catalog");
+    }
+    let manifest: LegacyUrlAliasManifest = serde_json::from_slice(&bytes)?;
+    if manifest.schema_version != 1
+        || manifest.source.description.trim().is_empty()
+        || !valid_sha256(&manifest.source.database_sha256)
+    {
+        bail!("legacy URL alias manifest metadata is invalid");
+    }
+
+    let benchmark_names: std::collections::HashSet<_> = catalog
+        .benchmarks
+        .iter()
+        .map(|value| value.name.as_str())
+        .collect();
+    let canonical_benchmark_ids: std::collections::HashSet<_> = catalog
+        .benchmarks
+        .iter()
+        .map(|benchmark| benchmark_artifact_sha256(corpus_root, benchmark))
+        .collect::<Result<_>>()?;
+    let mut seen_benchmarks = std::collections::HashSet::new();
+    for alias in manifest.benchmark_aliases {
+        validate_alias(&alias.alias, &alias.reason, &mut seen_benchmarks)?;
+        if benchmark_names.contains(alias.alias.as_str())
+            || canonical_benchmark_ids.contains(&alias.alias)
+        {
+            bail!("benchmark alias collides with a canonical benchmark identifier");
+        }
+        if !benchmark_names.contains(alias.benchmark_slug.as_str()) {
+            bail!("benchmark alias destination is absent");
+        }
+    }
+
+    let canonical_runs: std::collections::HashSet<_> = inventory
+        .runs
+        .iter()
+        .map(|run| {
+            let model = catalog
+                .model(&run.model)
+                .expect("inventory model was validated against catalog");
+            (run.benchmark.clone(), model.instance_slug.clone())
+        })
+        .collect();
+    let canonical_run_ids: std::collections::HashSet<_> = canonical_runs
+        .iter()
+        .map(|(benchmark, model)| stable_id("prediction-run", &format!("{benchmark}/{model}")))
+        .collect();
+    let mut seen_runs = std::collections::HashSet::new();
+    for alias in manifest.prediction_run_aliases {
+        validate_alias(&alias.alias, &alias.reason, &mut seen_runs)?;
+        if canonical_run_ids.contains(&alias.alias) {
+            bail!("prediction-run alias collides with a canonical run identifier");
+        }
+        if !canonical_runs.contains(&(alias.benchmark_slug, alias.model_instance_slug)) {
+            bail!("prediction-run alias destination is absent");
+        }
+    }
+
+    let mut seen_targets = std::collections::HashSet::new();
+    for alias in manifest.benchmark_target_aliases {
+        validate_alias(&alias.alias, &alias.reason, &mut seen_targets)?;
+        let targets = benchmark_targets
+            .get(&alias.benchmark_slug)
+            .context("benchmark-target alias references an unknown benchmark")?;
+        let canonical_id = stable_id(
+            "benchmark-target",
+            &format!("{}/{}", alias.benchmark_slug, alias.target_id),
+        );
+        if alias.alias == alias.target_id || alias.alias == canonical_id {
+            bail!("benchmark-target alias collides with a canonical target identifier");
+        }
+        if !targets.contains(&alias.target_id) {
+            bail!("benchmark-target alias destination is absent");
+        }
+    }
+    Ok(())
+}
+
+fn validate_alias(
+    alias: &str,
+    reason: &str,
+    seen: &mut std::collections::HashSet<String>,
+) -> Result<()> {
+    if alias.trim().is_empty() || reason.trim().is_empty() || !seen.insert(alias.to_owned()) {
+        bail!("legacy URL alias is empty, duplicated, or lacks an audit reason");
+    }
+    Ok(())
+}
+
+fn valid_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+        && value == value.to_ascii_lowercase()
+}
+
+fn load_models(
+    connection: &mut Connection,
+    catalog: &CorpusCatalog,
+) -> Result<HashMap<String, ModelBinding>> {
     let transaction = connection.transaction()?;
     let mut bindings = HashMap::new();
-    for model in MODELS {
-        let algorithm_id = stable_id("algorithm", model.algorithm_slug);
+    for model in &catalog.models {
+        let algorithm_id = stable_id("algorithm", &model.algorithm_slug);
         execute_cached(
             &transaction,
             "INSERT INTO Algorithm (id, name, slug) VALUES (?1, ?2, ?3) ON CONFLICT(slug) DO NOTHING",
@@ -52,13 +322,13 @@ fn load_models(connection: &mut Connection) -> Result<HashMap<String, String>> {
         )?;
         let algorithm: (String, String) = transaction.query_row(
             "SELECT id, name FROM Algorithm WHERE slug = ?1",
-            [model.algorithm_slug],
+            [&model.algorithm_slug],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
         if algorithm != (algorithm_id.clone(), model.algorithm_name.to_owned()) {
             bail!("algorithm slug reuse disagrees with its stable identity");
         }
-        let family_id = stable_id("model-family", model.family_slug);
+        let family_id = stable_id("model-family", &model.family_slug);
         execute_cached(
             &transaction,
             "INSERT INTO ModelFamily (id, algorithmId, name, slug) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(slug) DO NOTHING",
@@ -71,7 +341,7 @@ fn load_models(connection: &mut Connection) -> Result<HashMap<String, String>> {
         )?;
         let family: (String, String, String) = transaction.query_row(
             "SELECT id, algorithmId, name FROM ModelFamily WHERE slug = ?1",
-            [model.family_slug],
+            [&model.family_slug],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )?;
         if family
@@ -83,47 +353,92 @@ fn load_models(connection: &mut Connection) -> Result<HashMap<String, String>> {
         {
             bail!("model family slug reuse disagrees with its stable identity");
         }
-        let instance_id = stable_id("model-instance", model.instance_slug);
+        let instance_id = stable_id("model-instance", &model.instance_slug);
         execute_cached(
             &transaction,
-            "INSERT INTO ModelInstance (id, modelFamilyId, slug, versionMajor, versionMinor, versionPatch, versionPrerelease) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '')",
+            "INSERT INTO ModelInstance (id, modelFamilyId, slug, versionMajor, versionMinor, versionPatch, versionPrerelease) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 instance_id,
                 family_id,
                 model.instance_slug,
-                model.version.0,
-                model.version.1,
-                model.version.2
+                model.version.major,
+                model.version.minor,
+                model.version.patch,
+                model.version.prerelease,
             ],
         )?;
-        bindings.insert(model.artifact.to_owned(), instance_id);
+        bindings.insert(
+            model.key.clone(),
+            ModelBinding {
+                id: instance_id,
+                instance_slug: model.instance_slug.clone(),
+            },
+        );
     }
     transaction.commit()?;
     Ok(bindings)
 }
 
-fn load_stocks(connection: &mut Connection, corpus_root: &Path) -> Result<HashMap<String, String>> {
+fn load_stocks(
+    connection: &mut Connection,
+    corpus_root: &Path,
+    catalog: &CorpusCatalog,
+) -> Result<HashMap<String, String>> {
     let mut bindings = HashMap::new();
-    for stock in STOCKS {
-        let relative = format!("inputs/stocks/{}.csv.gz", stock.name);
+    for stock in &catalog.stocks {
+        let relative = stock.artifact_path.clone();
         let file_path = resolve_confined_regular(corpus_root, &relative)?;
-        let manifest_path = resolve_confined_regular(
-            corpus_root,
-            &format!("inputs/stocks/{}.manifest.json", stock.name),
-        )?;
+        let manifest_path = resolve_confined_regular(corpus_root, &stock.manifest_path)?;
         let (expected_hash, schema_version) = input_provenance(&manifest_path, &file_path)?;
+        let enrichment_binding = stock
+            .enrichment
+            .as_ref()
+            .map(|enrichment| {
+                let artifact = resolve_confined_regular(corpus_root, &enrichment.artifact_path)?;
+                let manifest_path =
+                    resolve_confined_regular(corpus_root, &enrichment.manifest_path)?;
+                let manifest = stock_enrichment::validate_manifest(
+                    &manifest_path,
+                    &enrichment.manifest_sha256,
+                    &artifact,
+                    &enrichment.artifact_sha256,
+                    &stock.name,
+                )?;
+                Ok::<_, anyhow::Error>((artifact, manifest))
+            })
+            .transpose()?;
         let transaction = connection.transaction()?;
-        let stock_id = stable_id("stock", stock.name);
+        let stock_id = stable_id("stock", &stock.name);
         execute_cached(
             &transaction,
-            "INSERT INTO Stock (id, name, description, sourcePath, sourceSha256, schemaVersion) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO Stock (id, name, description, sourcePath, sourceSha256, schemaVersion, enrichmentPath, enrichmentSha256, enrichmentSchemaVersion, enrichmentManifestPath, enrichmentManifestSha256, enrichmentSourceDatabaseSha256) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![
                 stock_id,
                 stock.name,
                 stock.description,
                 relative,
                 expected_hash,
-                schema_version
+                schema_version,
+                stock
+                    .enrichment
+                    .as_ref()
+                    .map(|value| value.artifact_path.as_str()),
+                stock
+                    .enrichment
+                    .as_ref()
+                    .map(|value| value.artifact_sha256.as_str()),
+                stock.enrichment.as_ref().map(|_| "1"),
+                stock
+                    .enrichment
+                    .as_ref()
+                    .map(|value| value.manifest_path.as_str()),
+                stock
+                    .enrichment
+                    .as_ref()
+                    .map(|value| value.manifest_sha256.as_str()),
+                enrichment_binding
+                    .as_ref()
+                    .map(|(_, manifest)| manifest.source_database_sha256()),
             ],
         )?;
         let mut seen: HashMap<String, String> = HashMap::new();
@@ -153,8 +468,40 @@ fn load_stocks(connection: &mut Connection, corpus_root: &Path) -> Result<HashMa
         if count == 0 || seen.is_empty() {
             bail!("stock {} has no rows", stock.name);
         }
+        if let (Some(enrichment), Some((enrichment_path, manifest))) =
+            (&stock.enrichment, &enrichment_binding)
+        {
+            let mut update = transaction.prepare_cached(
+                "UPDATE StockItem SET ppg = ?1, source = ?2, leadTime = ?3, link = ?4 WHERE stockId = ?5 AND moleculeId = (SELECT id FROM Molecule WHERE inchikey = ?6)",
+            )?;
+            let enrichment_rows =
+                stream_stock_enrichment_csv(enrichment_path, &enrichment.artifact_sha256, |row| {
+                    let affected = update.execute(params![
+                        row.ppg,
+                        row.source.as_deref(),
+                        row.lead_time.as_deref(),
+                        row.link.as_deref(),
+                        stock_id,
+                        row.inchikey,
+                    ])?;
+                    if affected != 1 {
+                        bail!(
+                            "stock enrichment InChIKey must match exactly one {} item",
+                            stock.name
+                        );
+                    }
+                    Ok(())
+                })?;
+            if enrichment_rows != manifest.rows() || enrichment_rows != seen.len() {
+                bail!(
+                    "stock enrichment must cover every {} item exactly once",
+                    stock.name
+                );
+            }
+            drop(update);
+        }
         transaction.commit()?;
-        bindings.insert(stock.name.to_owned(), stock_id);
+        bindings.insert(stock.name.clone(), stock_id);
     }
     Ok(bindings)
 }
@@ -162,16 +509,14 @@ fn load_stocks(connection: &mut Connection, corpus_root: &Path) -> Result<HashMa
 fn load_benchmarks(
     connection: &mut Connection,
     corpus_root: &Path,
+    catalog: &CorpusCatalog,
     stocks: &HashMap<String, String>,
 ) -> Result<HashMap<String, BenchmarkBinding>> {
     let mut bindings = HashMap::new();
-    for benchmark in BENCHMARKS {
-        let relative = format!("inputs/benchmarks/{}.json.gz", benchmark.name);
+    for benchmark in &catalog.benchmarks {
+        let relative = benchmark.artifact_path.clone();
         let file_path = resolve_confined_regular(corpus_root, &relative)?;
-        let manifest_path = resolve_confined_regular(
-            corpus_root,
-            &format!("inputs/benchmarks/{}.manifest.json", benchmark.name),
-        )?;
+        let manifest_path = resolve_confined_regular(corpus_root, &benchmark.manifest_path)?;
         let (expected_hash, schema_version) = input_provenance(&manifest_path, &file_path)?;
         let definition: BenchmarkDefinition = parse_hashed_json_gz(&file_path, &expected_hash)?;
         if definition.name != benchmark.name
@@ -208,7 +553,7 @@ fn load_benchmarks(
                     &definition.constraints,
                     target_id,
                 )?,
-                benchmark.stock,
+                &benchmark.stock,
             )?;
         }
         let acceptable_coverage: Vec<_> = definition
@@ -224,18 +569,20 @@ fn load_benchmarks(
             );
         }
         let transaction = connection.transaction()?;
-        let benchmark_id = stable_id("benchmark", benchmark.name);
+        // Benchmark identity is the exact registered artifact, while its
+        // readable unique slug is the public URL key.
+        let benchmark_id = expected_hash.clone();
         let default_constraints_json = serde_json::to_string(&definition.default_constraints)?;
         let target_constraints_json = serde_json::to_string(&definition.constraints)?;
         execute_cached(
             &transaction,
-            "INSERT INTO BenchmarkSet (id, name, description, stockId, hasAcceptableRoutes, sourcePath, sourceSha256, schemaVersion, defaultConstraintsJson, targetConstraintsJson, series, isListed) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1)",
+            "INSERT INTO BenchmarkSet (id, name, slug, description, stockId, hasAcceptableRoutes, sourcePath, sourceSha256, schemaVersion, defaultConstraintsJson, targetConstraintsJson, series, isListed) VALUES (?1, ?2, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1)",
             params![
                 benchmark_id,
                 benchmark.name,
                 definition.description,
                 stocks
-                    .get(benchmark.stock)
+                    .get(&benchmark.stock)
                     .context("configured stock binding missing")?,
                 has_acceptable_routes,
                 relative,
@@ -313,6 +660,7 @@ fn load_benchmarks(
             benchmark.name.to_owned(),
             BenchmarkBinding {
                 id: benchmark_id,
+                stock: benchmark.stock.clone(),
                 default_constraints: definition.default_constraints,
                 target_constraints: definition.constraints,
             },
@@ -321,7 +669,10 @@ fn load_benchmarks(
     Ok(bindings)
 }
 
-fn input_provenance(manifest_path: &Path, input_path: &Path) -> Result<(String, String)> {
+pub(crate) fn input_provenance(
+    manifest_path: &Path,
+    input_path: &Path,
+) -> Result<(String, String)> {
     let manifest: Value = serde_json::from_slice(
         &fs::read(manifest_path).with_context(|| format!("read {}", manifest_path.display()))?,
     )?;
@@ -362,6 +713,16 @@ fn input_provenance(manifest_path: &Path, input_path: &Path) -> Result<(String, 
         bail!("invalid input manifest SHA-256");
     }
     Ok((hash, schema.to_owned()))
+}
+
+fn benchmark_artifact_sha256(
+    corpus_root: &Path,
+    benchmark: &crate::config::BenchmarkConfig,
+) -> Result<String> {
+    let artifact = resolve_confined_regular(corpus_root, &benchmark.artifact_path)?;
+    let manifest = resolve_confined_regular(corpus_root, &benchmark.manifest_path)?;
+    let (sha256, _) = input_provenance(&manifest, &artifact)?;
+    Ok(sha256)
 }
 
 pub fn stable_id(namespace: &str, value: &str) -> String {
@@ -416,7 +777,7 @@ pub fn ensure_route(transaction: &Transaction<'_>, route: &Route) -> Result<Stri
         params![route_id, signature, content_hash, length, convergent],
     )?;
     if inserted > 0 {
-        insert_route_node(transaction, &route_id, &route.target, None, "root")?;
+        insert_route_node(transaction, &route_id, &route.target, None)?;
     }
     let actual: (String, String, i64, bool) = transaction.query_row(
         "SELECT id, signature, length, isConvergent FROM Route WHERE contentHash = ?1",
@@ -433,11 +794,9 @@ fn insert_route_node(
     transaction: &Transaction<'_>,
     route_id: &str,
     molecule: &Molecule,
-    parent_id: Option<&str>,
-    path: &str,
-) -> Result<()> {
+    parent_id: Option<i64>,
+) -> Result<i64> {
     let molecule_id = ensure_molecule(transaction, &molecule.inchikey, &molecule.smiles)?;
-    let node_id = stable_id("route-node", &format!("{route_id}/{path}"));
     let (reaction_step_id, template, metadata) = match molecule.product_of.as_deref() {
         Some(reaction) => {
             let reaction_hash = reaction_topology_hash(reaction, &molecule.inchikey);
@@ -460,33 +819,75 @@ fn insert_route_node(
         }
         None => (None, None, None),
     };
-    execute_cached(
+    let payload_id = ensure_route_node_payload(
         transaction,
-        "INSERT INTO RouteNode (id, routeId, moleculeId, smiles, parentId, reactionStepId, template, metadata, isLeaf) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-        params![
-            node_id,
+        &molecule_id,
+        &molecule.smiles,
+        reaction_step_id.as_deref(),
+        template.as_deref(),
+        metadata.as_deref(),
+    )?;
+    let node_id = transaction
+        .prepare_cached(
+            "INSERT INTO RouteNode (routeId, moleculeId, payloadId, parentId, isLeaf) VALUES (?1, ?2, ?3, ?4, ?5)",
+        )?
+        .insert(params![
             route_id,
             molecule_id,
-            molecule.smiles,
+            payload_id,
             parent_id,
-            reaction_step_id,
-            template,
-            metadata,
             molecule.product_of.is_none()
-        ],
-    )?;
+        ])?;
     if let Some(reaction) = molecule.product_of.as_deref() {
-        for (index, reactant) in reaction.reactants.iter().enumerate() {
-            insert_route_node(
-                transaction,
-                route_id,
-                reactant,
-                Some(&node_id),
-                &format!("{path}/{index}"),
-            )?;
+        for reactant in &reaction.reactants {
+            insert_route_node(transaction, route_id, reactant, Some(node_id))?;
         }
     }
-    Ok(())
+    Ok(node_id)
+}
+
+fn ensure_route_node_payload(
+    transaction: &Transaction<'_>,
+    molecule_id: &str,
+    smiles: &str,
+    reaction_step_id: Option<&str>,
+    template: Option<&str>,
+    metadata: Option<&str>,
+) -> Result<i64> {
+    let content_hash = crate::identity::hash_json(&json!([
+        molecule_id,
+        smiles,
+        reaction_step_id,
+        template,
+        metadata
+    ]));
+    execute_cached(
+        transaction,
+        "INSERT INTO RouteNodePayload (contentHash, moleculeId, smiles, reactionStepId, template, metadata) VALUES (?1, ?2, ?3, ?4, ?5, ?6) ON CONFLICT(contentHash) DO NOTHING",
+        params![
+            content_hash,
+            molecule_id,
+            smiles,
+            reaction_step_id,
+            template,
+            metadata
+        ],
+    )?;
+    let actual: (i64, String, String, Option<String>, Option<String>, Option<String>) = transaction
+        .query_row(
+            "SELECT id, moleculeId, smiles, reactionStepId, template, metadata FROM RouteNodePayload WHERE contentHash = ?1",
+            [&content_hash],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+        )?;
+    if actual.1 != molecule_id
+        || actual.2 != smiles
+        || actual.3.as_deref() != reaction_step_id
+        || actual.4.as_deref() != template
+        || actual.5.as_deref() != metadata
+    {
+        bail!("route-node payload hash collision or inconsistent reuse");
+    }
+    Ok(actual.0)
 }
 
 fn reaction_topology_hash(reaction: &Reaction, product_inchikey: &str) -> String {

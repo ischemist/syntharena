@@ -1,4 +1,3 @@
-import type { VerifiedEvaluationBundleForImport } from '@ischemist/retrocast-io'
 import type { RetrocastFailureRecord, RetrocastRoute } from '@ischemist/routes'
 
 const check = (status: 'pass' | 'fail' | 'not_evaluated') => ({
@@ -37,7 +36,7 @@ export function makeEvaluationBundle(
         stockName?: string | null
         executionStatsSha256?: string
     } = {}
-): VerifiedEvaluationBundleForImport {
+) {
     const route = options.route ?? makeTestRoute()
     const failure = options.failure ?? {
         code: 'adapter.schema_invalid',

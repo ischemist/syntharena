@@ -1,0 +1,14 @@
+{
+    "schema_version": 1,
+    "retrocast_version": "0.8.3",
+    "release_tag": "v0.8.3",
+    "release_commit": "33ec506f82d961fad86ddc5260724c45bfcd50e9",
+    "release_url": "https://github.com/ischemist/project-procrustes/releases/tag/v0.8.3",
+    "approved_assets": [
+        {
+            "name": "retrocast-v0.8.3-macos-arm64.tar.gz",
+            "asset_sha256": "02381676ffbf781952cae0b22f82e5b31a890b901fd529d59657b5b88a1f03a6",
+            "executable_sha256": "4e797d245cf561fb79cc57a9c3734fa3adcc23814edb4688ae7cac866e438815"
+        }
+    ]
+}

@@ -29,9 +29,10 @@ model Molecule {
   smiles   String // Representative fallback; occurrence tables preserve exact input SMILES
 
   // Relations
-  stockItems       StockItem[]
-  routeNodes       RouteNode[]
-  benchmarkTargets BenchmarkTarget[]
+  stockItems        StockItem[]
+  routeNodes        RouteNode[]
+  routeNodePayloads RouteNodePayload[]
+  benchmarkTargets  BenchmarkTarget[]
 
   @@index([smiles])
   @@index([inchikey, smiles])
@@ -50,25 +51,27 @@ enum BenchmarkSeries {
 }
 
 model BenchmarkSet {
-  id                  String  @id @default(cuid())
-  name                String  @unique // e.g. "mkt-lin-500"
-  description         String?
-  stockId             String // Direct reference to the stock
-  hasAcceptableRoutes Boolean @default(false) // All-or-nothing: targets either all have acceptable routes or none do
-  sourcePath          String?
-  sourceSha256        String?
-  schemaVersion       String?
-  defaultConstraintsJson String @default("[]")
-  targetConstraintsJson  String @default("{}")
+  id                     String  @id // Full lowercase SHA-256 of the registered benchmark artifact
+  name                   String  @unique // e.g. "mkt-lin-500"
+  slug                   String  @unique // Immutable public URL key, initially equal to name
+  description            String?
+  stockId                String // Direct reference to the stock
+  hasAcceptableRoutes    Boolean @default(false) // All-or-nothing: targets either all have acceptable routes or none do
+  sourcePath             String?
+  sourceSha256           String?
+  schemaVersion          String?
+  defaultConstraintsJson String  @default("[]")
+  targetConstraintsJson  String  @default("{}")
 
   createdAt DateTime @default(now())
 
   series   BenchmarkSeries @default(OTHER)
   isListed Boolean         @default(true) // for de-prioritizing -single-gt
 
-  stock   Stock             @relation(fields: [stockId], references: [id])
-  targets BenchmarkTarget[]
-  runs    PredictionRun[]
+  stock      Stock               @relation(fields: [stockId], references: [id])
+  targets    BenchmarkTarget[]
+  runs       PredictionRun[]
+  urlAliases BenchmarkUrlAlias[]
 
   @@index([series, isListed, name]) // new index for fast filtering
 }
@@ -87,14 +90,37 @@ model BenchmarkTarget {
   metadata     String? // JSON blob for other metadata
 
   // Relations
-  benchmarkSet         BenchmarkSet          @relation(fields: [benchmarkSetId], references: [id])
-  molecule             Molecule              @relation(fields: [moleculeId], references: [id])
+  benchmarkSet         BenchmarkSet              @relation(fields: [benchmarkSetId], references: [id])
+  molecule             Molecule                  @relation(fields: [moleculeId], references: [id])
   acceptableRoutes     AcceptableRoute[]
   predictionCandidates PredictionCandidate[]
   targetEvaluations    TargetEvaluation[]
+  urlAliases           BenchmarkTargetUrlAlias[]
 
   @@unique([benchmarkSetId, targetId])
   @@unique([id, benchmarkSetId])
+}
+
+// Historical public IDs resolve through these FK-backed aliases. The corpus
+// builder owns their population; the application only performs indexed reads.
+model BenchmarkUrlAlias {
+  alias          String @id
+  benchmarkSetId String
+  reason         String
+
+  benchmarkSet BenchmarkSet @relation(fields: [benchmarkSetId], references: [id], onDelete: Cascade)
+
+  @@index([benchmarkSetId])
+}
+
+model BenchmarkTargetUrlAlias {
+  alias             String @id
+  benchmarkTargetId String
+  reason            String
+
+  benchmarkTarget BenchmarkTarget @relation(fields: [benchmarkTargetId], references: [id], onDelete: Cascade)
+
+  @@index([benchmarkTargetId])
 }
 
 // Junction table: Links BenchmarkTarget to multiple Route records (acceptable routes)
@@ -151,9 +177,9 @@ model ModelInstance {
   description   String? // what makes THIS version special? "trained on new internal dataset"
 
   // Structured SemVer
-  versionMajor      Int     @default(0)
-  versionMinor      Int     @default(0)
-  versionPatch      Int     @default(0)
+  versionMajor      Int    @default(0)
+  versionMinor      Int    @default(0)
+  versionPatch      Int    @default(0)
   versionPrerelease String @default("") // Empty string is the canonical stable release sentinel
 
   metadata  String? // JSON: training set info, hyperparams
@@ -206,13 +232,24 @@ model PredictionRun {
   submissionType SubmissionType @default(COMMUNITY_SUBMITTED)
   isRetrained    Boolean? // for ref-* series. NULL = N/A, true/false for ref runs.
 
-  modelInstance        ModelInstance         @relation(fields: [modelInstanceId], references: [id])
-  benchmarkSet         BenchmarkSet          @relation(fields: [benchmarkSetId], references: [id])
+  modelInstance        ModelInstance           @relation(fields: [modelInstanceId], references: [id])
+  benchmarkSet         BenchmarkSet            @relation(fields: [benchmarkSetId], references: [id])
   predictionCandidates PredictionCandidate[]
   evaluations          RunEvaluation[]
+  urlAliases           PredictionRunUrlAlias[]
 
   @@unique([modelInstanceId, benchmarkSetId]) // Assuming one run per version per set
   @@unique([id, benchmarkSetId])
+}
+
+model PredictionRunUrlAlias {
+  alias           String @id
+  predictionRunId String
+  reason          String
+
+  predictionRun PredictionRun @relation(fields: [predictionRunId], references: [id], onDelete: Cascade)
+
+  @@index([predictionRunId])
 }
 
 model Route {
@@ -270,33 +307,42 @@ model ReactionStep {
   id           String @id @default(cuid())
   reactionHash String @unique // SHA256 of "productInchikey>>reactant1Inchikey.reactant2Inchikey" (sorted)
 
-  nodes RouteNode[]
+  payloads RouteNodePayload[]
+}
+
+model RouteNodePayload {
+  id             Int     @id @default(autoincrement())
+  contentHash    String  @unique
+  moleculeId     String
+  smiles         String
+  reactionStepId String?
+  template       String?
+  metadata       String?
+
+  molecule     Molecule      @relation(fields: [moleculeId], references: [id])
+  reactionStep ReactionStep? @relation(fields: [reactionStepId], references: [id], onDelete: Restrict)
+  nodes        RouteNode[]
 }
 
 model RouteNode {
-  id             String  @id @default(cuid())
-  routeId        String
-  moleculeId     String
-  smiles         String // Exact producer representation for this route occurrence
-  parentId       String? // Tree structure
-  reactionStepId String? // null for leaf nodes
-  template       String? // Exact producer template for this route occurrence
-  metadata       String? // Exact mapped reaction/provenance for this occurrence
+  id         Int    @id @default(autoincrement())
+  routeId    String
+  moleculeId String
+  payloadId  Int
+  parentId   Int? // Tree structure
 
   isLeaf Boolean @default(false)
 
   // Relations
-  route        Route         @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  molecule     Molecule      @relation(fields: [moleculeId], references: [id])
-  reactionStep ReactionStep? @relation(fields: [reactionStepId], references: [id])
-  // Including routeId in the self-reference makes cross-route parenting
-  // impossible even for direct SQL writes.
-  parent       RouteNode?    @relation("ReactionTree", fields: [parentId, routeId], references: [id, routeId], onDelete: NoAction, onUpdate: NoAction)
-  children     RouteNode[]   @relation("ReactionTree")
+  route    Route            @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  molecule Molecule         @relation(fields: [moleculeId], references: [id])
+  payload  RouteNodePayload @relation(fields: [payloadId], references: [id])
+  // Checked-in SQLite triggers reject cross-route parents for direct writes.
+  parent   RouteNode?       @relation("ReactionTree", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children RouteNode[]      @relation("ReactionTree")
 
-  @@unique([id, routeId])
   @@index([routeId])
-  @@index([reactionStepId])
+  @@index([moleculeId])
 }
 
 // =================================================================================
@@ -437,12 +483,18 @@ model MetricEstimate {
 // =================================================================================
 
 model Stock {
-  id            String  @id @default(cuid(2))
-  name          String  @unique // "buyables-stock" (matches directory name)
-  description   String?
-  sourcePath    String?
-  sourceSha256  String?
-  schemaVersion String?
+  id                             String  @id @default(cuid(2))
+  name                           String  @unique // "buyables-stock" (matches directory name)
+  description                    String?
+  sourcePath                     String?
+  sourceSha256                   String?
+  schemaVersion                  String?
+  enrichmentPath                 String?
+  enrichmentSha256               String?
+  enrichmentSchemaVersion        String?
+  enrichmentManifestPath         String?
+  enrichmentManifestSha256       String?
+  enrichmentSourceDatabaseSha256 String?
 
   benchmarks  BenchmarkSet[]
   items       StockItem[]
@@ -471,20 +523,24 @@ model StockItem {
 }
 
 model DatabaseMetadata {
-  id                     String   @id @default("syntharena")
-  databaseSchemaVersion  Int
-  artifactSchemaVersion  String
-  inventorySchemaVersion String
-  inventorySha256        String
-  retrocastVersion       String
-  publicationStatus      String
-  benchmarkCount         Int
-  modelCount             Int
-  expectedRunCount       Int
-  importedRunCount       Int
-  evaluationTargetCount  Int
-  candidateCount         Int
-  routeCount             Int
-  failureCount           Int
-  generatedAt            DateTime @default(now())
+  id                        String   @id @default("syntharena")
+  databaseSchemaVersion     Int
+  artifactSchemaVersion     String
+  inventorySchemaVersion    String
+  inventorySha256           String
+  catalogSha256             String
+  legacyUrlAliasesSha256    String?
+  identityBaselineSha256    String?
+  producerTrustPolicySha256 String
+  retrocastVersion          String
+  publicationStatus         String
+  benchmarkCount            Int
+  modelCount                Int
+  expectedRunCount          Int
+  importedRunCount          Int
+  evaluationTargetCount     Int
+  candidateCount            Int
+  routeCount                Int
+  failureCount              Int
+  generatedAt               DateTime @default(now())
 }

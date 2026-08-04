@@ -13,14 +13,13 @@
         "test:run": "vitest run",
         "test:coverage": "vitest run --coverage",
         "audit:database-parity": "tsx scripts/audit-database-parity.ts",
-        "rebuild:corpus": "cargo run --locked --release --manifest-path tools/corpus-builder/Cargo.toml",
-        "rebuild:corpus:reference": "tsx scripts/rebuild-corpus.ts",
+        "corpus": "cargo run --locked --release --manifest-path tools/corpus-builder/Cargo.toml --",
+        "rebuild:corpus": "cargo run --locked --release --manifest-path tools/corpus-builder/Cargo.toml -- build",
         "prepare": "husky",
         "format": "oxfmt",
         "format:check": "oxfmt --check"
     },
     "dependencies": {
-        "@ischemist/retrocast-io": "0.2.0",
         "@ischemist/route-viewer": "0.1.2",
         "@ischemist/routes": "0.2.0",
         "@prisma/adapter-better-sqlite3": "^7.0.0",

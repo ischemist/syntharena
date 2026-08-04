@@ -1,10 +1,11 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import { notFound, unstable_rethrow } from 'next/navigation'
+import { notFound, permanentRedirect, unstable_rethrow } from 'next/navigation'
 
 import * as benchmarkData from '@/lib/services/data/benchmark.data'
 import * as benchmarkView from '@/lib/services/view/benchmark.view'
 import { getBenchmarkById } from '@/lib/services/view/benchmark.view'
+import { buildSearchParams, resolveBenchmarkUrlKey, withSearchParams } from '@/lib/routing/url-resolver'
 
 import { BenchmarkDetailHeader } from './_components/server/benchmark-detail-header'
 import { TargetFilterBar } from './_components/server/target-filter-bar'
@@ -19,10 +20,13 @@ interface BenchmarkDetailPageProps {
 export async function generateMetadata({ params }: BenchmarkDetailPageProps): Promise<Metadata> {
     const { benchmarkId } = await params
     try {
-        const benchmark = await getBenchmarkById(benchmarkId)
+        const destination = await resolveBenchmarkUrlKey(benchmarkId)
+        if (!destination) return { title: 'Benchmark Not Found' }
+        const benchmark = await getBenchmarkById(destination.id)
         return {
             title: benchmark.name,
             description: benchmark.description || 'View benchmark targets and ground truth routes.',
+            alternates: { canonical: `/benchmarks/${destination.slug}` },
         }
     } catch {
         return { title: 'Benchmark Not Found' }
@@ -35,16 +39,48 @@ export async function generateMetadata({ params }: BenchmarkDetailPageProps): Pr
  * The page-level `loading.tsx` handles the initial loading state.
  */
 export default function BenchmarkDetailPage({ params, searchParams }: BenchmarkDetailPageProps) {
-    const benchmarkIdPromise = params.then((p) => p.benchmarkId)
+    return (
+        <Suspense fallback={<BenchmarkDetailPageFallback />}>
+            <ResolvedBenchmarkDetailPage paramsPromise={params} searchParamsPromise={searchParams} />
+        </Suspense>
+    )
+}
 
+function BenchmarkDetailPageFallback() {
+    return (
+        <div className="flex flex-col gap-6">
+            <BenchmarkDetailHeaderSkeleton />
+            <TargetGridSkeleton />
+        </div>
+    )
+}
+
+async function ResolvedBenchmarkDetailPage({
+    paramsPromise,
+    searchParamsPromise,
+}: {
+    paramsPromise: BenchmarkDetailPageProps['params']
+    searchParamsPromise: BenchmarkDetailPageProps['searchParams']
+}) {
+    const [{ benchmarkId }, searchParamsValues] = await Promise.all([paramsPromise, searchParamsPromise])
+    const destination = await resolveBenchmarkUrlKey(benchmarkId)
+    if (!destination) notFound()
+    if (benchmarkId !== destination.slug) {
+        permanentRedirect(withSearchParams(`/benchmarks/${destination.slug}`, buildSearchParams(searchParamsValues)))
+    }
+
+    const benchmarkIdPromise = Promise.resolve(destination.id)
     return (
         <div className="flex flex-col gap-6">
             <Suspense fallback={<BenchmarkDetailHeaderSkeleton />}>
                 <ResolvedHeaderAndFilters benchmarkIdPromise={benchmarkIdPromise} />
             </Suspense>
-
             <Suspense fallback={<TargetGridSkeleton />}>
-                <ResolvedTargetGrid benchmarkIdPromise={benchmarkIdPromise} searchParamsPromise={searchParams} />
+                <ResolvedTargetGrid
+                    benchmarkIdPromise={benchmarkIdPromise}
+                    benchmarkSlug={destination.slug}
+                    searchParamsValues={searchParamsValues}
+                />
             </Suspense>
         </div>
     )
@@ -67,12 +103,14 @@ async function ResolvedHeaderAndFilters({ benchmarkIdPromise }: { benchmarkIdPro
 }
 async function ResolvedTargetGrid({
     benchmarkIdPromise,
-    searchParamsPromise,
+    benchmarkSlug,
+    searchParamsValues,
 }: {
     benchmarkIdPromise: Promise<string>
-    searchParamsPromise: BenchmarkDetailPageProps['searchParams']
+    benchmarkSlug: string
+    searchParamsValues: Awaited<BenchmarkDetailPageProps['searchParams']>
 }) {
-    const [benchmarkId, searchParamsValues] = await Promise.all([benchmarkIdPromise, searchParamsPromise])
+    const benchmarkId = await benchmarkIdPromise
     const page = typeof searchParamsValues.page === 'string' ? parseInt(searchParamsValues.page, 10) : 1
     const q = typeof searchParamsValues.q === 'string' ? searchParamsValues.q : undefined
     const searchType =
@@ -110,5 +148,5 @@ async function ResolvedTargetGrid({
         notFound()
     }
 
-    return <TargetGrid benchmarkId={benchmarkId} result={targetsResult} />
+    return <TargetGrid benchmarkSlug={benchmarkSlug} result={targetsResult} />
 }

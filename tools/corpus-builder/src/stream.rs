@@ -23,6 +23,15 @@ use crate::{
 
 pub type CandidateDigests = HashMap<String, (usize, String)>;
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct StockEnrichmentRow {
+    pub inchikey: String,
+    pub ppg: Option<f64>,
+    pub source: Option<String>,
+    pub lead_time: Option<String>,
+    pub link: Option<String>,
+}
+
 #[derive(Default)]
 struct HashState {
     hasher: Sha256,
@@ -100,6 +109,84 @@ where
     drop(csv);
     assert_hash_state(path, expected_sha256, expected_bytes, &state)?;
     Ok(count)
+}
+
+pub fn stream_stock_enrichment_csv<F>(
+    path: &Path,
+    expected_sha256: &str,
+    mut row: F,
+) -> Result<usize>
+where
+    F: FnMut(StockEnrichmentRow) -> Result<()>,
+{
+    let file = File::open(path).with_context(|| format!("open {}", path.display()))?;
+    let expected_bytes = file.metadata()?.len();
+    let state = Arc::new(Mutex::new(HashState::default()));
+    let reader = HashingReader {
+        inner: file,
+        state: Arc::clone(&state),
+    };
+    let mut csv = csv::Reader::from_reader(BufReader::new(GzDecoder::new(reader)));
+    let headers = csv.headers()?.clone();
+    let expected_headers = ["InChIKey", "ppg", "source", "lead_time", "link"];
+    if headers.iter().collect::<Vec<_>>() != expected_headers {
+        bail!(
+            "stock enrichment CSV headers must be exactly {}",
+            expected_headers.join(",")
+        );
+    }
+    let mut count = 0;
+    let mut previous: Option<String> = None;
+    for record in csv.records() {
+        let record = record?;
+        let inchikey = record.get(0).unwrap_or("").trim();
+        if inchikey.is_empty() {
+            bail!("stock enrichment CSV contains an empty InChIKey");
+        }
+        if previous.as_deref().is_some_and(|value| value >= inchikey) {
+            bail!("stock enrichment InChIKeys must be unique and strictly ascending");
+        }
+        let ppg = optional_field(record.get(1))
+            .map(|value| {
+                let parsed: f64 = value.parse().context("invalid stock enrichment ppg")?;
+                if !parsed.is_finite() || parsed < 0.0 {
+                    bail!("stock enrichment ppg must be finite and non-negative");
+                }
+                Ok(parsed)
+            })
+            .transpose()?;
+        let source = optional_field(record.get(2)).map(str::to_owned);
+        if source
+            .as_deref()
+            .is_some_and(|value| !matches!(value, "MC" | "LN" | "EM" | "SA" | "CB"))
+        {
+            bail!("stock enrichment source is not a supported vendor code");
+        }
+        let lead_time = optional_field(record.get(3)).map(str::to_owned);
+        let link = optional_field(record.get(4)).map(str::to_owned);
+        if link
+            .as_deref()
+            .is_some_and(|value| !value.starts_with("https://") && !value.starts_with("http://"))
+        {
+            bail!("non-empty stock enrichment links must use http or https");
+        }
+        previous = Some(inchikey.to_owned());
+        row(StockEnrichmentRow {
+            inchikey: inchikey.to_owned(),
+            ppg,
+            source,
+            lead_time,
+            link,
+        })?;
+        count += 1;
+    }
+    drop(csv);
+    assert_hash_state(path, expected_sha256, expected_bytes, &state)?;
+    Ok(count)
+}
+
+fn optional_field(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|value| !value.is_empty())
 }
 
 pub fn stream_candidate_digests(
@@ -591,6 +678,43 @@ mod tests {
             br#"{"target":[{"rank":2,"failure":{"code":"bad","context":{}}}]}"#,
         );
         assert!(stream_candidate_digests(&ranks, &ranks_hash).is_err());
+    }
+
+    #[test]
+    fn stock_enrichment_stream_validates_order_values_and_digest() {
+        let directory = tempfile::tempdir().unwrap();
+        let payload = b"InChIKey,ppg,source,lead_time,link\nAAA,1.25,MC,1week,https://example.test/a\nBBB,,LN,,\n";
+        let (valid, hash) = gzip_file(directory.path(), "enrichment.csv.gz", payload);
+        let mut rows = Vec::new();
+        assert_eq!(
+            stream_stock_enrichment_csv(&valid, &hash, |row| {
+                rows.push(row);
+                Ok(())
+            })
+            .unwrap(),
+            2
+        );
+        assert_eq!(rows[0].ppg, Some(1.25));
+        assert_eq!(rows[1].source.as_deref(), Some("LN"));
+        assert!(stream_stock_enrichment_csv(&valid, &"0".repeat(64), |_| Ok(())).is_err());
+
+        for (name, invalid) in [
+            (
+                "duplicate.csv.gz",
+                b"InChIKey,ppg,source,lead_time,link\nAAA,1,MC,,\nAAA,2,LN,,\n".as_slice(),
+            ),
+            (
+                "vendor.csv.gz",
+                b"InChIKey,ppg,source,lead_time,link\nAAA,1,NOPE,,\n".as_slice(),
+            ),
+            (
+                "negative.csv.gz",
+                b"InChIKey,ppg,source,lead_time,link\nAAA,-1,MC,,\n".as_slice(),
+            ),
+        ] {
+            let (path, hash) = gzip_file(directory.path(), name, invalid);
+            assert!(stream_stock_enrichment_csv(&path, &hash, |_| Ok(())).is_err());
+        }
     }
 
     #[derive(Default)]

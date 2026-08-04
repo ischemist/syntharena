@@ -4,14 +4,17 @@ use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::stream::sha256_file;
+use crate::{
+    config::{CorpusCatalog, CoverageMode},
+    stream::sha256_file,
+};
 
 pub const RETROCAST_VERSION: &str = "0.8.3";
 pub const RETROCAST_RELEASE_TAG: &str = "v0.8.3";
 pub const RETROCAST_RELEASE_COMMIT: &str = "33ec506f82d961fad86ddc5260724c45bfcd50e9";
 pub const ARTIFACT_SCHEMA_VERSION: &str = "2";
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Inventory {
     pub schema_version: String,
     pub publication_status: String,
@@ -20,7 +23,7 @@ pub struct Inventory {
     pub runs: Vec<InventoryRun>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Matrix {
     pub benchmarks: usize,
     pub models: usize,
@@ -30,14 +33,14 @@ pub struct Matrix {
     pub unavailable: usize,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EvaluationParameters {
     pub action: String,
     pub schema_version: String,
     pub tiers: Vec<u8>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct InventoryRun {
     pub run_id: String,
     pub model: String,
@@ -52,6 +55,8 @@ pub struct InventoryRun {
     pub status: String,
     pub strict_manifest_verified: bool,
     pub manifest_sha256: String,
+    #[serde(default)]
+    pub producer_sha256: String,
     pub targets: usize,
     pub expected_targets: usize,
     pub candidates: usize,
@@ -64,11 +69,57 @@ pub struct InventoryRun {
     pub runtime: EvaluationRun,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Producer {
     pub retrocast_version: String,
     pub release_tag: String,
     pub release_commit: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct ProducerEvidence {
+    pub engine: String,
+    pub executable_path: String,
+    pub executable_sha256: String,
+    pub release_asset: String,
+    pub release_asset_sha256: String,
+    pub release_commit: String,
+    pub release_tag: String,
+    pub release_url: String,
+    pub retrocast_version: String,
+}
+
+impl ProducerEvidence {
+    pub fn producer(&self) -> Producer {
+        Producer {
+            retrocast_version: self.retrocast_version.clone(),
+            release_tag: self.release_tag.clone(),
+            release_commit: self.release_commit.clone(),
+        }
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        if self.engine.trim().is_empty()
+            || self.executable_path.trim().is_empty()
+            || self.release_asset.trim().is_empty()
+            || self.release_url.trim().is_empty()
+        {
+            bail!("producer evidence contains an empty required field");
+        }
+        for (label, hash) in [
+            ("producer executable", &self.executable_sha256),
+            ("producer release asset", &self.release_asset_sha256),
+        ] {
+            validate_sha256(label, hash)?;
+        }
+        if self.retrocast_version != RETROCAST_VERSION
+            || self.release_tag != RETROCAST_RELEASE_TAG
+            || self.release_commit != RETROCAST_RELEASE_COMMIT
+        {
+            bail!("producer.json is not the approved RetroCast v0.8.3 release");
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -157,16 +208,56 @@ pub struct EvaluationRun {
     pub candidates_per_second: f64,
 }
 
-pub fn load_inventory(path: &Path, limit: Option<usize>) -> Result<(Inventory, String)> {
+impl Inventory {
+    pub fn empty() -> Self {
+        Self {
+            schema_version: "2".to_owned(),
+            publication_status: "staging".to_owned(),
+            matrix: Matrix {
+                benchmarks: 0,
+                models: 0,
+                expected_runs: 0,
+                completed: 0,
+                failed: 0,
+                unavailable: 0,
+            },
+            evaluation_parameters: EvaluationParameters {
+                action: "evaluate:v2".to_owned(),
+                schema_version: "2".to_owned(),
+                tiers: vec![0],
+            },
+            runs: Vec::new(),
+        }
+    }
+
+    pub fn refresh_matrix(&mut self, catalog: &CorpusCatalog) {
+        self.matrix.benchmarks = catalog.benchmarks.len();
+        self.matrix.models = catalog.models.len();
+        self.matrix.expected_runs = catalog.expected_run_count(self.runs.len());
+        self.matrix.completed = self.runs.len();
+        self.matrix.failed = 0;
+        self.matrix.unavailable = 0;
+    }
+}
+
+pub fn load_inventory(
+    path: &Path,
+    limit: Option<usize>,
+    catalog: &CorpusCatalog,
+) -> Result<(Inventory, String)> {
     let bytes = fs::read(path).with_context(|| format!("read {}", path.display()))?;
     let inventory_sha256 = crate::sha256_bytes(&bytes);
     let inventory: Inventory =
         serde_json::from_slice(&bytes).with_context(|| format!("parse {}", path.display()))?;
-    validate_inventory(&inventory, limit)?;
+    validate_inventory(&inventory, limit, catalog)?;
     Ok((inventory, inventory_sha256))
 }
 
-fn validate_inventory(inventory: &Inventory, limit: Option<usize>) -> Result<()> {
+pub fn validate_inventory(
+    inventory: &Inventory,
+    limit: Option<usize>,
+    catalog: &CorpusCatalog,
+) -> Result<()> {
     validate_limit(limit, inventory.runs.len())?;
     if inventory.schema_version != "2" {
         bail!("unsupported inventory schema {}", inventory.schema_version);
@@ -182,30 +273,54 @@ fn validate_inventory(inventory: &Inventory, limit: Option<usize>) -> Result<()>
             inventory.publication_status
         );
     }
-    if inventory.evaluation_parameters.action != "evaluate:v2"
-        || inventory.evaluation_parameters.schema_version != ARTIFACT_SCHEMA_VERSION
-        || inventory.evaluation_parameters.tiers != [0]
+    if inventory.evaluation_parameters.action != catalog.evaluation.action
+        || inventory.evaluation_parameters.schema_version
+            != catalog.evaluation.artifact_schema_version
+        || inventory.evaluation_parameters.tiers != catalog.evaluation.tiers
     {
         bail!("inventory evaluation parameters are not the exact Tier-0 schema-v2 contract");
     }
-    if inventory.matrix.benchmarks != 6
-        || inventory.matrix.models != 14
-        || inventory.matrix.expected_runs != 84
-        || inventory.matrix.completed != 84
+    let expected_runs = catalog.expected_run_count(inventory.runs.len());
+    if inventory.matrix.completed != inventory.runs.len()
         || inventory.matrix.failed != 0
         || inventory.matrix.unavailable != 0
-        || inventory.runs.len() != 84
+        || (catalog.coverage.mode == CoverageMode::CrossProduct
+            && inventory.runs.len() != expected_runs)
     {
-        bail!("inventory is not the complete 14 x 6 corpus matrix");
+        bail!("inventory run status does not match the corpus catalog coverage policy");
     }
     let mut keys = std::collections::HashSet::new();
+    let mut canonical_run_keys = std::collections::HashSet::new();
     for run in &inventory.runs {
         let expected_id = format!("{}/{}", run.benchmark, run.model);
         if run.run_id != expected_id || !keys.insert(run.run_id.clone()) {
             bail!("invalid or duplicate inventory run_id {}", run.run_id);
         }
+        let expected_bundle_path = format!("bundles/{}/{}", run.benchmark, run.model);
+        if run.bundle_path != expected_bundle_path {
+            bail!(
+                "inventory bundle_path must be the confined canonical path for {}",
+                run.run_id
+            );
+        }
         if run.status != "completed" || !run.strict_manifest_verified {
             bail!("inventory contains an incomplete or unverified run");
+        }
+        let benchmark = catalog.benchmark(&run.benchmark).with_context(|| {
+            format!(
+                "inventory run references unknown benchmark {}",
+                run.benchmark
+            )
+        })?;
+        let model = catalog
+            .model(&run.model)
+            .with_context(|| format!("inventory run references unknown model {}", run.model))?;
+        let canonical_run_key = format!("{}/{}", benchmark.name, model.instance_slug);
+        if !canonical_run_keys.insert(canonical_run_key.clone()) {
+            bail!("duplicate canonical prediction-run identity {canonical_run_key}");
+        }
+        if catalog.stock(&run.stock).is_none() || benchmark.stock != run.stock {
+            bail!("inventory stock binding disagrees for {}", run.run_id);
         }
         if run.producer.retrocast_version != RETROCAST_VERSION
             || run.producer.release_tag != RETROCAST_RELEASE_TAG
@@ -224,13 +339,46 @@ fn validate_inventory(inventory: &Inventory, limit: Option<usize>) -> Result<()>
         }
         for (label, hash) in [
             ("manifest", &run.manifest_sha256),
+            ("producer", &run.producer_sha256),
             ("raw", &run.raw_sha256),
             ("execution stats", &run.execution_stats_sha256),
         ] {
-            if hash.len() != 64 || !hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-                bail!("inventory {label} SHA-256 is invalid for {}", run.run_id);
+            validate_sha256(&format!("inventory {label} for {}", run.run_id), hash)?;
+        }
+    }
+    if catalog.coverage.mode == CoverageMode::CrossProduct {
+        for benchmark in &catalog.benchmarks {
+            for model in &catalog.models {
+                let key = format!("{}/{}", benchmark.name, model.key);
+                if !keys.contains(&key) {
+                    bail!("cross-product corpus is missing {key}");
+                }
             }
         }
+    }
+    Ok(())
+}
+
+pub fn load_producer(
+    path: &Path,
+    expected_sha256: Option<&str>,
+) -> Result<(ProducerEvidence, String)> {
+    let bytes = fs::read(path).with_context(|| format!("read {}", path.display()))?;
+    let sha256 = crate::sha256_bytes(&bytes);
+    if expected_sha256.is_some_and(|expected| sha256 != expected.to_ascii_lowercase()) {
+        bail!("producer.json SHA-256 mismatch for {}", path.display());
+    }
+    let evidence: ProducerEvidence = serde_json::from_slice(&bytes)?;
+    evidence.validate()?;
+    Ok((evidence, sha256))
+}
+
+fn validate_sha256(label: &str, hash: &str) -> Result<()> {
+    if hash.len() != 64
+        || !hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+        || hash != hash.to_ascii_lowercase()
+    {
+        bail!("{label} SHA-256 is invalid");
     }
     Ok(())
 }

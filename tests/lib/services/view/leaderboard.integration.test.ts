@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 
 import prisma from '@/lib/db'
 import { findStatisticsForLeaderboard } from '@/lib/services/data/stats.data'
-import { createOrUpdatePredictionRun, importEvaluationBundle } from '@/lib/services/loaders/prediction-loader.service'
 import { getLeaderboardPageData } from '@/lib/services/view/leaderboard.view'
 
 import { makeEvaluationBundle } from '../../../helpers/evaluation-bundle'
@@ -15,6 +14,53 @@ import {
 } from '../../../helpers/factories'
 
 const cacheWrappedFunctions = vi.hoisted(() => [] as string[])
+
+async function createOrUpdatePredictionRun(benchmarkSetId: string, modelInstanceId: string) {
+    return prisma.predictionRun.create({ data: { benchmarkSetId, modelInstanceId } })
+}
+
+async function importEvaluationBundle(runId: string, bundle: ReturnType<typeof makeEvaluationBundle>) {
+    const run = await prisma.predictionRun.findUniqueOrThrow({
+        where: { id: runId },
+        include: { benchmarkSet: true },
+    })
+    const evaluation = await prisma.runEvaluation.create({
+        data: {
+            predictionRunId: run.id,
+            benchmarkSetId: run.benchmarkSetId,
+            stockId: run.benchmarkSet.stockId,
+            metricLabel: bundle.evaluation.metric_label,
+            evaluatedTiers: JSON.stringify(bundle.evaluation.tiers),
+            taskJson: JSON.stringify(bundle.evaluation.task),
+            parametersJson: JSON.stringify(bundle.manifest.parameters),
+            analysisJson: JSON.stringify(bundle.analysis),
+            manifestJson: JSON.stringify(bundle.manifest),
+            manifestSha256: bundle.manifestSha256,
+            artifactSchema: bundle.manifest.schema_version,
+            retrocastVersion: bundle.manifest.retrocast_version,
+        },
+    })
+    const metrics = [
+        ...Object.entries(bundle.analysis.metrics).map(([metricKey, metric]) => ({ metricKey, stratum: '', metric })),
+        ...Object.entries(bundle.analysis.by_stratum).flatMap(([stratum, values]) =>
+            Object.entries(values).map(([metricKey, metric]) => ({ metricKey, stratum, metric }))
+        ),
+    ]
+    await prisma.metricEstimate.createMany({
+        data: metrics.map(({ metricKey, stratum, metric }) => ({
+            runEvaluationId: evaluation.id,
+            metricKey,
+            stratum,
+            value: metric.value,
+            ciLower: metric.ci_low,
+            ciUpper: metric.ci_high,
+            nSamples: metric.count,
+            reliabilityCode: null,
+            reliabilityMessage: null,
+        })),
+    })
+    return evaluation
+}
 
 vi.mock('next/cache', () => ({
     unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => {
@@ -113,6 +159,9 @@ describe('getLeaderboardPageData', () => {
         const result = await getLeaderboardPageData('not-a-benchmark')
         expect(result?.allBenchmarks.map((benchmark) => benchmark.name)).toEqual(['a-benchmark', 'z-benchmark'])
         expect(result?.selectedBenchmark.id).toBe(first.id)
+
+        const selectedBySlug = await getLeaderboardPageData(first.slug)
+        expect(selectedBySlug?.selectedBenchmark.id).toBe(first.id)
     })
 
     it('composes multi-instance and multi-label evaluations with exact strata and Top-K ordering', async () => {

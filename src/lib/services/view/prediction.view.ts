@@ -404,6 +404,7 @@ export interface RunTitleCardData {
     algorithmName: string
     algorithmSlug: string
     benchmarkId: string
+    benchmarkSlug: string
     benchmarkName: string
     submissionType: SubmissionType
     isRetrained?: boolean | null
@@ -423,6 +424,7 @@ export async function getRunTitleCardData(runId: string): Promise<RunTitleCardDa
         algorithmName: modelInstance.family.algorithm.name,
         algorithmSlug: modelInstance.family.algorithm.slug,
         benchmarkId: benchmarkSet.id,
+        benchmarkSlug: benchmarkSet.slug,
         benchmarkName: benchmarkSet.name,
         submissionType: run.submissionType,
         isRetrained: run.isRetrained,

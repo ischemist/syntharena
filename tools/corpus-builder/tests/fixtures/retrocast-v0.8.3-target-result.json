@@ -1,0 +1,79 @@
+{
+    "target": {
+        "id": "fixture-001",
+        "smiles": "CCO",
+        "inchikey": "LFQSCWFLJHTTHZ-UHFFFAOYSA-N",
+        "acceptable_routes": [],
+        "annotations": { "fixture": "retrocast-v0.8.3" }
+    },
+    "effective_constraints": [{ "kind": "retrocast.stock_termination", "stock": "fixture-stock" }],
+    "candidates": [
+        {
+            "rank": 1,
+            "route": {
+                "target": {
+                    "smiles": "CCO",
+                    "inchikey": "LFQSCWFLJHTTHZ-UHFFFAOYSA-N",
+                    "product_of": {
+                        "reactants": [
+                            {
+                                "smiles": "CC",
+                                "inchikey": "OTMSDBZUPAUEDD-UHFFFAOYSA-N",
+                                "annotations": { "leaf": true }
+                            },
+                            {
+                                "smiles": "O",
+                                "inchikey": "XLYOFNOQVPJJNP-UHFFFAOYSA-N",
+                                "annotations": {}
+                            }
+                        ],
+                        "mapped_reaction_smiles": "[CH3:1][CH3:2].[OH2:3]>>[CH3:1][CH2:2][OH:3]",
+                        "template": "fixture-template",
+                        "reagents": ["N"],
+                        "solvents": ["O"],
+                        "annotations": { "source": "release-contract" }
+                    },
+                    "annotations": { "node": "target" }
+                },
+                "annotations": { "planner": "fixture" },
+                "schema_version": "2"
+            },
+            "validity": {
+                "tiers": {
+                    "0": {
+                        "status": "pass",
+                        "checks": [{ "code": "route.structure", "status": "pass", "details": {} }]
+                    }
+                },
+                "reactions": [],
+                "reaction_assessments": [],
+                "molecule_assessments": [],
+                "route_assessments": [],
+                "assessment_route_binding": null
+            },
+            "constraints": {
+                "status": "pass",
+                "checks": [{ "code": "stock.termination", "status": "pass", "details": {} }]
+            },
+            "matches_acceptable": false,
+            "matched_acceptable_index": null
+        },
+        {
+            "rank": 2,
+            "failure": {
+                "code": "planner.no_route",
+                "message": "No route returned",
+                "target_id": "fixture-001",
+                "target_smiles": "CCO",
+                "target_inchikey": "LFQSCWFLJHTTHZ-UHFFFAOYSA-N",
+                "context": { "attempts": 1 }
+            },
+            "validity": { "tiers": {}, "reactions": [] },
+            "constraints": { "status": "not_evaluated", "checks": [] },
+            "matches_acceptable": false,
+            "matched_acceptable_index": null
+        }
+    ],
+    "wall_time": 1.25,
+    "cpu_time": 1.0
+}

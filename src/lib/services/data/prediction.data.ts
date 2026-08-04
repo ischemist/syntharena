@@ -5,6 +5,7 @@ import { unstable_cache as cache } from 'next/cache'
 import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/db'
+import { flattenRouteNode } from '@/lib/services/data/route.data'
 import { compareVersions } from '@/lib/utils'
 
 /**
@@ -69,12 +70,12 @@ async function _findPredictedRouteNodes(targetId: string, runId: string, rank: n
         select: {
             route: {
                 select: {
-                    nodes: { include: { molecule: true, reactionStep: true } },
+                    nodes: { include: { molecule: true, payload: { include: { reactionStep: true } } } },
                 },
             },
         },
     })
-    return prediction?.route?.nodes ?? null
+    return prediction?.route?.nodes.map(flattenRouteNode) ?? null
 }
 export const findPredictedRouteNodes = cache(_findPredictedRouteNodes, ['predicted-route-nodes'], {
     tags: ['routes', 'targets', 'runs'],

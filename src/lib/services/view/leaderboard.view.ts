@@ -44,7 +44,7 @@ export interface LeaderboardPageData {
         hasAcceptableRoutes: boolean
         availableTopKMetrics: string[]
     }
-    allBenchmarks: Array<{ id: string; name: string; series: BenchmarkListItem['series'] }>
+    allBenchmarks: Array<{ id: string; slug: string; name: string; series: BenchmarkListItem['series'] }>
     selectedBenchmark: BenchmarkListItem
     firstTargetId: string | null
 }
@@ -257,10 +257,12 @@ export async function getLeaderboardPageData(
     const allBenchmarksRaw = await benchmarkData.findBenchmarkListItems()
     if (allBenchmarksRaw.length === 0) return null
 
-    const allBenchmarks = allBenchmarksRaw.map((b) => ({ id: b.id, name: b.name, series: b.series }))
+    const allBenchmarks = allBenchmarksRaw.map((b) => ({ id: b.id, slug: b.slug, name: b.name, series: b.series }))
 
-    const effectiveBenchmarkId =
-        benchmarkId && allBenchmarks.some((b) => b.id === benchmarkId) ? benchmarkId : allBenchmarks[0].id
+    const selectedBenchmarkOption = benchmarkId
+        ? allBenchmarks.find((benchmark) => benchmark.id === benchmarkId || benchmark.slug === benchmarkId)
+        : undefined
+    const effectiveBenchmarkId = selectedBenchmarkOption?.id ?? allBenchmarks[0].id
 
     // wave 2: fetch all data for the effective benchmark in parallel.
     const [rawStats, selectedBenchmarkRaw, firstTargetId] = await Promise.all([
@@ -275,6 +277,7 @@ export async function getLeaderboardPageData(
     const selectedBenchmark: BenchmarkListItem = {
         id: selectedBenchmarkRaw.id,
         name: selectedBenchmarkRaw.name,
+        slug: selectedBenchmarkRaw.slug,
         description: selectedBenchmarkRaw.description || undefined,
         stockId: selectedBenchmarkRaw.stockId,
         stock: selectedBenchmarkRaw.stock,

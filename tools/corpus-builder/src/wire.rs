@@ -373,6 +373,37 @@ mod tests {
     use super::*;
 
     #[test]
+    fn local_wire_matches_the_pinned_retrocast_v083_release_shape() {
+        let target: TargetResult = serde_json::from_str(include_str!(
+            "../tests/fixtures/retrocast-v0.8.3-target-result.json"
+        ))
+        .unwrap();
+
+        assert_eq!(target.target.id, "fixture-001");
+        assert_eq!(target.effective_constraints.len(), 1);
+        assert_eq!(target.candidates.len(), 2);
+        let route = target.candidates[0].route.as_ref().unwrap();
+        assert_eq!(route.schema_version, "2");
+        assert_eq!(route.target.product_of.as_ref().unwrap().reactants.len(), 2);
+        assert_eq!(
+            route_content_hash(route),
+            "5b4c499c3c09b647c0b1341a0e1163c0ddcd4b2b7a6ed7989996eb69b2a75a68"
+        );
+        assert!(
+            target.candidates[0]
+                .validity
+                .extensions
+                .contains_key("assessment_route_binding")
+        );
+        assert_eq!(
+            target.candidates[1].failure.as_ref().unwrap().code,
+            "planner.no_route"
+        );
+        target.candidates[0].validate().unwrap();
+        target.candidates[1].validate().unwrap();
+    }
+
+    #[test]
     fn route_identity_matches_daedalus_projection_fixture() {
         let route: Route = serde_json::from_value(json!({
             "target": {

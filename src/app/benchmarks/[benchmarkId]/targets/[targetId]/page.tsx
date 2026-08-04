@@ -1,9 +1,15 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
+import { notFound, permanentRedirect } from 'next/navigation'
 
 import type { TargetComparisonData } from '@/types'
 import { getBenchmarkById, getTargetById } from '@/lib/services/view/benchmark.view'
 import { getTargetComparisonData } from '@/lib/services/view/route.view'
+import {
+    resolveBenchmarkTargetUrlKey,
+    resolveBenchmarkUrlKey,
+    resolveTargetComparisonRoute,
+} from '@/lib/routing/url-resolver'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { RouteDisplayWithComparison } from './_components/server/route-display-with-comparison'
@@ -21,25 +27,51 @@ interface TargetDetailPageProps {
         layout?: string
         acceptableIndex?: string
         dev?: string
+        [key: string]: string | string[] | undefined
     }>
 }
 
 export async function generateMetadata({ params }: TargetDetailPageProps): Promise<Metadata> {
     const { benchmarkId, targetId } = await params
-    const [benchmark, target] = await Promise.all([getBenchmarkById(benchmarkId), getTargetById(targetId)])
+    const benchmarkDestination = await resolveBenchmarkUrlKey(benchmarkId)
+    if (!benchmarkDestination) return { title: 'Target Not Found' }
+    const targetDestination = await resolveBenchmarkTargetUrlKey(benchmarkDestination.id, targetId)
+    if (!targetDestination) return { title: 'Target Not Found' }
+    const [benchmark, target] = await Promise.all([
+        getBenchmarkById(benchmarkDestination.id),
+        getTargetById(targetDestination.id),
+    ])
     const title = `${target?.targetId || 'Target'} - ${benchmark?.name || 'Benchmark'}`
-    return { title, description: 'View ground truth route and compare with model predictions.' }
+    return {
+        title,
+        description: 'View ground truth route and compare with model predictions.',
+        alternates: {
+            canonical: `/benchmarks/${benchmarkDestination.slug}/targets/${targetDestination.id}`,
+        },
+    }
 }
 
 export default async function TargetDetailPage({ params, searchParams }: TargetDetailPageProps) {
-    const [{ benchmarkId, targetId }, { mode, model1, model2, layout, rank1, rank2, acceptableIndex, dev }] =
-        await Promise.all([params, searchParams])
+    const [{ benchmarkId, targetId }, searchParamsValues] = await Promise.all([params, searchParams])
+    const route = await resolveTargetComparisonRoute(benchmarkId, targetId, searchParamsValues)
+    if (!route) notFound()
+    if (route.needsRedirect) permanentRedirect(route.canonicalUrl)
+    const { benchmark: benchmarkDestination, target: targetDestination, search: canonicalSearch } = route
+
+    const mode = canonicalSearch.get('mode') ?? undefined
+    const model1 = canonicalSearch.get('model1') ?? undefined
+    const model2 = canonicalSearch.get('model2') ?? undefined
+    const layout = canonicalSearch.get('layout') ?? undefined
+    const rank1 = canonicalSearch.get('rank1') ?? undefined
+    const rank2 = canonicalSearch.get('rank2') ?? undefined
+    const acceptableIndex = canonicalSearch.get('acceptableIndex') ?? undefined
+    const dev = canonicalSearch.get('dev') ?? undefined
     const devMode = dev === 'true'
 
     // Fetch ALL data for the page with a single, parallelized call.
     const comparisonDataPromise = getTargetComparisonData(
-        targetId,
-        benchmarkId,
+        targetDestination.id,
+        benchmarkDestination.id,
         mode,
         model1,
         model2,
@@ -53,7 +85,7 @@ export default async function TargetDetailPage({ params, searchParams }: TargetD
     return (
         <div className="flex flex-col gap-6">
             <Suspense fallback={<TargetDetailSkeleton />}>
-                <TargetHeader targetId={targetId} />
+                <TargetHeader targetId={targetDestination.id} />
             </Suspense>
 
             <Suspense

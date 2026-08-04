@@ -6,7 +6,6 @@ use rusqlite::{Connection, Transaction, params};
 use serde_json::{Map, Value, json};
 
 use crate::{
-    config,
     contract::{self, Analysis, EvaluationRun, InventoryRun, Manifest, MetricSummary},
     identity::hash_json,
     loader::{
@@ -17,6 +16,7 @@ use crate::{
         EvaluationSink, parse_hashed_json_gz, resolve_confined_regular, stream_candidate_digests,
         stream_evaluation,
     },
+    trust,
     wire::{
         EvaluationHeader, ScoredCandidate, TargetResult, database_status, effective_constraints,
         route_content_hash, route_depth, route_signature_at_depth,
@@ -38,10 +38,13 @@ pub fn import_run(
     corpus_root: &Path,
     entry: &InventoryRun,
     bindings: &CorpusBindings,
+    trust_policy: &trust::ProducerTrustPolicy,
 ) -> Result<ImportTotals> {
-    let configured_benchmark =
-        config::benchmark(&entry.benchmark).context("unknown inventory benchmark")?;
-    if configured_benchmark.stock != entry.stock || config::model(&entry.model).is_none() {
+    let configured_benchmark = bindings
+        .benchmarks
+        .get(&entry.benchmark)
+        .context("unknown inventory benchmark")?;
+    if configured_benchmark.stock != entry.stock || !bindings.models.contains_key(&entry.model) {
         bail!(
             "inventory run {} has an unknown model or benchmark stock",
             entry.run_id
@@ -72,8 +75,21 @@ pub fn import_run(
         .parent()
         .context("bundle manifest has no parent")?
         .to_owned();
-    let (manifest, manifest_json) =
-        contract::load_manifest(&manifest_path, &entry.manifest_sha256)?;
+    let producer_path = resolve_confined_regular(&bundle_root, "producer.json")?;
+    let (producer_evidence, _) =
+        contract::load_producer(&producer_path, Some(&entry.producer_sha256))?;
+    trust::validate_producer(trust_policy, &producer_evidence)?;
+    if producer_evidence.producer().retrocast_version != entry.producer.retrocast_version
+        || producer_evidence.producer().release_tag != entry.producer.release_tag
+        || producer_evidence.producer().release_commit != entry.producer.release_commit
+    {
+        bail!(
+            "producer.json disagrees with inventory for {}",
+            entry.run_id
+        );
+    }
+    let (manifest, _) = contract::load_manifest(&manifest_path, &entry.manifest_sha256)?;
+    let stored_manifest_json = normalized_manifest_json(&manifest)?;
     if manifest.parameters.get("adapter").and_then(Value::as_str) != Some(entry.adapter.as_str()) {
         bail!(
             "manifest adapter disagrees with inventory for {}",
@@ -121,18 +137,21 @@ pub fn import_run(
         .get(&entry.benchmark)
         .context("benchmark binding missing")?;
     let benchmark_id = &benchmark.id;
-    let model_id = bindings
+    let model = bindings
         .models
         .get(&entry.model)
         .context("model binding missing")?;
-    let prediction_run_id = stable_id("prediction-run", &entry.run_id);
+    let prediction_run_id = stable_id(
+        "prediction-run",
+        &format!("{}/{}", entry.benchmark, model.instance_slug),
+    );
     let transaction = connection.transaction()?;
     execute_cached(
         &transaction,
         "INSERT INTO PredictionRun (id, modelInstanceId, benchmarkSetId, retrocastVersion, commandParams, executedAt, submissionType, totalCandidates, totalFailures, totalRoutes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'COMMUNITY_SUBMITTED', 0, 0, 0)",
         params![
             prediction_run_id,
-            model_id,
+            model.id,
             benchmark_id,
             manifest.retrocast_version,
             serde_json::to_string(&manifest.parameters)?,
@@ -143,7 +162,7 @@ pub fn import_run(
         transaction: &transaction,
         entry,
         manifest: &manifest,
-        manifest_json: &manifest_json,
+        manifest_json: &stored_manifest_json,
         analysis: &analysis,
         prediction_run_id: &prediction_run_id,
         benchmark_id,
@@ -162,6 +181,30 @@ pub fn import_run(
     let totals = sink.complete()?;
     transaction.commit()?;
     Ok(totals)
+}
+
+fn normalized_manifest_json(manifest: &Manifest) -> Result<String> {
+    fn redact(value: &mut Value) {
+        match value {
+            Value::Array(values) => values.iter_mut().for_each(redact),
+            Value::Object(values) => values.values_mut().for_each(redact),
+            Value::String(text) if Path::new(text).is_absolute() => {
+                *text = portable_external_path(text);
+            }
+            _ => {}
+        }
+    }
+    let mut value = serde_json::to_value(manifest)?;
+    redact(&mut value);
+    Ok(serde_json::to_string(&value)?)
+}
+
+fn portable_external_path(path: &str) -> String {
+    let name = Path::new(path)
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("redacted");
+    format!("external/{name}")
 }
 
 fn validate_manifest_sources(
@@ -843,7 +886,7 @@ impl BundleSink<'_> {
             "UPDATE PredictionRun SET executionStatsPath = ?2, executionStatsSha256 = ?3, timedTargets = ?4, totalWallTime = ?5, totalCpuTime = ?6, meanWallTime = ?7, meanCpuTime = ?8, totalCandidates = ?9, totalFailures = ?10, totalRoutes = ?11, avgRouteLength = ?12 WHERE id = ?1",
             params![
                 self.prediction_run_id,
-                execution_source.path,
+                portable_external_path(&execution_source.path),
                 execution_source.sha256,
                 self.analysis.runtime.timed_target_count as i64,
                 self.analysis.runtime.total_wall_time,

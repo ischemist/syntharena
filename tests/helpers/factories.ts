@@ -10,10 +10,6 @@
  */
 
 import crypto from 'crypto'
-import * as fs from 'fs'
-import * as os from 'os'
-import * as path from 'path'
-import * as zlib from 'zlib'
 
 // ============================================================================
 // 2. DB Factories (for integration tests, require active Prisma client)
@@ -21,7 +17,22 @@ import * as zlib from 'zlib'
 
 import prisma from '@/lib/db'
 import type { RouteNodeWithMoleculePayload } from '@/lib/services/data/route.data'
-import type { PythonMolecule, PythonRoute } from '@/lib/services/loaders/prediction-loader.service'
+
+interface PythonReactionStep {
+    reactants: PythonMolecule[]
+}
+
+export interface PythonMolecule {
+    smiles: string
+    inchikey: string
+    product_of?: PythonReactionStep | null
+    is_leaf?: boolean
+}
+
+export interface PythonRoute {
+    target: PythonMolecule
+    rank: number
+}
 
 // ============================================================================
 // 1. Pure Factories (no DB required)
@@ -327,13 +338,18 @@ async function createModelInstance(overrides: {
  */
 export async function createBenchmarkSet(overrides: {
     stockId: string
+    id?: string
     name?: string
+    slug?: string
     defaultConstraints?: Array<Record<string, unknown>>
     targetConstraints?: Record<string, Array<Record<string, unknown>>>
 }) {
+    const name = overrides.name ?? `test-benchmark-${Date.now()}`
     return prisma.benchmarkSet.create({
         data: {
-            name: overrides.name ?? `test-benchmark-${Date.now()}`,
+            id: overrides.id ?? crypto.createHash('sha256').update(`test-benchmark:${name}`).digest('hex'),
+            name,
+            slug: overrides.slug ?? name,
             stockId: overrides.stockId,
             defaultConstraintsJson: JSON.stringify(overrides.defaultConstraints ?? []),
             targetConstraintsJson: JSON.stringify(overrides.targetConstraints ?? {}),
@@ -399,101 +415,4 @@ export async function createMolecule(overrides: { smiles?: string; inchikey?: st
             inchikey: overrides.inchikey ?? syntheticInchiKey(smiles),
         },
     })
-}
-
-// ============================================================================
-// File Factories (create temp files for integration tests)
-// ============================================================================
-
-/** Track temp files for cleanup */
-const tempFiles: string[] = []
-
-/**
- * Clean up all temp files created by file factories.
- * Call this in afterEach.
- */
-export function cleanupTempFiles(): void {
-    for (const f of tempFiles) {
-        try {
-            fs.unlinkSync(f)
-        } catch {
-            // ignore missing files
-        }
-    }
-    tempFiles.length = 0
-}
-
-/**
- * Create a temp CSV file for stock-loader tests.
- * Returns the file path.
- */
-export function createTestCsvFile(
-    molecules: Array<{ smiles: string; inchikey: string }>,
-    options?: { header?: string; extraLines?: string[] }
-): string {
-    const header = options?.header ?? 'SMILES,InChi Key'
-    const lines = [header]
-    for (const mol of molecules) {
-        lines.push(`${mol.smiles},${mol.inchikey}`)
-    }
-    if (options?.extraLines) {
-        lines.push(...options.extraLines)
-    }
-
-    const tmpFile = path.join(os.tmpdir(), `test-stock-${Date.now()}-${Math.random().toString(36).slice(2)}.csv`)
-    fs.writeFileSync(tmpFile, lines.join('\n'), 'utf-8')
-    tempFiles.push(tmpFile)
-    return tmpFile
-}
-
-export function createTestCsvGzFile(molecules: Array<{ smiles: string; inchikey: string }>): string {
-    const lines = ['SMILES,InChi Key', ...molecules.map((molecule) => `${molecule.smiles},${molecule.inchikey}`)]
-    const tmpFile = path.join(os.tmpdir(), `test-stock-${Date.now()}-${Math.random().toString(36).slice(2)}.csv.gz`)
-    fs.writeFileSync(tmpFile, zlib.gzipSync(Buffer.from(lines.join('\n'), 'utf-8')))
-    tempFiles.push(tmpFile)
-    return tmpFile
-}
-
-/**
- * Python benchmark set structure for test fixtures.
- */
-interface TestBenchmarkTarget {
-    id: string
-    smiles: string
-    inchikey: string
-    annotations?: Record<string, unknown>
-    acceptable_routes: Array<{
-        target: PythonMolecule
-        rank: number
-        length?: number
-        has_convergent_reaction?: boolean
-        solvability?: Record<string, boolean>
-        annotations?: Record<string, unknown>
-    }>
-}
-
-interface TestBenchmarkSet {
-    name: string
-    description?: string
-    stock_name?: string | null
-    default_constraints?: Array<Record<string, unknown>>
-    constraints?: Record<string, Array<Record<string, unknown>>>
-    targets: Record<string, TestBenchmarkTarget>
-}
-
-/**
- * Create a temp .json.gz file for benchmark-loader tests.
- * Returns the file path.
- */
-export function createTestBenchmarkGzFile(data: TestBenchmarkSet): string {
-    const json = JSON.stringify({ default_constraints: [], constraints: {}, ...data })
-    const compressed = zlib.gzipSync(Buffer.from(json, 'utf-8'))
-
-    const tmpFile = path.join(
-        os.tmpdir(),
-        `test-benchmark-${Date.now()}-${Math.random().toString(36).slice(2)}.json.gz`
-    )
-    fs.writeFileSync(tmpFile, compressed)
-    tempFiles.push(tmpFile)
-    return tmpFile
 }
