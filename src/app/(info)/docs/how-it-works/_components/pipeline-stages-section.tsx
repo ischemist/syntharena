@@ -98,30 +98,27 @@ export function PipelineStagesSection() {
                 <Card variant="bordered">
                     <CardContent className="space-y-3 px-6 py-4">
                         <p>
-                            <strong>3. Scored Data:</strong> Routes annotated with evaluation metrics. Each route is
-                            checked against the stock set and ground truth (if available).
+                            <strong>3. Evaluation Bundle:</strong> Every ranked candidate retains independent Tier-0
+                            syntax, task-constraint, and acceptable-route evidence.
                         </p>
                         <div className="bg-muted/50 rounded-lg p-4">
                             <div className="font-mono text-xs">
-                                data/4-scored/<span className="text-blue-600 dark:text-blue-400">&lt;model&gt;</span>/
-                                <span className="text-green-600 dark:text-green-400">&lt;benchmark&gt;</span>/
-                                <span className="text-purple-600 dark:text-purple-400">&lt;stock&gt;</span>
-                                /scores.json.gz
+                                evaluation.json.gz + analysis.json.gz + manifest.json
                             </div>
                         </div>
                         <div className="space-y-2">
                             <div className="flex items-center gap-2">
                                 <CheckCircle2 className="size-4 shrink-0 text-green-600 dark:text-green-400" />
                                 <p className="text-sm">
-                                    <code className="bg-muted rounded px-1 text-xs">is_solved</code>: All leaves in
-                                    stock
+                                    <code className="bg-muted rounded px-1 text-xs">Tier-0</code>: Molecular graphs and
+                                    reaction records are syntactically well formed
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
                                 <CheckCircle2 className="size-4 shrink-0 text-green-600 dark:text-green-400" />
                                 <p className="text-sm">
-                                    <code className="bg-muted rounded px-1 text-xs">matches_ground_truth</code>: Route
-                                    matches reference
+                                    <code className="bg-muted rounded px-1 text-xs">Solv-0[stock]</code>: A Tier-0-pass
+                                    candidate also satisfies the named stock constraint
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
@@ -131,8 +128,8 @@ export function PipelineStagesSection() {
                         </div>
                         <Alert>
                             <AlertDescription>
-                                The same processed routes can be scored against multiple stock sets without
-                                re-processing.
+                                Tier-0 and Solv-0 do not claim reaction-topology validity or chemical feasibility; those
+                                require higher-tier evidence.
                             </AlertDescription>
                         </Alert>
                     </CardContent>
@@ -154,7 +151,7 @@ export function PipelineStagesSection() {
                         <div className="space-y-2">
                             <div className="flex items-center gap-2">
                                 <CheckCircle2 className="size-4 shrink-0 text-green-600 dark:text-green-400" />
-                                <p className="text-sm">Overall solvability with 95% CI (bootstrap)</p>
+                                <p className="text-sm">Target-level Tier-0 and Solv-0[stock] rates with 95% CI</p>
                             </div>
                             <div className="flex items-center gap-2">
                                 <CheckCircle2 className="size-4 shrink-0 text-green-600 dark:text-green-400" />

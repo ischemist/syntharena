@@ -1,289 +1,191 @@
-/**
- * Integration tests for getLeaderboardPageData in leaderboard.view.ts
- *
- * Tests the full orchestration path: database setup -> view model construction.
- * Uses a real SQLite test database (no mocks), except for next/cache which
- * requires a Next.js runtime context unavailable in Vitest.
- *
- * The pure transformation helpers (_curateChampionStats, _transformStatsToLeaderboardDTOs)
- * are tested separately in leaderboard.view.test.ts; here we focus on the public
- * entry point and its composition behaviour.
- */
-
-// next/cache's unstable_cache requires a Next.js incremental cache that is not available
-// in the Vitest node environment. Mock it as a simple pass-through so the data-layer
-// functions run directly against the test database without caching.
 import { describe, expect, it, vi } from 'vitest'
 
 import prisma from '@/lib/db'
-import { loadBenchmarkFromFile } from '@/lib/services/loaders/benchmark-loader.service'
-import {
-    createModelStatistics,
-    createOrUpdatePredictionRun,
-    createRouteFromPython,
-    createRouteSolvability,
-} from '@/lib/services/loaders/prediction-loader.service'
-import { loadStockFromFile } from '@/lib/services/loaders/stock-loader.service'
+import { findStatisticsForLeaderboard } from '@/lib/services/data/stats.data'
+import { createOrUpdatePredictionRun, importEvaluationBundle } from '@/lib/services/loaders/prediction-loader.service'
 import { getLeaderboardPageData } from '@/lib/services/view/leaderboard.view'
 
+import { makeEvaluationBundle } from '../../../helpers/evaluation-bundle'
 import {
-    carbonChainSmiles,
-    cleanupTempFiles,
+    createBenchmarkSet,
+    createBenchmarkTarget,
     createFullModelChain,
-    createTestBenchmarkGzFile,
-    createTestCsvFile,
-    makeLinearPythonRoute,
-    makeModelStatistics,
-    syntheticInchiKey,
+    createMolecule,
+    createStock,
 } from '../../../helpers/factories'
 
+const cacheWrappedFunctions = vi.hoisted(() => [] as string[])
+
 vi.mock('next/cache', () => ({
-    unstable_cache: <T extends (...args: unknown[]) => Promise<unknown>>(fn: T) => fn,
+    unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => {
+        cacheWrappedFunctions.push(fn.name)
+        return fn
+    },
     revalidateTag: vi.fn(),
     revalidatePath: vi.fn(),
 }))
 
-// ============================================================================
-// Helper: build a minimal full pipeline context
-// ============================================================================
-
-/**
- * Sets up: stock -> benchmark (with isListed=true) -> model chain -> prediction run -> stats.
- * Returns IDs needed for assertions.
- */
-async function setupLeaderboardContext(label: string) {
-    // Stock
-    const stockMolecules = [
-        { smiles: carbonChainSmiles(1), inchikey: syntheticInchiKey(`${label}-C`) },
-        { smiles: carbonChainSmiles(2), inchikey: syntheticInchiKey(`${label}-CC`) },
-        { smiles: carbonChainSmiles(3), inchikey: syntheticInchiKey(`${label}-CCC`) },
-    ]
-    const csvPath = createTestCsvFile(stockMolecules)
-    const stockResult = await loadStockFromFile(csvPath, `${label}-stock`)
-
-    // Benchmark — must be listed (isListed: true) for findBenchmarkListItems to include it
-    const benchmark = await prisma.benchmarkSet.create({
-        data: {
-            name: `${label}-benchmark`,
-            stockId: stockResult.stockId,
-            isListed: true,
-        },
+async function setupBenchmark(name: string = 'test-benchmark') {
+    const stock = await createStock({ name: 'test-stock' })
+    const benchmark = await createBenchmarkSet({
+        stockId: stock.id,
+        name,
+        defaultConstraints: [{ kind: 'retrocast.stock_termination', stock: stock.name }],
     })
-
-    // Load a simple benchmark target
-    const route = makeLinearPythonRoute(2)
-    const targetSmiles = route.target.smiles
-    const benchData = {
-        name: `${label}-benchmark`,
-        targets: {
-            [`${label}-t-001`]: {
-                id: `${label}-t-001`,
-                smiles: targetSmiles,
-                inchikey: syntheticInchiKey(targetSmiles),
-                acceptable_routes: [
-                    {
-                        target: route.target,
-                        rank: 1,
-                        length: 2,
-                        has_convergent_reaction: false,
-                    },
-                ],
-            },
-        },
-    }
-    const gzPath = createTestBenchmarkGzFile(benchData)
-    await loadBenchmarkFromFile(gzPath, benchmark.id, `${label}-benchmark`)
-
-    // Model chain + run
-    const { instance, family } = await createFullModelChain({ algorithmName: `${label}-algo` })
-    const run = await createOrUpdatePredictionRun(benchmark.id, instance.id, { hourlyCost: 1.0 })
-
-    // Load prediction route (same as acceptable)
-    const target = await prisma.benchmarkTarget.findFirst({ where: { benchmarkSetId: benchmark.id } })
-    const pred = await createRouteFromPython(route, run.id, target!.id)
-
-    // Solvability
-    await createRouteSolvability(pred.predictionRouteId, stockResult.stockId, true, true, 0, 2, false, 10.0, 20.0)
-
-    // Statistics with Solvability + Top-1 + Top-10
-    const stats = makeModelStatistics({
-        totalWallTime: 3600,
-        solvability: {
-            metricName: 'Solvability',
-            overall: {
-                value: 0.8,
-                ciLower: 0.7,
-                ciUpper: 0.9,
-                nSamples: 100,
-                reliability: { code: 'OK', message: 'OK' },
-            },
-            byGroup: {},
-        },
-        topKAccuracy: {
-            '1': {
-                metricName: 'Top-1',
-                overall: {
-                    value: 0.4,
-                    ciLower: 0.3,
-                    ciUpper: 0.5,
-                    nSamples: 100,
-                    reliability: { code: 'OK', message: 'OK' },
-                },
-                byGroup: {},
-            },
-            '10': {
-                metricName: 'Top-10',
-                overall: {
-                    value: 0.7,
-                    ciLower: 0.6,
-                    ciUpper: 0.8,
-                    nSamples: 100,
-                    reliability: { code: 'OK', message: 'OK' },
-                },
-                byGroup: {},
-            },
-        },
-    })
-    await createModelStatistics(run.id, benchmark.id, stockResult.stockId, stats)
-
-    return { benchmark, run, instance, family, stockResult }
+    await prisma.benchmarkSet.update({ where: { id: benchmark.id }, data: { hasAcceptableRoutes: true } })
+    const targetA = await createMolecule({ smiles: 'CC', inchikey: 'TESTTARGETAAAAA-AAAAAAAAAA-N' })
+    const targetB = await createMolecule({ smiles: 'CCC', inchikey: 'TESTTARGETBBBBB-BBBBBBBBBB-N' })
+    await createBenchmarkTarget({ benchmarkSetId: benchmark.id, moleculeId: targetA.id, targetId: 'target-a' })
+    await createBenchmarkTarget({ benchmarkSetId: benchmark.id, moleculeId: targetB.id, targetId: 'target-b' })
+    return { stock, benchmark }
 }
 
-// ============================================================================
-// getLeaderboardPageData
-// ============================================================================
+function withTopK(bundle: ReturnType<typeof makeEvaluationBundle>, top1: number, top10: number) {
+    bundle.analysis.metrics[`acceptable_reconstruction_top_1[${bundle.evaluation.metric_label}]`] = {
+        value: top1,
+        count: 2,
+        ci_low: null,
+        ci_high: null,
+        reliability: null,
+    }
+    bundle.analysis.metrics[`acceptable_reconstruction_top_10[${bundle.evaluation.metric_label}]`] = {
+        value: top10,
+        count: 2,
+        ci_low: null,
+        ci_high: null,
+        reliability: null,
+    }
+    return bundle
+}
 
 describe('getLeaderboardPageData', () => {
-    it('returns null when no listed benchmarks exist', async () => {
-        const result = await getLeaderboardPageData()
-        expect(result).toBeNull()
-    })
+    it('keeps artifact, constraint, and unrelated metric data out of the leaderboard query', async () => {
+        expect(cacheWrappedFunctions).not.toContain('findStatisticsForLeaderboard')
+        expect(cacheWrappedFunctions).not.toContain('_findStatisticsForLeaderboard')
 
-    it('returns full leaderboard data for a benchmark with stats', async () => {
-        const { benchmark, stockResult } = await setupLeaderboardContext('basic')
-        cleanupTempFiles()
+        const { benchmark } = await setupBenchmark()
+        const { instance } = await createFullModelChain({ instanceSlug: 'lean-leaderboard-model' })
+        const run = await createOrUpdatePredictionRun(benchmark.id, instance.id)
+        await importEvaluationBundle(run.id, makeEvaluationBundle())
+        const evaluation = await prisma.runEvaluation.findFirstOrThrow({ where: { predictionRunId: run.id } })
 
-        const result = await getLeaderboardPageData(benchmark.id)
-
-        expect(result).not.toBeNull()
-        expect(result!.selectedBenchmark.id).toBe(benchmark.id)
-        expect(result!.allBenchmarks).toHaveLength(1)
-        expect(result!.allBenchmarks[0].id).toBe(benchmark.id)
-
-        // Should have one leaderboard entry
-        expect(result!.leaderboardEntries).toHaveLength(1)
-        const entry = result!.leaderboardEntries[0]
-        expect(entry.metrics.solvability.value).toBe(0.8)
-        expect(entry.hasAcceptableRoutes).toBe(true)
-
-        // Top-K metrics should be present (benchmark has acceptable routes)
-        expect(entry.metrics.topKAccuracy).toBeDefined()
-        expect(entry.metrics.topKAccuracy!['Top-1'].value).toBe(0.4)
-        expect(entry.metrics.topKAccuracy!['Top-10'].value).toBe(0.7)
-
-        // Available top-k metrics should be populated and sorted
-        expect(result!.metadata.hasAcceptableRoutes).toBe(true)
-        expect(result!.metadata.availableTopKMetrics).toEqual(['Top-1', 'Top-10'])
-
-        // Stocks list should contain our stock
-        expect(result!.stocks).toHaveLength(1)
-        expect(result!.stocks[0].id).toBe(stockResult.stockId)
-    })
-
-    it('returns empty leaderboard entries (not null) when benchmark has no statistics', async () => {
-        // Create a listed benchmark with no prediction runs
-        const stock = await prisma.stock.create({ data: { name: 'empty-bench-stock' } })
-        await prisma.benchmarkSet.create({
-            data: { name: 'empty-benchmark', stockId: stock.id, isListed: true },
+        // One stored artifact blob alone is larger than Next.js' 2 MiB cache-item limit.
+        await prisma.runEvaluation.update({
+            where: { id: evaluation.id },
+            data: { analysisJson: 'x'.repeat(2_100_000) },
+        })
+        await prisma.benchmarkSet.update({
+            where: { id: benchmark.id },
+            data: { targetConstraintsJson: JSON.stringify({ 'target-a': ['large constraint payload'] }) },
         })
 
-        const result = await getLeaderboardPageData()
+        const rows = await findStatisticsForLeaderboard({ id: evaluation.id })
 
-        expect(result).not.toBeNull()
-        expect(result!.leaderboardEntries).toHaveLength(0)
-        expect(result!.stocks).toHaveLength(0)
-        expect(result!.metadata.availableTopKMetrics).toHaveLength(0)
+        expect(rows).toHaveLength(1)
+        expect(rows[0]).not.toHaveProperty('analysisJson')
+        expect(rows[0]).not.toHaveProperty('manifestJson')
+        expect(rows[0].predictionRun.benchmarkSet).not.toHaveProperty('targetConstraintsJson')
+        expect(rows[0].metrics.map((metric) => metric.metricKey)).not.toContain('solv_0[test-stock]_mrr')
+        expect(rows[0].metrics.map((metric) => metric.metricKey)).toContain(
+            'acceptable_reconstruction_top_10[test-stock]'
+        )
+        expect(Buffer.byteLength(JSON.stringify(rows))).toBeLessThan(100_000)
     })
 
-    it('falls back to first benchmark when given an invalid benchmarkId', async () => {
-        const { benchmark } = await setupLeaderboardContext('fallback')
-        cleanupTempFiles()
+    it('returns null without listed benchmarks and an empty DTO without evaluations', async () => {
+        expect(await getLeaderboardPageData()).toBeNull()
 
-        const result = await getLeaderboardPageData('nonexistent-benchmark-id')
-
-        // Should fall back to the first (and only) listed benchmark
-        expect(result).not.toBeNull()
-        expect(result!.selectedBenchmark.id).toBe(benchmark.id)
+        const stock = await createStock({ name: 'empty-stock' })
+        const benchmark = await createBenchmarkSet({ stockId: stock.id, name: 'empty-benchmark' })
+        const result = await getLeaderboardPageData(benchmark.id)
+        expect(result).toMatchObject({
+            leaderboardEntries: [],
+            metricLabels: [],
+            metadata: { availableTopKMetrics: [] },
+        })
     })
 
-    it('devMode skips champion curation — returns all instances not just best per family', async () => {
-        const { benchmark, instance: instance1, family } = await setupLeaderboardContext('devmode')
-        cleanupTempFiles()
+    it('orders listed benchmarks and falls back from an invalid filter to the first one', async () => {
+        const stock = await createStock({ name: 'filter-stock' })
+        await createBenchmarkSet({ stockId: stock.id, name: 'z-benchmark' })
+        const first = await createBenchmarkSet({ stockId: stock.id, name: 'a-benchmark' })
 
-        // Add a second model instance in the SAME family
-        const instance2 = await prisma.modelInstance.create({
+        const result = await getLeaderboardPageData('not-a-benchmark')
+        expect(result?.allBenchmarks.map((benchmark) => benchmark.name)).toEqual(['a-benchmark', 'z-benchmark'])
+        expect(result?.selectedBenchmark.id).toBe(first.id)
+    })
+
+    it('composes multi-instance and multi-label evaluations with exact strata and Top-K ordering', async () => {
+        const { benchmark, stock } = await setupBenchmark()
+        const { family, instance: firstInstance } = await createFullModelChain({
+            algorithmName: 'leaderboard-algorithm',
+            familyName: 'Leaderboard family',
+            instanceSlug: 'leaderboard-v1',
+        })
+        const secondInstance = await prisma.modelInstance.create({
             data: {
                 modelFamilyId: family.id,
-                slug: `devmode-model-v2-${Date.now()}`,
+                slug: 'leaderboard-v2',
                 versionMajor: 2,
                 versionMinor: 0,
                 versionPatch: 0,
             },
         })
-        const run2 = await createOrUpdatePredictionRun(benchmark.id, instance2.id)
+        const firstRun = await createOrUpdatePredictionRun(benchmark.id, firstInstance.id)
+        const secondRun = await createOrUpdatePredictionRun(benchmark.id, secondInstance.id)
 
-        // Give the second instance its own route + stats (lower solvability)
-        const route2 = makeLinearPythonRoute(1)
-        const target = await prisma.benchmarkTarget.findFirst({ where: { benchmarkSetId: benchmark.id } })
-        const pred2 = await createRouteFromPython(route2, run2.id, target!.id)
-        const stockId = (await prisma.modelRunStatistics.findFirst({
-            where: {
-                predictionRunId: (await prisma.predictionRun.findFirst({
-                    where: { benchmarkSetId: benchmark.id, modelInstanceId: instance1.id },
-                }))!.id,
-            },
-        }))!.stockId
-        await createRouteSolvability(pred2.predictionRouteId, stockId, false, false, null, 1, false, 5.0, 10.0)
-        const stats2 = makeModelStatistics({
-            solvability: {
-                metricName: 'Solvability',
-                overall: {
-                    value: 0.3,
-                    ciLower: 0.2,
-                    ciUpper: 0.4,
-                    nSamples: 50,
-                    reliability: { code: 'OK', message: 'OK' },
-                },
-                byGroup: {},
-            },
-        })
-        await createModelStatistics(run2.id, benchmark.id, stockId, stats2)
+        await importEvaluationBundle(
+            firstRun.id,
+            withTopK(makeEvaluationBundle({ manifestSha256: '1'.repeat(64) }), 0.4, 0.9)
+        )
+        await importEvaluationBundle(
+            firstRun.id,
+            withTopK(
+                makeEvaluationBundle({
+                    manifestSha256: '2'.repeat(64),
+                    metricLabel: 'test-stock+leaf',
+                }),
+                0.3,
+                0.7
+            )
+        )
+        await importEvaluationBundle(
+            secondRun.id,
+            withTopK(makeEvaluationBundle({ manifestSha256: '3'.repeat(64) }), 0.5, 0.5)
+        )
 
-        // Without devMode: only 1 entry (champion — the one with highest Top-10)
-        const normalResult = await getLeaderboardPageData(benchmark.id, false)
-        expect(normalResult!.leaderboardEntries).toHaveLength(1)
+        const curated = await getLeaderboardPageData(benchmark.id)
+        expect(curated?.metadata.availableTopKMetrics).toEqual(['Top-1', 'Top-10'])
+        expect(curated?.leaderboardEntries).toHaveLength(2)
+        expect(new Set(curated?.leaderboardEntries.map((entry) => entry.metrics.solv0Label))).toEqual(
+            new Set(['test-stock', 'test-stock+leaf'])
+        )
+        expect(curated?.leaderboardEntries.find((entry) => entry.metrics.solv0Label === 'test-stock')?.runId).toBe(
+            firstRun.id
+        )
+        expect(curated?.metricLabels).toEqual([
+            { id: 'test-stock', label: 'test-stock', stockName: stock.name },
+            { id: 'test-stock+leaf', label: 'test-stock+leaf', stockName: stock.name },
+        ])
+        expect(
+            curated?.stratifiedMetricsByLabel.get('test-stock')?.get('Leaderboard family')?.solv0.byStratum['depth 2']
+                .value
+        ).toBe(1)
 
-        // With devMode: both instances appear
-        const devResult = await getLeaderboardPageData(benchmark.id, true)
-        expect(devResult!.leaderboardEntries).toHaveLength(2)
+        const developer = await getLeaderboardPageData(benchmark.id, true)
+        expect(developer?.leaderboardEntries).toHaveLength(3)
+        expect(developer?.leaderboardEntries.filter((entry) => entry.metrics.solv0Label === 'test-stock')).toHaveLength(
+            2
+        )
     })
 
-    it('stratifiedMetricsByStock is populated correctly', async () => {
-        const { benchmark, stockResult } = await setupLeaderboardContext('strat')
-        cleanupTempFiles()
+    it('fails closed when a stored evaluation lacks a required headline metric', async () => {
+        const { benchmark } = await setupBenchmark()
+        const { instance } = await createFullModelChain({ instanceSlug: 'missing-metric-model' })
+        const run = await createOrUpdatePredictionRun(benchmark.id, instance.id)
+        await importEvaluationBundle(run.id, makeEvaluationBundle())
+        await prisma.metricEstimate.deleteMany({ where: { metricKey: 'tier_0_validity_rate' } })
 
-        const result = await getLeaderboardPageData(benchmark.id)
-
-        expect(result).not.toBeNull()
-        const byStock = result!.stratifiedMetricsByStock
-        expect(byStock.has(stockResult.stockId)).toBe(true)
-
-        const modelMap = byStock.get(stockResult.stockId)!
-        expect(modelMap.size).toBe(1) // one model family
-
-        const [, metrics] = Array.from(modelMap.entries())[0]
-        expect(metrics.solvability.overall.value).toBe(0.8)
-        expect(metrics.topKAccuracy).toBeDefined()
-        expect(metrics.topKAccuracy!['Top-1'].overall.value).toBe(0.4)
+        await expect(getLeaderboardPageData(benchmark.id)).rejects.toThrow('missing Tier-0 or Solv-0')
     })
 })

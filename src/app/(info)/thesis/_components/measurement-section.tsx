@@ -42,16 +42,17 @@ export function MeasurementSection() {
                     </div>
                 </div>
                 <p className="leading-relaxed">
-                    A model reporting 99% solvability against a 230M made-to-order virtual library and another reporting
-                    30% against a 300k off-the-shelf catalog are incomparable. The metric conflates model capability
-                    with stock definition.
+                    A reported 99% Solv-0[virtual stock] (legacy STR) against a 230M made-to-order library and 30%
+                    Solv-0[off-the-shelf stock] against a 300k catalog measure different task predicates. They are not
+                    comparable estimates of one stock-independent model capability.
                 </p>
             </div>
 
             <p className="leading-relaxed">
-                <strong>3. Validity Blindness:</strong> The dominant metric (stock-termination rate, STR) validates only
-                that a route&apos;s terminal nodes exist in commercial stock. It provides <em>no guarantee</em> that
-                intermediate transformations are chemically feasible.
+                <strong>3. Validity Blindness:</strong> Legacy stock-termination rate (STR) combines syntactically valid
+                route records with a leaf-stock constraint—the evidence now named Solv-0[stock]. It provides{' '}
+                <em>no guarantee</em> that the reaction topology is legal or that intermediate transformations are
+                chemically feasible.
             </p>
 
             <p className="text-muted-foreground text-sm">

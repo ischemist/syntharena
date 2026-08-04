@@ -30,14 +30,12 @@ export function StratifiedMetricsViewToggle({ metrics }: StratifiedMetricsViewTo
     const [view, setView] = useState<'table' | 'chart'>('table')
 
     // Get all unique route lengths across all metrics
-    const lengthsWithData = new Set<number>()
+    const strataWithData = new Set<string>()
     metrics.forEach((m) => {
-        Object.keys(m.stratified.byGroup).forEach((key) => {
-            lengthsWithData.add(parseInt(key))
-        })
+        Object.keys(m.stratified.byStratum).forEach((key) => strataWithData.add(key))
     })
 
-    const sortedLengths = Array.from(lengthsWithData).sort((a, b) => a - b)
+    const sortedStrata = Array.from(strataWithData).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
 
     return (
         <div>
@@ -70,7 +68,7 @@ export function StratifiedMetricsViewToggle({ metrics }: StratifiedMetricsViewTo
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="w-24 text-center">Length</TableHead>
+                                    <TableHead className="w-32 text-center">Stratum</TableHead>
                                     {metrics.map((m) => (
                                         <TableHead key={m.name} className="min-w-[160px] text-center">
                                             {m.name}
@@ -80,19 +78,17 @@ export function StratifiedMetricsViewToggle({ metrics }: StratifiedMetricsViewTo
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {sortedLengths.map((length) => {
-                                    // Check if at least one metric has data for this length
-                                    const hasData = metrics.some((m) => m.stratified.byGroup[length])
+                                {sortedStrata.map((stratum) => {
+                                    const hasData = metrics.some((m) => m.stratified.byStratum[stratum])
                                     if (!hasData) return null
 
-                                    // Use solvability metric for n (they should all be the same)
-                                    const nSamples = metrics[0].stratified.byGroup[length]?.nSamples
+                                    const nSamples = metrics[0].stratified.byStratum[stratum]?.nSamples
 
                                     return (
-                                        <TableRow key={length}>
-                                            <TableCell className="text-center font-medium">{length}</TableCell>
+                                        <TableRow key={stratum}>
+                                            <TableCell className="text-center font-medium">{stratum}</TableCell>
                                             {metrics.map((m) => {
-                                                const metric = m.stratified.byGroup[length]
+                                                const metric = m.stratified.byStratum[stratum]
                                                 if (!metric) {
                                                     return (
                                                         <TableCell

@@ -1,6 +1,8 @@
 import './env-loader'
 
 import prisma from '@/lib/db'
+import { parseEvaluationLabelOption, resolveEvaluationLabel } from '@/lib/evaluation-label'
+import { solvRateKey, tierValidityRateKey, topKFromMetricKey } from '@/lib/retrocast-metrics'
 
 // mapping from database instance slugs to readable display names
 const MODEL_NAME_MAPPING: Record<string, string> = {
@@ -23,12 +25,13 @@ const MODEL_NAME_MAPPING: Record<string, string> = {
 
 async function exportLatexTable(
     benchmarkId: string,
+    evaluationLabel: string | undefined,
     includeTime: boolean,
     includeTimeRelative: boolean,
     includeCost: boolean
 ) {
     // Fetch statistics for the benchmark
-    const statistics = await prisma.modelRunStatistics.findMany({
+    const allStatistics = await prisma.runEvaluation.findMany({
         where: {
             predictionRun: {
                 benchmarkSetId: benchmarkId,
@@ -37,6 +40,7 @@ async function exportLatexTable(
         include: {
             predictionRun: {
                 include: {
+                    benchmarkSet: { include: { _count: { select: { targets: true } } } },
                     modelInstance: {
                         include: {
                             family: true,
@@ -44,20 +48,8 @@ async function exportLatexTable(
                     },
                 },
             },
-            benchmarkSet: {
-                include: {
-                    _count: {
-                        select: { targets: true },
-                    },
-                },
-            },
             metrics: {
-                where: {
-                    groupKey: null, // Only overall metrics
-                    metricName: {
-                        in: ['Solvability', 'Top-1', 'Top-10'],
-                    },
-                },
+                where: { stratum: '' },
             },
         },
         orderBy: {
@@ -70,10 +62,16 @@ async function exportLatexTable(
             },
         },
     })
+    const selectedLabel = resolveEvaluationLabel(
+        evaluationLabel,
+        allStatistics.map((stat) => stat.metricLabel),
+        benchmarkId
+    )
+    const statistics = allStatistics.filter((stat) => stat.metricLabel === selectedLabel)
 
     // Build format string based on flags
     let formatStr =
-        '% Format: Model & Solv & Solv_lower & Solv_upper & Top-1 & Top-1_lower & Top-1_upper & Top-10 & Top-10_lower & Top-10_upper'
+        '% Format: Model & Tier-0 & Solv-0 & Solv-0_lower & Solv-0_upper & Top-1 & Top-1_lower & Top-1_upper & Top-10 & Top-10_lower & Top-10_upper'
     if (includeTime) {
         formatStr += ' & Duration'
     }
@@ -86,6 +84,7 @@ async function exportLatexTable(
     formatStr += ' \\\\'
 
     console.log('% LaTeX table for benchmark:', benchmarkId)
+    console.log('% Evaluation label:', selectedLabel)
     console.log(formatStr)
     console.log()
 
@@ -94,13 +93,14 @@ async function exportLatexTable(
         const modelName = MODEL_NAME_MAPPING[instanceSlug] || stat.predictionRun.modelInstance.family.name
 
         // Find metrics
-        const metricsByName = new Map(stat.metrics.map((metric) => [metric.metricName, metric]))
-        const solvability = metricsByName.get('Solvability')
-        const top1 = metricsByName.get('Top-1')
-        const top10 = metricsByName.get('Top-10')
+        const metricsByName = new Map(stat.metrics.map((metric) => [metric.metricKey, metric]))
+        const tier0 = metricsByName.get(tierValidityRateKey(0))
+        const solvability = metricsByName.get(solvRateKey(0, stat.metricLabel))
+        const top1 = stat.metrics.find((metric) => topKFromMetricKey(metric.metricKey) === 1)
+        const top10 = stat.metrics.find((metric) => topKFromMetricKey(metric.metricKey) === 10)
 
-        if (!solvability) {
-            console.error(`Warning: No solvability metric found for model ${modelName}`)
+        if (!tier0 || !solvability) {
+            console.error(`Warning: No Tier-0/Solv-0 metric found for model ${modelName}`)
             continue
         }
 
@@ -108,17 +108,26 @@ async function exportLatexTable(
         const formatMetric = (value: number) => (value * 100).toFixed(1)
 
         const solvValues = [
+            formatMetric(tier0.value),
             formatMetric(solvability.value),
-            formatMetric(solvability.ciLower),
-            formatMetric(solvability.ciUpper),
+            formatMetric(solvability.ciLower ?? solvability.value),
+            formatMetric(solvability.ciUpper ?? solvability.value),
         ]
 
         const top1Values = top1
-            ? [formatMetric(top1.value), formatMetric(top1.ciLower), formatMetric(top1.ciUpper)]
+            ? [
+                  formatMetric(top1.value),
+                  formatMetric(top1.ciLower ?? top1.value),
+                  formatMetric(top1.ciUpper ?? top1.value),
+              ]
             : ['--', '--', '--']
 
         const top10Values = top10
-            ? [formatMetric(top10.value), formatMetric(top10.ciLower), formatMetric(top10.ciUpper)]
+            ? [
+                  formatMetric(top10.value),
+                  formatMetric(top10.ciLower ?? top10.value),
+                  formatMetric(top10.ciUpper ?? top10.value),
+              ]
             : ['--', '--', '--']
 
         // Build row with base metrics
@@ -126,14 +135,18 @@ async function exportLatexTable(
 
         // Add optional columns
         if (includeTime) {
-            const duration = stat.totalWallTime ? (stat.totalWallTime / 60).toFixed(1) : '--'
+            const duration = stat.predictionRun.totalWallTime
+                ? (stat.predictionRun.totalWallTime / 60).toFixed(1)
+                : '--'
             rowValues.push(duration)
         }
 
         if (includeTimeRelative) {
-            const targetCount = stat.benchmarkSet._count.targets
+            const targetCount = stat.predictionRun.benchmarkSet._count.targets
             const timePerTarget =
-                stat.totalWallTime && targetCount > 0 ? (stat.totalWallTime / targetCount).toFixed(1) : '--'
+                stat.predictionRun.totalWallTime && targetCount > 0
+                    ? (stat.predictionRun.totalWallTime / targetCount).toFixed(1)
+                    : '--'
             rowValues.push(timePerTarget)
         }
 
@@ -149,7 +162,7 @@ async function exportLatexTable(
 
 // Parse command-line arguments
 function parseArgs() {
-    const args = process.argv.slice(2)
+    const { evaluationLabel, remainingArgs: args } = parseEvaluationLabelOption(process.argv.slice(2))
     let benchmarkId: string | null = null
     let includeTime = false
     let includeTimeRelative = false
@@ -167,21 +180,24 @@ function parseArgs() {
         }
     }
 
-    return { benchmarkId, includeTime, includeTimeRelative, includeCost }
+    return { benchmarkId, evaluationLabel, includeTime, includeTimeRelative, includeCost }
 }
 
 // Main execution
-const { benchmarkId, includeTime, includeTimeRelative, includeCost } = parseArgs()
+const { benchmarkId, evaluationLabel, includeTime, includeTimeRelative, includeCost } = parseArgs()
 
 if (!benchmarkId) {
-    console.error('Usage: pnpm tsx scripts/export-latex-table.ts <benchmarkId> [-t] [-trel] [-c]')
+    console.error(
+        'Usage: pnpm tsx scripts/export-latex-table.ts <benchmarkId> [--evaluation-label <label>] [-t] [-trel] [-c]'
+    )
+    console.error('  --evaluation-label  Select an exact label; required when the benchmark has multiple labels')
     console.error('  -t     Include total wall time (minutes)')
     console.error('  -trel  Include wall time per target (seconds/target)')
     console.error('  -c     Include total cost (USD)')
     process.exit(1)
 }
 
-exportLatexTable(benchmarkId, includeTime, includeTimeRelative, includeCost)
+exportLatexTable(benchmarkId, evaluationLabel, includeTime, includeTimeRelative, includeCost)
     .catch((e) => {
         console.error('Error:', e)
         process.exit(1)

@@ -11,9 +11,19 @@ import { DataTableColumnHeader } from '@/components/data-table-column-header'
 import { MetricCell } from '@/components/metrics'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
+export function _buildLeaderboardRunHref(
+    entry: Pick<LeaderboardEntry, 'runId' | 'evaluationId' | 'hasAcceptableRoutes'>,
+    isDevMode: boolean
+): string {
+    const search = new URLSearchParams({ evaluation: entry.evaluationId })
+    if (entry.hasAcceptableRoutes) search.set('layout', 'side-by-side')
+    if (isDevMode) search.set('dev', 'true')
+    return `/runs/${entry.runId}?${search.toString()}`
+}
+
 /**
  * Creates column definitions for the overall leaderboard table.
- * Includes model name, solvability, and dynamic Top-K accuracy columns.
+ * Includes model name, Tier-0, Solv-0, and dynamic Top-K accuracy columns.
  *
  * @param displayedTopK - Filtered list of Top-K metrics to actually show (based on user selection)
  */
@@ -24,12 +34,7 @@ export function createLeaderboardColumns(
     const ActionCell = ({ row }: { row: any }) => {
         const searchParams = useSearchParams()
         const isDevMode = searchParams.get('dev') === 'true'
-        const { runId, hasAcceptableRoutes } = row.original
-
-        const layoutParam = hasAcceptableRoutes ? 'layout=side-by-side' : ''
-        const devParam = isDevMode ? 'dev=true' : ''
-        const queryParts = [layoutParam, devParam].filter(Boolean)
-        const href = `/runs/${runId}${queryParts.length > 0 ? `?${queryParts.join('&')}` : ''}`
+        const href = _buildLeaderboardRunHref(row.original, isDevMode)
 
         return (
             <div className="flex justify-center">
@@ -72,13 +77,12 @@ export function createLeaderboardColumns(
                 )
             },
         },
-        // Solvability Column
         {
-            accessorKey: 'metrics.solvability.value',
-            id: 'solvability',
-            header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Solvability" />,
+            accessorKey: 'metrics.tier0Validity.value',
+            id: 'tier0Validity',
+            header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title="Tier-0 valid" />,
             cell: ({ row }) => {
-                const metric = row.original.metrics.solvability
+                const metric = row.original.metrics.tier0Validity
                 return (
                     <div className="flex justify-center">
                         <MetricCell metric={metric} showBadge />
@@ -86,10 +90,24 @@ export function createLeaderboardColumns(
                 )
             },
             sortingFn: (rowA, rowB) => {
-                const a = rowA.original.metrics.solvability.value
-                const b = rowB.original.metrics.solvability.value
+                const a = rowA.original.metrics.tier0Validity.value
+                const b = rowB.original.metrics.tier0Validity.value
                 return a - b
             },
+        },
+        {
+            accessorKey: 'metrics.solv0.value',
+            id: 'solv0',
+            header: ({ column, table }) => {
+                const label = table.getRowModel().rows[0]?.original.metrics.solv0Label ?? 'stock'
+                return <DataTableColumnHeader column={column} table={table} title={`Solv-0[${label}]`} />
+            },
+            cell: ({ row }) => (
+                <div className="flex justify-center">
+                    <MetricCell metric={row.original.metrics.solv0} showBadge />
+                </div>
+            ),
+            sortingFn: (rowA, rowB) => rowA.original.metrics.solv0.value - rowB.original.metrics.solv0.value,
         },
     ]
 

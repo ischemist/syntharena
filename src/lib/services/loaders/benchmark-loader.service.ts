@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import * as fs from 'fs'
 import * as zlib from 'zlib'
-import { projectRetrocastRoute } from '@ischemist/routes'
+import { hashJson, projectRetrocastRoute } from '@ischemist/routes'
 import type { RetrocastMolecule, RetrocastReaction, RetrocastRoute } from '@ischemist/routes'
 import { Prisma } from '@prisma/client'
 
@@ -41,7 +41,7 @@ interface PythonRoute {
     schema_version?: string
 }
 
-interface PythonBenchmarkTarget {
+export interface PythonBenchmarkTarget {
     id: string
     smiles: string
     inchikey: string
@@ -49,10 +49,12 @@ interface PythonBenchmarkTarget {
     acceptable_routes: PythonRoute[] // Array of acceptable routes (empty = pure prediction task)
 }
 
-interface PythonBenchmarkSet {
+export interface PythonBenchmarkSet {
     name: string
     description?: string
     stock_name?: string | null
+    default_constraints: Array<Record<string, unknown>>
+    constraints: Record<string, Array<Record<string, unknown>>>
     targets: Record<string, PythonBenchmarkTarget>
 }
 
@@ -147,8 +149,8 @@ function routeProjection(route: PythonRoute) {
 
 /**
  * Internal structure for building route nodes in memory before bulk insert.
- * Reaction data (reactionHash, template, metadata) is stored temporarily here
- * for ReactionStep upsert, then only the reactionStepId is written to RouteNode.
+ * Reaction topology is deduplicated through reactionHash. Exact producer SMILES,
+ * templates, and metadata remain on each RouteNode occurrence.
  */
 interface RouteNodeToCreate {
     tempId: string // Temporary ID for tracking parent-child relationships
@@ -156,9 +158,9 @@ interface RouteNodeToCreate {
     moleculeInchikey: string
     parentTempId: string | null
     isLeaf: boolean
-    reactionHash: string | null // Used for ReactionStep dedup, not stored on RouteNode
-    template: string | null // Stored on ReactionStep, not RouteNode
-    metadata: string | null // Stored on ReactionStep, not RouteNode
+    reactionHash: string | null // Used for ReactionStep topology dedup
+    template: string | null
+    metadata: string | null
     smiles: string
 }
 
@@ -324,9 +326,12 @@ async function storeRouteTree(
                 data: {
                     routeId: nodeData.routeId,
                     moleculeId,
+                    smiles: nodeData.smiles,
                     parentId,
                     isLeaf: nodeData.isLeaf,
                     reactionStepId,
+                    template: nodeData.template,
+                    metadata: nodeData.metadata,
                 },
                 select: { id: true },
             })
@@ -368,6 +373,37 @@ export async function loadBenchmarkFromFile(
         console.log('Parsing benchmark file...')
     }
     const benchmarkData = await parseBenchmarkFile(filePath)
+
+    return loadBenchmarkData(benchmarkData, benchmarkId, benchmarkName)
+}
+
+/**
+ * Loads a benchmark definition already parsed from caller-owned bytes. Corpus
+ * rebuilds use this boundary to bind source verification and persistence to the
+ * same captured artifact rather than reopening a mutable path.
+ */
+export async function loadBenchmarkData(
+    benchmarkData: PythonBenchmarkSet,
+    benchmarkId: string,
+    benchmarkName: string
+): Promise<LoadBenchmarkResult> {
+    if (!Array.isArray(benchmarkData.default_constraints)) {
+        throw new Error(`Benchmark ${benchmarkName} has invalid default_constraints`)
+    }
+    if (
+        !benchmarkData.constraints ||
+        typeof benchmarkData.constraints !== 'object' ||
+        Array.isArray(benchmarkData.constraints)
+    ) {
+        throw new Error(`Benchmark ${benchmarkName} has invalid constraints`)
+    }
+    await prisma.benchmarkSet.update({
+        where: { id: benchmarkId },
+        data: {
+            defaultConstraintsJson: JSON.stringify(benchmarkData.default_constraints),
+            targetConstraintsJson: JSON.stringify(benchmarkData.constraints),
+        },
+    })
 
     // Load targets
     const targetIds = Object.keys(benchmarkData.targets)
@@ -431,6 +467,7 @@ export async function loadBenchmarkFromFile(
                         benchmarkSetId: benchmarkId,
                         targetId: externalId,
                         moleculeId: targetMol.id,
+                        smiles: targetData.smiles,
                         routeLength,
                         isConvergent,
                         metadata:
@@ -444,21 +481,36 @@ export async function loadBenchmarkFromFile(
                 if (targetData.acceptable_routes && targetData.acceptable_routes.length > 0) {
                     for (let routeIndex = 0; routeIndex < targetData.acceptable_routes.length; routeIndex++) {
                         const routeData = targetData.acceptable_routes[routeIndex]
+                        if (
+                            routeData.target.smiles !== targetData.smiles ||
+                            routeData.target.inchikey !== targetData.inchikey
+                        ) {
+                            throw new Error(
+                                `Acceptable route ${routeIndex} root differs from benchmark target ${externalId}`
+                            )
+                        }
 
                         // Extract route properties from file
                         const projection = routeProjection(routeData)
                         const signature = projection.route.signature
+                        const contentHash = hashJson(normalizeRouteForRetrocast(routeData))
 
-                        // Attempt to create route or reuse if exists (handles race conditions via unique constraints)
                         let routeId: string
-                        let routeLengthComputed: number
-                        let routeIsConvergentComputed: boolean
 
-                        try {
-                            // Try creating the route - will fail if the topology signature already exists.
+                        const existingRoute = await tx.route.findUnique({
+                            where: { contentHash },
+                            select: { id: true },
+                        })
+                        if (existingRoute) {
+                            routeId = existingRoute.id
+                        } else {
+                            // Exact content is unique; the topology signature is intentionally non-unique.
+                            // Any failure after this create must escape and roll back the target batch. It
+                            // must never be mistaken for duplicate-route recovery.
                             const route = await tx.route.create({
                                 data: {
                                     signature,
+                                    contentHash,
                                     length: 0, // Will be set below
                                     isConvergent: false, // Will be set below
                                 },
@@ -471,13 +523,9 @@ export async function loadBenchmarkFromFile(
                             moleculesCreated += newMoleculesCreated
 
                             // Use file data if available, otherwise compute
-                            if (routeData.length !== undefined && routeData.has_convergent_reaction !== undefined) {
-                                routeLengthComputed = routeData.length
-                                routeIsConvergentComputed = routeData.has_convergent_reaction
-                            } else {
-                                routeLengthComputed = projection.route.length
-                                routeIsConvergentComputed = projection.route.hasConvergentReaction
-                            }
+                            const routeLengthComputed = routeData.length ?? projection.route.length
+                            const routeIsConvergentComputed =
+                                routeData.has_convergent_reaction ?? projection.route.hasConvergentReaction
 
                             // Update route with final properties
                             await tx.route.update({
@@ -489,24 +537,6 @@ export async function loadBenchmarkFromFile(
                             })
 
                             routesCreated++
-                        } catch (error) {
-                            // Route already exists (unique constraint violation) - find and reuse it
-                            const existingRoute = await tx.route.findUnique({
-                                where: { signature },
-                                select: {
-                                    id: true,
-                                    length: true,
-                                    isConvergent: true,
-                                },
-                            })
-
-                            if (!existingRoute) {
-                                throw error // Not a duplicate key error, re-throw
-                            }
-
-                            routeId = existingRoute.id
-                            routeLengthComputed = existingRoute.length
-                            routeIsConvergentComputed = existingRoute.isConvergent
                         }
 
                         // Create AcceptableRoute junction record
@@ -523,7 +553,11 @@ export async function loadBenchmarkFromFile(
             }
         })
 
-        if (process.env.NODE_ENV !== 'test') {
+        if (
+            process.env.NODE_ENV !== 'test' &&
+            (Math.floor(Math.min(i + BATCH_SIZE, targetIds.length) / 100) > Math.floor(i / 100) ||
+                i + BATCH_SIZE >= targetIds.length)
+        ) {
             const processed = Math.min(i + BATCH_SIZE, targetIds.length)
             console.log(`Processed ${processed}/${targetIds.length} targets...`)
         }
@@ -532,7 +566,7 @@ export async function loadBenchmarkFromFile(
     // Update benchmark hasAcceptableRoutes flag if any AcceptableRoute junction records were created.
     // Note: we intentionally use `acceptableRoutesCreated` (not `routesCreated`) here so that
     // the flag is set even when all route structures were already in the DB from a previous load
-    // and were reused via the try/catch deduplication path (in which case routesCreated stays 0).
+    // and were reused by exact content hash (in which case routesCreated stays 0).
     if (acceptableRoutesCreated > 0) {
         await prisma.benchmarkSet.update({
             where: { id: benchmarkId },

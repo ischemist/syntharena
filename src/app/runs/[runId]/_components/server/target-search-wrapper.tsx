@@ -5,7 +5,6 @@ import { TargetSearch } from '../client/target-search'
 
 type TargetSearchWrapperProps = {
     runId: string
-    stockId?: string
     currentTargetId?: string
     routeLength?: string
     onlyWithPredictions?: boolean
@@ -13,7 +12,6 @@ type TargetSearchWrapperProps = {
 
 export async function TargetSearchWrapper({
     runId,
-    stockId,
     currentTargetId,
     routeLength,
     onlyWithPredictions,
@@ -52,7 +50,7 @@ export async function TargetSearchWrapper({
         filterByPredictions?: boolean
     ): Promise<BenchmarkTargetWithMolecule[]> {
         'use server'
-        return predictionView.searchTargets(runId, query, stockId, selectedRouteLength, filterByPredictions, 20)
+        return predictionView.searchTargets(runId, query, selectedRouteLength, filterByPredictions, 20)
     }
 
     return (

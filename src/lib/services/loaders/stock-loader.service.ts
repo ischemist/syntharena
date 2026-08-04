@@ -1,9 +1,10 @@
+import crypto from 'crypto'
 import * as fs from 'fs/promises'
-import { Prisma } from '@prisma/client'
+import * as zlib from 'zlib'
+import { createId } from '@paralleldrive/cuid2'
 
-import type { Molecule, StockListItem, VendorSource } from '@/types'
+import type { StockListItem, VendorSource } from '@/types'
 import prisma from '@/lib/db'
-import { formatError } from '@/lib/utils'
 
 /**
  * Retrieves a stock by name with case-insensitive exact matching.
@@ -54,10 +55,17 @@ export async function getStockByName(stockName: string): Promise<StockListItem |
  * @returns Statistics about the load operation
  * @throws Error if file doesn't exist, has invalid format, or stock name already exists
  */
+interface StockProvenance {
+    sourcePath?: string
+    sourceSha256?: string
+    schemaVersion?: string
+}
+
 export async function loadStockFromFile(
     filePath: string,
     stockName: string,
-    stockDescription?: string
+    stockDescription?: string,
+    provenance: StockProvenance = {}
 ): Promise<{
     stockId: string
     moleculesCreated: number
@@ -71,8 +79,28 @@ export async function loadStockFromFile(
         throw new Error(`File not found: ${filePath}`)
     }
 
-    // Read and parse file
-    const fileContent = await fs.readFile(filePath, 'utf-8')
+    const fileBytes = await fs.readFile(filePath)
+    return loadStockFromBytes(fileBytes, filePath.endsWith('.gz'), stockName, stockDescription, provenance)
+}
+
+/**
+ * Loads a stock from bytes already captured and verified by the caller. Corpus
+ * rebuilds use this boundary so the digest and parsed rows necessarily describe
+ * the same immutable byte sequence.
+ */
+export async function loadStockFromBytes(
+    fileBytes: Buffer,
+    compressed: boolean,
+    stockName: string,
+    stockDescription?: string,
+    provenance: StockProvenance = {}
+): Promise<{
+    stockId: string
+    moleculesCreated: number
+    moleculesSkipped: number
+    itemsCreated: number
+}> {
+    const fileContent = (compressed ? zlib.gunzipSync(fileBytes) : fileBytes).toString('utf-8')
     const lines = fileContent.split('\n').filter((line) => line.trim())
 
     if (lines.length < 2) {
@@ -86,7 +114,7 @@ export async function loadStockFromFile(
     }
 
     // Parse data rows
-    const moleculeData: Array<{ smiles: string; inchikey: string }> = []
+    const moleculesByInchikey = new Map<string, { smiles: string; inchikey: string }>()
     const skippedLines: Array<{ line: number; reason: string }> = []
 
     for (let i = 1; i < lines.length; i++) {
@@ -110,9 +138,14 @@ export async function loadStockFromFile(
             continue
         }
 
-        moleculeData.push({ smiles, inchikey })
+        const existing = moleculesByInchikey.get(inchikey)
+        if (existing && existing.smiles !== smiles) {
+            throw new Error(`Stock ${stockName} assigns multiple SMILES to InChIKey ${inchikey}`)
+        }
+        moleculesByInchikey.set(inchikey, { smiles, inchikey })
     }
 
+    const moleculeData = [...moleculesByInchikey.values()]
     if (moleculeData.length === 0) {
         throw new Error('No valid molecule data found in file')
     }
@@ -128,26 +161,33 @@ export async function loadStockFromFile(
         }
     }
 
-    // Create or get stock
-    let stock: { id: string; name: string; description: string | null }
-    try {
-        stock = await prisma.stock.create({
-            data: {
-                name: stockName,
-                description: stockDescription || null,
-            },
-        })
-    } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-            throw new Error(
-                `A stock with name "${stockName}" already exists. Use a different name or delete the existing stock.`
-            )
-        }
-        throw error
+    const sourceSha256 = provenance.sourceSha256 ?? crypto.createHash('sha256').update(fileBytes).digest('hex')
+    const existingStock = await prisma.stock.findUnique({ where: { name: stockName } })
+    if (existingStock?.sourceSha256 && existingStock.sourceSha256 !== sourceSha256) {
+        throw new Error(`Stock ${stockName} already exists with a different source hash`)
     }
+    const stock = await prisma.stock.upsert({
+        where: { name: stockName },
+        update: {
+            description: stockDescription ?? existingStock?.description,
+            sourcePath: provenance.sourcePath ?? existingStock?.sourcePath,
+            sourceSha256,
+            schemaVersion: provenance.schemaVersion ?? existingStock?.schemaVersion,
+        },
+        create: {
+            name: stockName,
+            description: stockDescription,
+            sourcePath: provenance.sourcePath,
+            sourceSha256,
+            schemaVersion: provenance.schemaVersion,
+        },
+    })
 
-    // Process molecules in batches using transactions for consistency
-    const BATCH_SIZE = 100
+    // Bulk insert in bounded transactions. This turns the 313k-molecule
+    // buyables load from an N+1 query path into a resumable batched operation.
+    // Stock rows are narrow, so 1,000-row batches remain well below SQLite's
+    // bind-parameter limit while avoiding thousands of tiny transactions.
+    const BATCH_SIZE = 1_000
     let moleculesCreated = 0
     let moleculesSkipped = 0
     let itemsCreated = 0
@@ -157,50 +197,35 @@ export async function loadStockFromFile(
 
         await prisma.$transaction(
             async (tx) => {
-                for (const { smiles, inchikey } of batch) {
-                    // Check if molecule exists before creating
-                    let molecule: Molecule
-                    try {
-                        const existingMolecule = await tx.molecule.findUnique({
-                            where: { inchikey },
-                        })
+                const existingMolecules = await tx.molecule.findMany({
+                    where: { inchikey: { in: batch.map((molecule) => molecule.inchikey) } },
+                    select: { id: true, inchikey: true, smiles: true },
+                })
+                const moleculeIds = new Map(existingMolecules.map((molecule) => [molecule.inchikey, molecule.id]))
+                const newMolecules = batch.flatMap((molecule) => {
+                    if (moleculeIds.has(molecule.inchikey)) return []
+                    const id = createId()
+                    moleculeIds.set(molecule.inchikey, id)
+                    return [{ id, ...molecule }]
+                })
+                if (newMolecules.length > 0) await tx.molecule.createMany({ data: newMolecules })
+                moleculesCreated += newMolecules.length
+                moleculesSkipped += batch.length - newMolecules.length
 
-                        if (existingMolecule) {
-                            moleculesSkipped++
-                            molecule = existingMolecule
-                        } else {
-                            molecule = await tx.molecule.create({
-                                data: { smiles, inchikey },
-                            })
-                            moleculesCreated++
-                        }
-                    } catch (error) {
-                        // If molecule creation fails, skip it
-                        if (process.env.NODE_ENV !== 'test') {
-                            console.warn(`Failed to process molecule ${inchikey}: ${formatError(error)}`)
-                        }
-                        moleculesSkipped++
-                        continue
-                    }
-
-                    // Create stock item if it doesn't exist
-                    try {
-                        await tx.stockItem.create({
-                            data: {
-                                stockId: stock.id,
-                                moleculeId: molecule.id,
-                            },
-                        })
-                        itemsCreated++
-                    } catch (error) {
-                        // If stock item already exists (duplicate), skip silently
-                        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-                            // Unique constraint violation - item already exists
-                            continue
-                        }
-                        throw error
-                    }
-                }
+                const ids = batch.map((molecule) => moleculeIds.get(molecule.inchikey)!)
+                const existingItems = await tx.stockItem.findMany({
+                    where: { stockId: stock.id, moleculeId: { in: ids } },
+                    select: { moleculeId: true },
+                })
+                const existingItemIds = new Set(existingItems.map((item) => item.moleculeId))
+                const newItems = batch.flatMap((molecule) => {
+                    const moleculeId = moleculeIds.get(molecule.inchikey)!
+                    return existingItemIds.has(moleculeId)
+                        ? []
+                        : [{ id: createId(), stockId: stock.id, moleculeId, smiles: molecule.smiles }]
+                })
+                if (newItems.length > 0) await tx.stockItem.createMany({ data: newItems })
+                itemsCreated += newItems.length
             },
             {
                 timeout: 30000, // 30 second timeout for large batches
@@ -208,7 +233,11 @@ export async function loadStockFromFile(
         )
 
         // Log progress (skip during tests)
-        if (process.env.NODE_ENV !== 'test') {
+        if (
+            process.env.NODE_ENV !== 'test' &&
+            (Math.floor(Math.min(i + BATCH_SIZE, moleculeData.length) / 25_000) > Math.floor(i / 25_000) ||
+                i + BATCH_SIZE >= moleculeData.length)
+        ) {
             const processed = Math.min(i + BATCH_SIZE, moleculeData.length)
             console.log(`Processed ${processed}/${moleculeData.length} molecules...`)
         }

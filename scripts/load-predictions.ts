@@ -1,549 +1,81 @@
-#!/usr/bin/env tsx
-
-/**
- * CLI Script to load model predictions from retrocast pipeline outputs.
- *
- * This script populates the database based on the three-tier hierarchy:
- * Algorithm -> ModelFamily -> ModelInstance
- *
- * Usage:
- *   tsx scripts/load-predictions.ts [options] <benchmark-name> <model-path-name>
- *
- * Positional Arguments:
- *   <benchmark-name>         Name of the benchmark directory (e.g., "mkt-cnv-160")
- *   <model-path-name>        Name of the model directory (e.g., "dms-explorer-xl")
- *
- * Algorithm (one required):
- *   --algorithm <name>         Algorithm name (creates/finds by name)
- *   --algorithm-slug <slug>    Required when creating a new algorithm
- *   --algorithm-id <id>        OR: Use existing algorithm by ID
- *
- * Model Family (one required):
- *   --model-family-name <name> Model family name (e.g., "DMS Explorer XL")
- *   --model-family-slug <slug> Required when creating a new model family
- *   --model-family-id <id>     OR: Use existing model family by ID
- *
- * Model Instance (required):
- *   --model-slug <slug>        URL-safe slug for the instance (e.g., "dms-explorer-xl-v1-2-0")
- *   --version-major <n>        Major version (default: 0)
- *   --version-minor <n>        Minor version (default: 0)
- *   --version-patch <n>        Patch version (default: 0)
- *   --version-prerelease <s>   Prerelease tag (e.g., "alpha", "beta.1")
- *   --model-description <s>    Optional description for this instance
- *
- * Stock (for evaluations):
- *   --stock-path <name>        Stock name in file path (e.g., "buyables-stock")
- *   --stock-db <name>          Stock name in database
- *
- * Other Options:
- *   --data-dir <path>          Base data directory (default: ../project-procrustes/data/retrocast)
- *   --routes-only              Only load routes, skip evaluations and statistics
- *   --hourly-cost <usd>        Compute cost in USD per hour
- *
- * Example:
- *   pnpm tsx scripts/load-predictions.ts mkt-cnv-160 dms-explorer-xl \
- *     --algorithm "DirectMultiStep" --algorithm-slug "direct-multi-step" \
- *     --model-family-name "DMS Explorer XL" --model-family-slug "dms-explorer-xl" \
- *     --model-slug "dms-explorer-xl-v1-1-3" \
- *     --version-major 1 --version-minor 1 --version-patch 3 \
- *     --stock-path "buyables-stock" --stock-db "ASKCOS Buyables Stock"
- *
- * The script will:
- *   1. Resolve or create Algorithm, ModelFamily, and ModelInstance.
- *   2. Create or update PredictionRun for benchmark+instance combination.
- *   3. Load candidates from 3-processed.
- *   4. If --stock specified, load evaluations from 4-scored and analysis from 5-results.
- *   5. Update aggregate statistics on PredictionRun and report summary.
- */
-import * as fs from 'fs'
-import * as path from 'path'
-import * as zlib from 'zlib'
-
 import './env-loader'
 
-import prisma from '../src/lib/db'
+import { loadEvaluationBundleForImport } from '@ischemist/retrocast-io'
+
+import prisma from '@/lib/db'
 import {
-    computeRouteLength,
-    createModelStatistics,
     createOrUpdatePredictionRun,
-    createRouteFromPython,
-    createRouteSolvability,
-    transformRetrocastAnalysis,
+    importEvaluationBundle,
     updatePredictionRunCost,
-    updatePredictionRunStats,
-    type RetrocastAnalysis,
-    type PythonRoute,
-} from '../src/lib/services/loaders/prediction-loader.service'
+} from '@/lib/services/loaders/prediction-loader.service'
 
-// ============================================================================
-// Types for File Formats
-// ============================================================================
-
-interface CandidatesFile {
-    [targetId: string]: Array<{
-        rank: number
-        route?: (Omit<PythonRoute, 'rank'> & { rank?: number }) | null
-        failure?: unknown
-    }>
+type Args = {
+    bundleDir: string
+    benchmark: string
+    model: string
+    hourlyCost?: number
 }
 
-interface RetrocastEvaluationArtifact {
-    targets: {
-        [targetId: string]: {
-            target: {
-                acceptable_routes?: Array<Omit<PythonRoute, 'rank'> & { rank?: number }>
-            }
-            candidates: Array<{
-                rank: number
-                route?: (Omit<PythonRoute, 'rank'> & { rank?: number }) | null
-                validity?: {
-                    tiers?: Record<string, { status?: string }>
-                }
-                constraints?: {
-                    status?: string
-                }
-                matches_acceptable?: boolean
-                matched_acceptable_index?: number | null
-            }>
-            wall_time: number | null
-            cpu_time: number | null
-        }
-    }
+function usage(): never {
+    throw new Error(
+        'Usage: pnpm tsx scripts/load-predictions.ts --bundle <evaluate-v2-dir> --benchmark <id-or-name> --model <id-or-slug> [--hourly-cost <usd>]'
+    )
 }
 
-interface ManifestFile {
-    schema_version: string
-    retrocast_version: string
-    created_at: string
-    action: string
-    parameters: Record<string, unknown>
+function parseArgs(argv: string[]): Args {
+    const values = new Map<string, string>()
+    for (let index = 0; index < argv.length; index += 2) {
+        const key = argv[index]
+        const value = argv[index + 1]
+        if (!key?.startsWith('--') || value === undefined) usage()
+        values.set(key, value)
+    }
+    const bundleDir = values.get('--bundle')
+    const benchmark = values.get('--benchmark')
+    const model = values.get('--model')
+    if (!bundleDir || !benchmark || !model) usage()
+    const hourlyCostValue = values.get('--hourly-cost')
+    const hourlyCost = hourlyCostValue === undefined ? undefined : Number(hourlyCostValue)
+    if (hourlyCost !== undefined && (!Number.isFinite(hourlyCost) || hourlyCost < 0)) {
+        throw new Error('--hourly-cost must be a non-negative number')
+    }
+    return { bundleDir, benchmark, model, hourlyCost }
 }
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
+async function main(): Promise<void> {
+    const args = parseArgs(process.argv.slice(2))
+    const startedAt = performance.now()
+    console.log(`Verifying RetroCast bundle: ${args.bundleDir}`)
+    const bundle = await loadEvaluationBundleForImport(args.bundleDir, { verification: 'outputs-and-sources' })
 
-/** Parsed CLI options */
-interface ParsedOptions {
-    benchmarkName: string
-    modelPathName: string
-
-    algorithmName: string | null
-    algorithmId: string | null
-    algorithmSlug: string | null
-
-    modelFamilyName: string | null
-    modelFamilyId: string | null
-    modelFamilySlug: string | null
-
-    modelSlug: string | null
-    modelDescription: string | null
-    versionMajor: number
-    versionMinor: number
-    versionPatch: number
-    versionPrerelease: string | null
-
-    stockPathName: string | null
-    stockDbName: string | null
-
-    dataDir: string
-    routesOnly: boolean
-    hourlyCost: number | null
-}
-
-/**
- * Parses CLI arguments into structured options.
- */
-function parseArgs(args: string[]): ParsedOptions {
-    const positionalArgs = args.filter((arg) => !arg.startsWith('--'))
-    if (positionalArgs.length < 2) {
-        throw new Error('missing required positional arguments: <benchmark-name> and <model-path-name>')
-    }
-    const [benchmarkName, modelPathName] = positionalArgs
-
-    const argMap = new Map<string, string | true>()
-    for (let i = 0; i < args.length; i++) {
-        if (args[i].startsWith('--')) {
-            const key = args[i]
-            if (i + 1 < args.length && !args[i + 1].startsWith('--')) {
-                argMap.set(key, args[i + 1])
-                i++
-            } else {
-                argMap.set(key, true)
-            }
-        }
+    const [benchmark, model] = await Promise.all([
+        prisma.benchmarkSet.findFirst({ where: { OR: [{ id: args.benchmark }, { name: args.benchmark }] } }),
+        prisma.modelInstance.findFirst({ where: { OR: [{ id: args.model }, { slug: args.model }] } }),
+    ])
+    if (!benchmark) throw new Error(`Benchmark not found: ${args.benchmark}`)
+    if (!model) throw new Error(`Model instance not found: ${args.model}`)
+    if (bundle.evaluation.task.name !== benchmark.name) {
+        throw new Error(`Bundle task ${bundle.evaluation.task.name} does not match benchmark ${benchmark.name}`)
     }
 
-    const getString = (key: string) => (argMap.get(key) === true ? null : (argMap.get(key) as string | null)) ?? null
-    const getInt = (key: string, def: number) => {
-        const val = parseInt(getString(key) ?? '', 10)
-        return isNaN(val) ? def : val
-    }
-
-    const options = {
-        benchmarkName,
-        modelPathName,
-        algorithmName: getString('--algorithm'),
-        algorithmId: getString('--algorithm-id'),
-        algorithmSlug: getString('--algorithm-slug'),
-        modelFamilyName: getString('--model-family-name'),
-        modelFamilyId: getString('--model-family-id'),
-        modelFamilySlug: getString('--model-family-slug'),
-        modelSlug: getString('--model-slug'),
-        modelDescription: getString('--model-description'),
-        versionMajor: getInt('--version-major', 0),
-        versionMinor: getInt('--version-minor', 0),
-        versionPatch: getInt('--version-patch', 0),
-        versionPrerelease: getString('--version-prerelease'),
-        stockPathName: getString('--stock-path'),
-        stockDbName: getString('--stock-db'),
-        dataDir: getString('--data-dir') ?? path.resolve(__dirname, '../../project-procrustes/data/retrocast'),
-        routesOnly: argMap.has('--routes-only'),
-        hourlyCost: parseFloat(getString('--hourly-cost') ?? ''),
-    }
-
-    // --- Validation ---
-    if (!options.algorithmName && !options.algorithmId) throw new Error('must specify --algorithm or --algorithm-id')
-    if (options.algorithmName && !options.algorithmSlug)
-        throw new Error('--algorithm-slug is required with --algorithm')
-    if (!options.modelFamilyName && !options.modelFamilyId)
-        throw new Error('must specify --model-family-name or --model-family-id')
-    if (options.modelFamilyName && !options.modelFamilySlug)
-        throw new Error('--model-family-slug is required with --model-family-name')
-    if (!options.modelSlug) throw new Error('--model-slug is required')
-    if (options.stockPathName && !options.stockDbName) throw new Error('--stock-db is required with --stock-path')
-
-    return {
-        ...options,
-        hourlyCost: isNaN(options.hourlyCost) ? null : options.hourlyCost,
-    }
-}
-
-/**
- * Reads and decompresses a .json.gz file.
- */
-async function readGzipJson<T>(filePath: string): Promise<T> {
-    return new Promise((resolve, reject) => {
-        const chunks: Buffer[] = []
-        fs.createReadStream(filePath)
-            .pipe(zlib.createGunzip())
-            .on('data', (chunk) => chunks.push(chunk))
-            .on('end', () => {
-                try {
-                    const json = Buffer.concat(chunks).toString('utf-8')
-                    resolve(JSON.parse(json))
-                } catch (error) {
-                    reject(error)
-                }
-            })
-            .on('error', reject)
+    const run = await createOrUpdatePredictionRun(benchmark.id, model.id, {
+        retrocastVersion: bundle.manifest.retrocast_version,
+        commandParams: bundle.manifest.parameters,
+        executedAt: new Date(bundle.manifest.created_at),
+        hourlyCost: args.hourlyCost,
     })
+    const result = await importEvaluationBundle(run.id, bundle)
+    await updatePredictionRunCost(run.id)
+
+    const seconds = (performance.now() - startedAt) / 1000
+    console.log(
+        `Imported ${result.candidates} candidates (${result.routes} routes, ${result.failures} failures) and ${result.metrics} metric estimates in ${seconds.toFixed(1)}s.`
+    )
 }
 
-/**
- * Checks if a file exists.
- */
-function fileExists(filePath: string): boolean {
-    try {
-        return fs.statSync(filePath).isFile()
-    } catch {
-        return false
-    }
-}
-
-function routeFromCandidate(candidate: CandidatesFile[string][number]): PythonRoute | null {
-    if (!candidate.route?.target) return null
-    if (computeRouteLength(candidate.route.target) === 0) return null
-    return {
-        ...candidate.route,
-        rank: candidate.rank,
-    }
-}
-
-function candidateIsSolved(candidate: RetrocastEvaluationArtifact['targets'][string]['candidates'][number]): boolean {
-    const constraintsPass = !candidate.constraints || candidate.constraints.status === 'pass'
-    const tierZeroStatus = candidate.validity?.tiers?.['0']?.status
-    return constraintsPass && (tierZeroStatus === undefined || tierZeroStatus === 'pass')
-}
-
-// ============================================================================
-// Main Loading Logic
-// ============================================================================
-
-async function main() {
-    const args = process.argv.slice(2)
-    if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
-        console.log(
-            fs
-                .readFileSync(path.join(__dirname, 'load-predictions.ts'), 'utf-8')
-                .match(/\/\*\*\s*\n([\s\S]*?)\*\//)?.[1] ?? 'no help found.'
-        )
-        process.exit(0)
-    }
-
-    let options: ParsedOptions
-    try {
-        options = parseArgs(args)
-    } catch (error) {
-        console.error(`error: ${error instanceof Error ? error.message : String(error)}`)
-        process.exit(1)
-    }
-
-    const {
-        benchmarkName,
-        modelPathName,
-        algorithmName,
-        algorithmId,
-        algorithmSlug,
-        modelFamilyName,
-        modelFamilyId,
-        modelFamilySlug,
-        modelSlug,
-        modelDescription,
-        versionMajor,
-        versionMinor,
-        versionPatch,
-        versionPrerelease,
-        dataDir,
-        stockPathName,
-        stockDbName,
-        routesOnly,
-        hourlyCost,
-    } = options
-
-    const versionString = `v${versionMajor}.${versionMinor}.${versionPatch}${versionPrerelease ? `-${versionPrerelease}` : ''}`
-
-    console.log('='.repeat(70))
-    console.log('Model Predictions Loader')
-    console.log('='.repeat(70))
-    console.log(`Benchmark:        ${benchmarkName}`)
-    console.log(`Model Path:       ${modelPathName}`)
-    console.log(`Algorithm:        ${algorithmName ?? `(ID: ${algorithmId})`}`)
-    console.log(`Model Family:     ${modelFamilyName ?? `(ID: ${modelFamilyId})`}`)
-    console.log(`Model Instance:   ${modelSlug} (${versionString})`)
-    console.log('='.repeat(70))
-    console.log('')
-
-    const startTime = Date.now()
-
-    try {
-        // --- Step 1: Resolve all entities ---
-        console.log('resolving entities...')
-        const benchmark = await prisma.benchmarkSet.findUnique({
-            where: { name: benchmarkName },
-            select: { id: true, name: true },
-        })
-        if (!benchmark) throw new Error(`benchmark not found: ${benchmarkName}`)
-
-        let algorithm: { id: string; name: string }
-        if (algorithmId) {
-            const found = await prisma.algorithm.findUnique({
-                where: { id: algorithmId },
-                select: { id: true, name: true },
-            })
-            if (!found) throw new Error(`algorithm not found with ID: ${algorithmId}`)
-            algorithm = found
-        } else {
-            algorithm = await prisma.algorithm.upsert({
-                where: { name: algorithmName! },
-                update: {},
-                create: { name: algorithmName!, slug: algorithmSlug! },
-                select: { id: true, name: true },
-            })
-        }
-
-        let family: { id: string; name: string }
-        if (modelFamilyId) {
-            const found = await prisma.modelFamily.findUnique({
-                where: { id: modelFamilyId },
-                select: { id: true, name: true },
-            })
-            if (!found) throw new Error(`model family not found with ID: ${modelFamilyId}`)
-            family = found
-        } else {
-            family = await prisma.modelFamily.upsert({
-                where: { name: modelFamilyName! },
-                update: { algorithmId: algorithm.id }, // ensure it's linked correctly
-                create: { name: modelFamilyName!, slug: modelFamilySlug!, algorithmId: algorithm.id },
-                select: { id: true, name: true },
-            })
-        }
-
-        const modelInstance = await prisma.modelInstance.upsert({
-            where: {
-                modelFamilyId_versionMajor_versionMinor_versionPatch_versionPrerelease: {
-                    modelFamilyId: family.id,
-                    versionMajor,
-                    versionMinor,
-                    versionPatch,
-                    versionPrerelease: versionPrerelease || '',
-                },
-            },
-            update: { description: modelDescription },
-            create: {
-                modelFamilyId: family.id,
-                slug: modelSlug!,
-                description: modelDescription,
-                versionMajor,
-                versionMinor,
-                versionPatch,
-                versionPrerelease: versionPrerelease || '',
-            },
-            select: { id: true },
-        })
-
-        console.log(
-            `  OK: Benchmark='${benchmark.name}', Algorithm='${algorithm.name}', Family='${family.name}', Instance='${modelSlug}'`
-        )
-        console.log('')
-
-        // --- Step 2: File Paths & Run Creation ---
-        const candidatesFile = path.join(dataDir, '3-processed', benchmark.name, modelPathName, 'candidates.json.gz')
-        if (!fileExists(candidatesFile)) throw new Error(`candidates file not found: ${candidatesFile}`)
-
-        const manifestFile = path.join(dataDir, '3-processed', benchmark.name, modelPathName, 'manifest.json')
-        const manifest = fileExists(manifestFile)
-            ? (JSON.parse(fs.readFileSync(manifestFile, 'utf-8')) as ManifestFile)
-            : null
-
-        const predictionRun = await createOrUpdatePredictionRun(benchmark.id, modelInstance.id, {
-            retrocastVersion: manifest?.retrocast_version,
-            executedAt: manifest?.created_at ? new Date(manifest.created_at) : new Date(),
-            hourlyCost: hourlyCost ?? undefined,
-        })
-        console.log(`prediction run upserted: ${predictionRun.id}`)
-        console.log('')
-
-        // --- Step 3: Load Candidates ---
-        console.log(`loading candidates from ${candidatesFile}...`)
-        const candidatesData = await readGzipJson<CandidatesFile>(candidatesFile)
-        let routesCreated = 0
-        const targetIdsInFile = Object.keys(candidatesData)
-
-        for (const [i, externalTargetId] of targetIdsInFile.entries()) {
-            if (i % 20 === 0) console.log(`  target ${i + 1}/${targetIdsInFile.length}...`)
-            const target = await prisma.benchmarkTarget.findUnique({
-                where: { benchmarkSetId_targetId: { benchmarkSetId: benchmark.id, targetId: externalTargetId } },
-                select: { id: true },
-            })
-            if (!target) {
-                console.warn(`  skipping: target '${externalTargetId}' not found in benchmark '${benchmark.name}'`)
-                continue
-            }
-            const routes = candidatesData[externalTargetId]
-                .map(routeFromCandidate)
-                .filter((route): route is PythonRoute => route !== null)
-            for (const pythonRoute of routes) {
-                await createRouteFromPython(pythonRoute, predictionRun.id, target.id)
-                routesCreated++
-            }
-        }
-        console.log(`  routes created: ${routesCreated}`)
-        console.log('')
-
-        // --- Step 4: Load Evaluations & Stats (if applicable) ---
-        let stock: { id: string; name: string } | null = null
-        if (!routesOnly && stockPathName && stockDbName) {
-            stock = await prisma.stock.findUnique({ where: { name: stockDbName }, select: { id: true, name: true } })
-            if (!stock) throw new Error(`stock '${stockDbName}' not found in database.`)
-
-            const evaluationFile = path.join(
-                dataDir,
-                '4-scored',
-                benchmark.name,
-                modelPathName,
-                stockPathName,
-                'evaluation.json.gz'
-            )
-            const analysisFile = path.join(
-                dataDir,
-                '5-results',
-                benchmark.name,
-                modelPathName,
-                stockPathName,
-                'analysis.json.gz'
-            )
-
-            if (!fileExists(evaluationFile)) throw new Error(`evaluation file not found: ${evaluationFile}`)
-            if (!fileExists(analysisFile)) throw new Error(`analysis file not found: ${analysisFile}`)
-
-            // Load Evaluations
-            console.log(`loading evaluations for stock '${stock.name}'...`)
-            const evaluationData = await readGzipJson<RetrocastEvaluationArtifact>(evaluationFile)
-            let solvabilityRecordsCreated = 0
-            for (const externalTargetId in evaluationData.targets) {
-                const targetEval = evaluationData.targets[externalTargetId]
-                const target = await prisma.benchmarkTarget.findUnique({
-                    where: {
-                        benchmarkSetId_targetId: { benchmarkSetId: benchmark.id, targetId: externalTargetId },
-                    },
-                    select: { id: true, routeLength: true, isConvergent: true },
-                })
-                if (!target) continue
-
-                const predictionRoutes = await prisma.predictionRoute.findMany({
-                    where: { targetId: target.id, predictionRunId: predictionRun.id },
-                    select: { id: true, rank: true },
-                })
-                const rankToIdMap = new Map(predictionRoutes.map((pr) => [pr.rank, pr.id]))
-
-                for (const candidate of targetEval.candidates) {
-                    const predictionRouteId = rankToIdMap.get(candidate.rank)
-                    if (!predictionRouteId) continue
-                    await createRouteSolvability(
-                        predictionRouteId,
-                        stock.id,
-                        candidateIsSolved(candidate),
-                        candidate.matches_acceptable ?? false,
-                        candidate.matched_acceptable_index ?? null,
-                        target.routeLength,
-                        target.isConvergent,
-                        targetEval.wall_time,
-                        targetEval.cpu_time
-                    )
-                    solvabilityRecordsCreated++
-                }
-            }
-            console.log(`  solvability records created: ${solvabilityRecordsCreated}`)
-            console.log('')
-
-            // Load Analysis
-            console.log('loading analysis...')
-            const transformedStats = transformRetrocastAnalysis(await readGzipJson<RetrocastAnalysis>(analysisFile))
-            await createModelStatistics(predictionRun.id, benchmark.id, stock.id, transformedStats)
-            console.log(`  analysis loaded.`)
-            console.log('')
-        }
-
-        // --- Step 5: Finalize and Report ---
-        console.log('updating run aggregates...')
-        await updatePredictionRunStats(predictionRun.id)
-        if (hourlyCost !== null) {
-            await updatePredictionRunCost(predictionRun.id)
-        }
-
-        const elapsed = ((Date.now() - startTime) / 1000).toFixed(2)
-        console.log('='.repeat(70))
-        console.log('load complete!')
-        console.log(
-            `summary: loaded ${routesCreated} routes for '${family.name} ${versionString}' on '${benchmark.name}'`
-        )
-        if (stock) console.log(`         with evaluation against '${stock.name}' stock.`)
-        console.log(`time elapsed: ${elapsed}s`)
-        console.log('='.repeat(70))
-        process.exit(0)
-    } catch (error) {
-        console.error('')
-        console.error('='.repeat(70))
-        console.error('fatal error during script execution')
-        console.error('='.repeat(70))
-        console.error(error instanceof Error ? error.message : String(error))
-        console.error('='.repeat(70))
-        process.exit(1)
-    }
-}
-
-void main().catch((error) => {
-    console.error('unhandled promise rejection:', error instanceof Error ? error.message : String(error))
-    process.exit(1)
-})
+main()
+    .catch((error: unknown) => {
+        console.error(error instanceof Error ? error.message : error)
+        process.exitCode = 1
+    })
+    .finally(async () => prisma.$disconnect())

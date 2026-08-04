@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 
 import * as predictionView from '@/lib/services/view/prediction.view'
 
-import { StockSelector } from './_components/client/stock-selector'
+import { EvaluationSelector } from './_components/client/evaluation-selector'
 import { RunStatisticsStratified } from './_components/server/run-statistics-stratified'
 import { RunStatisticsSummary } from './_components/server/run-statistics-summary'
 import { RunTitleCard } from './_components/server/run-title-card'
@@ -15,7 +15,7 @@ type PageProps = {
     // These are now promises
     params: Promise<{ runId: string }>
     searchParams: Promise<{
-        stock?: string
+        evaluation?: string
         target?: string
         rank?: string
         layout?: string
@@ -46,11 +46,15 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
     const [{ runId }, searchParamsValues] = await Promise.all([params, searchParams])
 
     const titleCardPromise = predictionView.getRunTitleCardData(runId)
-    const stocksPromise = predictionView.getStocksForRun(runId)
+    const evaluationsPromise = predictionView.getEvaluationsForRun(runId)
 
     // --- Data Orchestration ---
-    const defaults = await predictionView.getRunDefaults(runId, searchParamsValues.stock, searchParamsValues.target)
-    const stockId = searchParamsValues.stock ?? defaults.stockId
+    const defaults = await predictionView.getRunDefaults(
+        runId,
+        searchParamsValues.evaluation,
+        searchParamsValues.target
+    )
+    const evaluationId = searchParamsValues.evaluation ?? defaults.evaluationId
     const targetId = searchParamsValues.target ?? defaults.targetId
     const rank = parseInt(searchParamsValues.rank || '1', 10)
     const layout = searchParamsValues.layout
@@ -61,9 +65,9 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
     const onlyWithPredictions = searchParamsValues.onlyWithPredictions === 'true'
 
     // Initiate all data fetches concurrently. Do NOT await them here.
-    const statsPromise = stockId ? predictionView.getRunStatistics(runId, stockId) : Promise.resolve(null)
+    const statsPromise = evaluationId ? predictionView.getRunStatistics(runId, evaluationId) : Promise.resolve(null)
     const targetDisplayDataPromise = targetId
-        ? predictionView.getTargetDisplayData(runId, targetId, rank, stockId, acceptableIndex, layout)
+        ? predictionView.getTargetDisplayData(runId, targetId, rank, evaluationId, acceptableIndex, layout)
         : null
 
     return (
@@ -73,27 +77,26 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
             </Suspense>
 
             <Suspense fallback={<div className="h-12 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />}>
-                <StockSelectorWrapper stocksPromise={stocksPromise} currentStockId={stockId} />
+                <EvaluationSelectorWrapper evaluationsPromise={evaluationsPromise} currentEvaluationId={evaluationId} />
             </Suspense>
 
             <Suspense fallback={<RunStatisticsSkeleton />}>
-                <RunStatisticsSummary dataPromise={statsPromise} stockId={stockId} />
+                <RunStatisticsSummary dataPromise={statsPromise} evaluationId={evaluationId} />
             </Suspense>
 
             <Suspense fallback={<StratifiedStatisticsSkeleton />}>
-                <RunStatisticsStratified dataPromise={statsPromise} stockId={stockId} />
+                <RunStatisticsStratified dataPromise={statsPromise} evaluationId={evaluationId} />
             </Suspense>
 
             <TargetSearchWrapper
                 runId={runId}
-                stockId={stockId}
                 currentTargetId={targetId}
                 routeLength={routeLength}
                 onlyWithPredictions={onlyWithPredictions}
             />
             {targetDisplayDataPromise && (
                 <Suspense
-                    key={`${targetId}-${rank}-${stockId}-${layout}-${acceptableIndex}`}
+                    key={`${targetId}-${rank}-${evaluationId}-${layout}-${acceptableIndex}`}
                     fallback={<RouteDisplaySkeleton />}
                 >
                     <ResolvedTargetDisplay dataPromise={targetDisplayDataPromise} />
@@ -112,16 +115,14 @@ async function ResolvedTargetDisplay({
     const data = await dataPromise
     return <TargetDisplaySection data={data} />
 }
-// Wrapper to handle promise for StockSelector
-async function StockSelectorWrapper({
-    stocksPromise,
-    currentStockId,
+async function EvaluationSelectorWrapper({
+    evaluationsPromise,
+    currentEvaluationId,
 }: {
-    stocksPromise: Promise<Awaited<ReturnType<typeof predictionView.getStocksForRun>>>
-    currentStockId?: string
+    evaluationsPromise: Promise<Awaited<ReturnType<typeof predictionView.getEvaluationsForRun>>>
+    currentEvaluationId?: string
 }) {
-    const stocks = await stocksPromise
-    if (stocks.length <= 1) return null
-    // Pass the resolved currentStockId, not the searchParams object
-    return <StockSelector stocks={stocks} currentStockId={currentStockId} />
+    const evaluations = await evaluationsPromise
+    if (evaluations.length <= 1) return null
+    return <EvaluationSelector evaluations={evaluations} currentEvaluationId={currentEvaluationId} />
 }

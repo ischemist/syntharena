@@ -15,7 +15,13 @@ import {
     updateStockItemMetadata,
 } from '@/lib/services/loaders/stock-loader.service'
 
-import { carbonChainSmiles, cleanupTempFiles, createTestCsvFile, syntheticInchiKey } from '../../../helpers/factories'
+import {
+    carbonChainSmiles,
+    cleanupTempFiles,
+    createTestCsvFile,
+    createTestCsvGzFile,
+    syntheticInchiKey,
+} from '../../../helpers/factories'
 
 afterEach(() => {
     cleanupTempFiles()
@@ -26,6 +32,13 @@ afterEach(() => {
 // ============================================================================
 
 describe('loadStockFromFile', () => {
+    it('loads the canonical compressed CSV representation', async () => {
+        const filePath = createTestCsvGzFile([{ smiles: 'C', inchikey: syntheticInchiKey('compressed-C') }])
+        const result = await loadStockFromFile(filePath, 'compressed-stock')
+
+        expect(result).toMatchObject({ moleculesCreated: 1, itemsCreated: 1 })
+    })
+
     it('creates stock, molecules, and stock items from a CSV file', async () => {
         const molecules = [
             { smiles: carbonChainSmiles(1), inchikey: syntheticInchiKey('C') },
@@ -84,14 +97,53 @@ describe('loadStockFromFile', () => {
         expect(items2).toHaveLength(2)
     })
 
-    it('throws on duplicate stock name', async () => {
+    it('preserves stock, benchmark-target, and route occurrence SMILES for one molecular identity', async () => {
+        const inchikey = syntheticInchiKey('tautomer')
+        const first = createTestCsvFile([{ smiles: 'c1[nH]ncc1', inchikey }])
+        const second = createTestCsvFile([{ smiles: 'c1n[nH]cc1', inchikey }])
+
+        const firstLoad = await loadStockFromFile(first, 'tautomer-stock-one')
+        const secondLoad = await loadStockFromFile(second, 'tautomer-stock-two')
+
+        const molecule = await prisma.molecule.findUniqueOrThrow({ where: { inchikey } })
+        const benchmark = await prisma.benchmarkSet.create({
+            data: { name: 'tautomer-benchmark', stockId: firstLoad.stockId },
+        })
+        const target = await prisma.benchmarkTarget.create({
+            data: {
+                benchmarkSetId: benchmark.id,
+                targetId: 'tautomer-target',
+                moleculeId: molecule.id,
+                smiles: 'c1cn[nH]c1',
+            },
+        })
+        const route = await prisma.route.create({
+            data: { signature: 'tautomer-topology', contentHash: 'tautomer-content', length: 0, isConvergent: false },
+        })
+        const node = await prisma.routeNode.create({
+            data: { routeId: route.id, moleculeId: molecule.id, smiles: 'c1cc[nH]n1', isLeaf: true },
+        })
+
+        expect(await prisma.molecule.count({ where: { inchikey } })).toBe(1)
+        const items = await prisma.stockItem.findMany({
+            where: { stockId: { in: [firstLoad.stockId, secondLoad.stockId] } },
+            orderBy: { stockId: 'asc' },
+        })
+        expect(new Set(items.map((item) => item.smiles))).toEqual(new Set(['c1[nH]ncc1', 'c1n[nH]cc1']))
+        expect(target.smiles).toBe('c1cn[nH]c1')
+        expect(node.smiles).toBe('c1cc[nH]n1')
+    })
+
+    it('resumes an identical stock load without duplicating items', async () => {
         const molecules = [{ smiles: 'C', inchikey: syntheticInchiKey('C') }]
         const csv1 = createTestCsvFile(molecules)
         const csv2 = createTestCsvFile(molecules)
 
-        await loadStockFromFile(csv1, 'duplicate-name')
+        const first = await loadStockFromFile(csv1, 'duplicate-name')
+        const resumed = await loadStockFromFile(csv2, 'duplicate-name')
 
-        await expect(loadStockFromFile(csv2, 'duplicate-name')).rejects.toThrow('already exists')
+        expect(resumed.stockId).toBe(first.stockId)
+        expect(resumed.itemsCreated).toBe(0)
     })
 
     it('throws on missing header', async () => {

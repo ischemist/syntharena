@@ -41,7 +41,7 @@ import { buildRouteTree } from '@/lib/tree-builder/route-tree'
  */
 export function toVisualizationNode(node: RouteNodeWithDetails): RouteVisualizationNode {
     return {
-        smiles: node.molecule.smiles,
+        smiles: node.smiles,
         inchikey: node.molecule.inchikey,
         children: node.children.length > 0 ? node.children.map(toVisualizationNode) : undefined,
     }
@@ -184,10 +184,11 @@ async function getAcceptableRouteData(routeId: string, targetId: string): Promis
         benchmarkSetId: targetPayload.benchmarkSetId,
         targetId: targetPayload.targetId,
         moleculeId: targetPayload.moleculeId,
+        smiles: targetPayload.smiles,
         routeLength: targetPayload.routeLength,
         isConvergent: targetPayload.isConvergent,
         metadata: targetPayload.metadata,
-        molecule: targetPayload.molecule,
+        molecule: { ...targetPayload.molecule, smiles: targetPayload.smiles },
         hasAcceptableRoutes: targetPayload.acceptableRoutesCount > 0,
         acceptableRoutesCount: targetPayload.acceptableRoutesCount,
     }
@@ -196,6 +197,7 @@ async function getAcceptableRouteData(routeId: string, targetId: string): Promis
     const route: Route = {
         id: routeRecord.id,
         signature: routeRecord.signature,
+        contentHash: routeRecord.contentHash,
         length: routeRecord.length,
         isConvergent: routeRecord.isConvergent,
     }

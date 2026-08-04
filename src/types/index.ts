@@ -134,6 +134,7 @@ interface BenchmarkTarget {
     benchmarkSetId: string
     targetId: string // External ID like "n5-00123"
     moleculeId: string
+    smiles: string // Exact task-target representation
     routeLength: number | null // Computed from PRIMARY acceptable route (index 0)
     isConvergent: boolean | null // Computed from PRIMARY acceptable route (index 0)
     metadata: string | null // JSON blob
@@ -151,13 +152,14 @@ export interface BenchmarkTargetWithMolecule extends BenchmarkTarget {
 }
 
 /**
- * Represents a complete synthesis route structure (topology-level, unique).
- * Routes are now globally unique by signature and can be predicted multiple times.
+ * Represents one exact synthesis-route artifact. Topology signatures are
+ * comparable but non-unique; content hashes preserve exact producer content.
  * Matches the updated Prisma Route model.
  */
 export interface Route {
     id: string
-    signature: string // SHA256 of topology (unique constraint)
+    signature: string // SHA256 of topology
+    contentHash: string // Exact route artifact identity, including provenance
     length: number
     isConvergent: boolean
 }
@@ -167,16 +169,20 @@ export interface Route {
  * Links a unique Route to a (PredictionRun, Target, Rank) tuple.
  * This is what was previously called "Route" - now separated into structure vs prediction.
  */
-export interface PredictionRoute {
+export interface PredictionCandidate {
     id: string
-    routeId: string
+    routeId: string | null
     predictionRunId: string
     targetId: string
+    benchmarkSetId: string
     rank: number // 1-indexed rank within this target/run
     metadata: string | null // JSON: scores, confidence, etc. (prediction-specific)
+    failureCode: string | null
+    failureMessage: string | null
+    failureDetails: string | null
 
     // Relations (when included)
-    route?: Route
+    route?: Route | null
     target?: BenchmarkTarget
 }
 
@@ -187,8 +193,6 @@ export interface PredictionRoute {
 interface ReactionStep {
     id: string
     reactionHash: string
-    template: string | null
-    metadata: string | null // JSON: reagents, solvents, mapped_reaction_smiles
 }
 
 /**
@@ -200,8 +204,11 @@ interface RouteNode {
     id: string
     routeId: string
     moleculeId: string
+    smiles: string
     parentId: string | null
     reactionStepId: string | null
+    template: string | null
+    metadata: string | null
     isLeaf: boolean
 }
 
@@ -221,7 +228,7 @@ export interface RouteNodeWithDetails extends RouteNode {
  */
 export interface RouteVisualizationData {
     route: Route
-    predictionRoute?: PredictionRoute // For predicted routes (includes rank, metadata)
+    predictionCandidate?: PredictionCandidate
     acceptableRoutes?: Array<Route & { routeIndex: number }> // For targets with multiple acceptable routes
     target: BenchmarkTargetWithMolecule
     rootNode: RouteNodeWithDetails
@@ -402,29 +409,29 @@ export interface MetricResult {
  * Includes overall metric and per-group breakdowns.
  */
 export interface StratifiedMetric {
-    metricName: string // "Solvability", "Top-1", "Top-5", etc.
+    metricKey: string // Exact canonical RetroCast key
+    displayName: string
     overall: MetricResult
-    byGroup: Record<number, MetricResult> // groupKey -> MetricResult (e.g., routeLength -> metric)
+    byStratum: Record<string, MetricResult>
 }
 
-/**
- * Complete statistics for one model run against one stock.
- * Parsed from ModelRunStatistics.statisticsJson.
- */
-export interface ModelStatistics {
-    solvability: StratifiedMetric
-    topKAccuracy?: Record<string, StratifiedMetric> // "Top-1", "Top-5", "Top-10", etc. (optional - only for benchmarks with ground truth)
-    rankDistribution?: {
-        // Optional: probability distribution of route ranks
-        rank: number
-        probability: number
-    }[]
-    expectedRank?: number // Optional: expected rank for best solution
-    // Runtime metrics (in seconds) from Python ModelStatistics
-    totalWallTime?: number | null
-    totalCpuTime?: number | null
-    meanWallTime?: number | null
-    meanCpuTime?: number | null
+export interface MetricEstimate {
+    metricKey: string
+    stratum: string
+    value: number
+    ciLower: number | null
+    ciUpper: number | null
+    nSamples: number
+    reliabilityCode: ReliabilityCode | null
+    reliabilityMessage: string | null
+}
+
+/** Metrics SynthArena currently renders from a canonical RetroCast analysis. */
+export interface EvaluationStatistics {
+    metricLabel: string
+    tier0Validity: StratifiedMetric | null
+    solv0: StratifiedMetric | null
+    topKAccuracy: Record<string, StratifiedMetric>
 }
 
 // ============================================================================
@@ -534,9 +541,10 @@ export interface PredictionRunWithStats {
     totalRoutes: number
     hourlyCost?: number | null // USD per hour (user-specified)
     totalCost?: number | null // Pre-calculated: hourlyCost * (totalWallTime / 3600)
-    totalWallTime?: number | null // Total wall time in seconds (from statistics[0])
+    totalWallTime?: number | null // Aggregate planner wall time in seconds
     avgRouteLength?: number | null
-    solvabilitySummary?: Record<string, number> // stockId -> solvability percentage
+    tier0Validity?: MetricResult | null
+    solv0Summary?: Record<string, { label: string; metric: MetricResult }>
     top1Accuracy?: MetricResult | null
     top10Accuracy?: MetricResult | null
     executedAt: Date
@@ -559,14 +567,14 @@ interface TargetPredictionDetail {
     acceptableMatchRank?: number // Optional: rank at which first acceptable match was found
     routes: Array<{
         route: Route // The route structure
-        predictionRoute: PredictionRoute // The prediction metadata (rank, etc.)
+        predictionCandidate: PredictionCandidate
         routeNode: RouteNodeWithDetails
         visualizationNode: RouteVisualizationNode // Pre-computed for client (no client-side transformation needed)
-        solvability: Array<{
-            stockId: string
-            stockName: string
-            isSolvable: boolean
-            matchesAcceptable: boolean
+        evaluations: Array<{
+            metricLabel: string
+            tier0Status: EvaluationStatus | null
+            constraintStatus: EvaluationStatus
+            matchesAcceptable: boolean | null
             matchedAcceptableIndex: number | null
         }>
     }>
@@ -579,19 +587,24 @@ interface TargetPredictionDetail {
 export interface RunStatistics {
     id: string
     predictionRunId: string
-    stockId: string
-    stock: Stock
-    statisticsJson: string // Raw JSON blob
-    statistics?: ModelStatistics // Parsed version
+    stockId: string | null
+    stock: Stock | null
+    metricLabel: string
+    analysisJson: string
+    statistics: EvaluationStatistics
     computedAt: Date
 }
 
+export type EvaluationStatus = 'PASS' | 'FAIL' | 'NOT_EVALUATED'
+
 /**
  * Leaderboard entry for model comparison.
- * One row per model-benchmark-stock combination.
+ * One row per model-benchmark-evaluation combination.
  */
 export interface LeaderboardEntry {
     runId: string
+    /** Exact RetroCast evaluation represented by this row. */
+    evaluationId: string
     benchmarkId: string
     algorithmName: string // e.g., "SynPlanner"
     algorithmSlug: string // e.g., "synplanner"
@@ -606,11 +619,13 @@ export interface LeaderboardEntry {
     hasAcceptableRoutes: boolean
     isRetrained: PredictionRunWithStats['isRetrained']
     metrics: {
-        solvability: MetricResult
+        tier0Validity: MetricResult
+        solv0: MetricResult
+        solv0Label: string
         topKAccuracy?: Record<string, MetricResult> // "Top-1", "Top-5", etc.
     }
-    // Runtime metrics from ModelRunStatistics
-    totalWallTime?: number | null // Total wall time in seconds
+    // Runtime and cost for the immutable planner run, not RetroCast evaluation overhead
+    totalWallTime?: number | null // Aggregate planner wall time in seconds
     totalCost?: number | null // Total cost in USD
 }
 
@@ -663,15 +678,14 @@ export interface TargetDisplayData {
 
     // Data for the currently selected prediction
     currentPrediction: {
-        predictionRoute: PredictionRoute
-        route: Route
-        visualizationNode: RouteVisualizationNode
-        // We include the specific solvability record for the selected stock
-        solvability?: {
-            stockId: string
-            stockName: string
-            isSolvable: boolean
-            matchesAcceptable: boolean
+        predictionCandidate: PredictionCandidate
+        route: Route | null
+        visualizationNode: RouteVisualizationNode | null
+        evaluation?: {
+            metricLabel: string
+            tier0Status: EvaluationStatus | null
+            constraintStatus: EvaluationStatus
+            matchesAcceptable: boolean | null
         }
     } | null
 

@@ -14,11 +14,12 @@ type StratifiedMetricTableProps = {
     metricsMap: Map<
         string,
         {
-            solvability: StratifiedMetric
+            tier0Validity: StratifiedMetric
+            solv0: StratifiedMetric
             topKAccuracy?: Record<string, StratifiedMetric>
         }
     >
-    routeLengths: number[]
+    strata: string[]
     showTitle?: boolean
 }
 
@@ -29,7 +30,7 @@ type StratifiedMetricTableProps = {
 export function StratifiedMetricTable({
     metricName,
     metricsMap,
-    routeLengths,
+    strata,
     showTitle = true,
 }: StratifiedMetricTableProps) {
     const [sorting, setSorting] = useState<SortingState>([])
@@ -38,7 +39,7 @@ export function StratifiedMetricTable({
     const data = useMemo(() => transformStratifiedData(metricsMap, metricName), [metricsMap, metricName])
 
     // Create columns
-    const columns = useMemo(() => createStratifiedColumns(routeLengths), [routeLengths])
+    const columns = useMemo(() => createStratifiedColumns(strata), [strata])
 
     // Initialize TanStack Table
     const table = useReactTable({
@@ -52,8 +53,7 @@ export function StratifiedMetricTable({
         getSortedRowModel: getSortedRowModel(),
     })
 
-    const displayTitle =
-        metricName === 'Solvability' ? 'Solvability by Route Length' : `${metricName} Accuracy by Route Length`
+    const displayTitle = `${metricName} by benchmark stratum`
 
     return (
         <div>

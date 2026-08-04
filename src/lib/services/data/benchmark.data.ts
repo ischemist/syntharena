@@ -41,9 +41,8 @@ export async function deleteBenchmarkAndDeps(benchmarkId: string): Promise<void>
     })
     if (!exists) throw new Error('benchmark not found.')
 
-    // note: cascades will handle related PredictionRoute and RouteSolvability
+    // Run deletion cascades through candidates, evaluations, and metric estimates.
     await prisma.$transaction([
-        prisma.modelRunStatistics.deleteMany({ where: { benchmarkSetId: benchmarkId } }),
         prisma.predictionRun.deleteMany({ where: { benchmarkSetId: benchmarkId } }),
         prisma.acceptableRoute.deleteMany({ where: { target: { benchmarkSetId: benchmarkId } } }),
         prisma.benchmarkTarget.deleteMany({ where: { benchmarkSetId: benchmarkId } }),

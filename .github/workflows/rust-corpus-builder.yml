@@ -1,0 +1,40 @@
+name: Rust Corpus Builder
+
+on:
+    push:
+        branches: [master]
+    pull_request:
+        branches: [master]
+
+jobs:
+    corpus-builder:
+        name: Corpus builder
+        runs-on: blacksmith-4vcpu-ubuntu-2404
+        permissions:
+            contents: read
+        defaults:
+            run:
+                working-directory: tools/corpus-builder
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Install Rust 1.85
+              uses: dtolnay/rust-toolchain@1.85.0
+              with:
+                  components: rustfmt, clippy
+
+            - name: Cache Cargo artifacts
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: tools/corpus-builder -> target
+
+            - name: Check formatting
+              run: cargo fmt --check
+
+            - name: Run Clippy
+              run: cargo clippy --locked --all-targets -- -D warnings
+
+            - name: Run tests
+              run: cargo test --locked

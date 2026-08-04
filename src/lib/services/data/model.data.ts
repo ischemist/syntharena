@@ -30,7 +30,7 @@ async function _findModelInstancesByFamilyId(modelFamilyIds: string | string[]) 
             { versionMajor: 'desc' },
             { versionMinor: 'desc' },
             { versionPatch: 'desc' },
-            { versionPrerelease: { sort: 'desc', nulls: 'last' } },
+            { versionPrerelease: 'desc' },
         ],
     })
 }

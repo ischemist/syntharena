@@ -52,7 +52,7 @@ export function TargetGrid({ benchmarkId, result }: TargetGridProps) {
                             </CardHeader>
                             <CardContent>
                                 <div className="flex items-center justify-center">
-                                    <SmileDrawerSvg smilesStr={target.molecule.smiles} width={200} height={200} />
+                                    <SmileDrawerSvg smilesStr={target.smiles} width={200} height={200} />
                                 </div>
                             </CardContent>
                         </Card>

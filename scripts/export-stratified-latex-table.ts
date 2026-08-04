@@ -1,6 +1,8 @@
 import './env-loader'
 
 import prisma from '@/lib/db'
+import { parseEvaluationLabelOption, resolveEvaluationLabel } from '@/lib/evaluation-label'
+import { topKFromMetricKey } from '@/lib/retrocast-metrics'
 
 // mapping from database instance slugs to readable display names
 const MODEL_NAME_MAPPING: Record<string, string> = {
@@ -23,13 +25,14 @@ const MODEL_NAME_MAPPING: Record<string, string> = {
 
 async function exportStratifiedLatexTable(
     benchmarkId: string,
+    evaluationLabel: string | undefined,
     includeTime: boolean,
     includeTimeRelative: boolean,
     includeCost: boolean,
     noCi: boolean
 ) {
     // Fetch statistics with stratified metrics for the benchmark
-    const statistics = await prisma.modelRunStatistics.findMany({
+    const allStatistics = await prisma.runEvaluation.findMany({
         where: {
             predictionRun: {
                 benchmarkSetId: benchmarkId,
@@ -38,6 +41,7 @@ async function exportStratifiedLatexTable(
         include: {
             predictionRun: {
                 include: {
+                    benchmarkSet: { include: { _count: { select: { targets: true } } } },
                     modelInstance: {
                         include: {
                             family: true,
@@ -45,19 +49,7 @@ async function exportStratifiedLatexTable(
                     },
                 },
             },
-            benchmarkSet: {
-                include: {
-                    _count: {
-                        select: { targets: true },
-                    },
-                },
-            },
-            metrics: {
-                where: {
-                    metricName: 'Top-10',
-                    groupKey: { not: null }, // Only stratified metrics
-                },
-            },
+            metrics: { where: { stratum: { not: '' } } },
         },
         orderBy: {
             predictionRun: {
@@ -69,6 +61,12 @@ async function exportStratifiedLatexTable(
             },
         },
     })
+    const selectedLabel = resolveEvaluationLabel(
+        evaluationLabel,
+        allStatistics.map((stat) => stat.metricLabel),
+        benchmarkId
+    )
+    const statistics = allStatistics.filter((stat) => stat.metricLabel === selectedLabel)
 
     // Build format string based on flags
     let formatStr = noCi
@@ -87,6 +85,7 @@ async function exportStratifiedLatexTable(
 
     console.log('% LaTeX table for stratified Top-10 accuracy (by route length)')
     console.log('% Benchmark:', benchmarkId)
+    console.log('% Evaluation label:', selectedLabel)
     console.log(formatStr)
     console.log()
 
@@ -96,7 +95,11 @@ async function exportStratifiedLatexTable(
     for (const stat of statistics) {
         const instanceSlug = stat.predictionRun.modelInstance.slug
         const modelName = MODEL_NAME_MAPPING[instanceSlug] || stat.predictionRun.modelInstance.family.name
-        const metricsByLength = new Map(stat.metrics.map((metric) => [metric.groupKey, metric]))
+        const metricsByLength = new Map(
+            stat.metrics
+                .filter((metric) => topKFromMetricKey(metric.metricKey) === 10)
+                .map((metric) => [Number(metric.stratum.replace(/^\D+/, '')), metric])
+        )
 
         // Convert to percentages and format to 1 decimal place
         const formatMetric = (value: number) => (value * 100).toFixed(1)
@@ -111,7 +114,11 @@ async function exportStratifiedLatexTable(
                 if (noCi) {
                     values.push(formatMetric(metric.value))
                 } else {
-                    values.push(formatMetric(metric.value), formatMetric(metric.ciLower), formatMetric(metric.ciUpper))
+                    values.push(
+                        formatMetric(metric.value),
+                        formatMetric(metric.ciLower ?? metric.value),
+                        formatMetric(metric.ciUpper ?? metric.value)
+                    )
                 }
             } else {
                 // No data for this route length
@@ -125,14 +132,18 @@ async function exportStratifiedLatexTable(
 
         // Add optional columns
         if (includeTime) {
-            const duration = stat.totalWallTime ? (stat.totalWallTime / 60).toFixed(1) : '--'
+            const duration = stat.predictionRun.totalWallTime
+                ? (stat.predictionRun.totalWallTime / 60).toFixed(1)
+                : '--'
             values.push(duration)
         }
 
         if (includeTimeRelative) {
-            const targetCount = stat.benchmarkSet._count.targets
+            const targetCount = stat.predictionRun.benchmarkSet._count.targets
             const timePerTarget =
-                stat.totalWallTime && targetCount > 0 ? (stat.totalWallTime / targetCount).toFixed(1) : '--'
+                stat.predictionRun.totalWallTime && targetCount > 0
+                    ? (stat.predictionRun.totalWallTime / targetCount).toFixed(1)
+                    : '--'
             values.push(timePerTarget)
         }
 
@@ -148,7 +159,7 @@ async function exportStratifiedLatexTable(
 
 // Parse command-line arguments
 function parseArgs() {
-    const args = process.argv.slice(2)
+    const { evaluationLabel, remainingArgs: args } = parseEvaluationLabelOption(process.argv.slice(2))
     let benchmarkId: string | null = null
     let includeTime = false
     let includeTimeRelative = false
@@ -169,14 +180,17 @@ function parseArgs() {
         }
     }
 
-    return { benchmarkId, includeTime, includeTimeRelative, includeCost, noCi }
+    return { benchmarkId, evaluationLabel, includeTime, includeTimeRelative, includeCost, noCi }
 }
 
 // Main execution
-const { benchmarkId, includeTime, includeTimeRelative, includeCost, noCi } = parseArgs()
+const { benchmarkId, evaluationLabel, includeTime, includeTimeRelative, includeCost, noCi } = parseArgs()
 
 if (!benchmarkId) {
-    console.error('Usage: pnpm tsx scripts/export-stratified-latex-table.ts <benchmarkId> [-t] [-trel] [-c] [-noci]')
+    console.error(
+        'Usage: pnpm tsx scripts/export-stratified-latex-table.ts <benchmarkId> [--evaluation-label <label>] [-t] [-trel] [-c] [-noci]'
+    )
+    console.error('  --evaluation-label  Select an exact label; required when the benchmark has multiple labels')
     console.error('  -t     Include total wall time (minutes)')
     console.error('  -trel  Include wall time per target (seconds/target)')
     console.error('  -c     Include total cost (USD)')
@@ -184,7 +198,7 @@ if (!benchmarkId) {
     process.exit(1)
 }
 
-exportStratifiedLatexTable(benchmarkId, includeTime, includeTimeRelative, includeCost, noCi)
+exportStratifiedLatexTable(benchmarkId, evaluationLabel, includeTime, includeTimeRelative, includeCost, noCi)
     .catch((e) => {
         console.error('Error:', e)
         process.exit(1)

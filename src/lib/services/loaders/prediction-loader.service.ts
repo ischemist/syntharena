@@ -1,14 +1,31 @@
 import crypto from 'crypto'
-import { projectRetrocastRoute } from '@ischemist/routes'
+import type {
+    RetrocastCheckStatus as ArtifactStatus,
+    RetrocastAnalysisFile as RetrocastAnalysis,
+    MetricEstimate as RetrocastAnalysisMetric,
+    VerifiedEvaluationBundleForImport,
+} from '@ischemist/retrocast-io'
+import { hashJson, projectRetrocastRoute } from '@ischemist/routes'
 import type { RetrocastMolecule, RetrocastReaction, RetrocastRoute } from '@ischemist/routes'
-import { Prisma, ReliabilityCode } from '@prisma/client'
+import { createId } from '@paralleldrive/cuid2'
+import { EvaluationStatus, Prisma, ReliabilityCode } from '@prisma/client'
 
-import type { MetricResult, ModelStatistics, ReliabilityFlag, StratifiedMetric } from '@/types'
 import prisma from '@/lib/db'
 import { upsertReactionSteps } from '@/lib/services/loaders/reaction-step.helpers'
 
-// Convenience alias so internal helpers can accept either the real client or a tx client.
-type DbClient = typeof prisma | Prisma.TransactionClient
+const SQLITE_BATCH_SIZE = 150
+
+function chunks<T>(values: T[]): T[][] {
+    const result: T[][] = []
+    for (let index = 0; index < values.length; index += SQLITE_BATCH_SIZE) {
+        result.push(values.slice(index, index + SQLITE_BATCH_SIZE))
+    }
+    return result
+}
+
+async function createManyInBatches<T>(values: T[], create: (batch: T[]) => Promise<unknown>): Promise<void> {
+    for (const batch of chunks(values)) await create(batch)
+}
 
 // ============================================================================
 // Types for Python Data (matching retrocast Pydantic models)
@@ -38,29 +55,6 @@ export interface PythonRoute {
     solvability?: Record<string, boolean>
     annotations?: Record<string, unknown>
     schema_version?: string
-}
-
-interface RetrocastAnalysisMetric {
-    value: number
-    count: number
-    ci_low?: number
-    ci_high?: number
-    reliability?: {
-        code: string
-        message: string
-    }
-}
-
-export interface RetrocastAnalysis {
-    schema_version?: string
-    metrics: Record<string, RetrocastAnalysisMetric>
-    by_stratum?: Record<string, Record<string, RetrocastAnalysisMetric>>
-    runtime?: {
-        total_wall_time?: number | null
-        total_cpu_time?: number | null
-        mean_wall_time?: number | null
-        mean_cpu_time?: number | null
-    }
 }
 
 // ============================================================================
@@ -146,96 +140,59 @@ function computeReactionHash(step: PythonReactionStep, productInchikey: string):
     return crypto.createHash('sha256').update(content).digest('hex')
 }
 
-function routeMetadata(route: PythonRoute): Record<string, unknown> | undefined {
-    const metadata = getAnnotations(route)
-    return Object.keys(metadata).length > 0 ? metadata : undefined
+export interface NormalizedMetricEstimate {
+    metricKey: string
+    stratum: string
+    value: number
+    ciLower: number | null
+    ciUpper: number | null
+    nSamples: number
+    reliabilityCode: ReliabilityCode | null
+    reliabilityMessage: string | null
 }
 
-function metricResultFromAnalysisMetric(metric: RetrocastAnalysisMetric): MetricResult {
+function mapReliabilityCode(code: string | undefined): ReliabilityCode {
+    switch (code) {
+        case undefined:
+        case 'OK':
+            return ReliabilityCode.OK
+        case 'LOW_N':
+            return ReliabilityCode.LOW_N
+        case 'EXTREME_P':
+            return ReliabilityCode.EXTREME_P
+        default:
+            throw new Error(`Unknown RetroCast reliability code: ${code}`)
+    }
+}
+
+function normalizeAnalysisMetric(
+    metricKey: string,
+    stratum: string,
+    metric: RetrocastAnalysisMetric
+): NormalizedMetricEstimate {
     return {
+        metricKey,
+        stratum,
         value: metric.value,
-        ciLower: metric.ci_low ?? metric.value,
-        ciUpper: metric.ci_high ?? metric.value,
+        ciLower: metric.ci_low ?? null,
+        ciUpper: metric.ci_high ?? null,
         nSamples: metric.count,
-        reliability: {
-            code: (metric.reliability?.code ?? 'OK') as ReliabilityFlag['code'],
-            message: metric.reliability?.message ?? 'Reliable.',
-        },
+        reliabilityCode: metric.reliability ? mapReliabilityCode(metric.reliability.code) : null,
+        reliabilityMessage: metric.reliability?.message ?? null,
     }
 }
 
-function metricKeyForSolvability(metrics: Record<string, RetrocastAnalysisMetric> | undefined): string {
-    if (!metrics) {
-        throw new Error('RetroCast analysis is missing the metrics object')
-    }
-    const solvabilityKey = Object.keys(metrics).find((key) => /^solv_0\[.+\]_rate$/.test(key))
-    if (!solvabilityKey) {
-        throw new Error('RetroCast analysis is missing a solv_0[...]_rate metric')
-    }
-    return solvabilityKey
-}
-
-function topKFromMetricName(metricName: string): string | null {
-    const match = metricName.match(/^acceptable_reconstruction_top_(\d+)\[.+\]$/)
-    return match?.[1] ?? null
-}
-
-function stratumGroupKey(stratum: string): number | null {
-    const match = stratum.match(/^(?:depth|route_length)[ _-](\d+)$/)
-    return match ? parseInt(match[1], 10) : null
-}
-
-/**
- * Converts RetroCast v0.7 analysis.json.gz payloads into SynthArena's metric DTO.
- */
-export function transformRetrocastAnalysis(analysis: RetrocastAnalysis): ModelStatistics {
-    const solvabilityKey = metricKeyForSolvability(analysis.metrics)
-    const solvabilityByGroup: Record<number, MetricResult> = {}
-    const topKAccuracy: Record<string, StratifiedMetric> = {}
-
-    for (const [stratum, metrics] of Object.entries(analysis.by_stratum ?? {})) {
-        const groupKey = stratumGroupKey(stratum)
-        if (groupKey === null) continue
-
-        const solvabilityMetric = metrics[solvabilityKey]
-        if (solvabilityMetric) {
-            solvabilityByGroup[groupKey] = metricResultFromAnalysisMetric(solvabilityMetric)
-        }
-
-        for (const [metricName, metric] of Object.entries(metrics)) {
-            const topK = topKFromMetricName(metricName)
-            if (!topK) continue
-            topKAccuracy[topK] ??= {
-                metricName: `Top-${topK}`,
-                overall: metricResultFromAnalysisMetric(analysis.metrics[metricName] ?? metric),
-                byGroup: {},
-            }
-            topKAccuracy[topK].byGroup[groupKey] = metricResultFromAnalysisMetric(metric)
+/** Preserves every canonical RetroCast metric key and exact stratum. */
+export function transformRetrocastAnalysis(analysis: RetrocastAnalysis): NormalizedMetricEstimate[] {
+    if (analysis.schema_version !== '2')
+        throw new Error(`Unsupported analysis schema: ${String(analysis.schema_version)}`)
+    const metrics = Object.entries(analysis.metrics).map(([key, metric]) => normalizeAnalysisMetric(key, '', metric))
+    for (const [stratum, stratifiedMetrics] of Object.entries(analysis.by_stratum ?? {})) {
+        for (const [key, metric] of Object.entries(stratifiedMetrics)) {
+            metrics.push(normalizeAnalysisMetric(key, stratum, metric))
         }
     }
-
-    for (const [metricName, metric] of Object.entries(analysis.metrics)) {
-        const topK = topKFromMetricName(metricName)
-        if (!topK) continue
-        topKAccuracy[topK] ??= {
-            metricName: `Top-${topK}`,
-            overall: metricResultFromAnalysisMetric(metric),
-            byGroup: {},
-        }
-    }
-
-    return {
-        solvability: {
-            metricName: 'Solvability',
-            overall: metricResultFromAnalysisMetric(analysis.metrics[solvabilityKey]),
-            byGroup: solvabilityByGroup,
-        },
-        ...(Object.keys(topKAccuracy).length > 0 && { topKAccuracy }),
-        totalWallTime: analysis.runtime?.total_wall_time,
-        totalCpuTime: analysis.runtime?.total_cpu_time,
-        meanWallTime: analysis.runtime?.mean_wall_time,
-        meanCpuTime: analysis.runtime?.mean_cpu_time,
-    }
+    return metrics
 }
 
 // ============================================================================
@@ -310,44 +267,20 @@ export async function createOrUpdatePredictionRun(
 }
 
 /**
- * Creates or reuses a Molecule record by InChiKey.
- * Molecules are deduplicated globally by InChiKey (canonical identifier).
- *
- * @param pythonMolecule - Python molecule object with smiles and inchikey
- * @returns Created or existing Molecule
- */
-export async function createMoleculeFromPython(pythonMolecule: PythonMolecule): Promise<{
-    id: string
-    inchikey: string
-    smiles: string
-}> {
-    const molecule = await prisma.molecule.upsert({
-        where: { inchikey: pythonMolecule.inchikey },
-        update: {}, // No update needed - InChiKey is canonical
-        create: {
-            inchikey: pythonMolecule.inchikey,
-            smiles: pythonMolecule.smiles,
-        },
-        select: { id: true, inchikey: true, smiles: true },
-    })
-
-    return molecule
-}
-
-/**
  * Internal structure for building route nodes in memory before bulk insert.
- * Reaction data (reactionHash, template, metadata) is stored temporarily here
- * for ReactionStep upsert, then only the reactionStepId is written to RouteNode.
+ * Reaction topology is deduplicated through reactionHash. Exact producer SMILES,
+ * templates, and metadata remain on each RouteNode occurrence.
  */
 interface RouteNodeToCreate {
     tempId: string // Temporary ID for tracking parent-child relationships
     routeId: string
     moleculeInchikey: string
+    smiles: string
     parentTempId: string | null
     isLeaf: boolean
-    reactionHash: string | null // Used for ReactionStep dedup, not stored on RouteNode
-    template: string | null // Stored on ReactionStep, not RouteNode
-    metadata: string | null // Stored on ReactionStep, not RouteNode
+    reactionHash: string | null // Used for ReactionStep topology dedup
+    template: string | null
+    metadata: string | null
 }
 
 /**
@@ -410,6 +343,7 @@ function collectRouteTreeData(
         tempId,
         routeId,
         moleculeInchikey: pythonMol.inchikey,
+        smiles: pythonMol.smiles,
         parentTempId,
         isLeaf,
         reactionHash,
@@ -428,462 +362,677 @@ function collectRouteTreeData(
     return tempId
 }
 
-/**
- * Stores route tree using bulk operations to avoid N+1 query problem.
- * Collects all molecules and nodes in memory first, then performs bulk inserts.
- *
- * @param pythonMol - Root molecule (target)
- * @param routeId - Route ID these nodes belong to
- * @param db - Prisma client or transaction client (defaults to the global client)
- * @returns Created root node
- */
-async function storeRouteTree(
-    pythonMol: PythonMolecule,
-    routeId: string,
-    db: DbClient = prisma
-): Promise<{ id: string; moleculeId: string }> {
-    // Step 1: Collect all unique molecules and nodes in memory
-    const moleculesMap = new Map<string, { smiles: string; inchikey: string }>()
-    const nodesData: RouteNodeToCreate[] = []
-    const tempIdCounter = { value: 0 }
-
-    collectRouteTreeData(pythonMol, routeId, null, moleculesMap, nodesData, tempIdCounter)
-
-    // Step 2: Bulk handle molecules
-    const uniqueInchikeys = Array.from(moleculesMap.keys())
-
-    // Find existing molecules
-    const existingMolecules = await db.molecule.findMany({
-        where: { inchikey: { in: uniqueInchikeys } },
-        select: { id: true, inchikey: true },
-    })
-
-    const existingInchikeyToId = new Map(existingMolecules.map((m) => [m.inchikey, m.id]))
-
-    // Create new molecules (molecules not in database yet)
-    const newMolecules = Array.from(moleculesMap.values()).filter((m) => !existingInchikeyToId.has(m.inchikey))
-
-    if (newMolecules.length > 0) {
-        // Create molecules individually (SQLite doesn't support skipDuplicates in createMany).
-        // Running inside a transaction means concurrent calls cannot interleave between
-        // the findMany check above and these creates, eliminating the P2002 race.
-        const createdMolecules = await Promise.all(
-            newMolecules.map((m) =>
-                db.molecule.create({
-                    data: m,
-                    select: { id: true, inchikey: true },
-                })
-            )
-        )
-
-        for (const mol of createdMolecules) {
-            existingInchikeyToId.set(mol.inchikey, mol.id)
-        }
+function toEvaluationStatus(status: ArtifactStatus): EvaluationStatus {
+    switch (status) {
+        case 'pass':
+            return EvaluationStatus.PASS
+        case 'fail':
+            return EvaluationStatus.FAIL
+        case 'not_evaluated':
+            return EvaluationStatus.NOT_EVALUATED
     }
-
-    // Step 3: Upsert ReactionStep records for non-leaf nodes
-    const reactionHashToId = await upsertReactionSteps(nodesData, db)
-
-    // Step 4: Create all nodes with proper parent-child relationships
-    // Build node map by parent to enable breadth-first creation
-    const tempIdToRealId = new Map<string, string>()
-    const nodesByParent = new Map<string | null, RouteNodeToCreate[]>()
-
-    for (const node of nodesData) {
-        const parentKey = node.parentTempId
-        if (!nodesByParent.has(parentKey)) {
-            nodesByParent.set(parentKey, [])
-        }
-        nodesByParent.get(parentKey)!.push(node)
-    }
-
-    // Breadth-first creation to ensure parents are created before children
-    const queue: RouteNodeToCreate[] = nodesByParent.get(null) || []
-    let rootNodeId: string | null = null
-    let rootMoleculeId: string | null = null
-
-    while (queue.length > 0) {
-        const currentBatch = [...queue]
-        queue.length = 0
-
-        // Create current batch
-        for (const nodeData of currentBatch) {
-            const moleculeId = existingInchikeyToId.get(nodeData.moleculeInchikey)
-            if (!moleculeId) {
-                throw new Error(`Molecule not found for inchikey: ${nodeData.moleculeInchikey}`)
-            }
-
-            const parentId = nodeData.parentTempId ? tempIdToRealId.get(nodeData.parentTempId) || null : null
-            const reactionStepId = nodeData.reactionHash ? (reactionHashToId.get(nodeData.reactionHash) ?? null) : null
-
-            const createdNode = await db.routeNode.create({
-                data: {
-                    routeId: nodeData.routeId,
-                    moleculeId,
-                    parentId,
-                    isLeaf: nodeData.isLeaf,
-                    reactionStepId,
-                },
-                select: { id: true },
-            })
-
-            tempIdToRealId.set(nodeData.tempId, createdNode.id)
-
-            // Track root node
-            if (nodeData.parentTempId === null) {
-                rootNodeId = createdNode.id
-                rootMoleculeId = moleculeId
-            }
-
-            // Add children to queue
-            const children = nodesByParent.get(nodeData.tempId) || []
-            queue.push(...children)
-        }
-    }
-
-    if (!rootNodeId || !rootMoleculeId) {
-        throw new Error('Failed to create root node')
-    }
-
-    return { id: rootNodeId, moleculeId: rootMoleculeId }
 }
 
-/**
- * Creates or reuses a Route record from Python route object with GLOBAL deduplication.
- * Routes are now unique by signature (topology hash). If a route with the same
- * signature exists, it is reused. Otherwise, a new Route + RouteNode tree is created.
- * Always creates a new PredictionRoute junction record linking the route to this prediction.
- *
- * @param pythonRoute - Python route object
- * @param predictionRunId - PredictionRun ID
- * @param targetId - BenchmarkTarget ID (not the external target_id string)
- * @returns Object with routeId and predictionRouteId
- * @throws Error if target not found or duplicate prediction exists
- */
-export async function createRouteFromPython(
-    pythonRoute: PythonRoute,
-    predictionRunId: string,
+function validityEvidenceJson(validity: Record<string, unknown>): string | null {
+    const evidence = Object.fromEntries(
+        Object.entries(validity).filter(([key, value]) => {
+            if (key === 'tiers') return false
+            if (Array.isArray(value)) return value.length > 0
+            return value !== null && value !== undefined && (typeof value !== 'object' || Object.keys(value).length > 0)
+        })
+    )
+    return Object.keys(evidence).length > 0 ? JSON.stringify(evidence) : null
+}
+
+function assertRate(name: string, actual: number, expected: RetrocastAnalysisMetric | undefined): void {
+    if (!expected) throw new Error(`RetroCast analysis is missing required metric ${name}`)
+    if (Math.abs(actual - expected.value) > 1e-12) {
+        throw new Error(`${name} disagrees with candidate evaluation: analysis=${expected.value}, recomputed=${actual}`)
+    }
+}
+
+function effectiveTaskConstraints(
+    task: VerifiedEvaluationBundleForImport['evaluation']['task'],
     targetId: string
-): Promise<{ routeId: string; predictionRouteId: string; rank: number; wasReused: boolean }> {
-    // Verify target exists (outside the transaction — read-only check, safe to do early)
-    const target = await prisma.benchmarkTarget.findUnique({
-        where: { id: targetId },
-        select: { id: true },
-    })
-    if (!target) {
-        throw new Error(`Target not found: ${targetId}`)
+): Array<Record<string, unknown>> {
+    const byKind = new Map<string, Record<string, unknown>>()
+    for (const constraint of task.default_constraints) byKind.set(constraint.kind, constraint)
+    for (const constraint of task.constraints[targetId] ?? []) byKind.set(constraint.kind, constraint)
+    return [...byKind.values()]
+}
+
+function canonicalJson(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(canonicalJson)
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(
+            Object.entries(value as Record<string, unknown>)
+                .sort(([left], [right]) => left.localeCompare(right))
+                .map(([key, child]) => [key, canonicalJson(child)])
+        )
+    }
+    return value
+}
+
+function jsonSemanticallyEquals(actual: unknown, expected: unknown): boolean {
+    return JSON.stringify(canonicalJson(actual)) === JSON.stringify(canonicalJson(expected))
+}
+
+function parsedJsonEquals(json: string, expected: unknown): boolean {
+    try {
+        return jsonSemanticallyEquals(JSON.parse(json), expected)
+    } catch {
+        return false
+    }
+}
+
+/**
+ * Validates the public Tier-0/Solv-0 contract before any database mutation.
+ * The bundle reader has already verified files and candidate/evaluation alignment.
+ */
+export function validateEvaluationBundle(bundle: VerifiedEvaluationBundleForImport): void {
+    const { manifest, evaluation, analysis } = bundle
+    if (manifest.schema_version !== '2' || evaluation.schema_version !== '2' || analysis.schema_version !== '2') {
+        throw new Error('SynthArena imports only RetroCast schema-v2 evaluation bundles')
+    }
+    if (manifest.action !== 'evaluate:v2') throw new Error(`Expected evaluate:v2 manifest, received ${manifest.action}`)
+    if (!jsonSemanticallyEquals(evaluation.tiers, [0])) {
+        throw new Error('SynthArena currently imports exactly the Tier-0 evaluation header')
     }
 
-    // Read route properties from Python JSON.
-    // SynthArena treats route identity as topology-only and deduplicates by signature.
-    const routeProjection = projectRetrocastRoute(normalizeRouteForRetrocast(pythonRoute))
-    const signature = routeProjection.route.signature
-    const length = routeProjection.route.length
-    const isConvergent = routeProjection.route.hasConvergentReaction
-
-    // Wrap the entire create-or-reuse + prediction creation in a single transaction.
-    // This eliminates two race conditions present in the original code:
-    //   1. Two concurrent calls creating the same Route (P2002 on signature).
-    //   2. Two concurrent calls creating the same Molecule inside storeRouteTree (P2002 on inchikey).
-    // The try/catch pattern mirrors benchmark-loader.service.ts.
-    return await prisma.$transaction(async (tx) => {
-        let wasReused = false
-        let routeId: string
-
-        try {
-            // Step 1: Try to create the Route record.
-            // Will throw a unique-constraint error if another concurrent call beat us to it.
-            const route = await tx.route.create({
-                data: {
-                    signature,
-                    length,
-                    isConvergent,
-                },
-                select: { id: true },
-            })
-            routeId = route.id
-        } catch (createError) {
-            // Route already exists (unique constraint violation on signature) — find and reuse it.
-            const existingRoute = await tx.route.findUnique({
-                where: { signature },
-                select: { id: true },
-            })
-
-            if (!existingRoute) {
-                // Not a duplicate-key error — re-throw the original error.
-                throw createError
+    const targets = Object.values(evaluation.targets)
+    let tier0Successes = 0
+    let solv0Successes = 0
+    for (const target of targets) {
+        const expectedConstraints = effectiveTaskConstraints(evaluation.task, target.target.id)
+        if (!jsonSemanticallyEquals(target.effective_constraints, expectedConstraints)) {
+            throw new Error(`Effective constraints differ from evaluation task: ${target.target.id}`)
+        }
+        let tier0Pass = false
+        let solv0Pass = false
+        for (const candidate of target.candidates) {
+            if (
+                candidate.route &&
+                (candidate.route.target.smiles !== target.target.smiles ||
+                    candidate.route.target.inchikey !== target.target.inchikey)
+            ) {
+                throw new Error(`Candidate route root differs from enclosing target: ${target.target.id}`)
             }
-
-            routeId = existingRoute.id
-            wasReused = true
+            if (
+                candidate.failure &&
+                ((candidate.failure.target_id != null && candidate.failure.target_id !== target.target.id) ||
+                    (candidate.failure.target_smiles != null &&
+                        candidate.failure.target_smiles !== target.target.smiles) ||
+                    (candidate.failure.target_inchikey != null &&
+                        candidate.failure.target_inchikey !== target.target.inchikey))
+            ) {
+                throw new Error(`Candidate failure target differs from enclosing target: ${target.target.id}`)
+            }
+            const tier0 = candidate.validity.tiers['0']
+            if (!tier0) throw new Error(`Candidate ${target.target.id} rank ${candidate.rank} is missing Tier-0 status`)
+            const tierKeys = Object.keys(candidate.validity.tiers)
+            if (!jsonSemanticallyEquals(tierKeys, ['0'])) {
+                throw new Error(`Candidate ${target.target.id} rank ${candidate.rank} has tiers outside header [0]`)
+            }
+            const acceptableIndex = candidate.matched_acceptable_index
+            if (candidate.matches_acceptable !== (acceptableIndex !== null)) {
+                throw new Error(
+                    `Candidate ${target.target.id} rank ${candidate.rank} has incoherent acceptable match evidence`
+                )
+            }
+            if (
+                acceptableIndex !== null &&
+                (!Number.isInteger(acceptableIndex) ||
+                    acceptableIndex < 0 ||
+                    acceptableIndex >= target.target.acceptable_routes.length)
+            ) {
+                throw new Error(
+                    `Candidate ${target.target.id} rank ${candidate.rank} has invalid acceptable route index`
+                )
+            }
+            if (
+                candidate.failure &&
+                (tier0.status === 'pass' ||
+                    tier0.checks.some((check) => check.status === 'pass') ||
+                    candidate.constraints.status === 'pass' ||
+                    candidate.constraints.checks.some((check) => check.status === 'pass') ||
+                    candidate.validity.reactions.some((reaction) =>
+                        Object.values(reaction.tiers).some(
+                            (result) =>
+                                result?.status === 'pass' || result?.checks.some((check) => check.status === 'pass')
+                        )
+                    ) ||
+                    candidate.matches_acceptable ||
+                    acceptableIndex !== null)
+            ) {
+                throw new Error(`Failure candidate ${target.target.id} rank ${candidate.rank} contains pass evidence`)
+            }
+            if (tier0.status === 'pass') {
+                tier0Pass = true
+                if (candidate.constraints.status === 'pass') solv0Pass = true
+            }
         }
+        if (tier0Pass) tier0Successes++
+        if (solv0Pass) solv0Successes++
+    }
+    const denominator = targets.length
+    if (denominator === 0) throw new Error('Evaluation contains no benchmark targets')
+    const tierKey = 'tier_0_validity_rate'
+    const solvKey = `solv_0[${evaluation.metric_label}]_rate`
+    assertRate(tierKey, tier0Successes / denominator, analysis.metrics[tierKey])
+    assertRate(solvKey, solv0Successes / denominator, analysis.metrics[solvKey])
+    if (analysis.metrics[tierKey].count !== denominator || analysis.metrics[solvKey].count !== denominator) {
+        throw new Error('Tier-0/Solv-0 metric denominator does not equal benchmark target count')
+    }
+}
 
-        // Step 2: Store the RouteNode tree (molecules + nodes) inside the same transaction.
-        // Only needed for newly created routes (not reused ones).
-        if (!wasReused) {
-            await storeRouteTree(pythonRoute.target, routeId, tx)
-        }
-
-        // Step 3: Guard against duplicate prediction (same route + run + target).
-        // The unique constraint @@unique([routeId, predictionRunId, targetId]) on PredictionRoute
-        // would catch this at the DB level too, but we provide a friendlier error message here.
-        const existingPrediction = await tx.predictionRoute.findFirst({
-            where: {
-                routeId,
-                predictionRunId,
-                targetId,
-            },
-            select: { id: true },
-        })
-
-        if (existingPrediction) {
+export function validateFixedTierZeroEvaluation(bundle: VerifiedEvaluationBundleForImport, stockName: string): void {
+    validateEvaluationBundle(bundle)
+    if (bundle.evaluation.metric_label !== stockName) {
+        throw new Error(`Fixed Tier-0 metric label must equal benchmark stock: ${stockName}`)
+    }
+    for (const target of Object.values(bundle.evaluation.targets)) {
+        const constraints = target.effective_constraints
+        const constraint = constraints[0]
+        if (
+            constraints.length !== 1 ||
+            constraint?.kind !== 'retrocast.stock_termination' ||
+            constraint.stock !== stockName
+        ) {
             throw new Error(
-                `Duplicate prediction detected: route ${routeId} already predicted for target ${targetId} in run ${predictionRunId}`
+                `Fixed Tier-0 target ${target.target.id} must have exactly one stock_termination constraint for ${stockName}`
             )
         }
-
-        // Step 4: Create PredictionRoute junction record.
-        const metadata = routeMetadata(pythonRoute)
-
-        const predictionRoute = await tx.predictionRoute.create({
-            data: {
-                routeId,
-                predictionRunId,
-                targetId,
-                rank: pythonRoute.rank,
-                metadata: metadata ? JSON.stringify(metadata) : null,
-            },
-            select: { id: true },
-        })
-
-        return {
-            routeId,
-            predictionRouteId: predictionRoute.id,
-            rank: pythonRoute.rank,
-            wasReused,
-        }
-    })
-}
-
-/**
- * Creates or updates a RouteSolvability record.
- * Links a PREDICTION ROUTE to a stock with solvability status and stratification data.
- * NOTE: Solvability is per-prediction, not per-route structure.
- *
- * @param predictionRouteId - PredictionRoute ID
- * @param stockId - Stock ID
- * @param isSolvable - Can this route be solved with the stock?
- * @param matchesAcceptable - Does this route match any acceptable route?
- * @param matchedAcceptableIndex - Index of matched acceptable route (0-based), or null
- * @param stratificationLength - Route length for stratification (from Python TargetEvaluation)
- * @param stratificationIsConvergent - Is route convergent for stratification
- * @param wallTime - Wall time for this evaluation (seconds)
- * @param cpuTime - CPU time for this evaluation (seconds)
- * @returns Created or updated RouteSolvability
- * @throws Error if predictionRoute or stock not found
- */
-export async function createRouteSolvability(
-    predictionRouteId: string,
-    stockId: string,
-    isSolvable: boolean,
-    matchesAcceptable: boolean,
-    matchedAcceptableIndex: number | null,
-    stratificationLength: number | null,
-    stratificationIsConvergent: boolean | null,
-    wallTime: number | null,
-    cpuTime: number | null
-): Promise<{ id: string; predictionRouteId: string; stockId: string }> {
-    // Verify predictionRoute exists
-    const predictionRoute = await prisma.predictionRoute.findUnique({
-        where: { id: predictionRouteId },
-        select: { id: true },
-    })
-    if (!predictionRoute) {
-        throw new Error(`PredictionRoute not found: ${predictionRouteId}`)
-    }
-
-    // Verify stock exists
-    const stock = await prisma.stock.findUnique({
-        where: { id: stockId },
-        select: { id: true },
-    })
-    if (!stock) {
-        throw new Error(`Stock not found: ${stockId}`)
-    }
-
-    // Upsert solvability record
-    const solvability = await prisma.routeSolvability.upsert({
-        where: {
-            predictionRouteId_stockId: {
-                predictionRouteId,
-                stockId,
-            },
-        },
-        update: {
-            isSolvable,
-            matchesAcceptable,
-            matchedAcceptableIndex,
-            stratificationLength,
-            stratificationIsConvergent,
-            wallTime,
-            cpuTime,
-        },
-        create: {
-            predictionRouteId,
-            stockId,
-            isSolvable,
-            matchesAcceptable,
-            matchedAcceptableIndex,
-            stratificationLength,
-            stratificationIsConvergent,
-            wallTime,
-            cpuTime,
-        },
-        select: { id: true, predictionRouteId: true, stockId: true },
-    })
-
-    return solvability
-}
-
-/**
- * Creates ModelRunStatistics and associated StratifiedMetricGroup records.
- * Parses Python ModelStatistics object and stores in normalized form.
- *
- * @param predictionRunId - PredictionRun ID
- * @param benchmarkSetId - BenchmarkSet ID (for relation)
- * @param stockId - Stock ID
- * @param pythonStatistics - Python ModelStatistics object
- * @returns Created ModelRunStatistics with ID
- * @throws Error if run or stock not found
- */
-export async function createModelStatistics(
-    predictionRunId: string,
-    benchmarkSetId: string,
-    stockId: string,
-    pythonStatistics: ModelStatistics
-): Promise<{ id: string; predictionRunId: string; stockId: string }> {
-    // Verify prediction run exists
-    const run = await prisma.predictionRun.findUnique({
-        where: { id: predictionRunId },
-        select: { id: true },
-    })
-    if (!run) {
-        throw new Error(`Prediction run not found: ${predictionRunId}`)
-    }
-
-    // Verify stock exists
-    const stock = await prisma.stock.findUnique({
-        where: { id: stockId },
-        select: { id: true },
-    })
-    if (!stock) {
-        throw new Error(`Stock not found: ${stockId}`)
-    }
-
-    // Helper to convert TypeScript ReliabilityCode to Prisma enum
-    const mapReliabilityCode = (code: string): ReliabilityCode => {
-        switch (code) {
-            case 'OK':
-                return ReliabilityCode.OK
-            case 'LOW_N':
-                return ReliabilityCode.LOW_N
-            case 'EXTREME_P':
-                return ReliabilityCode.EXTREME_P
-            default:
-                throw new Error(`Unknown reliability code "${code}" encountered.`)
-        }
-    }
-
-    // Helper to create metric group records from StratifiedMetric
-    const createMetricRecords = (
-        statisticsId: string,
-        metricName: string,
-        metric: StratifiedMetric
-    ): Prisma.StratifiedMetricGroupCreateManyInput[] => {
-        const records: Prisma.StratifiedMetricGroupCreateManyInput[] = []
-
-        // Overall metric (groupKey = null)
-        records.push({
-            statisticsId,
-            metricName,
-            groupKey: null,
-            value: metric.overall.value,
-            ciLower: metric.overall.ciLower,
-            ciUpper: metric.overall.ciUpper,
-            nSamples: metric.overall.nSamples,
-            reliabilityCode: mapReliabilityCode(metric.overall.reliability.code),
-            reliabilityMessage: metric.overall.reliability.message,
-        })
-
-        // Stratified metrics (by group, e.g., route length)
-        for (const [groupKeyStr, metricResult] of Object.entries(metric.byGroup)) {
-            const groupKey = parseInt(groupKeyStr, 10)
-            records.push({
-                statisticsId,
-                metricName,
-                groupKey,
-                value: metricResult.value,
-                ciLower: metricResult.ciLower,
-                ciUpper: metricResult.ciUpper,
-                nSamples: metricResult.nSamples,
-                reliabilityCode: mapReliabilityCode(metricResult.reliability.code),
-                reliabilityMessage: metricResult.reliability.message,
-            })
-        }
-
-        return records
-    }
-
-    // Use transaction to ensure atomicity
-    const result = await prisma.$transaction(async (tx) => {
-        // Delete existing statistics for this run+stock (if re-running)
-        await tx.modelRunStatistics.deleteMany({
-            where: {
-                predictionRunId,
-                stockId,
-            },
-        })
-
-        // Create ModelRunStatistics record
-        const statistics = await tx.modelRunStatistics.create({
-            data: {
-                predictionRunId,
-                benchmarkSetId,
-                stockId,
-                statisticsJson: JSON.stringify(pythonStatistics),
-                // Store runtime metrics at top level for easy querying
-                totalWallTime: pythonStatistics.totalWallTime ?? null,
-                totalCpuTime: pythonStatistics.totalCpuTime ?? null,
-                meanWallTime: pythonStatistics.meanWallTime ?? null,
-                meanCpuTime: pythonStatistics.meanCpuTime ?? null,
-            },
-            select: { id: true, predictionRunId: true, stockId: true },
-        })
-
-        // Collect all metric records to create
-        const metricRecords: Prisma.StratifiedMetricGroupCreateManyInput[] = []
-
-        // Add solvability metrics
-        metricRecords.push(...createMetricRecords(statistics.id, 'Solvability', pythonStatistics.solvability))
-
-        // Add top-k accuracy metrics (if present)
-        if (pythonStatistics.topKAccuracy) {
-            for (const [k, metric] of Object.entries(pythonStatistics.topKAccuracy)) {
-                metricRecords.push(...createMetricRecords(statistics.id, `Top-${k}`, metric))
+        for (const candidate of target.candidates) {
+            const tier0 = candidate.validity.tiers['0']!
+            const hasHigherTierEvidence =
+                candidate.validity.reactions.length > 0 ||
+                (candidate.validity.reaction_assessments?.length ?? 0) > 0 ||
+                (candidate.validity.molecule_assessments?.length ?? 0) > 0 ||
+                (candidate.validity.route_assessments?.length ?? 0) > 0 ||
+                candidate.validity.assessment_route_binding != null
+            if (hasHigherTierEvidence) {
+                throw new Error(
+                    `Fixed Tier-0 candidate ${target.target.id} rank ${candidate.rank} has higher-tier evidence`
+                )
+            }
+            if (candidate.failure) {
+                if (
+                    tier0.status !== 'fail' ||
+                    tier0.checks.length === 0 ||
+                    tier0.checks.some((check) => check.status !== 'fail') ||
+                    candidate.constraints.status !== 'not_evaluated' ||
+                    candidate.constraints.checks.length !== 0
+                ) {
+                    throw new Error(
+                        `Fixed Tier-0 failure ${target.target.id} rank ${candidate.rank} violates producer evidence profile`
+                    )
+                }
+            } else if (
+                tier0.status !== 'pass' ||
+                tier0.checks.length !== 0 ||
+                !['pass', 'fail'].includes(candidate.constraints.status) ||
+                (candidate.constraints.status === 'pass' && candidate.constraints.checks.length !== 0) ||
+                (candidate.constraints.status === 'fail' &&
+                    (candidate.constraints.checks.length === 0 ||
+                        candidate.constraints.checks.some((check) => check.status !== 'fail')))
+            ) {
+                throw new Error(
+                    `Fixed Tier-0 route ${target.target.id} rank ${candidate.rank} violates producer evidence profile`
+                )
             }
         }
+    }
+}
 
-        // Batch insert all metrics
-        if (metricRecords.length > 0) {
-            await tx.stratifiedMetricGroup.createMany({
-                data: metricRecords,
-            })
+interface PreparedRoute {
+    route: PythonRoute
+    signature: string
+    contentHash: string
+    length: number
+    isConvergent: boolean
+}
+
+async function resolveAndStoreRoutes(
+    preparedRoutesByHash: Map<string, PreparedRoute>,
+    tx: Prisma.TransactionClient
+): Promise<Map<string, string>> {
+    const contentHashToRouteId = new Map<string, string>()
+    for (const contentHashBatch of chunks([...preparedRoutesByHash.keys()])) {
+        const existing = await tx.route.findMany({
+            where: { contentHash: { in: contentHashBatch } },
+            select: { id: true, contentHash: true },
+        })
+        for (const route of existing) contentHashToRouteId.set(route.contentHash, route.id)
+    }
+
+    const newRoutes: Array<PreparedRoute & { id: string }> = []
+    for (const route of preparedRoutesByHash.values()) {
+        if (contentHashToRouteId.has(route.contentHash)) continue
+        const id = createId()
+        contentHashToRouteId.set(route.contentHash, id)
+        newRoutes.push({ ...route, id })
+    }
+
+    for (let routeIndex = 0; routeIndex < newRoutes.length; routeIndex += SQLITE_BATCH_SIZE) {
+        const routeBatch = newRoutes.slice(routeIndex, routeIndex + SQLITE_BATCH_SIZE)
+        await tx.route.createMany({
+            data: routeBatch.map(({ id, signature, contentHash, length, isConvergent }) => ({
+                id,
+                signature,
+                contentHash,
+                length,
+                isConvergent,
+            })),
+        })
+
+        const molecules = new Map<string, { smiles: string; inchikey: string }>()
+        const nodes: RouteNodeToCreate[] = []
+        const tempIdCounter = { value: 0 }
+        for (const route of routeBatch) {
+            collectRouteTreeData(route.route.target, route.id, null, molecules, nodes, tempIdCounter)
         }
+        const moleculeIds = new Map<string, string>()
+        for (const inchikeyBatch of chunks([...molecules.keys()])) {
+            const existing = await tx.molecule.findMany({
+                where: { inchikey: { in: inchikeyBatch } },
+                select: { id: true, inchikey: true },
+            })
+            for (const molecule of existing) moleculeIds.set(molecule.inchikey, molecule.id)
+        }
+        const newMolecules = [...molecules.values()].flatMap((molecule) => {
+            if (moleculeIds.has(molecule.inchikey)) return []
+            const id = createId()
+            moleculeIds.set(molecule.inchikey, id)
+            return [{ id, ...molecule }]
+        })
+        await createManyInBatches(newMolecules, (batch) => tx.molecule.createMany({ data: batch }))
+        const reactionIds = await upsertReactionSteps(nodes, tx)
 
-        return statistics
-    })
+        const nodeIds = new Map(nodes.map((node) => [node.tempId, createId()]))
+        const nodesByTempId = new Map(nodes.map((node) => [node.tempId, node]))
+        const depths = new Map<string, number>()
+        const depthOf = (node: RouteNodeToCreate): number => {
+            const cached = depths.get(node.tempId)
+            if (cached !== undefined) return cached
+            const parent = node.parentTempId ? nodesByTempId.get(node.parentTempId) : undefined
+            if (node.parentTempId && !parent) throw new Error(`Route node parent not found: ${node.parentTempId}`)
+            const depth = parent ? 1 + depthOf(parent) : 0
+            depths.set(node.tempId, depth)
+            return depth
+        }
+        const nodesByDepth = new Map<number, RouteNodeToCreate[]>()
+        for (const node of nodes) {
+            const depth = depthOf(node)
+            const group = nodesByDepth.get(depth) ?? []
+            group.push(node)
+            nodesByDepth.set(depth, group)
+        }
+        for (const depth of [...nodesByDepth.keys()].sort((a, b) => a - b)) {
+            const records = nodesByDepth.get(depth)!.map((node) => ({
+                id: nodeIds.get(node.tempId)!,
+                routeId: node.routeId,
+                moleculeId: moleculeIds.get(node.moleculeInchikey)!,
+                smiles: node.smiles,
+                parentId: node.parentTempId ? nodeIds.get(node.parentTempId)! : null,
+                reactionStepId: node.reactionHash ? (reactionIds.get(node.reactionHash) ?? null) : null,
+                template: node.template,
+                metadata: node.metadata,
+                isLeaf: node.isLeaf,
+            }))
+            await createManyInBatches(records, (batch) => tx.routeNode.createMany({ data: batch }))
+        }
+    }
+    return contentHashToRouteId
+}
 
-    return result
+function uniqueEvaluationStockName(bundle: VerifiedEvaluationBundleForImport): string | null {
+    const stockNames = new Set<string>()
+    for (const target of Object.values(bundle.evaluation.targets)) {
+        for (const constraint of target.effective_constraints) {
+            if (constraint.kind === 'retrocast.stock_termination' && typeof constraint.stock === 'string') {
+                stockNames.add(constraint.stock)
+            }
+        }
+    }
+    return stockNames.size === 1 ? ([...stockNames][0] ?? null) : null
+}
+
+/**
+ * Imports one verified fused evaluation bundle. It projects and persists one
+ * target at a time inside a single bundle-level transaction, bounding the
+ * importer's working set without ever exposing a partially imported run.
+ */
+export async function importEvaluationBundle(
+    predictionRunId: string,
+    bundle: VerifiedEvaluationBundleForImport
+): Promise<{ candidates: number; routes: number; failures: number; metrics: number }> {
+    validateEvaluationBundle(bundle)
+
+    return prisma.$transaction(
+        async (tx) => {
+            const run = await tx.predictionRun.findUnique({
+                where: { id: predictionRunId },
+                select: {
+                    id: true,
+                    benchmarkSetId: true,
+                    executionStatsSha256: true,
+                    timedTargets: true,
+                    totalWallTime: true,
+                    totalCpuTime: true,
+                    meanWallTime: true,
+                    meanCpuTime: true,
+                    benchmarkSet: {
+                        select: { defaultConstraintsJson: true, targetConstraintsJson: true },
+                    },
+                },
+            })
+            if (!run) throw new Error(`Prediction run not found: ${predictionRunId}`)
+            if (
+                !parsedJsonEquals(
+                    run.benchmarkSet.defaultConstraintsJson,
+                    bundle.evaluation.task.default_constraints
+                ) ||
+                !parsedJsonEquals(run.benchmarkSet.targetConstraintsJson, bundle.evaluation.task.constraints)
+            ) {
+                throw new Error('Evaluation task constraints differ from canonical benchmark definition')
+            }
+            const targetRows = await tx.benchmarkTarget.findMany({
+                where: { benchmarkSetId: run.benchmarkSetId },
+                select: {
+                    id: true,
+                    targetId: true,
+                    smiles: true,
+                    molecule: { select: { inchikey: true } },
+                    acceptableRoutes: {
+                        orderBy: { routeIndex: 'asc' },
+                        select: { route: { select: { contentHash: true } } },
+                    },
+                },
+            })
+            const targetIds = new Map(targetRows.map((target) => [target.targetId, target.id]))
+            const artifactTargetIds = Object.keys(bundle.evaluation.targets)
+            const taskTargetIds = Object.keys(bundle.evaluation.task.targets)
+            if (
+                targetRows.length !== artifactTargetIds.length ||
+                targetRows.length !== taskTargetIds.length ||
+                artifactTargetIds.some((id) => !targetIds.has(id)) ||
+                taskTargetIds.some((id) => !targetIds.has(id))
+            ) {
+                throw new Error('Evaluation targets do not exactly match the prediction run benchmark')
+            }
+            for (const targetRow of targetRows) {
+                const taskTarget = bundle.evaluation.task.targets[targetRow.targetId]
+                const evaluatedTarget = bundle.evaluation.targets[targetRow.targetId]?.target
+                if (!taskTarget || !evaluatedTarget || taskTarget.id !== targetRow.targetId) {
+                    throw new Error(`Evaluation task target identity differs from benchmark: ${targetRow.targetId}`)
+                }
+                for (const artifactTarget of [taskTarget, evaluatedTarget]) {
+                    if (
+                        artifactTarget.id !== targetRow.targetId ||
+                        artifactTarget.smiles !== targetRow.smiles ||
+                        artifactTarget.inchikey !== targetRow.molecule.inchikey
+                    ) {
+                        throw new Error(
+                            `Evaluation task target chemistry differs from benchmark: ${targetRow.targetId}`
+                        )
+                    }
+                    const acceptableHashes = artifactTarget.acceptable_routes.map((route) =>
+                        hashJson(normalizeRouteForRetrocast({ ...route, rank: 1 } as PythonRoute))
+                    )
+                    const storedHashes = targetRow.acceptableRoutes.map((acceptable) => acceptable.route.contentHash)
+                    if (
+                        acceptableHashes.length !== storedHashes.length ||
+                        acceptableHashes.some((hash, index) => hash !== storedHashes[index])
+                    ) {
+                        throw new Error(
+                            `Evaluation task acceptable routes differ from benchmark: ${targetRow.targetId}`
+                        )
+                    }
+                }
+            }
+            const stockName = uniqueEvaluationStockName(bundle)
+            const stock = stockName ? await tx.stock.findUnique({ where: { name: stockName } }) : null
+            if (stockName && !stock) throw new Error(`Stock not found for evaluation constraint: ${stockName}`)
+            const stockSource = stock
+                ? bundle.manifest.source_files.find((file) => file.path.includes(stock.name))
+                : undefined
+            if (stock?.sourceSha256 && stockSource?.sha256 !== stock.sourceSha256) {
+                throw new Error(`Evaluation stock source differs from canonical stock input: ${stock.name}`)
+            }
+
+            // Replace only this evaluation identity. Candidate slots belong to
+            // the planner run and may be shared by multiple task labels.
+            await tx.runEvaluation.deleteMany({
+                where: { predictionRunId, metricLabel: bundle.evaluation.metric_label },
+            })
+
+            const existingCandidateCount = await tx.predictionCandidate.count({ where: { predictionRunId } })
+            const runtime = bundle.analysis.runtime
+            const executionStatsSource = bundle.manifest.source_files.find((file) =>
+                file.path.endsWith('execution_stats.json.gz')
+            )
+            if (!executionStatsSource) throw new Error('Bundle manifest does not track planner execution stats')
+            const reuseCandidateSet = existingCandidateCount > 0 || run.executionStatsSha256 !== null
+            if (
+                reuseCandidateSet &&
+                (run.executionStatsSha256 !== executionStatsSource.sha256 ||
+                    run.timedTargets !== runtime.timed_target_count ||
+                    run.totalWallTime !== runtime.total_wall_time ||
+                    run.totalCpuTime !== runtime.total_cpu_time ||
+                    run.meanWallTime !== runtime.mean_wall_time ||
+                    run.meanCpuTime !== runtime.mean_cpu_time)
+            ) {
+                throw new Error('Evaluation planner execution evidence differs from the existing prediction run')
+            }
+
+            const evaluationId = createId()
+            const taskWithoutTargets = { ...bundle.evaluation.task, targets: undefined }
+            await tx.runEvaluation.create({
+                data: {
+                    id: evaluationId,
+                    predictionRunId,
+                    benchmarkSetId: run.benchmarkSetId,
+                    stockId: stock?.id ?? null,
+                    metricLabel: bundle.evaluation.metric_label,
+                    evaluatedTiers: JSON.stringify(bundle.evaluation.tiers),
+                    taskJson: JSON.stringify(taskWithoutTargets),
+                    parametersJson: JSON.stringify(bundle.manifest.parameters),
+                    analysisJson: JSON.stringify(bundle.analysis),
+                    manifestJson: JSON.stringify(bundle.manifest),
+                    manifestSha256: bundle.manifestSha256,
+                    artifactSchema: bundle.manifest.schema_version,
+                    retrocastVersion: bundle.manifest.retrocast_version,
+                    createdAt: new Date(bundle.manifest.created_at),
+                },
+            })
+
+            let candidateCount = 0
+            let failureCount = 0
+            let successfulRoutes = 0
+            let totalRouteLength = 0
+            for (const [externalTargetId, target] of Object.entries(bundle.evaluation.targets)) {
+                const targetId = targetIds.get(externalTargetId)!
+                const preparedRoutesByHash = new Map<string, PreparedRoute>()
+                const routeHashByRank = new Map<number, string>()
+                for (const candidate of target.candidates) {
+                    candidateCount++
+                    if (!candidate.route) {
+                        failureCount++
+                        continue
+                    }
+                    successfulRoutes++
+                    const route = { ...candidate.route, rank: candidate.rank } as PythonRoute
+                    const normalized = normalizeRouteForRetrocast(route)
+                    const contentHash = hashJson(normalized)
+                    const projection = projectRetrocastRoute(normalized)
+                    routeHashByRank.set(candidate.rank, contentHash)
+                    totalRouteLength += projection.route.length
+                    if (!preparedRoutesByHash.has(contentHash)) {
+                        preparedRoutesByHash.set(contentHash, {
+                            route,
+                            signature: projection.route.signature,
+                            contentHash,
+                            length: projection.route.length,
+                            isConvergent: projection.route.hasConvergentReaction,
+                        })
+                    }
+                }
+                const contentHashToRouteId = await resolveAndStoreRoutes(preparedRoutesByHash, tx)
+                const candidateRecords: Prisma.PredictionCandidateCreateManyInput[] = target.candidates.map(
+                    (candidate) => {
+                        const id = createId()
+                        if (candidate.route) {
+                            const routeHash = routeHashByRank.get(candidate.rank)
+                            if (!routeHash) {
+                                throw new Error(`Prepared route not found: ${externalTargetId} rank ${candidate.rank}`)
+                            }
+                            const routeId = contentHashToRouteId.get(routeHash)
+                            if (!routeId) throw new Error(`Stored route not found: ${routeHash}`)
+                            return {
+                                id,
+                                routeId,
+                                predictionRunId,
+                                targetId,
+                                benchmarkSetId: run.benchmarkSetId,
+                                rank: candidate.rank,
+                                metadata: JSON.stringify(candidate.route.annotations ?? {}),
+                            }
+                        }
+                        return {
+                            id,
+                            predictionRunId,
+                            targetId,
+                            benchmarkSetId: run.benchmarkSetId,
+                            rank: candidate.rank,
+                            failureCode: candidate.failure.code,
+                            failureMessage: candidate.failure.message,
+                            failureDetails: JSON.stringify(candidate.failure),
+                        }
+                    }
+                )
+
+                const candidateIdsByRank = new Map<number, string>()
+                if (!reuseCandidateSet) {
+                    await createManyInBatches(candidateRecords, (batch) =>
+                        tx.predictionCandidate.createMany({ data: batch })
+                    )
+                    for (const candidate of candidateRecords) candidateIdsByRank.set(candidate.rank, candidate.id!)
+                } else {
+                    const existingCandidates = await tx.predictionCandidate.findMany({
+                        where: { predictionRunId, targetId },
+                    })
+                    const existingByRank = new Map(existingCandidates.map((candidate) => [candidate.rank, candidate]))
+                    if (existingCandidates.length !== candidateRecords.length) {
+                        throw new Error('Evaluation candidate slots do not match the existing prediction run')
+                    }
+                    for (const candidate of candidateRecords) {
+                        const existing = existingByRank.get(candidate.rank)
+                        if (
+                            !existing ||
+                            existing.routeId !== (candidate.routeId ?? null) ||
+                            existing.failureCode !== (candidate.failureCode ?? null) ||
+                            existing.failureMessage !== (candidate.failureMessage ?? null) ||
+                            existing.failureDetails !== (candidate.failureDetails ?? null) ||
+                            existing.metadata !== (candidate.metadata ?? null)
+                        ) {
+                            throw new Error('Evaluation candidates differ from the existing prediction run')
+                        }
+                        candidateIdsByRank.set(candidate.rank, existing.id)
+                    }
+                }
+
+                const targetEvaluationId = createId()
+                await tx.targetEvaluation.create({
+                    data: {
+                        id: targetEvaluationId,
+                        runEvaluationId: evaluationId,
+                        predictionRunId,
+                        targetId,
+                        benchmarkSetId: run.benchmarkSetId,
+                        effectiveConstraintsJson: JSON.stringify(target.effective_constraints),
+                        wallTime: target.wall_time ?? null,
+                        cpuTime: target.cpu_time ?? null,
+                    },
+                })
+
+                const candidateEvaluations: Prisma.CandidateEvaluationCreateManyInput[] = []
+                const tierResults: Prisma.CandidateTierResultCreateManyInput[] = []
+                for (const candidate of target.candidates) {
+                    const candidateId = candidateIdsByRank.get(candidate.rank)
+                    if (!candidateId) throw new Error(`Candidate not found: ${externalTargetId} rank ${candidate.rank}`)
+                    const candidateEvaluationId = createId()
+                    candidateEvaluations.push({
+                        id: candidateEvaluationId,
+                        runEvaluationId: evaluationId,
+                        targetEvaluationId,
+                        predictionRunId,
+                        targetId,
+                        benchmarkSetId: run.benchmarkSetId,
+                        candidateId,
+                        constraintStatus: toEvaluationStatus(candidate.constraints.status),
+                        constraintChecksJson: candidate.constraints.checks
+                            ? JSON.stringify(candidate.constraints.checks)
+                            : null,
+                        validityEvidenceJson: validityEvidenceJson(
+                            candidate.validity as unknown as Record<string, unknown>
+                        ),
+                        matchesAcceptable: candidate.matches_acceptable,
+                        matchedAcceptableIndex: candidate.matched_acceptable_index ?? null,
+                    })
+                    for (const [tier, result] of Object.entries(candidate.validity.tiers)) {
+                        tierResults.push({
+                            id: createId(),
+                            candidateEvaluationId,
+                            tier: Number(tier),
+                            status: toEvaluationStatus(result.status),
+                            checksJson: result.checks ? JSON.stringify(result.checks) : null,
+                        })
+                    }
+                }
+                await createManyInBatches(candidateEvaluations, (batch) =>
+                    tx.candidateEvaluation.createMany({ data: batch })
+                )
+                await createManyInBatches(tierResults, (batch) => tx.candidateTierResult.createMany({ data: batch }))
+            }
+            if (reuseCandidateSet && existingCandidateCount !== candidateCount) {
+                throw new Error('Evaluation candidate slots do not match the existing prediction run')
+            }
+
+            const metrics = transformRetrocastAnalysis(bundle.analysis).map((metric) => ({
+                id: createId(),
+                runEvaluationId: evaluationId,
+                ...metric,
+            }))
+            await createManyInBatches(metrics, (batch) => tx.metricEstimate.createMany({ data: batch }))
+
+            const averageLength = successfulRoutes === 0 ? null : totalRouteLength / successfulRoutes
+            await tx.predictionRun.update({
+                where: { id: predictionRunId },
+                data: {
+                    retrocastVersion: bundle.manifest.retrocast_version,
+                    commandParams: JSON.stringify(bundle.manifest.parameters),
+                    executionStatsPath: executionStatsSource.path,
+                    executionStatsSha256: executionStatsSource.sha256,
+                    timedTargets: runtime.timed_target_count,
+                    totalWallTime: runtime.total_wall_time,
+                    totalCpuTime: runtime.total_cpu_time,
+                    meanWallTime: runtime.mean_wall_time,
+                    meanCpuTime: runtime.mean_cpu_time,
+                    totalCandidates: candidateCount,
+                    totalFailures: failureCount,
+                    totalRoutes: successfulRoutes,
+                    avgRouteLength: averageLength,
+                },
+            })
+            return {
+                candidates: candidateCount,
+                routes: successfulRoutes,
+                failures: failureCount,
+                metrics: metrics.length,
+            }
+        },
+        { maxWait: 60_000, timeout: 30 * 60_000 }
+    )
 }
 
 /**
@@ -904,7 +1053,7 @@ export async function updatePredictionRunCost(predictionRunId: string): Promise<
     // Get the run with its hourly cost
     const run = await prisma.predictionRun.findUnique({
         where: { id: predictionRunId },
-        select: { id: true, hourlyCost: true },
+        select: { id: true, hourlyCost: true, totalWallTime: true },
     })
 
     if (!run) {
@@ -916,20 +1065,14 @@ export async function updatePredictionRunCost(predictionRunId: string): Promise<
         return null
     }
 
-    // Get the totalWallTime from ModelRunStatistics (should only be one record per run)
-    const statistics = await prisma.modelRunStatistics.findFirst({
-        where: { predictionRunId },
-        select: { totalWallTime: true },
-    })
-
-    // If no statistics or no wall time, can't calculate total cost
-    if (!statistics?.totalWallTime) {
+    // Planner cost must use planner execution time, not RetroCast evaluation time.
+    if (!run.totalWallTime) {
         return null
     }
 
     // Calculate total cost: hourlyCost * (totalWallTime / 3600)
     // totalWallTime is in seconds, convert to hours
-    const totalCost = run.hourlyCost * (statistics.totalWallTime / 3600)
+    const totalCost = run.hourlyCost * (run.totalWallTime / 3600)
 
     // Update the run with calculated cost
     const updatedRun = await prisma.predictionRun.update({
@@ -946,66 +1089,5 @@ export async function updatePredictionRunCost(predictionRunId: string): Promise<
         id: updatedRun.id,
         hourlyCost: updatedRun.hourlyCost!,
         totalCost: updatedRun.totalCost!,
-    }
-}
-
-/**
- * Updates aggregate statistics for a PredictionRun.
- * Call this after loading all predictions for a run.
- * NOTE: Now counts PredictionRoutes, not Routes (deduplication is enabled).
- *
- * Uses a raw SQL query to perform aggregation in the database, avoiding
- * high memory consumption for runs with a large number of routes.
- *
- * @param predictionRunId - PredictionRun ID
- * @returns Updated PredictionRun
- * @throws Error if run not found
- */
-export async function updatePredictionRunStats(predictionRunId: string): Promise<{
-    id: string
-    totalRoutes: number
-    avgRouteLength: number
-}> {
-    // Verify run exists
-    const run = await prisma.predictionRun.findUnique({
-        where: { id: predictionRunId },
-        select: { id: true },
-    })
-    if (!run) {
-        throw new Error(`Prediction run not found: ${predictionRunId}`)
-    }
-
-    // Compute aggregate stats using raw SQL to avoid loading all routes into memory
-    // This query counts predictions and calculates average route length in the database
-    const result = await prisma.$queryRaw<[{ totalRoutes: number; avgRouteLength: number | null }]>`
-        SELECT
-            COUNT(*) as totalRoutes,
-            AVG(r.length) as avgRouteLength
-        FROM PredictionRoute pr
-        INNER JOIN Route r ON r.id = pr.routeId
-        WHERE pr.predictionRunId = ${predictionRunId}
-    `
-
-    const totalRoutes = Number(result[0]?.totalRoutes ?? 0)
-    const avgRouteLength = result[0]?.avgRouteLength !== null ? Number(result[0].avgRouteLength) : 0
-
-    // Update run record
-    const updatedRun = await prisma.predictionRun.update({
-        where: { id: predictionRunId },
-        data: {
-            totalRoutes,
-            avgRouteLength,
-        },
-        select: {
-            id: true,
-            totalRoutes: true,
-            avgRouteLength: true,
-        },
-    })
-
-    return {
-        id: updatedRun.id,
-        totalRoutes: updatedRun.totalRoutes,
-        avgRouteLength: updatedRun.avgRouteLength ?? 0,
     }
 }

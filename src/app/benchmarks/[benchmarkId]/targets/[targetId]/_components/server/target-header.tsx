@@ -51,7 +51,7 @@ export async function TargetHeader({ targetId }: TargetHeaderProps) {
                     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                         {/* Left column: Molecule structure */}
                         <div className="flex items-center justify-center">
-                            <SmileDrawerSvg smilesStr={target.molecule.smiles} width={200} height={200} />
+                            <SmileDrawerSvg smilesStr={target.smiles} width={200} height={200} />
                         </div>
 
                         {/* Right column: Target info */}
@@ -81,7 +81,7 @@ export async function TargetHeader({ targetId }: TargetHeaderProps) {
                             {/* SMILES */}
                             <div>
                                 <p className="text-muted-foreground mb-1 text-xs font-semibold">SMILES</p>
-                                <p className="font-mono text-xs break-all">{target.molecule.smiles}</p>
+                                <p className="font-mono text-xs break-all">{target.smiles}</p>
                             </div>
 
                             {/* InChiKey */}

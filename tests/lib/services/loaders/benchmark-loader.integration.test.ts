@@ -69,6 +69,53 @@ async function findAcceptableRouteForTarget(benchmarkSetId: string, targetId: st
 // ============================================================================
 
 describe('loadBenchmarkFromFile', () => {
+    it('rejects an acceptable route rooted at different target chemistry', async () => {
+        const stock = await createStock({ name: 'bench-stock-root-binding' })
+        const benchmark = await createBenchmarkSet({ stockId: stock.id, name: 'bench-root-binding' })
+        const route = makeLinearPythonRoute(1)
+        const filePath = createTestBenchmarkGzFile({
+            name: benchmark.name,
+            targets: {
+                't-001': makeBenchmarkTarget('t-001', 'CCC', [route]),
+            },
+        })
+
+        await expect(loadBenchmarkFromFile(filePath, benchmark.id, benchmark.name)).rejects.toThrow(
+            'Acceptable route 0 root differs from benchmark target t-001'
+        )
+        await expect(prisma.benchmarkTarget.count({ where: { benchmarkSetId: benchmark.id } })).resolves.toBe(0)
+    })
+
+    it('rolls back a newly created route when route-tree persistence fails', async () => {
+        const stock = await createStock({ name: 'bench-stock-route-rollback' })
+        const benchmark = await createBenchmarkSet({ stockId: stock.id, name: 'bench-route-rollback' })
+        const route = makeLinearPythonRoute(1)
+        const filePath = createTestBenchmarkGzFile({
+            name: benchmark.name,
+            targets: {
+                't-001': makeBenchmarkTarget('t-001', route.target.smiles, [route]),
+            },
+        })
+        await prisma.$executeRawUnsafe(`
+            CREATE TRIGGER reject_route_nodes
+            BEFORE INSERT ON RouteNode
+            BEGIN
+                SELECT RAISE(ABORT, 'injected route-node failure');
+            END
+        `)
+
+        try {
+            await expect(loadBenchmarkFromFile(filePath, benchmark.id, benchmark.name)).rejects.toThrow()
+        } finally {
+            await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS reject_route_nodes')
+        }
+
+        await expect(prisma.route.count()).resolves.toBe(0)
+        await expect(prisma.routeNode.count()).resolves.toBe(0)
+        await expect(prisma.acceptableRoute.count()).resolves.toBe(0)
+        await expect(prisma.benchmarkTarget.count({ where: { benchmarkSetId: benchmark.id } })).resolves.toBe(0)
+    })
+
     it('loads targets with no acceptable routes', async () => {
         const stock = await createStock({ name: 'bench-stock-1' })
         const benchmark = await createBenchmarkSet({ stockId: stock.id, name: 'bench-no-routes' })
@@ -157,17 +204,16 @@ describe('loadBenchmarkFromFile', () => {
 
         const route = makeLinearPythonRoute(1) // CC <- C
 
-        // Two different targets share the same acceptable route (same signature)
-        const target1Smiles = carbonChainSmiles(10)
-        const target2Smiles = carbonChainSmiles(11)
+        // Two target records for the same exact chemistry share one acceptable route.
+        const targetSmiles = route.target.smiles
 
         const data = {
             name: 'bench-dedup',
             targets: {
                 't-001': {
                     id: 't-001',
-                    smiles: target1Smiles,
-                    inchikey: syntheticInchiKey(target1Smiles),
+                    smiles: targetSmiles,
+                    inchikey: route.target.inchikey,
                     acceptable_routes: [
                         {
                             target: route.target,
@@ -179,8 +225,8 @@ describe('loadBenchmarkFromFile', () => {
                 },
                 't-002': {
                     id: 't-002',
-                    smiles: target2Smiles,
-                    inchikey: syntheticInchiKey(target2Smiles),
+                    smiles: targetSmiles,
+                    inchikey: route.target.inchikey,
                     acceptable_routes: [
                         {
                             target: route.target,
@@ -207,6 +253,34 @@ describe('loadBenchmarkFromFile', () => {
         // But 2 AcceptableRoute junction records
         const acceptableRoutes = await prisma.acceptableRoute.findMany()
         expect(acceptableRoutes).toHaveLength(2)
+    })
+
+    it('does not merge identical topology with different producer provenance', async () => {
+        const stock = await createStock({ name: 'bench-stock-provenance' })
+        const benchmark = await createBenchmarkSet({ stockId: stock.id, name: 'bench-provenance' })
+        const first = makeLinearPythonRoute(1)
+        const second = makeLinearPythonRoute(1)
+        first.target.product_of!.template = 'template-a'
+        first.target.product_of!.mapped_reaction_smiles = '[C:1]>>[C:1]'
+        second.target.product_of!.template = 'template-b'
+        second.target.product_of!.mapped_reaction_smiles = '[CH3:1]>>[CH3:1]'
+        const filePath = createTestBenchmarkGzFile({
+            name: 'bench-provenance',
+            targets: {
+                't-001': makeBenchmarkTarget('t-001', 'CC', [first]),
+                't-002': makeBenchmarkTarget('t-002', 'CC', [second]),
+            },
+        })
+
+        await loadBenchmarkFromFile(filePath, benchmark.id, benchmark.name)
+
+        const routes = await prisma.route.findMany({ include: { nodes: true } })
+        expect(routes).toHaveLength(2)
+        expect(new Set(routes.map((route) => route.signature))).toHaveLength(1)
+        expect(new Set(routes.map((route) => route.contentHash))).toHaveLength(2)
+        expect(new Set(routes.flatMap((route) => route.nodes.map((node) => node.template).filter(Boolean)))).toEqual(
+            new Set(['template-a', 'template-b'])
+        )
     })
 
     it('computes route signatures from v0.7 route payloads', async () => {
@@ -454,14 +528,16 @@ describe('loadBenchmarkFromFile', () => {
 
         const route1 = makeLinearPythonRoute(1, 1) // Rank 1
         const route2 = makeLinearPythonRoute(3, 2) // Rank 2 — different topology
+        route2.target.smiles = route1.target.smiles
+        route2.target.inchikey = route1.target.inchikey
 
         const data = {
             name: 'bench-multi',
             targets: {
                 't-001': {
                     id: 't-001',
-                    smiles: carbonChainSmiles(10),
-                    inchikey: syntheticInchiKey(carbonChainSmiles(10)),
+                    smiles: route1.target.smiles,
+                    inchikey: route1.target.inchikey,
                     acceptable_routes: [
                         {
                             target: route1.target,
@@ -516,8 +592,8 @@ describe('loadBenchmarkFromFile', () => {
             targets: {
                 't-a': {
                     id: 't-a',
-                    smiles: carbonChainSmiles(10),
-                    inchikey: syntheticInchiKey(carbonChainSmiles(10)),
+                    smiles: route.target.smiles,
+                    inchikey: route.target.inchikey,
                     acceptable_routes: [
                         {
                             target: route.target,
@@ -544,8 +620,8 @@ describe('loadBenchmarkFromFile', () => {
             targets: {
                 't-b': {
                     id: 't-b',
-                    smiles: carbonChainSmiles(11),
-                    inchikey: syntheticInchiKey(carbonChainSmiles(11)),
+                    smiles: route.target.smiles,
+                    inchikey: route.target.inchikey,
                     acceptable_routes: [
                         {
                             target: route.target, // same route tree as above

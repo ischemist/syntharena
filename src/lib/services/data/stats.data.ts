@@ -1,37 +1,81 @@
-/**
- * data access layer for statistics models.
- * handles `ModelRunStatistics` and `StratifiedMetricGroup`.
- */
+/** Data access for canonical RetroCast run evaluations and metric estimates. */
 import { unstable_cache as cache } from 'next/cache'
 import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/db'
 
 /**
- * fetches all statistics records matching the leaderboard filters.
- * includes all relations needed to build the leaderboard view.
+ * Keep the leaderboard query result limited to fields rendered by the view.
+ * RunEvaluation and BenchmarkSet contain large artifact/constraint JSON blobs;
+ * selecting either model wholesale can exceed Next.js' 2 MiB data-cache limit.
  */
-async function _findStatisticsForLeaderboard(where: Prisma.ModelRunStatisticsWhereInput) {
-    return prisma.modelRunStatistics.findMany({
-        where,
-        include: {
-            stock: true,
-            predictionRun: {
-                include: {
-                    benchmarkSet: true,
-                    modelInstance: {
-                        include: {
-                            family: {
-                                include: {
-                                    algorithm: true,
-                                },
-                            },
+export const leaderboardStatisticsSelect = {
+    id: true,
+    metricLabel: true,
+    stock: { select: { name: true } },
+    predictionRun: {
+        select: {
+            id: true,
+            benchmarkSetId: true,
+            submissionType: true,
+            isRetrained: true,
+            totalWallTime: true,
+            totalCost: true,
+            benchmarkSet: {
+                select: {
+                    name: true,
+                    hasAcceptableRoutes: true,
+                    series: true,
+                },
+            },
+            modelInstance: {
+                select: {
+                    slug: true,
+                    versionMajor: true,
+                    versionMinor: true,
+                    versionPatch: true,
+                    versionPrerelease: true,
+                    family: {
+                        select: {
+                            id: true,
+                            name: true,
+                            algorithm: { select: { name: true, slug: true } },
                         },
                     },
                 },
             },
-            metrics: true,
         },
+    },
+    metrics: {
+        where: {
+            OR: [
+                { metricKey: 'tier_0_validity_rate' },
+                { metricKey: { startsWith: 'solv_0[', endsWith: ']_rate' } },
+                { metricKey: { startsWith: 'acceptable_reconstruction_top_' } },
+            ],
+        },
+        select: {
+            metricKey: true,
+            stratum: true,
+            value: true,
+            ciLower: true,
+            ciUpper: true,
+            nSamples: true,
+            reliabilityCode: true,
+            reliabilityMessage: true,
+        },
+    },
+} satisfies Prisma.RunEvaluationSelect
+
+/**
+ * This result grows with the number of evaluations in a benchmark, so it must
+ * not use Next.js' size-limited data cache. The database is immutable in the
+ * deployed app and this indexed, projected SQLite query is inexpensive.
+ */
+export async function findStatisticsForLeaderboard(where: Prisma.RunEvaluationWhereInput) {
+    return prisma.runEvaluation.findMany({
+        where,
+        select: leaderboardStatisticsSelect,
         orderBy: [
             { predictionRun: { benchmarkSet: { name: 'asc' } } },
             { predictionRun: { modelInstance: { family: { name: 'asc' } } } },
@@ -39,33 +83,13 @@ async function _findStatisticsForLeaderboard(where: Prisma.ModelRunStatisticsWhe
         ],
     })
 }
-export const findStatisticsForLeaderboard = cache(_findStatisticsForLeaderboard, ['stats-for-leaderboard'], {
-    tags: ['statistics', 'leaderboard'],
-})
 
-/**
- * fetches the raw JSON blob for a specific run/stock combination.
- * used for detailed views like rank distribution plots.
- */
-async function _findStatisticsJson(runId: string, stockId: string) {
-    const stats = await prisma.modelRunStatistics.findUnique({
-        where: {
-            predictionRunId_stockId: { predictionRunId: runId, stockId },
-        },
-        select: { statisticsJson: true },
-    })
-    if (!stats) throw new Error('statistics not found for this run and stock.')
-    return stats
-}
-
-/**
- * fetches all stocks that have statistics for a given run.
- * used to populate the stock selector on run detail pages.
- */
-async function _findStocksWithStatsForRun(runId: string) {
-    return prisma.modelRunStatistics.findMany({
+async function _findEvaluationsForRun(runId: string) {
+    return prisma.runEvaluation.findMany({
         where: { predictionRunId: runId },
         select: {
+            id: true,
+            metricLabel: true,
             stock: {
                 select: {
                     id: true,
@@ -75,63 +99,58 @@ async function _findStocksWithStatsForRun(runId: string) {
                 },
             },
         },
-        orderBy: { stock: { name: 'asc' } },
+        orderBy: { metricLabel: 'asc' },
     })
 }
-export const findStocksWithStatsForRun = cache(_findStocksWithStatsForRun, ['stocks-with-stats-for-run'], {
+export const findEvaluationsForRun = cache(_findEvaluationsForRun, ['evaluations-for-run-v3'], {
     tags: ['statistics', 'stocks'],
 })
 
-/**
- * fetches full statistics for a run/stock combination with metrics.
- * used for detailed statistics views.
- */
-async function _findStatisticsForRun(runId: string, stockId: string) {
-    const stats = await prisma.modelRunStatistics.findUnique({
-        where: {
-            predictionRunId_stockId: { predictionRunId: runId, stockId },
-        },
-        include: {
-            stock: true,
-            metrics: true,
-        },
+async function _findStatisticsForRun(runId: string, evaluationId: string) {
+    const evaluation = await prisma.runEvaluation.findFirst({
+        where: { id: evaluationId, predictionRunId: runId },
+        include: { stock: true, metrics: true },
     })
-    if (!stats) throw new Error('statistics not found for this run and stock.')
-    return stats
+    if (!evaluation) throw new Error('evaluation not found for this run.')
+    return evaluation
 }
-export const findStatisticsForRun = cache(_findStatisticsForRun, ['stats-for-run'], {
-    tags: ['statistics'],
+export const findStatisticsForRun = cache(_findStatisticsForRun, ['stats-for-run-v3'], { tags: ['statistics'] })
+
+async function _findEvaluationContext(runId: string, evaluationId: string) {
+    const evaluation = await prisma.runEvaluation.findFirst({
+        where: { id: evaluationId, predictionRunId: runId },
+        select: { id: true, metricLabel: true, stock: { select: { id: true, name: true } } },
+    })
+    if (!evaluation) throw new Error('evaluation not found for this run.')
+    return evaluation
+}
+export const findEvaluationContext = cache(_findEvaluationContext, ['evaluation-context-v3'], {
+    tags: ['statistics', 'stocks'],
 })
 
-/**
- * Finds the best (max value) metrics for an algorithm's model instances on specified benchmarks.
- * Returns the best Top-K accuracy per (benchmark, metric) combination with the achieving model instance.
- * Only considers overall metrics (groupKey === null).
- */
 async function _findBestMetricsForAlgorithm(algorithmId: string, benchmarkIds: string[], metricNames: string[]) {
     if (benchmarkIds.length === 0 || metricNames.length === 0) return []
-
-    const metrics = await prisma.stratifiedMetricGroup.findMany({
+    const metrics = await prisma.metricEstimate.findMany({
         where: {
-            metricName: { in: metricNames },
-            groupKey: null, // overall metrics only
-            statistics: {
-                benchmarkSetId: { in: benchmarkIds },
+            metricKey: { in: metricNames },
+            stratum: '',
+            runEvaluation: {
                 predictionRun: {
+                    benchmarkSetId: { in: benchmarkIds },
                     modelInstance: { family: { algorithmId } },
                 },
             },
         },
         select: {
-            metricName: true,
+            metricKey: true,
             value: true,
             ciLower: true,
             ciUpper: true,
-            statistics: {
+            runEvaluation: {
                 select: {
-                    benchmarkSetId: true,
                     predictionRun: {
                         select: {
+                            benchmarkSetId: true,
                             benchmarkSet: { select: { name: true } },
                             modelInstance: {
                                 select: {
@@ -150,18 +169,15 @@ async function _findBestMetricsForAlgorithm(algorithmId: string, benchmarkIds: s
         },
         orderBy: { value: 'desc' },
     })
-    // a simple filter to remove duplicates if the same instance has multiple stats for the same metric (e.g. diff stocks)
-    // we only care about the best performance overall.
-    const uniqueMetrics = new Map<string, (typeof metrics)[0]>()
+    const unique = new Map<string, (typeof metrics)[number]>()
     for (const metric of metrics) {
-        const key = `${metric.statistics.predictionRun.modelInstance.slug}:${metric.metricName}:${metric.statistics.benchmarkSetId}`
-        if (!uniqueMetrics.has(key)) {
-            uniqueMetrics.set(key, metric)
-        }
+        const run = metric.runEvaluation.predictionRun
+        const key = `${run.modelInstance.slug}:${metric.metricKey}:${run.benchmarkSetId}`
+        if (!unique.has(key)) unique.set(key, metric)
     }
-    return Array.from(uniqueMetrics.values())
+    return [...unique.values()]
 }
-export const findBestMetricsForAlgorithm = cache(_findBestMetricsForAlgorithm, ['best-metrics-for-algorithm'], {
+export const findBestMetricsForAlgorithm = cache(_findBestMetricsForAlgorithm, ['best-metrics-for-algorithm-v2'], {
     tags: ['statistics', 'algorithms', 'models'],
 })
 export type BestMetricPayload = Prisma.PromiseReturnType<typeof _findBestMetricsForAlgorithm>[0]

@@ -283,7 +283,8 @@ function buildStratifiedEntry(name: string, overallValue: number): { name: strin
     return {
         name,
         stratified: {
-            metricName: name,
+            metricKey: name,
+            displayName: name,
             overall: {
                 value: overallValue,
                 ciLower: overallValue - 0.05,
@@ -291,7 +292,7 @@ function buildStratifiedEntry(name: string, overallValue: number): { name: strin
                 nSamples: 100,
                 reliability: { code: 'OK', message: 'OK' },
             },
-            byGroup: {},
+            byStratum: {},
         },
     }
 }

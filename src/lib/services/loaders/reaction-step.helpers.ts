@@ -3,11 +3,21 @@
  * Used by both the prediction loader and benchmark loader.
  */
 import { Prisma } from '@prisma/client'
+import { createId } from '@paralleldrive/cuid2'
 
 import type prisma from '@/lib/db'
 
 /** Minimal DB client interface — works with both PrismaClient and TransactionClient. */
 type DbClient = typeof prisma | Prisma.TransactionClient
+const SQLITE_BATCH_SIZE = 200
+
+function chunks<T>(values: T[]): T[][] {
+    const result: T[][] = []
+    for (let index = 0; index < values.length; index += SQLITE_BATCH_SIZE) {
+        result.push(values.slice(index, index + SQLITE_BATCH_SIZE))
+    }
+    return result
+}
 
 /** Shape of a node that carries reaction data for ReactionStep upsert. */
 interface NodeWithReactionData {
@@ -24,55 +34,35 @@ interface NodeWithReactionData {
  */
 export async function upsertReactionSteps(nodes: NodeWithReactionData[], db: DbClient): Promise<Map<string, string>> {
     // Collect unique reactions by reactionHash
-    const reactionHashToData = new Map<string, { template: string | null; metadata: string | null }>()
+    const reactionHashesSet = new Set<string>()
     for (const node of nodes) {
-        if (node.reactionHash && !reactionHashToData.has(node.reactionHash)) {
-            reactionHashToData.set(node.reactionHash, {
-                template: node.template,
-                metadata: node.metadata,
-            })
-        }
+        if (node.reactionHash) reactionHashesSet.add(node.reactionHash)
     }
 
     const reactionHashToId = new Map<string, string>()
-    const reactionHashes = Array.from(reactionHashToData.keys())
+    const reactionHashes = Array.from(reactionHashesSet)
 
     if (reactionHashes.length === 0) return reactionHashToId
 
     // Find existing ReactionStep records
-    const existingSteps = await db.reactionStep.findMany({
-        where: { reactionHash: { in: reactionHashes } },
-        select: { id: true, reactionHash: true },
-    })
-    for (const step of existingSteps) {
-        reactionHashToId.set(step.reactionHash, step.id)
-    }
-
-    const missingReactions = Array.from(reactionHashToData.entries()).filter(([hash]) => !reactionHashToId.has(hash))
-
-    if (missingReactions.length > 0) {
-        try {
-            await db.reactionStep.createMany({
-                data: missingReactions.map(([reactionHash, data]) => ({
-                    reactionHash,
-                    template: data.template,
-                    metadata: data.metadata,
-                })),
-            })
-        } catch (error) {
-            // Concurrent loaders can race between the existence check and the batch insert.
-            // Ignore unique conflicts and re-read the ids below.
-            if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
-                throw error
-            }
-        }
-
-        const createdSteps = await db.reactionStep.findMany({
-            where: { reactionHash: { in: missingReactions.map(([hash]) => hash) } },
+    for (const batch of chunks(reactionHashes)) {
+        const existingSteps = await db.reactionStep.findMany({
+            where: { reactionHash: { in: batch } },
             select: { id: true, reactionHash: true },
         })
-        for (const step of createdSteps) {
-            reactionHashToId.set(step.reactionHash, step.id)
+        for (const step of existingSteps) reactionHashToId.set(step.reactionHash, step.id)
+    }
+
+    const missingReactions = reactionHashes.filter((hash) => !reactionHashToId.has(hash))
+
+    if (missingReactions.length > 0) {
+        for (const batch of chunks(missingReactions)) {
+            const records = batch.map((reactionHash) => {
+                const id = createId()
+                reactionHashToId.set(reactionHash, id)
+                return { id, reactionHash }
+            })
+            await db.reactionStep.createMany({ data: records })
         }
     }
 

@@ -24,8 +24,8 @@ The platform ingests standardized predictions from [RetroCast](https://github.co
 Evaluating retrosynthesis models is fragmented and unreliable:
 
 - **The Babel of Formats:** AiZynthFinder outputs bipartite graphs; Retro\* outputs precursor maps; DirectMultiStep outputs recursive dictionaries. Comparing them requires bespoke parsers for every model.
-- **Inconsistent Stocks:** Starting material definitions vary by over 1000×—making reported solvability scores incomparable across publications.
-- **Solvability ≠ Validity:** Routes marked as "solved" are validated only by endpoint availability, with no guarantee that intermediate transformations are chemically feasible.
+- **Inconsistent Stocks:** Starting material definitions vary by over 1000×, so stock-constrained results are meaningless without an exact stock identity.
+- **Collapsed Validity Claims:** Structural integrity, stock termination, and reaction feasibility are distinct predicates. A single "solved" label hides which evidence was actually established.
 
 ---
 
@@ -43,7 +43,7 @@ Evaluating retrosynthesis models is fragmented and unreliable:
 
 - **Interactive Route Visualization:** Explore predicted synthetic routes with molecule structures rendered using SMILES
 - **Side-by-Side Comparison:** Compare predictions from any two models or inspect predicted vs. ground-truth routes with diff overlays
-- **Living Leaderboard:** Browse stratified performance metrics (Stock-Termination Rate, Top-K Accuracy) with bootstrapped 95% confidence intervals
+- **Living Leaderboard:** Compare target-level Tier-0 validity and Solv-0[stock], plus acceptable-route Top-K accuracy where available
 - **Commercial Availability Tracking:** See which leaf nodes are in the ASKCOS Buyables stock (300k commercially available compounds)
 - **Fully Reproducible:** All data standardized via RetroCast with cryptographic manifests
 
@@ -131,65 +131,47 @@ DATABASE_URL="file:./prisma/dev.db"
 
 ---
 
-## Building Your Own Database
+## Production Database Builder
 
-If you want to evaluate your own models or create a custom benchmark, you can generate a database from RetroCast outputs.
+SynthArena's production corpus path is an offline Rust builder. It streams RetroCast targets into prepared SQLite statements with bounded memory, executes the checked-in Prisma baseline SQL, records the applied migration, validates every artifact and database invariant, and promotes a completed database without overwriting an existing path. The TypeScript/Prisma importer remains a correctness and parity reference.
+
+A corpus contains an `inventory.json` with `publication_status: "staging"`, benchmark and stock inputs, and one fused bundle per benchmark/model pair. The builder accepts only the exact RetroCast v0.8.3 release and schema-v2 Tier-0 contract. It requires Rust 1.85 or newer; Node.js is only needed for the reference importer and application.
 
 ### Prerequisites
 
-1. Install RetroCast: `uv tool install retrocast`
-2. Run the RetroCast pipeline to generate predictions (see [RetroCast docs](https://github.com/ischemist/project-procrustes))
-3. Ensure you have the following outputs:
-    - Benchmark definitions: `data/1-benchmarks/definitions/*.json.gz`
-    - Stock definitions: `data/1-benchmarks/stocks/*.txt`
-    - Processed candidates: `data/3-processed/<benchmark>/<model>/candidates.json.gz`
-    - Evaluations: `data/4-scored/<benchmark>/<model>/<stock>/evaluation.json.gz`
-    - Analysis: `data/5-results/<benchmark>/<model>/<stock>/analysis.json.gz`
+1. Produce schema-v2 fused evaluation bundles with RetroCast.
+2. Build an inventory covering the complete benchmark/model matrix.
+3. Choose a new output path; the command refuses to overwrite an existing database.
 
-### Loading Data
-
-The loading process follows this sequence:
-
-#### 1. Load Stocks
+### Build the staging database
 
 ```bash
-pnpm tsx scripts/load-stock.ts \
-  /path/to/retrocast/data/1-benchmarks/stocks/buyables-stock.txt \
-  "ASKCOS Buyables Stock" \
-  "Compounds available from eMolecules, Sigma-Aldrich, LabNetwork, Mcule, and ChemBridge"
+pnpm rebuild:corpus -- \
+  --corpus /path/to/syntharena-corpus \
+  --output /path/to/new/syntharena-staging.db
 ```
 
-#### 2. Load Benchmarks
+The command builds beside `--output`, applies rebuild-only SQLite settings, loads the three stocks, six benchmarks, and 14 model instances, then verifies and imports all 84 bundles one transaction at a time. Candidate and evaluation streams must agree target by target. Tier/Solv metrics, strata, counts, hashes, exact target bindings, foreign keys, provenance, and SQLite integrity are checked before a hard-link no-clobber promotion. The final report includes elapsed time, peak RSS, size, status, and imported-run count.
+
+`--limit N` builds a nonempty inventory prefix for parity work and forces `publicationStatus` to `local-provisional`. A full build remains `staging`. Both outputs are review artifacts: this command does not copy them into `production_data`, publish them, merge them into a release, or deploy SynthArena.
+
+### Run the reference importer
 
 ```bash
-pnpm tsx scripts/load-benchmark.ts \
-  /path/to/retrocast/data/1-benchmarks/definitions/mkt-cnv-160.json.gz \
-  "mkt-cnv-160" \
-  "160 targets with convergent routes, all leaves in buyables" \
-  --stock "ASKCOS Buyables Stock"
+pnpm rebuild:corpus:reference -- \
+  --corpus /path/to/syntharena-corpus \
+  --output /path/to/new/syntharena-reference.db \
+  --allow-provisional
 ```
 
-#### 3. Load Model Predictions
+`--allow-provisional` is required for the official staging corpus and does not
+promote or publish the resulting database. Use
+`pnpm audit:database-parity -- --reference ... --candidate ...` to compare
+semantic table counts, metrics, provenance, and normalized schema metadata. The
+lower-level TypeScript importer remains useful for development and differential
+testing; Rust is the production rebuild path.
 
-```bash
-# Load routes only
-pnpm tsx scripts/load-predictions.ts \
-  mkt-cnv-160 \
-  dms-explorer-xl \
-  --algorithm "DirectMultiStep" \
-  --routes-only
-
-# Load routes + evaluations + statistics
-pnpm tsx scripts/load-predictions.ts \
-  mkt-cnv-160 \
-  dms-explorer-xl \
-  --algorithm "DirectMultiStep" \
-  --stock-path "buyables-stock" \
-  --stock-db "ASKCOS Buyables Stock" \
-  --data-dir /path/to/retrocast/data
-```
-
-For batch loading multiple models, see `scripts/batch-load-predictions.sh`.
+For a single independently prepared bundle, use `scripts/load-predictions.ts --bundle ... --benchmark ... --model ...` after its stock, benchmark, and model rows exist.
 
 ---
 
@@ -230,7 +212,10 @@ scripts/
 ├── load-benchmark.ts            # Load benchmark definitions
 ├── load-predictions.ts          # Load model predictions
 ├── load-stock.ts                # Load stock catalogs
-└── batch-load-predictions.sh   # Batch loading utility
+└── rebuild-corpus.ts            # TypeScript correctness/reference rebuild
+
+tools/
+└── corpus-builder/              # Production offline Rust database builder
 ```
 
 ---
@@ -241,8 +226,8 @@ SynthArena displays data processed through the RetroCast pipeline:
 
 1. **Raw Predictions:** Model outputs in native formats (JSON, YAML, etc.)
 2. **RetroCast Standardization:** `retrocast adapt` translates to canonical schema
-3. **Evaluation:** `retrocast score` calculates metrics against benchmarks
-4. **Database Load:** Standardized routes and scores are loaded into SQLite via scripts
+3. **Evaluation:** `retrocast evaluate` emits one manifest-verified fused bundle with explicit validity tiers and constraints
+4. **Database Load:** The corpus inventory orchestrates a resumable, verified SQLite rebuild
 5. **SynthArena:** Interactive visualization and exploration
 
 For details on generating predictions and scores, see the [RetroCast documentation](https://github.com/ischemist/project-procrustes).

@@ -23,5 +23,5 @@
         "",
         "^[./]"
     ],
-    "ignorePatterns": ["build", "coverage", ".next", "out"]
+    "ignorePatterns": ["build", "coverage", ".next", "out", "tools/corpus-builder/target/**"]
 }

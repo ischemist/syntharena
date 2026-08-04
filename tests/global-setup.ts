@@ -16,13 +16,12 @@ export async function setup() {
         console.log('Removed existing test database')
     }
 
-    // Prisma 7.8.0 fails when db push creates the SQLite file itself.
+    // Exercise the same baseline migration used by a real corpus rebuild. This
+    // preserves SQLite CHECK constraints that `prisma db push` cannot express.
     fs.closeSync(fs.openSync(testDatabasePath, 'w'))
-
-    // Create test database with schema
     try {
         console.log('Setting up test database...')
-        execSync('pnpm exec prisma db push', {
+        execSync('pnpm exec prisma migrate deploy', {
             env: {
                 ...process.env,
                 DATABASE_URL: `file:${testDatabasePath}`,

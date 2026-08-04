@@ -12,12 +12,12 @@ export function ProblemSolutionSection() {
                     <p>
                         <strong className="text-foreground">Inconsistent Stocks:</strong> Starting material definitions
                         vary by over 1000×—from off-the-shelf catalogs of 300k molecules to made-to-order libraries of
-                        230M+ compounds—making reported solvability scores incomparable.
+                        230M+ compounds—so a stock label is part of every Solv-N metric identity.
                     </p>
                     <p>
-                        <strong className="text-foreground">Solvability ≠ Validity:</strong> Routes marked as
-                        &quot;solved&quot; are validated only by endpoint availability, with no guarantee that
-                        intermediate transformations are chemically feasible.
+                        <strong className="text-foreground">Distinct validity predicates:</strong> Syntactic validity,
+                        stock termination, reaction topology, and reaction-level evidence answer different questions.
+                        Collapsing them into one &quot;solved&quot; label overstates what was checked.
                     </p>
                 </div>
             </div>

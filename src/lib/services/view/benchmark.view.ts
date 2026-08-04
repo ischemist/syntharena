@@ -60,8 +60,7 @@ export async function getBenchmarkTargets(
     if (searchQuery?.trim()) {
         const query = searchQuery.trim()
         const conditions: Prisma.BenchmarkTargetWhereInput[] = []
-        if (searchType === 'smiles' || searchType === 'all')
-            conditions.push({ molecule: { smiles: { contains: query } } })
+        if (searchType === 'smiles' || searchType === 'all') conditions.push({ smiles: { contains: query } })
         if (searchType === 'inchikey' || searchType === 'all')
             conditions.push({ molecule: { inchikey: { contains: query } } })
         if (searchType === 'targetId' || searchType === 'all') conditions.push({ targetId: { contains: query } })

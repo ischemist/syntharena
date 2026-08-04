@@ -8,20 +8,20 @@ import { StratifiedMetricsViewToggle } from '../client/stratified-metrics-view-t
 
 type RunStatisticsStratifiedProps = {
     dataPromise: Promise<RunStatistics | null>
-    stockId?: string
+    evaluationId?: string
 }
 
-export async function RunStatisticsStratified({ dataPromise, stockId }: RunStatisticsStratifiedProps) {
-    if (!stockId) return null
+export async function RunStatisticsStratified({ dataPromise, evaluationId }: RunStatisticsStratifiedProps) {
+    if (!evaluationId) return null
 
     const statistics = await dataPromise
     if (!statistics?.statistics) return null
 
     const parsedStats = statistics.statistics
     const hasStratifiedData =
-        Object.keys(parsedStats.solvability.byGroup).length > 0 ||
-        (parsedStats.topKAccuracy &&
-            Object.values(parsedStats.topKAccuracy).some((m) => Object.keys(m.byGroup).length > 0))
+        (parsedStats.tier0Validity && Object.keys(parsedStats.tier0Validity.byStratum).length > 0) ||
+        (parsedStats.solv0 && Object.keys(parsedStats.solv0.byStratum).length > 0) ||
+        Object.values(parsedStats.topKAccuracy).some((metric) => Object.keys(metric.byStratum).length > 0)
 
     if (!hasStratifiedData) {
         return (
@@ -32,10 +32,12 @@ export async function RunStatisticsStratified({ dataPromise, stockId }: RunStati
         )
     }
 
-    const stratifiedMetrics: Array<{ name: string; stratified: StratifiedMetric }> = [
-        { name: 'Solvability', stratified: parsedStats.solvability },
-    ]
-    if (parsedStats.topKAccuracy) {
+    const stratifiedMetrics: Array<{ name: string; stratified: StratifiedMetric }> = []
+    if (parsedStats.tier0Validity)
+        stratifiedMetrics.push({ name: 'Tier-0 valid', stratified: parsedStats.tier0Validity })
+    if (parsedStats.solv0)
+        stratifiedMetrics.push({ name: `Solv-0[${parsedStats.metricLabel}]`, stratified: parsedStats.solv0 })
+    {
         const topKKeys = Object.keys(parsedStats.topKAccuracy).sort(
             (a, b) => parseInt(a.replace(/^\D+/, '')) - parseInt(b.replace(/^\D+/, ''))
         ) // prettier-ignore
@@ -50,8 +52,10 @@ export async function RunStatisticsStratified({ dataPromise, stockId }: RunStati
     return (
         <Card variant="bordered">
             <CardHeader>
-                <CardTitle>Metrics by Route Length</CardTitle>
-                <CardDescription>Performance breakdown by acceptable route length.</CardDescription>
+                <CardTitle>Metrics by Benchmark Stratum</CardTitle>
+                <CardDescription>
+                    Target-level performance using RetroCast&apos;s exact reported strata.
+                </CardDescription>
             </CardHeader>
             <CardContent>
                 <StratifiedMetricsViewToggle metrics={stratifiedMetrics} />
