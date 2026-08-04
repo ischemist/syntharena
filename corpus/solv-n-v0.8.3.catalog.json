@@ -27,7 +27,7 @@
                 "artifact_path": "inputs/stocks/buyables-stock.enrichment.csv.gz",
                 "artifact_sha256": "e2f6ea6ffd4de6274a11de55243912517700fa3214182e07b486eb156363d775",
                 "manifest_path": "inputs/stocks/buyables-stock.enrichment.manifest.json",
-                "manifest_sha256": "acc65d40844b7b9b7b7510c6f2fb2e6e6179826c209a7c44e692fffee6b5ba19"
+                "manifest_sha256": "46af8ee10bcfdbb50dab75de0cf4935405e373cec981883874022df2275d4f81"
             }
         },
         {
