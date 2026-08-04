@@ -18,15 +18,15 @@ jobs:
 
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
             - name: Install Rust 1.85
-              uses: dtolnay/rust-toolchain@1.85.0
+              uses: dtolnay/rust-toolchain@8641a17e25bf5b40c118d48fe0f81e8655731839 # 1.85.0
               with:
                   components: rustfmt, clippy
 
             - name: Cache Cargo artifacts
-              uses: Swatinem/rust-cache@v2
+              uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
               with:
                   workspaces: tools/corpus-builder -> target
 
