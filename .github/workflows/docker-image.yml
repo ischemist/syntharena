@@ -4,6 +4,12 @@ on:
     push:
         branches: [master]
     workflow_dispatch:
+        inputs:
+            export_artifact:
+                description: Export the exact app image as a deployment artifact
+                required: false
+                default: false
+                type: boolean
 
 permissions:
     contents: read
@@ -55,6 +61,7 @@ jobs:
                   max-cache-size-mb: '10240'
 
             - name: Build app image
+              id: app-build
               uses: useblacksmith/build-push-action@v2
               with:
                   context: .
@@ -77,3 +84,30 @@ jobs:
                       org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
                       org.opencontainers.image.revision=${{ github.sha }}
                       org.opencontainers.image.created=${{ steps.image.outputs.created }}
+
+            - name: Export exact app image
+              if: ${{ github.event_name == 'workflow_dispatch' && inputs.export_artifact }}
+              env:
+                  DIGEST: ${{ steps.app-build.outputs.digest }}
+                  IMAGE: ${{ steps.image.outputs.image }}
+              run: |
+                  REF="${IMAGE}@${DIGEST}"
+                  TAG="${IMAGE}:sha-${GITHUB_SHA}"
+                  ARCHIVE="syntharena-${GITHUB_SHA}.tar"
+                  docker pull "${REF}"
+                  docker tag "${REF}" "${TAG}"
+                  docker save --output "${ARCHIVE}" "${TAG}"
+                  sha256sum "${ARCHIVE}" > "${ARCHIVE}.sha256"
+                  printf '%s\n' "${REF}" > "${ARCHIVE}.image-digest"
+
+            - name: Upload exact app image
+              if: ${{ github.event_name == 'workflow_dispatch' && inputs.export_artifact }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: syntharena-deployment-image-${{ github.sha }}
+                  path: |
+                      syntharena-${{ github.sha }}.tar
+                      syntharena-${{ github.sha }}.tar.sha256
+                      syntharena-${{ github.sha }}.tar.image-digest
+                  compression-level: 0
+                  retention-days: 1
