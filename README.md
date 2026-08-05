@@ -163,7 +163,8 @@ pnpm corpus -- add-model \
   --corpus /path/to/corpus --key askcos \
   --algorithm-name ASKCOS --algorithm-slug askcos \
   --family-name ASKCOS --family-slug askcos \
-  --instance-slug askcos-v2-0-0 --version 2.0.0
+  --instance-slug askcos-v2-0-0 --version 2.0.0 \
+  --default-hourly-cost-usd 0.714
 
 pnpm corpus -- trust-policy \
   --corpus /path/to/corpus \
@@ -171,7 +172,8 @@ pnpm corpus -- trust-policy \
 
 pnpm corpus -- add-run \
   --corpus /path/to/corpus --benchmark mkt-lin-500 --model askcos \
-  --bundle /path/to/retrocast-evaluate-output
+  --bundle /path/to/retrocast-evaluate-output \
+  --hourly-cost-usd 0.82
 ```
 
 Stock enrichment is optional and hash-bound to one registered stock. Its gzip CSV must have exactly
@@ -201,6 +203,10 @@ both files without overwriting. The compiler repeats those checks, uses one prep
 inside the stock transaction, and records the enrichment path, SHA-256, and schema version on `Stock`.
 
 `add-run` verifies every manifest output and source hash while producer paths are available. It also requires `producer.json` to match the hash-bound reviewed trust policy across release version, tag, commit, URL, release asset SHA-256, and executable SHA-256. Later builds recheck the self-contained bundle and producer lock without depending on producer-machine paths. Absolute producer-machine paths are redacted from stored `manifestJson`; the SHA-256 of the original manifest remains the provenance identity.
+
+Cost metadata is optional and explicit. `add-model --default-hourly-cost-usd` records the normal execution price for that model instance; `add-run --hourly-cost-usd` overrides it when a particular run used differently priced hardware. Both values are USD per hour and must be finite and non-negative. The compiler stores the effective hourly rate and computes `totalCost` from the verified planner `totalWallTime`; RetroCast evaluation runtime is never charged as planner cost.
+
+The current `$0.1785`, `$0.714`, and `$1.29` defaults were recovered from the public legacy database with SHA-256 `01a693d1b5604256f6d3b6a4bb7b12ccce982d3050293d2512e9b35358bbdde4`. Those rates were internally consistent across all 103 historical run rows and aliases. The structured `cost_provenance` catalog entry records this source, population, and recovered rate set alongside the per-model assignments.
 
 Coverage is explicit by default. After registering a complete matrix, require every benchmark/model combination:
 
@@ -243,7 +249,7 @@ pnpm rebuild:corpus -- \
   --identity-baseline /path/to/current/published.db
 ```
 
-The continuity audit rejects removed or scientifically changed existing stock, benchmark, model-instance, and benchmark/model-instance run identities while allowing new ones. This is the code-enforced continuity boundary; a slug is not globally immutable without a baseline.
+The continuity audit rejects removed or scientifically changed existing stock, benchmark, model-instance, and benchmark/model-instance run identities while allowing new ones. It permits cost fields to be filled when a pre-cost baseline contains `NULL`, but once either `hourlyCost` or `totalCost` is non-null it must remain present and exactly unchanged for that run. This is the code-enforced continuity boundary; a slug is not globally immutable without a baseline.
 
 The builder streams targets into prepared SQLite statements with bounded memory, executes the checked-in Prisma baseline, and verifies candidate/evaluation alignment, Tier/Solv metrics, provenance, aliases, foreign keys, and SQLite integrity before no-clobber promotion. Repeated route-node producer payload is stored once in a content-addressed dictionary, while compact integer occurrences retain topology and molecule identity. `--limit N` is available for local parity work and always marks the result `local-provisional`. No corpus command copies into `production_data`, publishes, merges, or deploys SynthArena.
 

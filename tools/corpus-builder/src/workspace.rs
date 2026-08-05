@@ -60,6 +60,7 @@ pub struct AddModelOptions {
     pub family_slug: String,
     pub instance_slug: String,
     pub version: ModelVersion,
+    pub default_hourly_cost_usd: Option<f64>,
 }
 
 #[derive(Clone, Debug)]
@@ -70,6 +71,7 @@ pub struct AddRunOptions {
     pub bundle: PathBuf,
     pub raw_path: Option<String>,
     pub execution_stats_path: Option<String>,
+    pub hourly_cost_usd: Option<f64>,
 }
 
 pub fn init_workspace(root: &Path) -> Result<()> {
@@ -367,6 +369,7 @@ pub fn add_model(options: AddModelOptions) -> Result<()> {
         family_slug: options.family_slug,
         instance_slug: options.instance_slug,
         version: options.version,
+        default_hourly_cost_usd: options.default_hourly_cost_usd,
     };
     catalog.models.push(model);
     catalog
@@ -378,6 +381,12 @@ pub fn add_model(options: AddModelOptions) -> Result<()> {
 
 pub fn add_run(options: AddRunOptions) -> Result<()> {
     let (catalog, mut inventory) = load_workspace(&options.corpus_root)?;
+    if options
+        .hourly_cost_usd
+        .is_some_and(|value| !value.is_finite() || value < 0.0)
+    {
+        bail!("hourly_cost_usd must be finite and non-negative");
+    }
     let trust_policy = trust::load_workspace_policy(
         &options.corpus_root,
         catalog
@@ -408,6 +417,7 @@ pub fn add_run(options: AddRunOptions) -> Result<()> {
         model: options.model.as_str(),
         raw_override: options.raw_path.as_deref(),
         execution_override: options.execution_stats_path.as_deref(),
+        hourly_cost_usd: options.hourly_cost_usd,
         verify_registration_evidence: true,
         trust_policy: &trust_policy,
     });
@@ -476,6 +486,7 @@ pub fn validate_workspace(root: &Path) -> Result<()> {
                 model: &registered.model,
                 raw_override: Some(&registered.raw_path),
                 execution_override: Some(&registered.execution_stats_path),
+                hourly_cost_usd: registered.hourly_cost_usd,
                 verify_registration_evidence: false,
                 trust_policy: &trust_policy,
             })?;
@@ -580,6 +591,7 @@ struct InspectRunOptions<'a> {
     model: &'a str,
     raw_override: Option<&'a str>,
     execution_override: Option<&'a str>,
+    hourly_cost_usd: Option<f64>,
     verify_registration_evidence: bool,
     trust_policy: &'a trust::ProducerTrustPolicy,
 }
@@ -592,6 +604,7 @@ fn inspect_run(options: InspectRunOptions<'_>) -> Result<InventoryRun> {
         model,
         raw_override,
         execution_override,
+        hourly_cost_usd,
         verify_registration_evidence,
         trust_policy,
     } = options;
@@ -685,6 +698,7 @@ fn inspect_run(options: InspectRunOptions<'_>) -> Result<InventoryRun> {
         raw_sha256,
         execution_stats_path,
         execution_stats_sha256,
+        hourly_cost_usd,
         status: "completed".to_owned(),
         strict_manifest_verified: true,
         manifest_sha256,

@@ -52,6 +52,10 @@ pub struct InventoryRun {
     pub raw_sha256: String,
     pub execution_stats_path: String,
     pub execution_stats_sha256: String,
+    /// Optional price override for this planner execution. When absent, the
+    /// model instance default from the corpus catalog applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hourly_cost_usd: Option<f64>,
     pub status: String,
     pub strict_manifest_verified: bool,
     pub manifest_sha256: String,
@@ -336,6 +340,15 @@ pub fn validate_inventory(
             || run.solv_0_rate_key != format!("solv_0[{}]_rate", run.stock)
         {
             bail!("inventory counts or metric key disagree for {}", run.run_id);
+        }
+        if run
+            .hourly_cost_usd
+            .is_some_and(|value| !value.is_finite() || value < 0.0)
+        {
+            bail!(
+                "inventory hourly_cost_usd for {} must be finite and non-negative",
+                run.run_id
+            );
         }
         for (label, hash) in [
             ("manifest", &run.manifest_sha256),

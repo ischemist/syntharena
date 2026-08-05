@@ -424,6 +424,8 @@ fn complete_cli_workflow_is_retry_safe_and_builds_prisma_readable_sqlite() {
             "model-v1",
             "--version",
             "1.0.0",
+            "--default-hourly-cost-usd",
+            "2.0",
         ])
         .assert()
         .success();
@@ -443,6 +445,8 @@ fn complete_cli_workflow_is_retry_safe_and_builds_prisma_readable_sqlite() {
             "bench",
             "--model",
             "workspace-model",
+            "--hourly-cost-usd",
+            "4.0",
             "--bundle",
         ])
         .arg(&fixture.malformed_bundle)
@@ -457,6 +461,8 @@ fn complete_cli_workflow_is_retry_safe_and_builds_prisma_readable_sqlite() {
             "bench",
             "--model",
             "workspace-model",
+            "--hourly-cost-usd",
+            "4.0",
             "--bundle",
         ])
         .arg(&fixture.bundle)
@@ -530,6 +536,13 @@ fn complete_cli_workflow_is_retry_safe_and_builds_prisma_readable_sqlite() {
             .unwrap(),
         1
     );
+    let cost: (f64, f64) = connection
+        .query_row("SELECT hourlyCost, totalCost FROM PredictionRun", [], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
+        .unwrap();
+    assert_eq!(cost.0, 4.0);
+    assert!((cost.1 - 4.0 * (0.5 / 3600.0)).abs() < f64::EPSILON);
     assert_eq!(
         connection
             .query_row("SELECT ppg FROM StockItem", [], |r| r.get::<_, f64>(0))

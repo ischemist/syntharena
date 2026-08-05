@@ -15,6 +15,8 @@ pub struct CorpusCatalog {
     #[serde(default)]
     pub legacy_url_aliases: Option<LegacyUrlAliasConfig>,
     #[serde(default)]
+    pub cost_provenance: Option<CostProvenanceConfig>,
+    #[serde(default)]
     pub stocks: Vec<StockConfig>,
     #[serde(default)]
     pub benchmarks: Vec<BenchmarkConfig>,
@@ -34,6 +36,15 @@ pub struct LegacyUrlAliasConfig {
 pub struct ProducerTrustConfig {
     pub policy_path: String,
     pub policy_sha256: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CostProvenanceConfig {
+    pub source_database_sha256: String,
+    pub source_description: String,
+    pub historical_run_count: usize,
+    pub recovered_hourly_costs_usd: Vec<f64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -99,6 +110,10 @@ pub struct ModelConfig {
     pub family_slug: String,
     pub instance_slug: String,
     pub version: ModelVersion,
+    /// Default execution price for this model instance. Individual runs may
+    /// override it when they were executed on differently priced hardware.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_hourly_cost_usd: Option<f64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -126,6 +141,7 @@ impl CorpusCatalog {
             },
             producer_trust: None,
             legacy_url_aliases: None,
+            cost_provenance: None,
             stocks: Vec::new(),
             benchmarks: Vec::new(),
             models: Vec::new(),
@@ -196,6 +212,28 @@ pub fn validate_catalog(catalog: &CorpusCatalog) -> Result<()> {
         validate_relative("producer trust policy_path", &trust.policy_path)?;
         validate_sha256("producer trust policy_sha256", &trust.policy_sha256)?;
     }
+    if let Some(costs) = &catalog.cost_provenance {
+        validate_sha256(
+            "cost provenance source_database_sha256",
+            &costs.source_database_sha256,
+        )?;
+        if costs.source_description.trim().is_empty()
+            || costs.historical_run_count == 0
+            || costs.recovered_hourly_costs_usd.is_empty()
+            || costs
+                .recovered_hourly_costs_usd
+                .iter()
+                .any(|value| !value.is_finite() || *value < 0.0)
+        {
+            bail!("cost provenance is incomplete or contains an invalid hourly cost");
+        }
+        let mut recovered = costs.recovered_hourly_costs_usd.clone();
+        recovered.sort_by(f64::total_cmp);
+        recovered.dedup();
+        if recovered.len() != costs.recovered_hourly_costs_usd.len() {
+            bail!("cost provenance recovered_hourly_costs_usd contains duplicates");
+        }
+    }
 
     let mut stock_names = HashSet::new();
     for stock in &catalog.stocks {
@@ -265,6 +303,15 @@ pub fn validate_catalog(catalog: &CorpusCatalog) -> Result<()> {
         }
         if model.version.major < 0 || model.version.minor < 0 || model.version.patch < 0 {
             bail!("model {} has a negative version component", model.key);
+        }
+        if model
+            .default_hourly_cost_usd
+            .is_some_and(|value| !value.is_finite() || value < 0.0)
+        {
+            bail!(
+                "model {} default_hourly_cost_usd must be finite and non-negative",
+                model.key
+            );
         }
         if algorithms
             .insert(model.algorithm_slug.as_str(), model.algorithm_name.as_str())

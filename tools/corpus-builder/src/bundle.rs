@@ -145,10 +145,15 @@ pub fn import_run(
         "prediction-run",
         &format!("{}/{}", entry.benchmark, model.instance_slug),
     );
+    let (hourly_cost, total_cost) = run_cost(
+        entry.hourly_cost_usd,
+        model.default_hourly_cost_usd,
+        analysis.runtime.total_wall_time,
+    );
     let transaction = connection.transaction()?;
     execute_cached(
         &transaction,
-        "INSERT INTO PredictionRun (id, modelInstanceId, benchmarkSetId, retrocastVersion, commandParams, executedAt, submissionType, totalCandidates, totalFailures, totalRoutes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'COMMUNITY_SUBMITTED', 0, 0, 0)",
+        "INSERT INTO PredictionRun (id, modelInstanceId, benchmarkSetId, retrocastVersion, commandParams, executedAt, hourlyCost, totalCost, submissionType, totalCandidates, totalFailures, totalRoutes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'COMMUNITY_SUBMITTED', 0, 0, 0)",
         params![
             prediction_run_id,
             model.id,
@@ -156,6 +161,8 @@ pub fn import_run(
             manifest.retrocast_version,
             serde_json::to_string(&manifest.parameters)?,
             DateTime::parse_from_rfc3339(&manifest.created_at)?.to_rfc3339(),
+            hourly_cost,
+            total_cost,
         ],
     )?;
     let mut sink = BundleSink {
@@ -910,6 +917,18 @@ fn satisfies_task(candidate: &ScoredCandidate) -> bool {
     candidate.constraints.status == "pass"
 }
 
+fn run_cost(
+    hourly_override: Option<f64>,
+    default_hourly_cost: Option<f64>,
+    total_wall_time: Option<f64>,
+) -> (Option<f64>, Option<f64>) {
+    let hourly_cost = hourly_override.or(default_hourly_cost);
+    let total_cost = hourly_cost
+        .zip(total_wall_time)
+        .map(|(rate, seconds)| rate * (seconds / 3600.0));
+    (hourly_cost, total_cost)
+}
+
 fn validate_candidate_ranks(candidates: &[ScoredCandidate]) -> Result<()> {
     for (index, candidate) in candidates.iter().enumerate() {
         if candidate.rank != index + 1 {
@@ -1151,6 +1170,20 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn run_cost_prefers_override_then_model_default() {
+        assert_eq!(
+            run_cost(Some(4.0), Some(2.0), Some(1800.0)),
+            (Some(4.0), Some(2.0))
+        );
+        assert_eq!(
+            run_cost(None, Some(2.0), Some(1800.0)),
+            (Some(2.0), Some(1.0))
+        );
+        assert_eq!(run_cost(None, None, Some(1800.0)), (None, None));
+        assert_eq!(run_cost(None, Some(2.0), None), (Some(2.0), None));
+    }
 
     fn prefix_routes() -> (crate::wire::Route, crate::wire::Route) {
         let reference = serde_json::from_value(json!({

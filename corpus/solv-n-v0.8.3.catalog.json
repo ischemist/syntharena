@@ -17,6 +17,12 @@
         "artifact_path": "aliases/legacy-url-aliases.62c55f80371fa7c22645d652314ea52d01eea3dfc7fe783152ed243d271910e4.json.gz",
         "artifact_sha256": "62c55f80371fa7c22645d652314ea52d01eea3dfc7fe783152ed243d271910e4"
     },
+    "cost_provenance": {
+        "source_database_sha256": "01a693d1b5604256f6d3b6a4bb7b12ccce982d3050293d2512e9b35358bbdde4",
+        "source_description": "Public SynthArena database dump prod-2026-05-05-v0.4.1.db.zst (decompressed)",
+        "historical_run_count": 103,
+        "recovered_hourly_costs_usd": [0.1785, 0.714, 1.29]
+    },
     "stocks": [
         {
             "name": "buyables-stock",
@@ -95,6 +101,7 @@
             "family_name": "AiZynthFinder MCTS",
             "family_slug": "aizynthfinder-mcts",
             "instance_slug": "azf-m-v4-4-0",
+            "default_hourly_cost_usd": 0.1785,
             "version": {
                 "major": 4,
                 "minor": 4,
@@ -109,6 +116,7 @@
             "family_name": "AiZynthFinder MCTS (High)",
             "family_slug": "aizynthfinder-mcts-high",
             "instance_slug": "azf-mh-v4-4-0",
+            "default_hourly_cost_usd": 0.1785,
             "version": {
                 "major": 4,
                 "minor": 4,
@@ -123,6 +131,7 @@
             "family_name": "AiZynthFinder Retro*",
             "family_slug": "aizynthfinder-retro-star",
             "instance_slug": "azf-r-v4-4-0",
+            "default_hourly_cost_usd": 0.1785,
             "version": {
                 "major": 4,
                 "minor": 4,
@@ -137,6 +146,7 @@
             "family_name": "AiZynthFinder Retro* (High)",
             "family_slug": "aizynthfinder-retro-star-high",
             "instance_slug": "azf-rh-v4-4-0",
+            "default_hourly_cost_usd": 0.1785,
             "version": {
                 "major": 4,
                 "minor": 4,
@@ -151,6 +161,7 @@
             "family_name": "ASKCOS",
             "family_slug": "askcos",
             "instance_slug": "askcos-v2-0-0",
+            "default_hourly_cost_usd": 0.714,
             "version": {
                 "major": 2,
                 "minor": 0,
@@ -165,6 +176,7 @@
             "family_name": "DMS Explorer XL",
             "family_slug": "dms-explorer-xl",
             "instance_slug": "explorer-xl-v1-1-3",
+            "default_hourly_cost_usd": 1.29,
             "version": {
                 "major": 1,
                 "minor": 1,
@@ -179,6 +191,7 @@
             "family_name": "Retro*",
             "family_slug": "retro-star",
             "instance_slug": "og-r-v0-1-0",
+            "default_hourly_cost_usd": 0.1785,
             "version": {
                 "major": 0,
                 "minor": 1,
@@ -193,6 +206,7 @@
             "family_name": "Retro* (High)",
             "family_slug": "retro-star-high",
             "instance_slug": "og-rh-v0-1-0",
+            "default_hourly_cost_usd": 0.1785,
             "version": {
                 "major": 0,
                 "minor": 1,
@@ -207,6 +221,7 @@
             "family_name": "SynPlanner MCTS Rollout",
             "family_slug": "synplanner-mcts-rollout",
             "instance_slug": "synp-m-v1-3-2",
+            "default_hourly_cost_usd": 0.1785,
             "version": {
                 "major": 1,
                 "minor": 3,
@@ -221,6 +236,7 @@
             "family_name": "SynPlanner MCTS Val",
             "family_slug": "synplanner-mcts-val",
             "instance_slug": "synp-mv-v1-3-2",
+            "default_hourly_cost_usd": 0.1785,
             "version": {
                 "major": 1,
                 "minor": 3,
@@ -235,6 +251,7 @@
             "family_name": "SynPlanner NMCS",
             "family_slug": "synplanner-nmcs",
             "instance_slug": "synp-nm-v1-3-2",
+            "default_hourly_cost_usd": 0.1785,
             "version": {
                 "major": 1,
                 "minor": 3,
@@ -249,6 +266,7 @@
             "family_name": "SynPlanner MCTS Val",
             "family_slug": "synplanner-mcts-val",
             "instance_slug": "synp-v-v1-2-0",
+            "default_hourly_cost_usd": 0.1785,
             "version": {
                 "major": 1,
                 "minor": 2,
@@ -263,6 +281,7 @@
             "family_name": "SynPlanner MCTS Rollout",
             "family_slug": "synplanner-mcts-rollout",
             "instance_slug": "synp-m-v1-2-0",
+            "default_hourly_cost_usd": 0.1785,
             "version": {
                 "major": 1,
                 "minor": 2,
@@ -277,6 +296,7 @@
             "family_name": "Syntheseus LocalRetro",
             "family_slug": "syntheseus-retro0-local-retro",
             "instance_slug": "synt-lr-v0-7-0",
+            "default_hourly_cost_usd": 0.1785,
             "version": {
                 "major": 0,
                 "minor": 7,

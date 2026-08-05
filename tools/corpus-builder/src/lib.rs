@@ -241,7 +241,8 @@ fn assert_identity_continuity(candidate: &Connection, baseline_path: &Path) -> R
         "prediction run",
         run_identity_rows(&baseline)?,
         run_identity_rows(candidate)?,
-    )
+    )?;
+    compare_run_cost_rows(run_cost_rows(&baseline)?, run_cost_rows(candidate)?)
 }
 
 fn stock_identity_rows(connection: &Connection) -> Result<BTreeMap<String, String>> {
@@ -281,6 +282,48 @@ fn run_identity_rows(connection: &Connection) -> Result<BTreeMap<String, String>
         }
     }
     Ok(output)
+}
+
+type RunCost = (Option<f64>, Option<f64>);
+
+fn run_cost_rows(connection: &Connection) -> Result<BTreeMap<String, RunCost>> {
+    let mut statement = connection.prepare(
+        "SELECT b.slug || '/' || mi.slug, pr.hourlyCost, pr.totalCost FROM PredictionRun pr JOIN BenchmarkSet b ON b.id = pr.benchmarkSetId JOIN ModelInstance mi ON mi.id = pr.modelInstanceId ORDER BY b.slug, mi.slug",
+    )?;
+    let rows = statement.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            (row.get::<_, Option<f64>>(1)?, row.get::<_, Option<f64>>(2)?),
+        ))
+    })?;
+    let mut output = BTreeMap::new();
+    for row in rows {
+        let (key, value) = row?;
+        if output.insert(key.clone(), value).is_some() {
+            bail!("identity database has duplicate prediction-run cost key {key}");
+        }
+    }
+    Ok(output)
+}
+
+fn compare_run_cost_rows(
+    baseline: BTreeMap<String, RunCost>,
+    candidate: BTreeMap<String, RunCost>,
+) -> Result<()> {
+    for (key, (prior_hourly, prior_total)) in baseline {
+        let (current_hourly, current_total) = candidate
+            .get(&key)
+            .with_context(|| format!("identity baseline prediction-run cost disappeared: {key}"))?;
+        for (label, prior, current) in [
+            ("hourlyCost", prior_hourly, *current_hourly),
+            ("totalCost", prior_total, *current_total),
+        ] {
+            if prior.is_some() && current != prior {
+                bail!("identity baseline prediction-run {label} changed or disappeared: {key}");
+            }
+        }
+    }
+    Ok(())
 }
 
 fn collect_identity_rows(
@@ -476,6 +519,38 @@ pub(crate) fn sha256_bytes(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn costs(rows: &[(&str, Option<f64>, Option<f64>)]) -> BTreeMap<String, RunCost> {
+        rows.iter()
+            .map(|(key, hourly, total)| (key.to_string(), (*hourly, *total)))
+            .collect()
+    }
+
+    #[test]
+    fn cost_continuity_allows_filling_pre_cost_baselines() {
+        compare_run_cost_rows(
+            costs(&[("bench/model", None, None)]),
+            costs(&[("bench/model", Some(0.5), Some(1.25))]),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn cost_continuity_rejects_drift_and_removal() {
+        let baseline = costs(&[("bench/model", Some(0.5), Some(1.25))]);
+        assert!(
+            compare_run_cost_rows(
+                baseline.clone(),
+                costs(&[("bench/model", Some(0.6), Some(1.25))])
+            )
+            .is_err()
+        );
+        assert!(
+            compare_run_cost_rows(baseline.clone(), costs(&[("bench/model", Some(0.5), None)]))
+                .is_err()
+        );
+        assert!(compare_run_cost_rows(baseline, BTreeMap::new()).is_err());
+    }
 
     #[test]
     fn baseline_is_the_solv_n_schema() {

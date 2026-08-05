@@ -28,6 +28,7 @@ pub struct CorpusBindings {
 pub struct ModelBinding {
     pub id: String,
     pub instance_slug: String,
+    pub default_hourly_cost_usd: Option<f64>,
 }
 
 pub struct BenchmarkBinding {
@@ -300,6 +301,7 @@ fn load_models(
             ModelBinding {
                 id: instance_id,
                 instance_slug: model.instance_slug.clone(),
+                default_hourly_cost_usd: model.default_hourly_cost_usd,
             },
         );
     }

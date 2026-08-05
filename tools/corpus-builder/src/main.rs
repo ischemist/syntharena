@@ -131,6 +131,9 @@ struct AddModel {
     instance_slug: String,
     #[arg(long)]
     version: String,
+    /// Default USD/hour price for runs of this model instance.
+    #[arg(long)]
+    default_hourly_cost_usd: Option<f64>,
 }
 
 #[derive(Debug, Args)]
@@ -149,6 +152,9 @@ struct AddRun {
     /// Exact manifest source path when execution statistics cannot be inferred.
     #[arg(long)]
     execution_stats_path: Option<String>,
+    /// USD/hour override for this run's execution hardware.
+    #[arg(long)]
+    hourly_cost_usd: Option<f64>,
 }
 
 #[derive(Debug, Args)]
@@ -216,6 +222,7 @@ fn main() -> Result<()> {
             family_slug: args.family_slug,
             instance_slug: args.instance_slug,
             version: parse_version(&args.version)?,
+            default_hourly_cost_usd: args.default_hourly_cost_usd,
         }),
         Command::AddRun(args) => add_run(AddRunOptions {
             corpus_root: args.corpus,
@@ -224,6 +231,7 @@ fn main() -> Result<()> {
             bundle: args.bundle,
             raw_path: args.raw_path,
             execution_stats_path: args.execution_stats_path,
+            hourly_cost_usd: args.hourly_cost_usd,
         }),
         Command::Coverage { corpus, mode } => set_coverage(&corpus, parse_coverage(&mode)?),
         Command::DeriveAliases(args) => derive_legacy_url_aliases(DeriveLegacyUrlAliasesOptions {
