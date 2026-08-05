@@ -1,0 +1,308 @@
+{
+    "schema_version": "1",
+    "publication_status": "staging",
+    "coverage": {
+        "mode": "cross-product"
+    },
+    "evaluation": {
+        "action": "evaluate:v2",
+        "artifact_schema_version": "2",
+        "tiers": [0]
+    },
+    "producer_trust": {
+        "policy_path": "trust/producer-policy.7c1ede82bc905a97b52fcec96bc2c55609ebf6d1edffb693a936dd99ec280b57.json",
+        "policy_sha256": "7c1ede82bc905a97b52fcec96bc2c55609ebf6d1edffb693a936dd99ec280b57"
+    },
+    "legacy_url_aliases": {
+        "artifact_path": "aliases/legacy-url-aliases.62c55f80371fa7c22645d652314ea52d01eea3dfc7fe783152ed243d271910e4.json.gz",
+        "artifact_sha256": "62c55f80371fa7c22645d652314ea52d01eea3dfc7fe783152ed243d271910e4"
+    },
+    "cost_provenance": {
+        "source_database_sha256": "01a693d1b5604256f6d3b6a4bb7b12ccce982d3050293d2512e9b35358bbdde4",
+        "source_description": "Public SynthArena database dump prod-2026-05-05-v0.4.1.db.zst (decompressed)",
+        "historical_run_count": 103,
+        "recovered_hourly_costs_usd": [0.1785, 0.714, 1.29]
+    },
+    "stocks": [
+        {
+            "name": "buyables-stock",
+            "description": "Commercially available compounds curated by the ASKCOS team.",
+            "artifact_path": "inputs/stocks/buyables-stock.csv.gz",
+            "manifest_path": "inputs/stocks/buyables-stock.manifest.json",
+            "enrichment": {
+                "artifact_path": "inputs/stocks/buyables-stock.enrichment.csv.gz",
+                "artifact_sha256": "e2f6ea6ffd4de6274a11de55243912517700fa3214182e07b486eb156363d775",
+                "manifest_path": "inputs/stocks/buyables-stock.enrichment.manifest.json",
+                "manifest_sha256": "46af8ee10bcfdbb50dab75de0cf4935405e373cec981883874022df2275d4f81"
+            }
+        },
+        {
+            "name": "n1-n5-stock",
+            "description": "All leaves represented in the PaRoutes n1 and n5 evaluation sets.",
+            "artifact_path": "inputs/stocks/n1-n5-stock.csv.gz",
+            "manifest_path": "inputs/stocks/n1-n5-stock.manifest.json"
+        },
+        {
+            "name": "n5-stock",
+            "description": "All leaves represented in the PaRoutes n5 evaluation set.",
+            "artifact_path": "inputs/stocks/n5-stock.csv.gz",
+            "manifest_path": "inputs/stocks/n5-stock.manifest.json"
+        }
+    ],
+    "benchmarks": [
+        {
+            "name": "mkt-cnv-160",
+            "stock": "buyables-stock",
+            "series": "MARKET",
+            "artifact_path": "inputs/benchmarks/mkt-cnv-160.json.gz",
+            "manifest_path": "inputs/benchmarks/mkt-cnv-160.manifest.json"
+        },
+        {
+            "name": "mkt-lin-500",
+            "stock": "buyables-stock",
+            "series": "MARKET",
+            "artifact_path": "inputs/benchmarks/mkt-lin-500.json.gz",
+            "manifest_path": "inputs/benchmarks/mkt-lin-500.manifest.json"
+        },
+        {
+            "name": "ref-cnv-400",
+            "stock": "n5-stock",
+            "series": "REFERENCE",
+            "artifact_path": "inputs/benchmarks/ref-cnv-400.json.gz",
+            "manifest_path": "inputs/benchmarks/ref-cnv-400.manifest.json"
+        },
+        {
+            "name": "ref-lin-600",
+            "stock": "n5-stock",
+            "series": "REFERENCE",
+            "artifact_path": "inputs/benchmarks/ref-lin-600.json.gz",
+            "manifest_path": "inputs/benchmarks/ref-lin-600.manifest.json"
+        },
+        {
+            "name": "ref-lng-84",
+            "stock": "n1-n5-stock",
+            "series": "REFERENCE",
+            "artifact_path": "inputs/benchmarks/ref-lng-84.json.gz",
+            "manifest_path": "inputs/benchmarks/ref-lng-84.manifest.json"
+        },
+        {
+            "name": "uspto-190",
+            "stock": "buyables-stock",
+            "series": "LEGACY",
+            "artifact_path": "inputs/benchmarks/uspto-190.json.gz",
+            "manifest_path": "inputs/benchmarks/uspto-190.manifest.json"
+        }
+    ],
+    "models": [
+        {
+            "key": "aizynthfinder-mcts",
+            "algorithm_name": "AiZynthFinder",
+            "algorithm_slug": "aizynthfinder-retro",
+            "family_name": "AiZynthFinder MCTS",
+            "family_slug": "aizynthfinder-mcts",
+            "instance_slug": "azf-m-v4-4-0",
+            "default_hourly_cost_usd": 0.1785,
+            "version": {
+                "major": 4,
+                "minor": 4,
+                "patch": 0,
+                "prerelease": ""
+            }
+        },
+        {
+            "key": "aizynthfinder-mcts-high",
+            "algorithm_name": "AiZynthFinder",
+            "algorithm_slug": "aizynthfinder-retro",
+            "family_name": "AiZynthFinder MCTS (High)",
+            "family_slug": "aizynthfinder-mcts-high",
+            "instance_slug": "azf-mh-v4-4-0",
+            "default_hourly_cost_usd": 0.1785,
+            "version": {
+                "major": 4,
+                "minor": 4,
+                "patch": 0,
+                "prerelease": ""
+            }
+        },
+        {
+            "key": "aizynthfinder-retro-star",
+            "algorithm_name": "AiZynthFinder",
+            "algorithm_slug": "aizynthfinder-retro",
+            "family_name": "AiZynthFinder Retro*",
+            "family_slug": "aizynthfinder-retro-star",
+            "instance_slug": "azf-r-v4-4-0",
+            "default_hourly_cost_usd": 0.1785,
+            "version": {
+                "major": 4,
+                "minor": 4,
+                "patch": 0,
+                "prerelease": ""
+            }
+        },
+        {
+            "key": "aizynthfinder-retro-star-high",
+            "algorithm_name": "AiZynthFinder",
+            "algorithm_slug": "aizynthfinder-retro",
+            "family_name": "AiZynthFinder Retro* (High)",
+            "family_slug": "aizynthfinder-retro-star-high",
+            "instance_slug": "azf-rh-v4-4-0",
+            "default_hourly_cost_usd": 0.1785,
+            "version": {
+                "major": 4,
+                "minor": 4,
+                "patch": 0,
+                "prerelease": ""
+            }
+        },
+        {
+            "key": "askcos",
+            "algorithm_name": "ASKCOS",
+            "algorithm_slug": "askcos",
+            "family_name": "ASKCOS",
+            "family_slug": "askcos",
+            "instance_slug": "askcos-v2-0-0",
+            "default_hourly_cost_usd": 0.714,
+            "version": {
+                "major": 2,
+                "minor": 0,
+                "patch": 0,
+                "prerelease": ""
+            }
+        },
+        {
+            "key": "dms-explorer-XL",
+            "algorithm_name": "DirectMultiStep",
+            "algorithm_slug": "directmultistep",
+            "family_name": "DMS Explorer XL",
+            "family_slug": "dms-explorer-xl",
+            "instance_slug": "explorer-xl-v1-1-3",
+            "default_hourly_cost_usd": 1.29,
+            "version": {
+                "major": 1,
+                "minor": 1,
+                "patch": 3,
+                "prerelease": ""
+            }
+        },
+        {
+            "key": "retro-star",
+            "algorithm_name": "Retro*",
+            "algorithm_slug": "og-retro",
+            "family_name": "Retro*",
+            "family_slug": "retro-star",
+            "instance_slug": "og-r-v0-1-0",
+            "default_hourly_cost_usd": 0.1785,
+            "version": {
+                "major": 0,
+                "minor": 1,
+                "patch": 0,
+                "prerelease": ""
+            }
+        },
+        {
+            "key": "retro-star-high",
+            "algorithm_name": "Retro*",
+            "algorithm_slug": "og-retro",
+            "family_name": "Retro* (High)",
+            "family_slug": "retro-star-high",
+            "instance_slug": "og-rh-v0-1-0",
+            "default_hourly_cost_usd": 0.1785,
+            "version": {
+                "major": 0,
+                "minor": 1,
+                "patch": 0,
+                "prerelease": ""
+            }
+        },
+        {
+            "key": "synplanner-1.3.2-mcts-rollout",
+            "algorithm_name": "SynPlanner",
+            "algorithm_slug": "synplanner",
+            "family_name": "SynPlanner MCTS Rollout",
+            "family_slug": "synplanner-mcts-rollout",
+            "instance_slug": "synp-m-v1-3-2",
+            "default_hourly_cost_usd": 0.1785,
+            "version": {
+                "major": 1,
+                "minor": 3,
+                "patch": 2,
+                "prerelease": ""
+            }
+        },
+        {
+            "key": "synplanner-1.3.2-mcts-val",
+            "algorithm_name": "SynPlanner",
+            "algorithm_slug": "synplanner",
+            "family_name": "SynPlanner MCTS Val",
+            "family_slug": "synplanner-mcts-val",
+            "instance_slug": "synp-mv-v1-3-2",
+            "default_hourly_cost_usd": 0.1785,
+            "version": {
+                "major": 1,
+                "minor": 3,
+                "patch": 2,
+                "prerelease": ""
+            }
+        },
+        {
+            "key": "synplanner-1.3.2-nmcs",
+            "algorithm_name": "SynPlanner",
+            "algorithm_slug": "synplanner",
+            "family_name": "SynPlanner NMCS",
+            "family_slug": "synplanner-nmcs",
+            "instance_slug": "synp-nm-v1-3-2",
+            "default_hourly_cost_usd": 0.1785,
+            "version": {
+                "major": 1,
+                "minor": 3,
+                "patch": 2,
+                "prerelease": ""
+            }
+        },
+        {
+            "key": "synplanner-eval",
+            "algorithm_name": "SynPlanner",
+            "algorithm_slug": "synplanner",
+            "family_name": "SynPlanner MCTS Val",
+            "family_slug": "synplanner-mcts-val",
+            "instance_slug": "synp-v-v1-2-0",
+            "default_hourly_cost_usd": 0.1785,
+            "version": {
+                "major": 1,
+                "minor": 2,
+                "patch": 0,
+                "prerelease": ""
+            }
+        },
+        {
+            "key": "synplanner-mcts",
+            "algorithm_name": "SynPlanner",
+            "algorithm_slug": "synplanner",
+            "family_name": "SynPlanner MCTS Rollout",
+            "family_slug": "synplanner-mcts-rollout",
+            "instance_slug": "synp-m-v1-2-0",
+            "default_hourly_cost_usd": 0.1785,
+            "version": {
+                "major": 1,
+                "minor": 2,
+                "patch": 0,
+                "prerelease": ""
+            }
+        },
+        {
+            "key": "syntheseus-retro0-local-retro",
+            "algorithm_name": "Syntheseus",
+            "algorithm_slug": "syntheseus",
+            "family_name": "Syntheseus LocalRetro",
+            "family_slug": "syntheseus-retro0-local-retro",
+            "instance_slug": "synt-lr-v0-7-0",
+            "default_hourly_cost_usd": 0.1785,
+            "version": {
+                "major": 0,
+                "minor": 7,
+                "patch": 0,
+                "prerelease": ""
+            }
+        }
+    ]
+}

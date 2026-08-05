@@ -8,7 +8,7 @@ import { BenchmarkCombobox } from '../client/benchmark-combobox'
 
 type BenchmarkLeaderboardHeaderProps = {
     benchmark: BenchmarkListItem // receives the full object
-    benchmarks: Array<{ id: string; name: string; series: BenchmarkSeries }> // receives the list for the combobox
+    benchmarks: Array<{ id: string; slug: string; name: string; series: BenchmarkSeries }> // receives the list for the combobox
 }
 
 /**

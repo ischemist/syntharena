@@ -11,13 +11,13 @@ type BenchmarkLeaderboardOverallProps = {
     entries: LeaderboardEntry[]
     benchmarkSeries: LeaderboardEntry['benchmarkSeries']
     hasAcceptableRoutes: boolean
-    stockName: string
+    metricLabel: string
     topKMetricNames: string[] // now receives this directly
 }
 
 /**
  * Server component that displays overall leaderboard metrics in a bordered card.
- * Shows solvability and Top-K accuracy metrics with table/chart toggle.
+ * Shows Tier-0, Solv-0, and Top-K accuracy metrics with table/chart toggle.
  * Top-K selection is managed at page level, view toggle is in CardAction.
  * Following App Router Manifesto:
  * - Server component defines structure and passes data to client components
@@ -27,7 +27,7 @@ export function BenchmarkLeaderboardOverall({
     entries,
     benchmarkSeries,
     hasAcceptableRoutes,
-    stockName,
+    metricLabel,
     topKMetricNames,
 }: BenchmarkLeaderboardOverallProps) {
     return (
@@ -36,8 +36,8 @@ export function BenchmarkLeaderboardOverall({
                 <CardHeader>
                     <CardTitle>Overall Metrics</CardTitle>
                     <CardDescription>
-                        Model performance comparison for {stockName}
-                        {!hasAcceptableRoutes && ' (solvability only)'}
+                        Model performance comparison for Solv-0[{metricLabel}]
+                        {!hasAcceptableRoutes && ' (Tier-0 and Solv-0 only)'}
                     </CardDescription>
                     <CardAction>
                         <MetricsDisplayToggleButtons />

@@ -8,48 +8,8 @@
 import { unstable_cache as cache } from 'next/cache'
 import { Prisma } from '@prisma/client'
 
-import type { BenchmarkSet, BenchmarkStats } from '@/types'
+import type { BenchmarkStats } from '@/types'
 import prisma from '@/lib/db'
-
-// ============================================================================
-// mutations
-// ============================================================================
-
-export async function createBenchmark(
-    name: string,
-    description: string | undefined,
-    stockId: string
-): Promise<BenchmarkSet> {
-    try {
-        return await prisma.benchmarkSet.create({
-            data: { name, description, stockId },
-            include: { stock: true },
-        })
-    } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError) {
-            if (error.code === 'P2002') throw new Error(`benchmark name "${name}" already exists.`)
-            if (error.code === 'P2003') throw new Error(`stock with id "${stockId}" not found.`)
-        }
-        throw error
-    }
-}
-
-export async function deleteBenchmarkAndDeps(benchmarkId: string): Promise<void> {
-    const exists = await prisma.benchmarkSet.findUnique({
-        where: { id: benchmarkId },
-        select: { id: true },
-    })
-    if (!exists) throw new Error('benchmark not found.')
-
-    // note: cascades will handle related PredictionRoute and RouteSolvability
-    await prisma.$transaction([
-        prisma.modelRunStatistics.deleteMany({ where: { benchmarkSetId: benchmarkId } }),
-        prisma.predictionRun.deleteMany({ where: { benchmarkSetId: benchmarkId } }),
-        prisma.acceptableRoute.deleteMany({ where: { target: { benchmarkSetId: benchmarkId } } }),
-        prisma.benchmarkTarget.deleteMany({ where: { benchmarkSetId: benchmarkId } }),
-        prisma.benchmarkSet.delete({ where: { id: benchmarkId } }),
-    ])
-}
 
 // ============================================================================
 // reads (raw data)
@@ -62,6 +22,7 @@ async function _findBenchmarkListItems() {
         select: {
             id: true,
             name: true,
+            slug: true,
             description: true,
             stockId: true,
             hasAcceptableRoutes: true,
@@ -85,6 +46,7 @@ async function _findBenchmarkListItemById(benchmarkId: string) {
         select: {
             id: true,
             name: true,
+            slug: true,
             description: true,
             stockId: true,
             hasAcceptableRoutes: true,

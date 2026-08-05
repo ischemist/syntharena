@@ -37,7 +37,7 @@ export async function BenchmarksOverviewSection() {
                                 <TableRow key={benchmark.id}>
                                     <TableCell>
                                         <Link
-                                            href={`/benchmarks/${benchmark.id}`}
+                                            href={`/benchmarks/${benchmark.slug}`}
                                             className="hover:text-foreground text-muted-foreground font-mono text-xs transition-colors"
                                         >
                                             {benchmark.name}
@@ -78,7 +78,7 @@ export async function BenchmarksOverviewSection() {
                                 <TableRow key={benchmark.id}>
                                     <TableCell>
                                         <Link
-                                            href={`/benchmarks/${benchmark.id}`}
+                                            href={`/benchmarks/${benchmark.slug}`}
                                             className="hover:text-foreground text-muted-foreground font-mono text-xs transition-colors"
                                         >
                                             {benchmark.name}

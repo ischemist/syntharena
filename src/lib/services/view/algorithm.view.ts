@@ -70,7 +70,7 @@ export async function getAlgorithmDetailPageData(slug: string): Promise<Algorith
             description: family.description ?? undefined,
             instances: instancesForFamily.map((i) => ({
                 ...i,
-                versionPrerelease: i.versionPrerelease ?? undefined,
+                versionPrerelease: i.versionPrerelease || undefined,
                 runCount: i._count.runs,
             })),
         }
@@ -89,13 +89,13 @@ function buildHighlightMetrics(rawMetrics: statsData.BestMetricPayload[]): Algor
     const bestByKey = new Map<string, AlgorithmHighlightMetric>()
 
     for (const metric of rawMetrics) {
-        const { statistics, metricName, value, ciLower, ciUpper } = metric
-        const benchmarkId = statistics.benchmarkSetId
+        const { runEvaluation, metricKey: metricName, value, ciLower, ciUpper } = metric
+        const { predictionRun } = runEvaluation
+        const benchmarkId = predictionRun.benchmarkSetId
         const key = `${benchmarkId}:${metricName}`
 
         if (bestByKey.has(key)) continue
 
-        const { predictionRun } = statistics
         const { modelInstance, benchmarkSet } = predictionRun
 
         bestByKey.set(key, {
@@ -103,8 +103,8 @@ function buildHighlightMetrics(rawMetrics: statsData.BestMetricPayload[]): Algor
             benchmarkName: benchmarkSet.name,
             metricName,
             value,
-            ciLower,
-            ciUpper,
+            ciLower: ciLower ?? value,
+            ciUpper: ciUpper ?? value,
             modelInstanceName: modelInstance.family.name,
             modelInstanceSlug: modelInstance.slug,
             version: formatVersion(modelInstance),

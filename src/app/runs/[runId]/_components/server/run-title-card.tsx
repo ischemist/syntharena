@@ -46,7 +46,10 @@ export async function RunTitleCard({ dataPromise }: RunTitleCardProps) {
                             {run.modelFamilyName}
                         </Link>
                         <span className="text-muted-foreground mx-2 font-normal">on</span>
-                        <Link href={`/benchmarks/${run.benchmarkId}`} className="hover:text-primary transition-colors">
+                        <Link
+                            href={`/benchmarks/${run.benchmarkSlug}`}
+                            className="hover:text-primary transition-colors"
+                        >
                             {run.benchmarkName}
                         </Link>
                     </h1>

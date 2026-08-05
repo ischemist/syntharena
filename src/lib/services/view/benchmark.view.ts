@@ -16,6 +16,7 @@ export async function getBenchmarkSets(): Promise<BenchmarkListItem[]> {
     return rawBenchmarks.map((b) => ({
         id: b.id,
         name: b.name,
+        slug: b.slug,
         description: b.description || undefined,
         stockId: b.stockId,
         stock: b.stock,
@@ -32,6 +33,7 @@ export async function getBenchmarkById(benchmarkId: string): Promise<BenchmarkLi
     return {
         id: b.id,
         name: b.name,
+        slug: b.slug,
         description: b.description || undefined,
         stockId: b.stockId,
         stock: b.stock,
@@ -60,8 +62,7 @@ export async function getBenchmarkTargets(
     if (searchQuery?.trim()) {
         const query = searchQuery.trim()
         const conditions: Prisma.BenchmarkTargetWhereInput[] = []
-        if (searchType === 'smiles' || searchType === 'all')
-            conditions.push({ molecule: { smiles: { contains: query } } })
+        if (searchType === 'smiles' || searchType === 'all') conditions.push({ smiles: { contains: query } })
         if (searchType === 'inchikey' || searchType === 'all')
             conditions.push({ molecule: { inchikey: { contains: query } } })
         if (searchType === 'targetId' || searchType === 'all') conditions.push({ targetId: { contains: query } })

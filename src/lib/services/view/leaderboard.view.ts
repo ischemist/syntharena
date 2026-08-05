@@ -7,16 +7,17 @@
 
 import { Prisma } from '@prisma/client'
 
-import type {
-    BenchmarkListItem,
-    LeaderboardEntry,
-    MetricResult,
-    ReliabilityCode,
-    StockListItem,
-    StratifiedMetric,
-} from '@/types'
+import type { BenchmarkListItem, LeaderboardEntry, MetricResult, StratifiedMetric } from '@/types'
 import * as benchmarkData from '@/lib/services/data/benchmark.data'
 import * as statsData from '@/lib/services/data/stats.data'
+import {
+    buildStratifiedMetric,
+    displayMetricName,
+    findSolv0Key,
+    findTier0Key,
+    metricResultFromEstimate,
+    topKFromMetricKey,
+} from '@/lib/retrocast-metrics'
 import { formatVersion } from '@/lib/utils'
 
 // ============================================================================
@@ -26,17 +27,24 @@ import { formatVersion } from '@/lib/utils'
 /** the comprehensive DTO for the entire leaderboard page. */
 export interface LeaderboardPageData {
     leaderboardEntries: LeaderboardEntry[]
-    /** key is stockId, value is a map of modelName to its metrics. */
-    stratifiedMetricsByStock: Map<
+    /** Key is the exact RetroCast metric label, not optional stock provenance. */
+    stratifiedMetricsByLabel: Map<
         string,
-        Map<string, { solvability: StratifiedMetric; topKAccuracy?: Record<string, StratifiedMetric> }>
+        Map<
+            string,
+            {
+                tier0Validity: StratifiedMetric
+                solv0: StratifiedMetric
+                topKAccuracy?: Record<string, StratifiedMetric>
+            }
+        >
     >
-    stocks: StockListItem[] // list of stocks that have metrics for this benchmark
+    metricLabels: Array<{ id: string; label: string; stockName?: string }>
     metadata: {
         hasAcceptableRoutes: boolean
         availableTopKMetrics: string[]
     }
-    allBenchmarks: Array<{ id: string; name: string; series: BenchmarkListItem['series'] }>
+    allBenchmarks: Array<{ id: string; slug: string; name: string; series: BenchmarkListItem['series'] }>
     selectedBenchmark: BenchmarkListItem
     firstTargetId: string | null
 }
@@ -49,27 +57,28 @@ export type RawStatsPayload = Prisma.PromiseReturnType<typeof statsData.findStat
 
 /**
  * filters a list of raw statistics to only include the "champion instance" for each model family.
- * a champion is defined as the instance with the highest top-10 accuracy, falling back to solvability.
+ * a champion is defined as the instance with the highest top-10 accuracy, falling back to exact-label Solv-0.
  * this is a pure function: array in, array out.
  */
 export function _curateChampionStats(rawStats: RawStatsPayload): RawStatsPayload {
-    const statsByFamilyId = new Map<string, RawStatsPayload>()
+    const statsByFamilyAndLabel = new Map<string, RawStatsPayload>()
     for (const stat of rawStats) {
         const familyId = stat.predictionRun.modelInstance.family.id
-        if (!statsByFamilyId.has(familyId)) {
-            statsByFamilyId.set(familyId, [])
+        const groupKey = `${familyId}\u0000${stat.metricLabel}`
+        if (!statsByFamilyAndLabel.has(groupKey)) {
+            statsByFamilyAndLabel.set(groupKey, [])
         }
-        statsByFamilyId.get(familyId)!.push(stat)
+        statsByFamilyAndLabel.get(groupKey)!.push(stat)
     }
 
     const championStats: RawStatsPayload = []
-    for (const [, familyStats] of statsByFamilyId) {
+    for (const [, familyStats] of statsByFamilyAndLabel) {
         const familyStatsWithMetrics = familyStats.map((stat) => ({
             stat,
             metricsByName: new Map(
                 stat.metrics.reduce<Array<readonly [string, number]>>((pairs, metric) => {
-                    if (metric.groupKey === null) {
-                        pairs.push([metric.metricName, metric.value] as const)
+                    if (metric.stratum === '') {
+                        pairs.push([metric.metricKey, metric.value] as const)
                     }
                     return pairs
                 }, [])
@@ -81,18 +90,19 @@ export function _curateChampionStats(rawStats: RawStatsPayload): RawStatsPayload
             const getMetric = (entry: (typeof familyStatsWithMetrics)[0], metricName: string) =>
                 entry.metricsByName.get(metricName) ?? -1
 
-            const bestTop10 = getMetric(best, 'Top-10')
-            const currentTop10 = getMetric(current, 'Top-10')
+            const bestTop10Key = [...best.metricsByName.keys()].find((key) => topKFromMetricKey(key) === 10)
+            const currentTop10Key = [...current.metricsByName.keys()].find((key) => topKFromMetricKey(key) === 10)
+            const bestTop10 = bestTop10Key ? getMetric(best, bestTop10Key) : -1
+            const currentTop10 = currentTop10Key ? getMetric(current, currentTop10Key) : -1
 
             // if top-10 exists, it's the primary sorting key
             if (bestTop10 !== -1 || currentTop10 !== -1) {
                 return currentTop10 > bestTop10 ? current : best
             }
 
-            // otherwise, fall back to solvability
-            const bestSolvability = getMetric(best, 'Solvability')
-            const currentSolvability = getMetric(current, 'Solvability')
-            return currentSolvability > bestSolvability ? current : best
+            const bestSolv0 = getMetric(best, `solv_0[${best.stat.metricLabel}]_rate`)
+            const currentSolv0 = getMetric(current, `solv_0[${current.stat.metricLabel}]_rate`)
+            return currentSolv0 > bestSolv0 ? current : best
         })
         championStats.push(champion.stat)
     }
@@ -109,57 +119,32 @@ export function _transformStatsToLeaderboardDTOs(
     availableTopKMetrics: string[]
 ) {
     const leaderboardEntries: LeaderboardEntry[] = []
-    const stratifiedMetricsByStock = new Map<
+    const stratifiedMetricsByLabel = new Map<
         string,
-        Map<string, { solvability: StratifiedMetric; topKAccuracy?: Record<string, StratifiedMetric> }>
-    >()
-    const stocksMap = new Map<string, StockListItem>()
-
-    // helper to transform a raw metric record into a MetricResult DTO
-    const toMetricResult = (
-        metric?: {
-            value: number
-            ciLower: number
-            ciUpper: number
-            nSamples: number
-            reliabilityCode: string
-            reliabilityMessage: string
-        } | null
-    ): MetricResult => {
-        if (!metric) {
-            return {
-                value: 0,
-                ciLower: 0,
-                ciUpper: 0,
-                nSamples: 0,
-                reliability: { code: 'LOW_N', message: 'No data' },
+        Map<
+            string,
+            {
+                tier0Validity: StratifiedMetric
+                solv0: StratifiedMetric
+                topKAccuracy?: Record<string, StratifiedMetric>
             }
-        }
-        return {
-            value: metric.value,
-            ciLower: metric.ciLower,
-            ciUpper: metric.ciUpper,
-            nSamples: metric.nSamples,
-            reliability: {
-                code: metric.reliabilityCode as ReliabilityCode,
-                message: metric.reliabilityMessage,
-            },
-        }
-    }
+        >
+    >()
+    const metricLabels = new Map<string, { id: string; label: string; stockName?: string }>()
 
     for (const stat of statsToProcess) {
         const { stock, predictionRun, metrics } = stat
         const metricsByName = new Map<string, typeof metrics>()
         const overallMetricsByName = new Map<string, (typeof metrics)[number]>()
         for (const metric of metrics) {
-            const existing = metricsByName.get(metric.metricName)
+            const existing = metricsByName.get(metric.metricKey)
             if (existing) {
                 existing.push(metric)
             } else {
-                metricsByName.set(metric.metricName, [metric])
+                metricsByName.set(metric.metricKey, [metric])
             }
-            if (metric.groupKey === null) {
-                overallMetricsByName.set(metric.metricName, metric)
+            if (metric.stratum === '') {
+                overallMetricsByName.set(metric.metricKey, metric)
             }
         }
         const { modelInstance } = predictionRun
@@ -168,20 +153,25 @@ export function _transformStatsToLeaderboardDTOs(
         const algorithmSlug = modelInstance.family.algorithm.slug
 
         // -- 1. build leaderboard entry (flat list) --
-        const solvabilityMetric = overallMetricsByName.get('Solvability')
+        const tier0Key = findTier0Key(metrics)
+        const solv0Key = findSolv0Key(metrics, stat.metricLabel)
+        if (!tier0Key || !solv0Key) throw new Error(`Run evaluation ${stat.id} is missing Tier-0 or Solv-0`)
+        const tier0Metric = overallMetricsByName.get(tier0Key)!
+        const solv0Metric = overallMetricsByName.get(solv0Key)!
         const topKMetrics = hasAcceptableRoutes
             ? Array.from(metricsByName.entries()).flatMap(([metricName, groupedMetrics]) =>
-                  metricName.startsWith('Top-') ? groupedMetrics.filter((metric) => metric.groupKey === null) : []
+                  topKFromMetricKey(metricName) !== null ? groupedMetrics.filter((metric) => metric.stratum === '') : []
               )
             : []
 
         const topKAccuracy: Record<string, MetricResult> = {}
         for (const metric of topKMetrics) {
-            topKAccuracy[metric.metricName] = toMetricResult(metric)
+            topKAccuracy[displayMetricName(metric.metricKey)] = metricResultFromEstimate(metric)
         }
 
         leaderboardEntries.push({
             runId: stat.predictionRun.id,
+            evaluationId: stat.id,
             benchmarkId: stat.predictionRun.benchmarkSetId,
             hasAcceptableRoutes: predictionRun.benchmarkSet.hasAcceptableRoutes,
             algorithmName,
@@ -192,69 +182,62 @@ export function _transformStatsToLeaderboardDTOs(
             modelInstanceSlug: modelInstance.slug,
             benchmarkName: predictionRun.benchmarkSet.name,
             benchmarkSeries: predictionRun.benchmarkSet.series,
-            stockName: stock.name,
+            stockName: stock?.name ?? stat.metricLabel,
             submissionType: predictionRun.submissionType,
             isRetrained: predictionRun.isRetrained,
             metrics: {
-                solvability: toMetricResult(solvabilityMetric),
+                tier0Validity: metricResultFromEstimate(tier0Metric),
+                solv0: metricResultFromEstimate(solv0Metric),
+                solv0Label: stat.metricLabel,
                 ...(Object.keys(topKAccuracy).length > 0 && { topKAccuracy }),
             },
-            totalWallTime: stat.totalWallTime,
+            totalWallTime: predictionRun.totalWallTime,
             totalCost: predictionRun.totalCost,
         })
 
         // -- 2. build stratified metrics (nested map) --
-        if (!stratifiedMetricsByStock.has(stock.id)) {
-            stratifiedMetricsByStock.set(stock.id, new Map())
+        if (!stratifiedMetricsByLabel.has(stat.metricLabel)) {
+            stratifiedMetricsByLabel.set(stat.metricLabel, new Map())
         }
-        const modelMap = stratifiedMetricsByStock.get(stock.id)!
+        const modelMap = stratifiedMetricsByLabel.get(stat.metricLabel)!
 
-        const buildStratifiedMetric = (name: string): StratifiedMetric | null => {
-            const metricsForName = metricsByName.get(name) ?? []
-            if (metricsForName.length === 0) return null
-            let overall: (typeof metricsForName)[number] | undefined
-            const byGroup: Record<number, MetricResult> = {}
-            for (const metric of metricsForName) {
-                if (metric.groupKey === null) {
-                    overall = metric
-                } else {
-                    byGroup[metric.groupKey] = toMetricResult(metric)
-                }
-            }
-            if (!overall) return null
-            return { metricName: name, overall: toMetricResult(overall), byGroup }
-        }
-
-        const solvability = buildStratifiedMetric('Solvability')
-        if (!solvability) continue
+        const tier0Validity = buildStratifiedMetric(tier0Key, metrics)
+        const solv0 = buildStratifiedMetric(solv0Key, metrics)
+        if (!tier0Validity || !solv0) continue
 
         let stratifiedTopK: Record<string, StratifiedMetric> | undefined
         if (hasAcceptableRoutes) {
             const acc: Record<string, StratifiedMetric> = {}
             availableTopKMetrics.forEach((name) => {
-                const metric = buildStratifiedMetric(name)
+                const key = [...metricsByName.keys()].find(
+                    (metricKey) => displayMetricName(metricKey) === name && topKFromMetricKey(metricKey) !== null
+                )
+                const metric = key ? buildStratifiedMetric(key, metrics) : null
                 if (metric) acc[name] = metric
             })
             if (Object.keys(acc).length > 0) stratifiedTopK = acc
         }
 
-        modelMap.set(modelFamilyName, { solvability, ...(stratifiedTopK && { topKAccuracy: stratifiedTopK }) })
+        modelMap.set(modelFamilyName, {
+            tier0Validity,
+            solv0,
+            ...(stratifiedTopK && { topKAccuracy: stratifiedTopK }),
+        })
 
-        // -- 3. collect unique stocks --
-        if (!stocksMap.has(stock.id)) {
-            stocksMap.set(stock.id, {
-                id: stock.id,
-                name: stock.name,
-                description: stock.description ?? undefined,
-                itemCount: -1, // not needed on this page, but satisfies type
+        // -- 3. collect exact Solv labels with optional stock provenance --
+        if (!metricLabels.has(stat.metricLabel)) {
+            metricLabels.set(stat.metricLabel, {
+                id: stat.metricLabel,
+                label: stat.metricLabel,
+                ...(stock && { stockName: stock.name }),
             })
         }
     }
 
     return {
         leaderboardEntries,
-        stratifiedMetricsByStock,
-        stocks: Array.from(stocksMap.values()),
+        stratifiedMetricsByLabel,
+        metricLabels: Array.from(metricLabels.values()),
     }
 }
 
@@ -274,10 +257,12 @@ export async function getLeaderboardPageData(
     const allBenchmarksRaw = await benchmarkData.findBenchmarkListItems()
     if (allBenchmarksRaw.length === 0) return null
 
-    const allBenchmarks = allBenchmarksRaw.map((b) => ({ id: b.id, name: b.name, series: b.series }))
+    const allBenchmarks = allBenchmarksRaw.map((b) => ({ id: b.id, slug: b.slug, name: b.name, series: b.series }))
 
-    const effectiveBenchmarkId =
-        benchmarkId && allBenchmarks.some((b) => b.id === benchmarkId) ? benchmarkId : allBenchmarks[0].id
+    const selectedBenchmarkOption = benchmarkId
+        ? allBenchmarks.find((benchmark) => benchmark.id === benchmarkId || benchmark.slug === benchmarkId)
+        : undefined
+    const effectiveBenchmarkId = selectedBenchmarkOption?.id ?? allBenchmarks[0].id
 
     // wave 2: fetch all data for the effective benchmark in parallel.
     const [rawStats, selectedBenchmarkRaw, firstTargetId] = await Promise.all([
@@ -292,6 +277,7 @@ export async function getLeaderboardPageData(
     const selectedBenchmark: BenchmarkListItem = {
         id: selectedBenchmarkRaw.id,
         name: selectedBenchmarkRaw.name,
+        slug: selectedBenchmarkRaw.slug,
         description: selectedBenchmarkRaw.description || undefined,
         stockId: selectedBenchmarkRaw.stockId,
         stock: selectedBenchmarkRaw.stock,
@@ -304,8 +290,8 @@ export async function getLeaderboardPageData(
     if (rawStats.length === 0) {
         return {
             leaderboardEntries: [],
-            stratifiedMetricsByStock: new Map(),
-            stocks: [],
+            stratifiedMetricsByLabel: new Map(),
+            metricLabels: [],
             metadata: {
                 hasAcceptableRoutes: selectedBenchmark.hasAcceptableRoutes,
                 availableTopKMetrics: [],
@@ -321,8 +307,8 @@ export async function getLeaderboardPageData(
     if (selectedBenchmark.hasAcceptableRoutes) {
         rawStats.forEach((stat) => {
             stat.metrics.forEach((metric) => {
-                if (metric.metricName.startsWith('Top-')) {
-                    topKMetricNames.add(metric.metricName)
+                if (metric.stratum === '' && topKFromMetricKey(metric.metricKey) !== null) {
+                    topKMetricNames.add(displayMetricName(metric.metricKey))
                 }
             })
         })
@@ -337,7 +323,7 @@ export async function getLeaderboardPageData(
     const statsToProcess = devMode ? rawStats : _curateChampionStats(rawStats)
 
     // step 2: transform the processed stats into final DTOs
-    const { leaderboardEntries, stratifiedMetricsByStock, stocks } = _transformStatsToLeaderboardDTOs(
+    const { leaderboardEntries, stratifiedMetricsByLabel, metricLabels } = _transformStatsToLeaderboardDTOs(
         statsToProcess,
         selectedBenchmark.hasAcceptableRoutes,
         sortedTopKNames
@@ -346,8 +332,8 @@ export async function getLeaderboardPageData(
     // step 3: assemble final page-level DTO
     return {
         leaderboardEntries,
-        stratifiedMetricsByStock,
-        stocks,
+        stratifiedMetricsByLabel,
+        metricLabels,
         metadata: {
             hasAcceptableRoutes: selectedBenchmark.hasAcceptableRoutes,
             availableTopKMetrics: sortedTopKNames,

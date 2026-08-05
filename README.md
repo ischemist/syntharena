@@ -24,8 +24,8 @@ The platform ingests standardized predictions from [RetroCast](https://github.co
 Evaluating retrosynthesis models is fragmented and unreliable:
 
 - **The Babel of Formats:** AiZynthFinder outputs bipartite graphs; Retro\* outputs precursor maps; DirectMultiStep outputs recursive dictionaries. Comparing them requires bespoke parsers for every model.
-- **Inconsistent Stocks:** Starting material definitions vary by over 1000×—making reported solvability scores incomparable across publications.
-- **Solvability ≠ Validity:** Routes marked as "solved" are validated only by endpoint availability, with no guarantee that intermediate transformations are chemically feasible.
+- **Inconsistent Stocks:** Starting material definitions vary by over 1000×, so stock-constrained results are meaningless without an exact stock identity.
+- **Collapsed Validity Claims:** Structural integrity, stock termination, and reaction feasibility are distinct predicates. A single "solved" label hides which evidence was actually established.
 
 ---
 
@@ -43,7 +43,7 @@ Evaluating retrosynthesis models is fragmented and unreliable:
 
 - **Interactive Route Visualization:** Explore predicted synthetic routes with molecule structures rendered using SMILES
 - **Side-by-Side Comparison:** Compare predictions from any two models or inspect predicted vs. ground-truth routes with diff overlays
-- **Living Leaderboard:** Browse stratified performance metrics (Stock-Termination Rate, Top-K Accuracy) with bootstrapped 95% confidence intervals
+- **Living Leaderboard:** Compare target-level Tier-0 validity and Solv-0[stock], plus acceptable-route Top-K accuracy where available
 - **Commercial Availability Tracking:** See which leaf nodes are in the ASKCOS Buyables stock (300k commercially available compounds)
 - **Fully Reproducible:** All data standardized via RetroCast with cryptographic manifests
 
@@ -131,65 +131,131 @@ DATABASE_URL="file:./prisma/dev.db"
 
 ---
 
-## Building Your Own Database
+## Rust Corpus Workflow
 
-If you want to evaluate your own models or create a custom benchmark, you can generate a database from RetroCast outputs.
+SynthArena has one ingestion path: the offline Rust corpus tool. It manages a self-contained workspace and compiles that workspace into a new SQLite database. It never incrementally mutates an existing database and never overwrites its output.
 
-### Prerequisites
+The authored `catalog.json` defines stocks, benchmarks, model versions, coverage, and an optional hash-bound legacy URL alias artifact. The generated `inventory.json` locks verified run evidence. Artifacts live under `inputs/`, `bundles/`, and `aliases/`; registration copies them into those confined paths atomically. The current capability gate intentionally accepts only RetroCast v0.8.3 schema-v2 Tier-0 bundles.
 
-1. Install RetroCast: `uv tool install retrocast`
-2. Run the RetroCast pipeline to generate predictions (see [RetroCast docs](https://github.com/ischemist/project-procrustes))
-3. Ensure you have the following outputs:
-    - Benchmark definitions: `data/1-benchmarks/definitions/*.json.gz`
-    - Stock definitions: `data/1-benchmarks/stocks/*.txt`
-    - Processed candidates: `data/3-processed/<benchmark>/<model>/candidates.json.gz`
-    - Evaluations: `data/4-scored/<benchmark>/<model>/<stock>/evaluation.json.gz`
-    - Analysis: `data/5-results/<benchmark>/<model>/<stock>/analysis.json.gz`
+Each benchmark's database ID is the full lowercase SHA-256 of its registered gzip artifact. Its unique human name is also its public slug, so the readable URL remains `/benchmarks/mkt-lin-500`; database-backed aliases resolve historical IDs and content-addressed ID URLs to that slug. Reusing a slug for different benchmark bytes is rejected by identity continuity. Scientifically changed benchmark content must use a new versioned slug.
 
-### Loading Data
-
-The loading process follows this sequence:
-
-#### 1. Load Stocks
+Create a workspace and register data:
 
 ```bash
-pnpm tsx scripts/load-stock.ts \
-  /path/to/retrocast/data/1-benchmarks/stocks/buyables-stock.txt \
-  "ASKCOS Buyables Stock" \
-  "Compounds available from eMolecules, Sigma-Aldrich, LabNetwork, Mcule, and ChemBridge"
+pnpm corpus -- init --corpus /path/to/corpus
+
+pnpm corpus -- add-stock \
+  --corpus /path/to/corpus --name buyables-stock \
+  --artifact /path/to/buyables-stock.csv.gz \
+  --manifest /path/to/buyables-stock.manifest.json
+
+pnpm corpus -- add-stock-enrichment \
+  --corpus /path/to/corpus --stock buyables-stock \
+  --artifact /path/to/buyables-stock.enrichment.csv.gz \
+  --manifest /path/to/buyables-stock.enrichment.manifest.json
+
+pnpm corpus -- add-benchmark \
+  --corpus /path/to/corpus --stock buyables-stock --series market \
+  --artifact /path/to/mkt-lin-500.json.gz \
+  --manifest /path/to/mkt-lin-500.manifest.json
+
+pnpm corpus -- add-model \
+  --corpus /path/to/corpus --key askcos \
+  --algorithm-name ASKCOS --algorithm-slug askcos \
+  --family-name ASKCOS --family-slug askcos \
+  --instance-slug askcos-v2-0-0 --version 2.0.0 \
+  --default-hourly-cost-usd 0.714
+
+pnpm corpus -- trust-policy \
+  --corpus /path/to/corpus \
+  --policy corpus/retrocast-v0.8.3.trust-policy.json
+
+pnpm corpus -- add-run \
+  --corpus /path/to/corpus --benchmark mkt-lin-500 --model askcos \
+  --bundle /path/to/retrocast-evaluate-output \
+  --hourly-cost-usd 0.82
 ```
 
-#### 2. Load Benchmarks
+Stock enrichment is optional and hash-bound to one registered stock. Its gzip CSV must have exactly
+`InChIKey,ppg,source,lead_time,link`, with one row per stock member in strictly ascending InChIKey
+order. `ppg` may be empty or a finite non-negative number; `source` may be empty or one of
+`MC`, `LN`, `EM`, `SA`, and `CB`; non-empty links must use HTTP(S). The schema-v1 JSON manifest is:
+
+```json
+{
+  "schema_version": 1,
+  "action": "export-stock-enrichment",
+  "stock_name": "buyables-stock",
+  "source": {
+    "database_sha256": "<64 lowercase hex characters>",
+    "description": "How the enrichment source was produced"
+  },
+  "artifact": {
+    "path": "buyables-stock.enrichment.csv.gz",
+    "sha256": "<64 lowercase hex characters>",
+    "rows": 313458
+  }
+}
+```
+
+Registration streams and validates the complete artifact, proves exact stock membership, and copies
+both files without overwriting. The compiler repeats those checks, uses one prepared update statement
+inside the stock transaction, and records the enrichment path, SHA-256, and schema version on `Stock`.
+
+`add-run` verifies every manifest output and source hash while producer paths are available. It also requires `producer.json` to match the hash-bound reviewed trust policy across release version, tag, commit, URL, release asset SHA-256, and executable SHA-256. Later builds recheck the self-contained bundle and producer lock without depending on producer-machine paths. Absolute producer-machine paths are redacted from stored `manifestJson`; the SHA-256 of the original manifest remains the provenance identity.
+
+Cost metadata is optional and explicit. `add-model --default-hourly-cost-usd` records the normal execution price for that model instance; `add-run --hourly-cost-usd` overrides it when a particular run used differently priced hardware. Both values are USD per hour and must be finite and non-negative. The compiler stores the effective hourly rate and computes `totalCost` from the verified planner `totalWallTime`; RetroCast evaluation runtime is never charged as planner cost.
+
+The current `$0.1785`, `$0.714`, and `$1.29` defaults were recovered from the public legacy database with SHA-256 `01a693d1b5604256f6d3b6a4bb7b12ccce982d3050293d2512e9b35358bbdde4`. Those rates were internally consistent across all 103 historical run rows and aliases. The structured `cost_provenance` catalog entry records this source, population, and recovered rate set alongside the per-model assignments.
+
+Coverage is explicit by default. After registering a complete matrix, require every benchmark/model combination:
 
 ```bash
-pnpm tsx scripts/load-benchmark.ts \
-  /path/to/retrocast/data/1-benchmarks/definitions/mkt-cnv-160.json.gz \
-  "mkt-cnv-160" \
-  "160 targets with convergent routes, all leaves in buyables" \
-  --stock "ASKCOS Buyables Stock"
+pnpm corpus -- coverage --corpus /path/to/corpus --mode cross-product
 ```
 
-#### 3. Load Model Predictions
+Historical opaque IDs cannot be inferred from their URL shape. Derive their semantic destinations by joining the published legacy database to a canonical staging database. The small checked-in rules file records the exceptional benchmark and model-instance renames; the Rust tool owns the full join and writes deterministic gzip without overwriting an existing artifact:
 
 ```bash
-# Load routes only
-pnpm tsx scripts/load-predictions.ts \
-  mkt-cnv-160 \
-  dms-explorer-xl \
-  --algorithm "DirectMultiStep" \
-  --routes-only
+pnpm corpus -- derive-aliases \
+  --legacy-database /path/to/published-legacy.db \
+  --canonical-database /path/to/canonical-staging.db \
+  --rules corpus/legacy-url-alias-rules.v1.json \
+  --output /path/to/legacy-url-aliases.v1.json.gz \
+  --source-description "Published SynthArena database dump <artifact> (decompressed)"
 
-# Load routes + evaluations + statistics
-pnpm tsx scripts/load-predictions.ts \
-  mkt-cnv-160 \
-  dms-explorer-xl \
-  --algorithm "DirectMultiStep" \
-  --stock-path "buyables-stock" \
-  --stock-db "ASKCOS Buyables Stock" \
-  --data-dir /path/to/retrocast/data
+pnpm corpus -- aliases --corpus /path/to/corpus \
+  --artifact /path/to/legacy-url-aliases.v1.json.gz
+
+pnpm corpus -- validate --corpus /path/to/corpus
 ```
 
-For batch loading multiple models, see `scripts/batch-load-predictions.sh`.
+The generated manifest records SHA-256 identities for the legacy database, canonical database, and rules file alongside the source description. Registration validates that provenance and the complete decompressed manifest against the corpus, copies it to a SHA-addressed `aliases/legacy-url-aliases.<sha256>.json.gz` path, and binds that compressed-artifact hash in `catalog.json`. Full generated alias artifacts stay outside Git; only the compact derivation rules and Rust test fixtures are checked in.
+
+Compile a staging database:
+
+```bash
+pnpm rebuild:corpus -- \
+  --corpus /path/to/corpus \
+  --output /path/to/new/syntharena-staging.db
+```
+
+The first database is a bootstrap and may omit an identity baseline. Every later reviewed corpus build should protect existing public identities and scientific bindings:
+
+```bash
+pnpm rebuild:corpus -- \
+  --corpus /path/to/corpus \
+  --output /path/to/new/syntharena-staging.db \
+  --identity-baseline /path/to/current/published.db
+```
+
+The continuity audit rejects removed or scientifically changed existing stock, benchmark, model-instance, and benchmark/model-instance run identities while allowing new ones. It permits cost fields to be filled when a pre-cost baseline contains `NULL`, but once either `hourlyCost` or `totalCost` is non-null it must remain present and exactly unchanged for that run. This is the code-enforced continuity boundary; a slug is not globally immutable without a baseline.
+
+The builder streams targets into prepared SQLite statements with bounded memory, executes the checked-in Prisma baseline, and verifies candidate/evaluation alignment, Tier/Solv metrics, provenance, aliases, foreign keys, and SQLite integrity before no-clobber promotion. Repeated route-node producer payload is stored once in a content-addressed dictionary, while compact integer occurrences retain topology and molecule identity. `--limit N` is available for local parity work and always marks the result `local-provisional`. No corpus command copies into `production_data`, publishes, merges, or deploys SynthArena.
+
+The compiler carries a small local deserialization projection of the pinned RetroCast v0.8.3 wire format; it does not link `retrocast-core`. The v0.8.3 core is not published as a standalone crate and its Git package includes the complete execution engine, a CXX build script, chemistry code, HTTP clients, randomization, and parallel execution. Pulling that surface into a streaming SQLite compiler would make the offline loader materially heavier without removing the need for corpus-specific validation. A checked-in v0.8.3 golden wire fixture, the exact producer trust lock, and full-bundle validation define the compatibility boundary. Supporting another RetroCast artifact schema requires a new explicit capability gate and fixture; if multiple consumers need to evolve these types together, the right follow-up is a lean, published schema crate extracted from Procrustes rather than a dependency on the execution core.
+
+The compiler rejects a second run for the same benchmark/model version. One result must be designated canonical until the schema gains a submission or replicate identity. Only a genuinely changed model or planner configuration should receive a new model instance/version.
 
 ---
 
@@ -227,10 +293,11 @@ prisma/
 └── migrations/                  # Database migrations
 
 scripts/
-├── load-benchmark.ts            # Load benchmark definitions
-├── load-predictions.ts          # Load model predictions
-├── load-stock.ts                # Load stock catalogs
-└── batch-load-predictions.sh   # Batch loading utility
+├── audit-database-parity.ts     # Compare generated databases
+└── export-*.ts                  # Export publication tables
+
+tools/
+└── corpus-builder/              # Rust workspace manager and database compiler
 ```
 
 ---
@@ -241,8 +308,8 @@ SynthArena displays data processed through the RetroCast pipeline:
 
 1. **Raw Predictions:** Model outputs in native formats (JSON, YAML, etc.)
 2. **RetroCast Standardization:** `retrocast adapt` translates to canonical schema
-3. **Evaluation:** `retrocast score` calculates metrics against benchmarks
-4. **Database Load:** Standardized routes and scores are loaded into SQLite via scripts
+3. **Evaluation:** `retrocast evaluate` emits one manifest-verified fused bundle with explicit validity tiers and constraints
+4. **Database Build:** The Rust corpus compiler creates a verified, immutable SQLite artifact
 5. **SynthArena:** Interactive visualization and exploration
 
 For details on generating predictions and scores, see the [RetroCast documentation](https://github.com/ischemist/project-procrustes).

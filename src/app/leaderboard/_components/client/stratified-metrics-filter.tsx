@@ -9,13 +9,12 @@ type StratifiedMetricsFilterProps = {
 
 /**
  * Client component that conditionally renders stratified metric cards based on Top-K selection.
- * Solvability is always shown, Top-K metrics only shown if selected.
+ * Tier-0 and Solv-0 are always shown; Top-K metrics are optional.
  */
 export function StratifiedMetricsFilter({ metricName, children }: StratifiedMetricsFilterProps) {
     const selectedTopK = useSelectedTopK()
 
-    // Always show Solvability
-    if (metricName === 'Solvability') {
+    if (metricName === 'Tier-0 valid' || metricName.startsWith('Solv-0[')) {
         return <>{children}</>
     }
 

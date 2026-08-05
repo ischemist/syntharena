@@ -42,16 +42,17 @@ export function MeasurementSection() {
                     </div>
                 </div>
                 <p className="leading-relaxed">
-                    A model reporting 99% solvability against a 230M made-to-order virtual library and another reporting
-                    30% against a 300k off-the-shelf catalog are incomparable. The metric conflates model capability
-                    with stock definition.
+                    A reported 99% Solv-0[virtual stock] (legacy STR) against a 230M made-to-order library and 30%
+                    Solv-0[off-the-shelf stock] against a 300k catalog measure different task predicates. They are not
+                    comparable estimates of one stock-independent model capability.
                 </p>
             </div>
 
             <p className="leading-relaxed">
-                <strong>3. Validity Blindness:</strong> The dominant metric (stock-termination rate, STR) validates only
-                that a route&apos;s terminal nodes exist in commercial stock. It provides <em>no guarantee</em> that
-                intermediate transformations are chemically feasible.
+                <strong>3. Validity Blindness:</strong> Legacy stock-termination rate (STR) combines syntactically valid
+                route records with a leaf-stock constraint—the evidence now named Solv-0[stock]. It provides{' '}
+                <em>no guarantee</em> that the reaction topology is legal or that intermediate transformations are
+                chemically feasible.
             </p>
 
             <p className="text-muted-foreground text-sm">
@@ -66,42 +67,42 @@ export function MeasurementSection() {
                 </Link>
                 . Interactive versions are available on SynthArena:{' '}
                 <Link
-                    href="/benchmarks/cmisbzsr30000xvdd613ymmbx/targets/cmisbzt2900y4xvddbnu3q2k5?mode=pred-vs-pred&model1=cmise2ax00000qsddkfge5au3&rank1=1&model2=cmisdw7p10000ceddz6l01zhq&rank2=1"
+                    href="/benchmarks/uspto-190/targets/sa_56cc64f92df872fda43139dd?mode=pred-vs-pred&model1=sa_dca88fc7fb96052aac42ec72&rank1=1&model2=sa_314de306d2f2844f9984866d&rank2=1"
                     className="hover:text-foreground underline"
                 >
                     USPTO-082
                 </Link>
                 ,{' '}
                 <Link
-                    href="/runs/cmise2ax00000qsddkfge5au3?stock=qhi67k3yqgqhrx49sc3akbih&target=cmisbzt5j01bwxvddy4a5xpu2&rank=1&search=114"
+                    href="/runs/sa_dca88fc7fb96052aac42ec72?target=sa_1e63fe124e8a7dd3fd0dfc27&rank=1"
                     className="hover:text-foreground underline"
                 >
                     USPTO-114
                 </Link>
                 ,{' '}
                 <Link
-                    href="/runs/cmise2ax00000qsddkfge5au3?stock=qhi67k3yqgqhrx49sc3akbih&target=cmisbztag020hxvdd8nl7zg94&rank=1&search=169"
+                    href="/runs/sa_dca88fc7fb96052aac42ec72?target=sa_4337ccdb9d8f2e9841da602e&rank=1"
                     className="hover:text-foreground underline"
                 >
                     USPTO-169
                 </Link>
                 ,{' '}
                 <Link
-                    href="/runs/cmise2ax00000qsddkfge5au3?stock=qhi67k3yqgqhrx49sc3akbih&target=cmisbzt3h0139xvddt5rm50se&rank=1&search=93"
+                    href="/runs/sa_dca88fc7fb96052aac42ec72?target=sa_f5edbc0c6d65391770a313c9&rank=1"
                     className="hover:text-foreground underline"
                 >
                     USPTO-93
                 </Link>
                 ,{' '}
                 <Link
-                    href="/runs/cmise2ax00000qsddkfge5au3?stock=qhi67k3yqgqhrx49sc3akbih&target=cmisbzsv10066xvddmu0bi5nk&rank=1&search=16"
+                    href="/runs/sa_dca88fc7fb96052aac42ec72?target=sa_b6247430f110c121808e234d&rank=1"
                     className="hover:text-foreground underline"
                 >
                     USPTO-16
                 </Link>
                 ,{' '}
                 <Link
-                    href="/runs/cmise2ax00000qsddkfge5au3?stock=qhi67k3yqgqhrx49sc3akbih&target=cmisbztbj025gxvddwrx3reh6&rank=1&search=181"
+                    href="/runs/sa_dca88fc7fb96052aac42ec72?target=sa_b671af3b83911a9d94c23e0c&rank=1"
                     className="hover:text-foreground underline"
                 >
                     USPTO-181

@@ -10,20 +10,29 @@
  */
 
 import crypto from 'crypto'
-import * as fs from 'fs'
-import * as os from 'os'
-import * as path from 'path'
-import * as zlib from 'zlib'
 
-import type { MetricResult, ModelStatistics, StratifiedMetric } from '@/types'
 // ============================================================================
 // 2. DB Factories (for integration tests, require active Prisma client)
 // ============================================================================
 
 import prisma from '@/lib/db'
 import type { RouteNodeWithMoleculePayload } from '@/lib/services/data/route.data'
-import type { PythonMolecule, PythonRoute } from '@/lib/services/loaders/prediction-loader.service'
-import type { RawStatsPayload } from '@/lib/services/view/leaderboard.view'
+
+interface PythonReactionStep {
+    reactants: PythonMolecule[]
+}
+
+export interface PythonMolecule {
+    smiles: string
+    inchikey: string
+    product_of?: PythonReactionStep | null
+    is_leaf?: boolean
+}
+
+export interface PythonRoute {
+    target: PythonMolecule
+    rank: number
+}
 
 // ============================================================================
 // 1. Pure Factories (no DB required)
@@ -210,9 +219,12 @@ export function pythonMoleculeToFlatNodes(
         id: nodeId,
         routeId,
         moleculeId: `mol-${mol.inchikey.slice(0, 8)}`,
+        smiles: mol.smiles,
         parentId,
         isLeaf,
         reactionStepId: null,
+        template: null,
+        metadata: null,
         reactionStep: null,
         molecule: {
             id: `mol-${mol.inchikey.slice(0, 8)}`,
@@ -324,11 +336,23 @@ async function createModelInstance(overrides: {
 /**
  * Create a BenchmarkSet record with sensible defaults.
  */
-export async function createBenchmarkSet(overrides: { stockId: string; name?: string }) {
+export async function createBenchmarkSet(overrides: {
+    stockId: string
+    id?: string
+    name?: string
+    slug?: string
+    defaultConstraints?: Array<Record<string, unknown>>
+    targetConstraints?: Record<string, Array<Record<string, unknown>>>
+}) {
+    const name = overrides.name ?? `test-benchmark-${Date.now()}`
     return prisma.benchmarkSet.create({
         data: {
-            name: overrides.name ?? `test-benchmark-${Date.now()}`,
+            id: overrides.id ?? crypto.createHash('sha256').update(`test-benchmark:${name}`).digest('hex'),
+            name,
+            slug: overrides.slug ?? name,
             stockId: overrides.stockId,
+            defaultConstraintsJson: JSON.stringify(overrides.defaultConstraints ?? []),
+            targetConstraintsJson: JSON.stringify(overrides.targetConstraints ?? {}),
         },
     })
 }
@@ -362,14 +386,17 @@ export async function createFullModelChain(
 export async function createBenchmarkTarget(overrides: {
     benchmarkSetId: string
     moleculeId: string
+    smiles?: string
     targetId?: string
     routeLength?: number | null
     isConvergent?: boolean | null
 }) {
+    const molecule = await prisma.molecule.findUniqueOrThrow({ where: { id: overrides.moleculeId } })
     return prisma.benchmarkTarget.create({
         data: {
             benchmarkSetId: overrides.benchmarkSetId,
             moleculeId: overrides.moleculeId,
+            smiles: overrides.smiles ?? molecule.smiles,
             targetId: overrides.targetId ?? `target-${Date.now()}`,
             routeLength: overrides.routeLength ?? null,
             isConvergent: overrides.isConvergent ?? null,
@@ -388,284 +415,4 @@ export async function createMolecule(overrides: { smiles?: string; inchikey?: st
             inchikey: overrides.inchikey ?? syntheticInchiKey(smiles),
         },
     })
-}
-
-// ============================================================================
-// File Factories (create temp files for integration tests)
-// ============================================================================
-
-/** Track temp files for cleanup */
-const tempFiles: string[] = []
-
-/**
- * Clean up all temp files created by file factories.
- * Call this in afterEach.
- */
-export function cleanupTempFiles(): void {
-    for (const f of tempFiles) {
-        try {
-            fs.unlinkSync(f)
-        } catch {
-            // ignore missing files
-        }
-    }
-    tempFiles.length = 0
-}
-
-/**
- * Create a temp CSV file for stock-loader tests.
- * Returns the file path.
- */
-export function createTestCsvFile(
-    molecules: Array<{ smiles: string; inchikey: string }>,
-    options?: { header?: string; extraLines?: string[] }
-): string {
-    const header = options?.header ?? 'SMILES,InChi Key'
-    const lines = [header]
-    for (const mol of molecules) {
-        lines.push(`${mol.smiles},${mol.inchikey}`)
-    }
-    if (options?.extraLines) {
-        lines.push(...options.extraLines)
-    }
-
-    const tmpFile = path.join(os.tmpdir(), `test-stock-${Date.now()}-${Math.random().toString(36).slice(2)}.csv`)
-    fs.writeFileSync(tmpFile, lines.join('\n'), 'utf-8')
-    tempFiles.push(tmpFile)
-    return tmpFile
-}
-
-/**
- * Python benchmark set structure for test fixtures.
- */
-interface TestBenchmarkTarget {
-    id: string
-    smiles: string
-    inchikey: string
-    annotations?: Record<string, unknown>
-    acceptable_routes: Array<{
-        target: PythonMolecule
-        rank: number
-        length?: number
-        has_convergent_reaction?: boolean
-        solvability?: Record<string, boolean>
-        annotations?: Record<string, unknown>
-    }>
-}
-
-interface TestBenchmarkSet {
-    name: string
-    description?: string
-    stock_name?: string | null
-    targets: Record<string, TestBenchmarkTarget>
-}
-
-/**
- * Create a temp .json.gz file for benchmark-loader tests.
- * Returns the file path.
- */
-export function createTestBenchmarkGzFile(data: TestBenchmarkSet): string {
-    const json = JSON.stringify(data)
-    const compressed = zlib.gzipSync(Buffer.from(json, 'utf-8'))
-
-    const tmpFile = path.join(
-        os.tmpdir(),
-        `test-benchmark-${Date.now()}-${Math.random().toString(36).slice(2)}.json.gz`
-    )
-    fs.writeFileSync(tmpFile, compressed)
-    tempFiles.push(tmpFile)
-    return tmpFile
-}
-
-/**
- * Build a minimal valid MetricResult for test statistics.
- */
-function makeMetricResult(overrides: Partial<MetricResult> = {}): MetricResult {
-    return {
-        value: overrides.value ?? 0.75,
-        ciLower: overrides.ciLower ?? 0.7,
-        ciUpper: overrides.ciUpper ?? 0.8,
-        nSamples: overrides.nSamples ?? 100,
-        reliability: overrides.reliability ?? { code: 'OK', message: 'Sufficient samples' },
-    }
-}
-
-/**
- * Build a minimal valid StratifiedMetric for test statistics.
- */
-export function makeStratifiedMetric(overrides: Partial<StratifiedMetric> = {}): StratifiedMetric {
-    return {
-        metricName: overrides.metricName ?? 'Solvability',
-        overall: overrides.overall ?? makeMetricResult(),
-        byGroup: overrides.byGroup ?? {},
-    }
-}
-
-/**
- * Build a minimal valid ModelStatistics object for test use.
- */
-export function makeModelStatistics(overrides: Partial<ModelStatistics> = {}): ModelStatistics {
-    return {
-        solvability: overrides.solvability ?? makeStratifiedMetric({ metricName: 'Solvability' }),
-        topKAccuracy: overrides.topKAccuracy,
-        rankDistribution: overrides.rankDistribution,
-        expectedRank: overrides.expectedRank,
-        totalWallTime: overrides.totalWallTime,
-        totalCpuTime: overrides.totalCpuTime,
-        meanWallTime: overrides.meanWallTime,
-        meanCpuTime: overrides.meanCpuTime,
-    }
-}
-
-// ============================================================================
-// Raw Stats Mock Factories (for leaderboard view tests)
-// ============================================================================
-
-/** A single raw metric row matching the full Prisma StratifiedMetricGroup shape. */
-interface RawMetric {
-    id: string
-    statisticsId: string
-    metricName: string
-    groupKey: number | null
-    value: number
-    ciLower: number
-    ciUpper: number
-    nSamples: number
-    reliabilityCode: 'OK' | 'LOW_N' | 'EXTREME_P'
-    reliabilityMessage: string
-}
-
-let rawMetricIdCounter = 0
-
-/**
- * Build a raw metric record (matching Prisma StratifiedMetricGroup shape).
- */
-export function makeRawMetric(overrides: Partial<RawMetric> = {}): RawMetric {
-    const id = overrides.id ?? `metric-${++rawMetricIdCounter}`
-    return {
-        id,
-        statisticsId: overrides.statisticsId ?? `stat-ref-${rawMetricIdCounter}`,
-        metricName: overrides.metricName ?? 'Solvability',
-        groupKey: overrides.groupKey ?? null,
-        value: overrides.value ?? 0.75,
-        ciLower: overrides.ciLower ?? 0.7,
-        ciUpper: overrides.ciUpper ?? 0.8,
-        nSamples: overrides.nSamples ?? 100,
-        reliabilityCode: (overrides.reliabilityCode ?? 'OK') as 'OK' | 'LOW_N' | 'EXTREME_P',
-        reliabilityMessage: overrides.reliabilityMessage ?? 'Sufficient samples',
-    }
-}
-
-let rawStatIdCounter = 0
-
-/**
- * Build a single raw stats payload entry matching the deeply-nested Prisma
- * include shape used by findStatisticsForLeaderboard.
- *
- * This is a pure in-memory mock — no database interaction.
- */
-export function makeRawStatEntry(
-    overrides: {
-        familyId?: string
-        familyName?: string
-        algorithmName?: string
-        algorithmSlug?: string
-        instanceSlug?: string
-        versionMajor?: number
-        versionMinor?: number
-        versionPatch?: number
-        versionPrerelease?: string | null
-        stockId?: string
-        stockName?: string
-        stockDescription?: string | null
-        runId?: string
-        benchmarkSetId?: string
-        benchmarkName?: string
-        benchmarkSeries?: string
-        hasAcceptableRoutes?: boolean
-        submissionType?: string
-        isRetrained?: boolean | null
-        totalCost?: number | null
-        totalWallTime?: number | null
-        metrics?: RawMetric[]
-    } = {}
-): RawStatsPayload[number] {
-    const id = `stat-${++rawStatIdCounter}`
-    const familyId = overrides.familyId ?? `family-${rawStatIdCounter}`
-    const runId = overrides.runId ?? `run-${rawStatIdCounter}`
-    const benchmarkSetId = overrides.benchmarkSetId ?? `bench-${rawStatIdCounter}`
-    const stockId = overrides.stockId ?? `stock-${rawStatIdCounter}`
-
-    return {
-        id,
-        predictionRunId: runId,
-        benchmarkSetId,
-        stockId,
-        statisticsJson: '{}',
-        computedAt: new Date(),
-        totalWallTime: overrides.totalWallTime ?? null,
-        totalCpuTime: null,
-        meanWallTime: null,
-        meanCpuTime: null,
-        stock: {
-            id: stockId,
-            name: overrides.stockName ?? `Stock-${rawStatIdCounter}`,
-            description: overrides.stockDescription ?? null,
-        },
-        predictionRun: {
-            id: runId,
-            modelInstanceId: `instance-${rawStatIdCounter}`,
-            benchmarkSetId,
-            retrocastVersion: null,
-            commandParams: null,
-            executedAt: new Date(),
-            hourlyCost: null,
-            totalCost: overrides.totalCost ?? null,
-            totalRoutes: 0,
-            avgRouteLength: null,
-            submissionType: (overrides.submissionType ?? 'COMMUNITY_SUBMITTED') as
-                | 'COMMUNITY_SUBMITTED'
-                | 'MAINTAINER_VERIFIED',
-            isRetrained: overrides.isRetrained ?? null,
-            benchmarkSet: {
-                id: benchmarkSetId,
-                name: overrides.benchmarkName ?? `Benchmark-${rawStatIdCounter}`,
-                description: null,
-                stockId,
-                hasAcceptableRoutes: overrides.hasAcceptableRoutes ?? false,
-                createdAt: new Date(),
-                series: (overrides.benchmarkSeries ?? 'MARKET') as 'MARKET' | 'REFERENCE' | 'LEGACY' | 'OTHER',
-                isListed: true,
-            },
-            modelInstance: {
-                id: `instance-${rawStatIdCounter}`,
-                modelFamilyId: familyId,
-                slug: overrides.instanceSlug ?? `model-slug-${rawStatIdCounter}`,
-                description: null,
-                versionMajor: overrides.versionMajor ?? 1,
-                versionMinor: overrides.versionMinor ?? 0,
-                versionPatch: overrides.versionPatch ?? 0,
-                versionPrerelease: overrides.versionPrerelease ?? null,
-                metadata: null,
-                createdAt: new Date(),
-                family: {
-                    id: familyId,
-                    algorithmId: `algo-${rawStatIdCounter}`,
-                    name: overrides.familyName ?? `Family-${rawStatIdCounter}`,
-                    slug: `family-slug-${rawStatIdCounter}`,
-                    description: null,
-                    algorithm: {
-                        id: `algo-${rawStatIdCounter}`,
-                        name: overrides.algorithmName ?? `Algorithm-${rawStatIdCounter}`,
-                        slug: overrides.algorithmSlug ?? `algo-slug-${rawStatIdCounter}`,
-                        description: null,
-                        paper: null,
-                        codeUrl: null,
-                        bibtex: null,
-                    },
-                },
-            },
-        },
-        metrics: overrides.metrics ?? [makeRawMetric()],
-    }
 }

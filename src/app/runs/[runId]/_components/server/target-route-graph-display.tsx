@@ -15,19 +15,20 @@ type TargetRouteGraphDisplayProps = {
 export function TargetRouteGraphDisplay({ data }: TargetRouteGraphDisplayProps) {
     const { currentPrediction, acceptableRoute, stockInfo, layout, navigation, acceptableRouteNav } = data
 
-    const solvability = currentPrediction?.solvability
+    const evaluation = currentPrediction?.evaluation
 
     return (
         <RouteDisplayCard
-            route={currentPrediction?.route}
-            predictionRoute={currentPrediction?.predictionRoute}
-            visualizationNode={currentPrediction?.visualizationNode}
+            route={currentPrediction?.route ?? undefined}
+            predictionCandidate={currentPrediction?.predictionCandidate}
+            visualizationNode={currentPrediction?.visualizationNode ?? undefined}
             acceptableRouteVisualizationNode={acceptableRoute?.visualizationNode}
-            isSolvable={solvability?.isSolvable}
-            matchesAcceptable={solvability?.matchesAcceptable}
+            tier0Status={evaluation?.tier0Status}
+            constraintStatus={evaluation?.constraintStatus}
+            metricLabel={evaluation?.metricLabel}
+            matchesAcceptable={evaluation?.matchesAcceptable ?? undefined}
             inStockInchiKeys={stockInfo.inStockInchiKeys}
             buyableMetadataMap={stockInfo.buyableMetadataMap}
-            stockName={stockInfo.stockName}
             layout={layout}
             navigation={navigation}
             acceptableRouteNav={acceptableRouteNav}

@@ -5,6 +5,7 @@ import { unstable_cache as cache } from 'next/cache'
 import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/db'
+import { flattenRouteNode } from '@/lib/services/data/route.data'
 import { compareVersions } from '@/lib/utils'
 
 /**
@@ -14,7 +15,7 @@ import { compareVersions } from '@/lib/utils'
  */
 async function _findPredictionRunsForTarget(targetId: string, devMode: boolean = false) {
     const runsWithPredictions = await prisma.predictionRun.findMany({
-        where: { predictionRoutes: { some: { targetId: targetId } } },
+        where: { predictionCandidates: { some: { targetId, routeId: { not: null } } } },
         select: {
             id: true,
             executedAt: true,
@@ -35,7 +36,7 @@ async function _findPredictionRunsForTarget(targetId: string, devMode: boolean =
                 },
             },
             _count: {
-                select: { predictionRoutes: { where: { targetId } } },
+                select: { predictionCandidates: { where: { targetId, routeId: { not: null } } } },
             },
         },
         orderBy: { executedAt: 'desc' },
@@ -64,17 +65,17 @@ export const findPredictionRunsForTarget = cache(_findPredictionRunsForTarget, [
 
 /** fetches the raw nodes for a predicted route. does not build the tree. */
 async function _findPredictedRouteNodes(targetId: string, runId: string, rank: number) {
-    const prediction = await prisma.predictionRoute.findFirst({
-        where: { targetId, predictionRunId: runId, rank },
+    const prediction = await prisma.predictionCandidate.findFirst({
+        where: { targetId, predictionRunId: runId, rank, routeId: { not: null } },
         select: {
             route: {
                 select: {
-                    nodes: { include: { molecule: true, reactionStep: true } },
+                    nodes: { include: { molecule: true, payload: { include: { reactionStep: true } } } },
                 },
             },
         },
     })
-    return prediction?.route.nodes ?? null
+    return prediction?.route?.nodes.map(flattenRouteNode) ?? null
 }
 export const findPredictedRouteNodes = cache(_findPredictedRouteNodes, ['predicted-route-nodes'], {
     tags: ['routes', 'targets', 'runs'],
@@ -102,7 +103,7 @@ async function _findTargetsAndPredictionCountsForRun(
         ...where,
         benchmarkSetId: run.benchmarkSetId,
         ...(onlyWithPredictions && {
-            predictionRoutes: { some: { predictionRunId: runId } },
+            predictionCandidates: { some: { predictionRunId: runId, routeId: { not: null } } },
         }),
     }
 
@@ -118,10 +119,11 @@ async function _findTargetsAndPredictionCountsForRun(
     const targetIds = targets.map((t) => t.id)
     const counts =
         targetIds.length > 0
-            ? await prisma.predictionRoute.groupBy({
+            ? await prisma.predictionCandidate.groupBy({
                   by: ['targetId'],
                   where: {
                       predictionRunId: runId,
+                      routeId: { not: null },
                       targetId: { in: targetIds },
                   },
                   _count: { _all: true },
@@ -142,8 +144,8 @@ export const findTargetsAndPredictionCountsForRun = cache(
  */
 async function _findTargetIdsWithPredictionsForRun(runId: string, routeLength?: number) {
     // get all unique target IDs that have predictions in this run
-    const predictions = await prisma.predictionRoute.findMany({
-        where: { predictionRunId: runId },
+    const predictions = await prisma.predictionCandidate.findMany({
+        where: { predictionRunId: runId, routeId: { not: null } },
         select: {
             target: {
                 select: {

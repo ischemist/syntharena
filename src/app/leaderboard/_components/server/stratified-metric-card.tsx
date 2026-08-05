@@ -8,7 +8,8 @@ type StratifiedMetricCardProps = {
     metricsMap: Map<
         string,
         {
-            solvability: StratifiedMetric
+            tier0Validity: StratifiedMetric
+            solv0: StratifiedMetric
             topKAccuracy?: Record<string, StratifiedMetric>
         }
     >
@@ -32,20 +33,23 @@ export function StratifiedMetricCard({ metricName, metricsMap }: StratifiedMetri
     }
 
     // Get all route lengths present in the data for this metric
-    const routeLengths = new Set<number>()
+    const strata = new Set<string>()
     modelsArray.forEach(([, metrics]) => {
-        const stratifiedMetric = metricName === 'Solvability' ? metrics.solvability : metrics.topKAccuracy?.[metricName]
+        const stratifiedMetric =
+            metricName === 'Tier-0 valid'
+                ? metrics.tier0Validity
+                : metricName.startsWith('Solv-0[')
+                  ? metrics.solv0
+                  : metrics.topKAccuracy?.[metricName]
 
         if (stratifiedMetric) {
-            Object.keys(stratifiedMetric.byGroup).forEach((length) => {
-                routeLengths.add(parseInt(length))
-            })
+            Object.keys(stratifiedMetric.byStratum).forEach((stratum) => strata.add(stratum))
         }
     })
 
-    const sortedLengths = Array.from(routeLengths).sort((a, b) => a - b)
+    const sortedStrata = Array.from(strata).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
 
-    if (sortedLengths.length === 0) {
+    if (sortedStrata.length === 0) {
         return null
     }
 
@@ -58,7 +62,7 @@ export function StratifiedMetricCard({ metricName, metricsMap }: StratifiedMetri
                 <StratifiedMetricTable
                     metricName={metricName}
                     metricsMap={metricsMap}
-                    routeLengths={sortedLengths}
+                    strata={sortedStrata}
                     showTitle={false}
                 />
             </CardContent>

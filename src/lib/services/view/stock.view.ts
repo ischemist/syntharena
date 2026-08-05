@@ -79,7 +79,7 @@ export async function searchMolecules(
         const items = hasMore ? stockItems.slice(0, take) : stockItems
         const molecules = items.map((item) => ({
             id: item.molecule.id,
-            smiles: item.molecule.smiles,
+            smiles: item.smiles,
             inchikey: item.molecule.inchikey,
             stocks: item.molecule.stockItems.map((si) => si.stock),
             stockItem: item,
@@ -108,7 +108,7 @@ export async function searchMolecules(
 
             return {
                 id: mol.id,
-                smiles: mol.smiles,
+                smiles: selectedStockItem?.smiles ?? mol.smiles,
                 inchikey: mol.inchikey,
                 stocks,
                 stockItem: selectedStockItem,

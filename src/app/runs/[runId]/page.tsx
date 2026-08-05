@@ -1,9 +1,11 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
+import { notFound, permanentRedirect } from 'next/navigation'
 
 import * as predictionView from '@/lib/services/view/prediction.view'
+import { resolvePredictionRunUrlKey, resolveRunRoute } from '@/lib/routing/url-resolver'
 
-import { StockSelector } from './_components/client/stock-selector'
+import { EvaluationSelector } from './_components/client/evaluation-selector'
 import { RunStatisticsStratified } from './_components/server/run-statistics-stratified'
 import { RunStatisticsSummary } from './_components/server/run-statistics-summary'
 import { RunTitleCard } from './_components/server/run-title-card'
@@ -15,23 +17,29 @@ type PageProps = {
     // These are now promises
     params: Promise<{ runId: string }>
     searchParams: Promise<{
-        stock?: string
+        evaluation?: string
         target?: string
         rank?: string
         layout?: string
         routeLength?: string
         acceptableIndex?: string
         onlyWithPredictions?: string
+        stock?: string
+        search?: string
+        [key: string]: string | string[] | undefined
     }>
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
     const { runId } = await params
     try {
-        const run = await predictionView.getRunTitleCardData(runId)
+        const destination = await resolvePredictionRunUrlKey(runId)
+        if (!destination) throw new Error('prediction run not found.')
+        const run = await predictionView.getRunTitleCardData(destination.id)
         return {
             title: `${run.modelFamilyName} on ${run.benchmarkName}`,
             description: `View statistics and routes for ${run.modelFamilyName} predictions on ${run.benchmarkName}.`,
+            alternates: { canonical: `/runs/${destination.id}` },
         }
     } catch {
         return {
@@ -44,26 +52,37 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function RunDetailPage({ params, searchParams }: PageProps) {
     // --- Await promises at the top level ---
     const [{ runId }, searchParamsValues] = await Promise.all([params, searchParams])
+    const route = await resolveRunRoute(runId, searchParamsValues)
+    if (!route) notFound()
+    if (route.needsRedirect) permanentRedirect(route.canonicalUrl)
+    const canonicalRunId = route.run.id
+    const canonicalSearch = route.search
 
-    const titleCardPromise = predictionView.getRunTitleCardData(runId)
-    const stocksPromise = predictionView.getStocksForRun(runId)
+    const titleCardPromise = predictionView.getRunTitleCardData(canonicalRunId)
+    const evaluationsPromise = predictionView.getEvaluationsForRun(canonicalRunId)
 
     // --- Data Orchestration ---
-    const defaults = await predictionView.getRunDefaults(runId, searchParamsValues.stock, searchParamsValues.target)
-    const stockId = searchParamsValues.stock ?? defaults.stockId
-    const targetId = searchParamsValues.target ?? defaults.targetId
-    const rank = parseInt(searchParamsValues.rank || '1', 10)
-    const layout = searchParamsValues.layout
-    const routeLength = searchParamsValues.routeLength
-    const acceptableIndex = searchParamsValues.acceptableIndex
-        ? parseInt(searchParamsValues.acceptableIndex, 10)
+    const defaults = await predictionView.getRunDefaults(
+        canonicalRunId,
+        canonicalSearch.get('evaluation') ?? undefined,
+        canonicalSearch.get('target') ?? undefined
+    )
+    const evaluationId = canonicalSearch.get('evaluation') ?? defaults.evaluationId
+    const targetId = canonicalSearch.get('target') ?? defaults.targetId
+    const rank = parseInt(canonicalSearch.get('rank') || '1', 10)
+    const layout = canonicalSearch.get('layout') ?? undefined
+    const routeLength = canonicalSearch.get('routeLength') ?? undefined
+    const acceptableIndex = canonicalSearch.get('acceptableIndex')
+        ? parseInt(canonicalSearch.get('acceptableIndex')!, 10)
         : undefined
-    const onlyWithPredictions = searchParamsValues.onlyWithPredictions === 'true'
+    const onlyWithPredictions = canonicalSearch.get('onlyWithPredictions') === 'true'
 
     // Initiate all data fetches concurrently. Do NOT await them here.
-    const statsPromise = stockId ? predictionView.getRunStatistics(runId, stockId) : Promise.resolve(null)
+    const statsPromise = evaluationId
+        ? predictionView.getRunStatistics(canonicalRunId, evaluationId)
+        : Promise.resolve(null)
     const targetDisplayDataPromise = targetId
-        ? predictionView.getTargetDisplayData(runId, targetId, rank, stockId, acceptableIndex, layout)
+        ? predictionView.getTargetDisplayData(canonicalRunId, targetId, rank, evaluationId, acceptableIndex, layout)
         : null
 
     return (
@@ -73,27 +92,26 @@ export default async function RunDetailPage({ params, searchParams }: PageProps)
             </Suspense>
 
             <Suspense fallback={<div className="h-12 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />}>
-                <StockSelectorWrapper stocksPromise={stocksPromise} currentStockId={stockId} />
+                <EvaluationSelectorWrapper evaluationsPromise={evaluationsPromise} currentEvaluationId={evaluationId} />
             </Suspense>
 
             <Suspense fallback={<RunStatisticsSkeleton />}>
-                <RunStatisticsSummary dataPromise={statsPromise} stockId={stockId} />
+                <RunStatisticsSummary dataPromise={statsPromise} evaluationId={evaluationId} />
             </Suspense>
 
             <Suspense fallback={<StratifiedStatisticsSkeleton />}>
-                <RunStatisticsStratified dataPromise={statsPromise} stockId={stockId} />
+                <RunStatisticsStratified dataPromise={statsPromise} evaluationId={evaluationId} />
             </Suspense>
 
             <TargetSearchWrapper
-                runId={runId}
-                stockId={stockId}
+                runId={canonicalRunId}
                 currentTargetId={targetId}
                 routeLength={routeLength}
                 onlyWithPredictions={onlyWithPredictions}
             />
             {targetDisplayDataPromise && (
                 <Suspense
-                    key={`${targetId}-${rank}-${stockId}-${layout}-${acceptableIndex}`}
+                    key={`${targetId}-${rank}-${evaluationId}-${layout}-${acceptableIndex}`}
                     fallback={<RouteDisplaySkeleton />}
                 >
                     <ResolvedTargetDisplay dataPromise={targetDisplayDataPromise} />
@@ -112,16 +130,14 @@ async function ResolvedTargetDisplay({
     const data = await dataPromise
     return <TargetDisplaySection data={data} />
 }
-// Wrapper to handle promise for StockSelector
-async function StockSelectorWrapper({
-    stocksPromise,
-    currentStockId,
+async function EvaluationSelectorWrapper({
+    evaluationsPromise,
+    currentEvaluationId,
 }: {
-    stocksPromise: Promise<Awaited<ReturnType<typeof predictionView.getStocksForRun>>>
-    currentStockId?: string
+    evaluationsPromise: Promise<Awaited<ReturnType<typeof predictionView.getEvaluationsForRun>>>
+    currentEvaluationId?: string
 }) {
-    const stocks = await stocksPromise
-    if (stocks.length <= 1) return null
-    // Pass the resolved currentStockId, not the searchParams object
-    return <StockSelector stocks={stocks} currentStockId={currentStockId} />
+    const evaluations = await evaluationsPromise
+    if (evaluations.length <= 1) return null
+    return <EvaluationSelector evaluations={evaluations} currentEvaluationId={currentEvaluationId} />
 }

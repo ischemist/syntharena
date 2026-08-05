@@ -186,7 +186,11 @@ export function BenchmarkMetricsDisplay({
             ) : (
                 <div className="space-y-8">
                     {/* Chart view: Show one chart per metric comparing all models */}
-                    <ModelComparisonChart metricName="Solvability" entries={entries} />
+                    <ModelComparisonChart metricName="Tier-0 valid" entries={entries} />
+                    <ModelComparisonChart
+                        metricName={`Solv-0[${entries[0]?.metrics.solv0Label ?? 'stock'}]`}
+                        entries={entries}
+                    />
 
                     {displayedTopK.map((metricName) => (
                         <ModelComparisonChart key={metricName} metricName={metricName} entries={entries} />
@@ -205,7 +209,11 @@ function ModelComparisonChart({ metricName, entries }: { metricName: string; ent
     // Transform data: one data point per model
     const chartData = entries.flatMap((entry) => {
         const metric =
-            metricName === 'Solvability' ? entry.metrics.solvability : entry.metrics.topKAccuracy?.[metricName]
+            metricName === 'Tier-0 valid'
+                ? entry.metrics.tier0Validity
+                : metricName.startsWith('Solv-0[')
+                  ? entry.metrics.solv0
+                  : entry.metrics.topKAccuracy?.[metricName]
 
         if (!metric) return []
 

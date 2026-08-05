@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@ischemist/route-viewer':
-        specifier: 0.1.1
-        version: 0.1.1(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        specifier: 0.1.2
+        version: 0.1.2(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@ischemist/routes':
-        specifier: 0.1.0
-        version: 0.1.0
+        specifier: 0.2.0
+        version: 0.2.0
       '@prisma/adapter-better-sqlite3':
         specifier: ^7.0.0
         version: 7.0.0
@@ -799,14 +799,15 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@ischemist/route-viewer@0.1.1':
-    resolution: {integrity: sha512-Il/CVV6s70/8VFqEDJXMGstNMOHwamPQo7LmBuRd0yK1zsiOIe3q/h4MIHh09+6pWfk4whEqT7LBJu2vDeXtiQ==}
+  '@ischemist/route-viewer@0.1.2':
+    resolution: {integrity: sha512-dfl6tQ4Eobk7JX0uXnAAlp+meBQ+P31cWgcmATJdXXnt3F5HP1UTqxudvaw1hLYHRK0kA367K/6DYDgJtzw/qQ==}
     peerDependencies:
       react: '>=19'
       react-dom: '>=19'
 
-  '@ischemist/routes@0.1.0':
-    resolution: {integrity: sha512-1KuNTjeyL1SUlNOLnSIlpVMCYvmdzaXIJeRqti7C6nR6EWOTEjEe38vfgeOOtH0VFjNrILtC5AdUdxSqKlG6rw==}
+  '@ischemist/routes@0.2.0':
+    resolution: {integrity: sha512-SYE2fqg6XlSBHa/iv9zEf6UzYRAA0rgzekMlbIbW3zw1DPQjr9XM683B0aBg2Xvn5OJoeB/U3f9Hwx+tvZTj0Q==}
+    engines: {node: '>=22.12.0'}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -3726,9 +3727,9 @@ snapshots:
   '@img/sharp-win32-x64@0.34.5':
     optional: true
 
-  '@ischemist/route-viewer@0.1.1(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+  '@ischemist/route-viewer@0.1.2(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
-      '@ischemist/routes': 0.1.0
+      '@ischemist/routes': 0.2.0
       '@xyflow/react': 12.11.0(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       lucide-react: 1.17.0(react@19.2.0)
       react: 19.2.0
@@ -3739,7 +3740,7 @@ snapshots:
       - '@types/react-dom'
       - immer
 
-  '@ischemist/routes@0.1.0': {}
+  '@ischemist/routes@0.2.0': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:

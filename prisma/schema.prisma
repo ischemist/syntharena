@@ -25,13 +25,14 @@ model User {
 
 model Molecule {
   id       String @id @default(cuid(2))
-  inchikey String @unique // The true canonical identifier
-  smiles   String // Canonical SMILES
+  inchikey String @unique // Molecular identity key used for relational deduplication
+  smiles   String // Representative fallback; occurrence tables preserve exact input SMILES
 
   // Relations
-  stockItems       StockItem[]
-  routeNodes       RouteNode[]
-  benchmarkTargets BenchmarkTarget[]
+  stockItems        StockItem[]
+  routeNodes        RouteNode[]
+  routeNodePayloads RouteNodePayload[]
+  benchmarkTargets  BenchmarkTarget[]
 
   @@index([smiles])
   @@index([inchikey, smiles])
@@ -50,21 +51,27 @@ enum BenchmarkSeries {
 }
 
 model BenchmarkSet {
-  id                  String  @id @default(cuid())
-  name                String  @unique // e.g. "mkt-lin-500"
-  description         String?
-  stockId             String // Direct reference to the stock
-  hasAcceptableRoutes Boolean @default(false) // All-or-nothing: targets either all have acceptable routes or none do
+  id                     String  @id // Full lowercase SHA-256 of the registered benchmark artifact
+  name                   String  @unique // e.g. "mkt-lin-500"
+  slug                   String  @unique // Immutable public URL key, initially equal to name
+  description            String?
+  stockId                String // Direct reference to the stock
+  hasAcceptableRoutes    Boolean @default(false) // All-or-nothing: targets either all have acceptable routes or none do
+  sourcePath             String?
+  sourceSha256           String?
+  schemaVersion          String?
+  defaultConstraintsJson String  @default("[]")
+  targetConstraintsJson  String  @default("{}")
 
   createdAt DateTime @default(now())
 
   series   BenchmarkSeries @default(OTHER)
   isListed Boolean         @default(true) // for de-prioritizing -single-gt
 
-  stock      Stock                @relation(fields: [stockId], references: [id])
+  stock      Stock               @relation(fields: [stockId], references: [id])
   targets    BenchmarkTarget[]
   runs       PredictionRun[]
-  statistics ModelRunStatistics[]
+  urlAliases BenchmarkUrlAlias[]
 
   @@index([series, isListed, name]) // new index for fast filtering
 }
@@ -74,6 +81,7 @@ model BenchmarkTarget {
   benchmarkSetId String
   targetId       String // The external ID, e.g. "n5-00123"
   moleculeId     String // The SMILES/InchiKey link
+  smiles         String // Exact task-target representation
 
   // Metadata for stratification (cached from Python model)
   // These are computed from the PRIMARY acceptable route (index 0) if available
@@ -82,12 +90,37 @@ model BenchmarkTarget {
   metadata     String? // JSON blob for other metadata
 
   // Relations
-  benchmarkSet     BenchmarkSet      @relation(fields: [benchmarkSetId], references: [id])
-  molecule         Molecule          @relation(fields: [moleculeId], references: [id])
-  acceptableRoutes AcceptableRoute[]
-  predictionRoutes PredictionRoute[]
+  benchmarkSet         BenchmarkSet              @relation(fields: [benchmarkSetId], references: [id])
+  molecule             Molecule                  @relation(fields: [moleculeId], references: [id])
+  acceptableRoutes     AcceptableRoute[]
+  predictionCandidates PredictionCandidate[]
+  targetEvaluations    TargetEvaluation[]
+  urlAliases           BenchmarkTargetUrlAlias[]
 
   @@unique([benchmarkSetId, targetId])
+  @@unique([id, benchmarkSetId])
+}
+
+// Historical public IDs resolve through these FK-backed aliases. The corpus
+// builder owns their population; the application only performs indexed reads.
+model BenchmarkUrlAlias {
+  alias          String @id
+  benchmarkSetId String
+  reason         String
+
+  benchmarkSet BenchmarkSet @relation(fields: [benchmarkSetId], references: [id], onDelete: Cascade)
+
+  @@index([benchmarkSetId])
+}
+
+model BenchmarkTargetUrlAlias {
+  alias             String @id
+  benchmarkTargetId String
+  reason            String
+
+  benchmarkTarget BenchmarkTarget @relation(fields: [benchmarkTargetId], references: [id], onDelete: Cascade)
+
+  @@index([benchmarkTargetId])
 }
 
 // Junction table: Links BenchmarkTarget to multiple Route records (acceptable routes)
@@ -144,10 +177,10 @@ model ModelInstance {
   description   String? // what makes THIS version special? "trained on new internal dataset"
 
   // Structured SemVer
-  versionMajor      Int     @default(0)
-  versionMinor      Int     @default(0)
-  versionPatch      Int     @default(0)
-  versionPrerelease String? // e.g., "alpha", "beta.1"
+  versionMajor      Int    @default(0)
+  versionMinor      Int    @default(0)
+  versionPatch      Int    @default(0)
+  versionPrerelease String @default("") // Empty string is the canonical stable release sentinel
 
   metadata  String? // JSON: training set info, hyperparams
   createdAt DateTime @default(now())
@@ -180,26 +213,52 @@ model PredictionRun {
   hourlyCost Float? // USD per hour (user-specified)
   totalCost  Float? // Pre-calculated: hourlyCost * (totalWallTime / 3600)
 
-  // Stats from RunStatistics
-  totalRoutes    Int // final_unique_routes_saved (now counts PredictionRoutes)
-  avgRouteLength Float? // Average route length across all routes
+  // Planner execution timing from Pandora execution_stats.json.gz, summarized
+  // in the verified RetroCast analysis artifact.
+  executionStatsPath   String?
+  executionStatsSha256 String?
+  timedTargets         Int?
+  totalWallTime        Float?
+  totalCpuTime         Float?
+  meanWallTime         Float?
+  meanCpuTime          Float?
+
+  // Candidate and route counts are recomputed after an artifact bundle import.
+  totalCandidates Int    @default(0)
+  totalFailures   Int    @default(0)
+  totalRoutes     Int    @default(0)
+  avgRouteLength  Float? // Average route length across all routes
 
   submissionType SubmissionType @default(COMMUNITY_SUBMITTED)
   isRetrained    Boolean? // for ref-* series. NULL = N/A, true/false for ref runs.
 
-  modelInstance    ModelInstance        @relation(fields: [modelInstanceId], references: [id])
-  benchmarkSet     BenchmarkSet         @relation(fields: [benchmarkSetId], references: [id])
-  predictionRoutes PredictionRoute[]
-  statistics       ModelRunStatistics[]
+  modelInstance        ModelInstance           @relation(fields: [modelInstanceId], references: [id])
+  benchmarkSet         BenchmarkSet            @relation(fields: [benchmarkSetId], references: [id])
+  predictionCandidates PredictionCandidate[]
+  evaluations          RunEvaluation[]
+  urlAliases           PredictionRunUrlAlias[]
 
   @@unique([modelInstanceId, benchmarkSetId]) // Assuming one run per version per set
+  @@unique([id, benchmarkSetId])
+}
+
+model PredictionRunUrlAlias {
+  alias           String @id
+  predictionRunId String
+  reason          String
+
+  predictionRun PredictionRun @relation(fields: [predictionRunId], references: [id], onDelete: Cascade)
+
+  @@index([predictionRunId])
 }
 
 model Route {
   id String @id @default(cuid())
 
-  // Core route identity for visualization and benchmark deduplication.
-  signature String @unique // SHA256 from get_signature() (topology only)
+  // `signature` is topology-only and supports comparison. `contentHash` includes
+  // exact producer provenance and is the deduplication identity.
+  signature   String
+  contentHash String @unique
 
   // Cached Computations (for fast filtering)
   length       Int
@@ -208,69 +267,86 @@ model Route {
   // Relations
   asAcceptableRouteFor AcceptableRoute[]
   nodes                RouteNode[]
-  predictions          PredictionRoute[] // One route can be predicted multiple times
+  predictions          PredictionCandidate[] // One route can be predicted multiple times
+
+  @@index([signature])
 }
 
-// Junction table: Connects a Route to a (PredictionRun, Target, Rank)
-// This represents one "prediction" of a route by a model
-model PredictionRoute {
-  id              String @id @default(cuid())
-  routeId         String // The unique route structure
+// One ranked planner output. A candidate contains exactly one of routeId or
+// failureCode; the importer and database migration enforce this XOR invariant.
+model PredictionCandidate {
+  id              String  @id @default(cuid())
+  routeId         String? // Present only when adaptation produced a route
   predictionRunId String // The model run that predicted this
   targetId        String // The target this prediction is for
+  benchmarkSetId  String
   rank            Int // 1-indexed rank within this target/run
 
-  metadata String? // JSON: scores, confidence, etc. (prediction-specific)
+  metadata       String? // JSON: scores, confidence, etc. (prediction-specific)
+  failureCode    String?
+  failureMessage String?
+  failureDetails String? // Full FailureRecord JSON
 
   // Relations
-  route             Route              @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  predictionRun     PredictionRun      @relation(fields: [predictionRunId], references: [id], onDelete: Cascade)
-  target            BenchmarkTarget    @relation(fields: [targetId], references: [id], onDelete: Cascade)
-  solvabilityStatus RouteSolvability[]
+  route         Route?                @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  predictionRun PredictionRun         @relation(fields: [predictionRunId, benchmarkSetId], references: [id, benchmarkSetId], onDelete: Cascade)
+  target        BenchmarkTarget       @relation(fields: [targetId, benchmarkSetId], references: [id, benchmarkSetId], onDelete: Cascade)
+  evaluations   CandidateEvaluation[]
 
   // Constraints
   @@unique([predictionRunId, targetId, rank]) // Each rank is unique per target/run
-  @@unique([routeId, predictionRunId, targetId]) // Prevents duplicate route structures per target/run (intentional)
+  @@unique([id, predictionRunId, targetId, benchmarkSetId])
   @@index([targetId, rank])
   @@index([predictionRunId])
   @@index([routeId])
 }
 
-// Shared reaction-step data used for route visualization-level deduplication.
-// This stores reaction topology plus one representative template/metadata payload,
-// not a full planner-specific reaction provenance record.
+// Shared reaction topology used for visualization-level deduplication. Exact
+// planner provenance belongs to each RouteNode occurrence below.
 model ReactionStep {
-  id           String  @id @default(cuid())
-  reactionHash String  @unique // SHA256 of "productInchikey>>reactant1Inchikey.reactant2Inchikey" (sorted)
-  template     String? // Reaction template (e.g., SMARTS pattern)
-  metadata     String? // JSON: reagents, solvents, mapped_reaction_smiles
+  id           String @id @default(cuid())
+  reactionHash String @unique // SHA256 of "productInchikey>>reactant1Inchikey.reactant2Inchikey" (sorted)
 
-  nodes RouteNode[]
+  payloads RouteNodePayload[]
+}
+
+model RouteNodePayload {
+  id             Int     @id @default(autoincrement())
+  contentHash    String  @unique
+  moleculeId     String
+  smiles         String
+  reactionStepId String?
+  template       String?
+  metadata       String?
+
+  molecule     Molecule      @relation(fields: [moleculeId], references: [id])
+  reactionStep ReactionStep? @relation(fields: [reactionStepId], references: [id], onDelete: Restrict)
+  nodes        RouteNode[]
 }
 
 model RouteNode {
-  id             String  @id @default(cuid())
-  routeId        String
-  moleculeId     String
-  parentId       String? // Tree structure
-  reactionStepId String? // null for leaf nodes
+  id         Int    @id @default(autoincrement())
+  routeId    String
+  moleculeId String
+  payloadId  Int
+  parentId   Int? // Tree structure
 
   isLeaf Boolean @default(false)
 
   // Relations
-  route        Route         @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  molecule     Molecule      @relation(fields: [moleculeId], references: [id])
-  reactionStep ReactionStep? @relation(fields: [reactionStepId], references: [id])
-  parent       RouteNode?    @relation("ReactionTree", fields: [parentId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  children     RouteNode[]   @relation("ReactionTree")
+  route    Route            @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  molecule Molecule         @relation(fields: [moleculeId], references: [id])
+  payload  RouteNodePayload @relation(fields: [payloadId], references: [id])
+  // Checked-in SQLite triggers reject cross-route parents for direct writes.
+  parent   RouteNode?       @relation("ReactionTree", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children RouteNode[]      @relation("ReactionTree")
 
   @@index([routeId])
-  @@index([reactionStepId])
+  @@index([moleculeId])
 }
 
 // =================================================================================
-// 4. STATISTICS & METRICS (Pre-computed results from Python pipeline)
-// Matches data/5-results/ and Python ModelStatistics Pydantic model
+// 4. EVALUATION & METRICS (RetroCast schema-v2 evaluate bundles)
 // =================================================================================
 
 enum ReliabilityCode {
@@ -287,54 +363,118 @@ enum VendorSource {
   CB // ChemBridge
 }
 
-model ModelRunStatistics {
-  id              String   @id @default(cuid())
-  predictionRunId String
-  benchmarkSetId  String
-  stockId         String
-  statisticsJson  String // Full ModelStatistics JSON blob for flexibility
-  computedAt      DateTime @default(now())
+enum EvaluationStatus {
+  PASS
+  FAIL
+  NOT_EVALUATED
+}
 
-  // Runtime metrics (in seconds) from Python ModelStatistics
-  totalWallTime Float? // total_wall_time from Python
-  totalCpuTime  Float? // total_cpu_time from Python
-  meanWallTime  Float? // mean_wall_time from Python
-  meanCpuTime   Float? // mean_cpu_time from Python
+model RunEvaluation {
+  id               String   @id @default(cuid())
+  predictionRunId  String
+  benchmarkSetId   String
+  stockId          String?
+  metricLabel      String
+  evaluatedTiers   String // JSON array; absence means unavailable, never failure
+  taskJson         String
+  parametersJson   String
+  analysisJson     String // Canonical analysis report, including undisplayed MRR
+  manifestJson     String
+  manifestSha256   String   @unique
+  artifactSchema   String
+  retrocastVersion String
+  createdAt        DateTime @default(now())
 
-  // Relations
-  predictionRun PredictionRun           @relation(fields: [predictionRunId], references: [id])
-  benchmarkSet  BenchmarkSet            @relation(fields: [benchmarkSetId], references: [id])
-  stock         Stock                   @relation(fields: [stockId], references: [id])
-  metrics       StratifiedMetricGroup[]
+  predictionRun PredictionRun         @relation(fields: [predictionRunId, benchmarkSetId], references: [id, benchmarkSetId], onDelete: Cascade)
+  stock         Stock?                @relation(fields: [stockId], references: [id])
+  targets       TargetEvaluation[]
+  candidates    CandidateEvaluation[]
+  metrics       MetricEstimate[]
 
-  @@unique([predictionRunId, stockId]) // Multiple stocks per run
+  @@unique([predictionRunId, metricLabel])
+  @@unique([id, predictionRunId, benchmarkSetId])
   @@index([predictionRunId])
   @@index([stockId])
 }
 
-model StratifiedMetricGroup {
-  id           String @id @default(cuid())
-  statisticsId String
+model TargetEvaluation {
+  id              String @id @default(cuid())
+  runEvaluationId String
+  predictionRunId String
+  targetId        String
+  benchmarkSetId  String
 
-  // Metric identification
-  metricName String // "Solvability", "Top-1", "Top-5", "Top-10", etc.
-  groupKey   Int? // NULL for overall, route_length (2,3,4,5,6...) for stratified
+  effectiveConstraintsJson String
+  wallTime                 Float?
+  cpuTime                  Float?
+
+  runEvaluation RunEvaluation         @relation(fields: [runEvaluationId, predictionRunId, benchmarkSetId], references: [id, predictionRunId, benchmarkSetId], onDelete: Cascade)
+  target        BenchmarkTarget       @relation(fields: [targetId, benchmarkSetId], references: [id, benchmarkSetId], onDelete: Cascade)
+  candidates    CandidateEvaluation[]
+
+  @@unique([runEvaluationId, targetId])
+  @@unique([id, runEvaluationId, predictionRunId, targetId, benchmarkSetId])
+  @@index([targetId])
+}
+
+model CandidateEvaluation {
+  id                     String           @id @default(cuid())
+  runEvaluationId        String
+  targetEvaluationId     String
+  predictionRunId        String
+  targetId               String
+  benchmarkSetId         String
+  candidateId            String
+  constraintStatus       EvaluationStatus
+  constraintChecksJson   String?
+  validityEvidenceJson   String? // Lossless non-summary evidence for Tier-1+ assessments
+  matchesAcceptable      Boolean
+  matchedAcceptableIndex Int?
+
+  runEvaluation    RunEvaluation         @relation(fields: [runEvaluationId, predictionRunId, benchmarkSetId], references: [id, predictionRunId, benchmarkSetId], onDelete: Cascade)
+  targetEvaluation TargetEvaluation      @relation(fields: [targetEvaluationId, runEvaluationId, predictionRunId, targetId, benchmarkSetId], references: [id, runEvaluationId, predictionRunId, targetId, benchmarkSetId], onDelete: Cascade)
+  candidate        PredictionCandidate   @relation(fields: [candidateId, predictionRunId, targetId, benchmarkSetId], references: [id, predictionRunId, targetId, benchmarkSetId], onDelete: Cascade)
+  tierResults      CandidateTierResult[]
+
+  @@unique([runEvaluationId, candidateId])
+  @@unique([targetEvaluationId, candidateId])
+  @@index([candidateId])
+}
+
+model CandidateTierResult {
+  id                    String           @id @default(cuid())
+  candidateEvaluationId String
+  tier                  Int
+  status                EvaluationStatus
+  checksJson            String?
+
+  candidateEvaluation CandidateEvaluation @relation(fields: [candidateEvaluationId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateEvaluationId, tier])
+  @@index([tier, status])
+}
+
+model MetricEstimate {
+  id              String @id @default(cuid())
+  runEvaluationId String
+  metricKey       String // Exact RetroCast key, e.g. tier_0_validity_rate
+  stratum         String @default("") // Empty for overall; otherwise exact artifact stratum
 
   // Metric values (stored as 0-1, convert to percentage in UI)
   value    Float
-  ciLower  Float
-  ciUpper  Float
+  ciLower  Float?
+  ciUpper  Float?
   nSamples Int
 
   // Reliability assessment
-  reliabilityCode    ReliabilityCode
-  reliabilityMessage String
+  reliabilityCode    ReliabilityCode?
+  reliabilityMessage String?
 
   // Relations
-  statistics ModelRunStatistics @relation(fields: [statisticsId], references: [id], onDelete: Cascade)
+  runEvaluation RunEvaluation @relation(fields: [runEvaluationId], references: [id], onDelete: Cascade)
 
-  @@index([statisticsId, metricName]) // Fast filtering by metric
-  @@index([metricName, groupKey]) // Fast stratified queries
+  @@unique([runEvaluationId, metricKey, stratum])
+  @@index([metricKey, stratum])
 }
 
 // =================================================================================
@@ -343,20 +483,29 @@ model StratifiedMetricGroup {
 // =================================================================================
 
 model Stock {
-  id          String  @id @default(cuid(2))
-  name        String  @unique // "buyables-stock" (matches directory name)
-  description String?
+  id                             String  @id @default(cuid(2))
+  name                           String  @unique // "buyables-stock" (matches directory name)
+  description                    String?
+  sourcePath                     String?
+  sourceSha256                   String?
+  schemaVersion                  String?
+  enrichmentPath                 String?
+  enrichmentSha256               String?
+  enrichmentSchemaVersion        String?
+  enrichmentManifestPath         String?
+  enrichmentManifestSha256       String?
+  enrichmentSourceDatabaseSha256 String?
 
   benchmarks  BenchmarkSet[]
   items       StockItem[]
-  evaluations RouteSolvability[]
-  statistics  ModelRunStatistics[]
+  evaluations RunEvaluation[]
 }
 
 model StockItem {
   id         String @id @default(cuid(2))
   stockId    String
   moleculeId String
+  smiles     String // Exact representation from this stock artifact
 
   // Commercial metadata (from buyables-meta.json.gz)
   ppg      Float? // Price per gram in USD
@@ -373,29 +522,25 @@ model StockItem {
   @@index([stockId, moleculeId]) // optimize the join
 }
 
-// The result of `TargetEvaluation`
-// effectively "ScoredRoute" but normalized
-// NOTE: Solvability is per-PREDICTION, not per-route (same route can have different solvability in different contexts)
-model RouteSolvability {
-  id                String @id @default(cuid())
-  predictionRouteId String // Changed from routeId - solvability is per prediction
-  stockId           String
-
-  isSolvable             Boolean
-  matchesAcceptable      Boolean // "Does this route match ANY acceptable route?"
-  matchedAcceptableIndex Int? // Which acceptable route was matched (0-based index, null if no match)
-
-  // Stratification properties from Python TargetEvaluation
-  // Source priority: matched acceptable route > first solved predicted route > None
-  stratificationLength       Int? // stratification_length from Python
-  stratificationIsConvergent Boolean? // stratification_is_convergent from Python
-
-  // Runtime metrics for this evaluation (in seconds)
-  wallTime Float? // wall_time from Python TargetEvaluation
-  cpuTime  Float? // cpu_time from Python TargetEvaluation
-
-  predictionRoute PredictionRoute @relation(fields: [predictionRouteId], references: [id], onDelete: Cascade)
-  stock           Stock           @relation(fields: [stockId], references: [id])
-
-  @@unique([predictionRouteId, stockId])
+model DatabaseMetadata {
+  id                        String   @id @default("syntharena")
+  databaseSchemaVersion     Int
+  artifactSchemaVersion     String
+  inventorySchemaVersion    String
+  inventorySha256           String
+  catalogSha256             String
+  legacyUrlAliasesSha256    String?
+  identityBaselineSha256    String?
+  producerTrustPolicySha256 String
+  retrocastVersion          String
+  publicationStatus         String
+  benchmarkCount            Int
+  modelCount                Int
+  expectedRunCount          Int
+  importedRunCount          Int
+  evaluationTargetCount     Int
+  candidateCount            Int
+  routeCount                Int
+  failureCount              Int
+  generatedAt               DateTime @default(now())
 }

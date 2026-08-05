@@ -12,7 +12,7 @@ import { MetricCell } from '@/components/metrics'
  */
 export type StratifiedMetricRow = {
     modelName: string
-    metricsByLength: Record<number, MetricResult | undefined>
+    metricsByStratum: Record<string, MetricResult | undefined>
 }
 
 /**
@@ -21,7 +21,7 @@ export type StratifiedMetricRow = {
  *
  * @param routeLengths - Array of route lengths to create columns for (e.g., [1, 2, 3, 4])
  */
-export function createStratifiedColumns(routeLengths: number[]): ColumnDef<StratifiedMetricRow>[] {
+export function createStratifiedColumns(strata: string[]): ColumnDef<StratifiedMetricRow>[] {
     const columns: ColumnDef<StratifiedMetricRow>[] = [
         // Model Name Column
         {
@@ -33,17 +33,15 @@ export function createStratifiedColumns(routeLengths: number[]): ColumnDef<Strat
     ]
 
     // Add route length columns dynamically
-    routeLengths.forEach((length, idx) => {
-        const isLastColumn = idx === routeLengths.length - 1
+    strata.forEach((stratum, idx) => {
+        const isLastColumn = idx === strata.length - 1
 
         columns.push({
-            id: `length-${length}`,
-            accessorFn: (row) => row.metricsByLength[length]?.value,
-            header: ({ column, table }) => (
-                <DataTableColumnHeader column={column} table={table} title={`Length ${length}`} />
-            ),
+            id: `stratum-${stratum}`,
+            accessorFn: (row) => row.metricsByStratum[stratum]?.value,
+            header: ({ column, table }) => <DataTableColumnHeader column={column} table={table} title={stratum} />,
             cell: ({ row }) => {
-                const metric = row.original.metricsByLength[length]
+                const metric = row.original.metricsByStratum[stratum]
                 return (
                     <div className={isLastColumn ? 'flex justify-center' : 'flex justify-center'}>
                         {metric ? <MetricCell metric={metric} showBadge /> : '-'}
@@ -51,8 +49,8 @@ export function createStratifiedColumns(routeLengths: number[]): ColumnDef<Strat
                 )
             },
             sortingFn: (rowA, rowB) => {
-                const a = rowA.original.metricsByLength[length]?.value ?? -1
-                const b = rowB.original.metricsByLength[length]?.value ?? -1
+                const a = rowA.original.metricsByStratum[stratum]?.value ?? -1
+                const b = rowB.original.metricsByStratum[stratum]?.value ?? -1
                 return a - b
             },
         })
@@ -65,37 +63,34 @@ export function createStratifiedColumns(routeLengths: number[]): ColumnDef<Strat
  * Transforms stratified metrics data into table rows.
  *
  * @param metricsMap - Map of model names to their stratified metrics
- * @param metricName - Name of the metric to extract (e.g., "Solvability", "Top-1")
+ * @param metricName - Name of the metric to extract (e.g., "Solv-0[stock]", "Top-1")
  */
 export function transformStratifiedData(
     metricsMap: Map<
         string,
         {
-            solvability: StratifiedMetric
+            tier0Validity: StratifiedMetric
+            solv0: StratifiedMetric
             topKAccuracy?: Record<string, StratifiedMetric>
         }
     >,
     metricName: string
 ): StratifiedMetricRow[] {
     return Array.from(metricsMap.entries()).map(([modelName, metrics]) => {
-        let metricsByLength: Record<number, MetricResult | undefined> = {}
+        let metricsByStratum: Record<string, MetricResult | undefined> = {}
 
-        if (metricName === 'Solvability') {
-            metricsByLength = Object.fromEntries(
-                Object.entries(metrics.solvability.byGroup).map(([length, metric]) => [parseInt(length), metric])
-            )
+        if (metricName === 'Tier-0 valid') {
+            metricsByStratum = metrics.tier0Validity.byStratum
+        } else if (metricName.startsWith('Solv-0[')) {
+            metricsByStratum = metrics.solv0.byStratum
         } else {
             const topKMetric = metrics.topKAccuracy?.[metricName]
-            if (topKMetric) {
-                metricsByLength = Object.fromEntries(
-                    Object.entries(topKMetric.byGroup).map(([length, metric]) => [parseInt(length), metric])
-                )
-            }
+            if (topKMetric) metricsByStratum = topKMetric.byStratum
         }
 
         return {
             modelName,
-            metricsByLength,
+            metricsByStratum,
         }
     })
 }

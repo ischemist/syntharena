@@ -1,9 +1,16 @@
 import { Star } from 'lucide-react'
 
-import type { BuyableMetadata, PredictionRoute, Route, RouteLayoutMode, RouteVisualizationNode } from '@/types'
-import { StockTerminationBadge } from '@/components/badges/stock-termination'
+import type {
+    BuyableMetadata,
+    EvaluationStatus,
+    PredictionCandidate,
+    Route,
+    RouteLayoutMode,
+    RouteVisualizationNode,
+} from '@/types'
 import { CompactRankNavigator, ControlGrid, ControlGridSlot } from '@/components/navigation'
 import { RouteComparison, RouteGraph, RouteLegend } from '@/components/route-visualization'
+import { displaySolvStatus } from '@/lib/retrocast-metrics'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -12,14 +19,15 @@ import { RouteViewToggle } from './route-view-toggle'
 
 type RouteDisplayCardProps = {
     route?: Route
-    predictionRoute?: PredictionRoute
+    predictionCandidate?: PredictionCandidate
     visualizationNode?: RouteVisualizationNode
     acceptableRouteVisualizationNode?: RouteVisualizationNode
-    isSolvable?: boolean
+    tier0Status?: EvaluationStatus | null
+    constraintStatus?: EvaluationStatus
+    metricLabel?: string
     matchesAcceptable?: boolean
     inStockInchiKeys?: Set<string>
     buyableMetadataMap?: Map<string, BuyableMetadata>
-    stockName?: string
     layout?: RouteLayoutMode
     navigation: {
         currentRank: number
@@ -37,19 +45,20 @@ type RouteDisplayCardProps = {
 
 export function RouteDisplayCard({
     route,
-    predictionRoute,
+    predictionCandidate,
     visualizationNode,
     acceptableRouteVisualizationNode,
-    isSolvable,
+    tier0Status,
+    constraintStatus,
+    metricLabel,
     matchesAcceptable,
     inStockInchiKeys,
     buyableMetadataMap,
-    stockName,
     layout: layoutProp,
     navigation,
     acceptableRouteNav,
 }: RouteDisplayCardProps) {
-    const hasRoute = !!route && !!predictionRoute && !!visualizationNode
+    const hasRoute = !!route && !!predictionCandidate && !!visualizationNode
     const hasAcceptableRoute = !!acceptableRouteVisualizationNode
 
     const layout: RouteLayoutMode = layoutProp || 'prediction-only' // [RENAMED]
@@ -66,15 +75,21 @@ export function RouteDisplayCard({
                                 Rank {navigation.currentRank} • Length: {route.length} steps •{' '}
                                 {route.isConvergent ? 'Convergent' : 'Linear'}
                             </>
+                        ) : predictionCandidate?.failureCode ? (
+                            `Rank ${navigation.currentRank} failed: ${predictionCandidate.failureCode}${predictionCandidate.failureMessage ? ` — ${predictionCandidate.failureMessage}` : ''}`
                         ) : (
                             `Rank ${navigation.currentRank} not found in this prediction set.`
                         )}
                     </CardDescription>
                 </div>
 
-                {hasRoute && (
+                {predictionCandidate && (
                     <div className="flex w-full items-center justify-between">
-                        <RouteViewToggle layout={layout} hasAcceptableRoute={hasAcceptableRoute} />
+                        {hasRoute ? (
+                            <RouteViewToggle layout={layout} hasAcceptableRoute={hasAcceptableRoute} />
+                        ) : (
+                            <div />
+                        )}
                         <div className="flex items-center gap-2">
                             {matchesAcceptable && (
                                 <Badge variant="secondary" className="gap-1 px-2 py-1">
@@ -82,12 +97,15 @@ export function RouteDisplayCard({
                                     Acceptable Match
                                 </Badge>
                             )}
-                            {isSolvable !== undefined && (
-                                <StockTerminationBadge
-                                    isTerminated={isSolvable}
-                                    stockName={stockName}
-                                    badgeStyle="soft"
-                                />
+                            {tier0Status && tier0Status !== 'NOT_EVALUATED' && (
+                                <Badge variant={tier0Status === 'PASS' ? 'secondary' : 'destructive'}>
+                                    Tier-0 {tier0Status === 'PASS' ? 'valid' : 'invalid'}
+                                </Badge>
+                            )}
+                            {constraintStatus && constraintStatus !== 'NOT_EVALUATED' && (
+                                <Badge variant={constraintStatus === 'PASS' ? 'secondary' : 'destructive'}>
+                                    {displaySolvStatus(0, metricLabel ?? 'unknown', constraintStatus === 'PASS')}
+                                </Badge>
                             )}
                         </div>
                     </div>
@@ -126,7 +144,10 @@ export function RouteDisplayCard({
                     {!hasRoute ? (
                         <div className="flex h-full items-center justify-center">
                             <p className="text-muted-foreground text-center text-sm">
-                                No prediction route exists at rank {navigation.currentRank}.<br />
+                                {predictionCandidate?.failureCode
+                                    ? `RetroCast preserved this ranked planner output as ${predictionCandidate.failureCode}.`
+                                    : `No prediction candidate exists at rank ${navigation.currentRank}.`}
+                                <br />
                                 Use the navigation above to browse other ranks.
                             </p>
                         </div>

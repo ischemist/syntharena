@@ -10,13 +10,9 @@ import { Prisma } from '@prisma/client'
 import type {
     BenchmarkTargetWithMolecule,
     BuyableMetadata,
-    MetricResult,
-    ModelStatistics,
     PredictionRunWithStats,
-    ReliabilityCode,
     RouteLayoutMode,
     RunStatistics,
-    StockListItem,
     StratifiedMetric,
     SubmissionType,
     TargetDisplayData,
@@ -25,6 +21,14 @@ import type {
 } from '@/types'
 
 import { getAllRouteInchiKeysSet } from '@/lib/route-visualization'
+import {
+    buildStratifiedMetric,
+    displayMetricName,
+    findSolv0Key,
+    findTier0Key,
+    metricResultFromEstimate,
+    topKFromMetricKey,
+} from '@/lib/retrocast-metrics'
 import * as benchmarkData from '@/lib/services/data/benchmark.data'
 import * as modelFamilyData from '@/lib/services/data/model-family.data'
 import * as predictionData from '@/lib/services/data/prediction.data'
@@ -73,7 +77,7 @@ function _buildRunTargetNavigation(
     params: {
         targetId: string
         rank: number
-        stockId?: string
+        evaluationId?: string
         acceptableIndex?: number
         layout?: string
     },
@@ -86,7 +90,7 @@ function _buildRunTargetNavigation(
         const search = new URLSearchParams()
         search.set('target', params.targetId)
         search.set('rank', params.rank.toString())
-        if (params.stockId) search.set('stock', params.stockId)
+        if (params.evaluationId) search.set('evaluation', params.evaluationId)
         if (params.acceptableIndex !== undefined) search.set('acceptableIndex', params.acceptableIndex.toString())
         if (params.layout) search.set('layout', params.layout)
 
@@ -164,33 +168,30 @@ export async function getPredictionRuns(
     )
 
     return runs.map((run) => {
-        const solvabilitySummary: Record<string, number> = {}
-        for (const stat of run.statistics) {
-            const metricsByName = new Map(stat.metrics.map((metric) => [metric.metricName, metric]))
-            const solvabilityMetric = metricsByName.get('Solvability')
-            if (solvabilityMetric) {
-                solvabilitySummary[stat.stockId] = solvabilityMetric.value
+        const solv0Summary: NonNullable<PredictionRunWithStats['solv0Summary']> = {}
+        for (const evaluation of run.evaluations) {
+            const solvKey = findSolv0Key(evaluation.metrics, evaluation.metricLabel)
+            const solv = solvKey
+                ? evaluation.metrics.find((metric) => metric.metricKey === solvKey && metric.stratum === '')
+                : undefined
+            if (solv) {
+                solv0Summary[evaluation.metricLabel] = {
+                    label: evaluation.metricLabel,
+                    metric: metricResultFromEstimate(solv),
+                }
             }
         }
-        const summaryMetricsByName = new Map(
-            (run.statistics[0]?.metrics ?? []).map((metric) => [metric.metricName, metric])
+        const summaryMetrics = run.evaluations[0]?.metrics ?? []
+        const tierKey = findTier0Key(summaryMetrics)
+        const tierMetric = tierKey
+            ? summaryMetrics.find((metric) => metric.metricKey === tierKey && metric.stratum === '')
+            : undefined
+        const top1Metric = summaryMetrics.find(
+            (metric) => metric.stratum === '' && topKFromMetricKey(metric.metricKey) === 1
         )
-        const toMetricResult = (metric?: (typeof run.statistics)[0]['metrics'][0]): MetricResult | null => {
-            if (!metric) return null
-            return {
-                value: metric.value,
-                ciLower: metric.ciLower,
-                ciUpper: metric.ciUpper,
-                nSamples: metric.nSamples,
-                reliability: {
-                    code: metric.reliabilityCode as ReliabilityCode,
-                    message: metric.reliabilityMessage,
-                },
-            }
-        }
-
-        const top1Accuracy = toMetricResult(summaryMetricsByName.get('Top-1'))
-        const top10Accuracy = toMetricResult(summaryMetricsByName.get('Top-10'))
+        const top10Metric = summaryMetrics.find(
+            (metric) => metric.stratum === '' && topKFromMetricKey(metric.metricKey) === 10
+        )
 
         return {
             id: run.id,
@@ -207,11 +208,12 @@ export async function getPredictionRuns(
             totalRoutes: run.totalRoutes,
             hourlyCost: run.hourlyCost,
             totalCost: run.totalCost,
-            totalWallTime: run.statistics[0]?.totalWallTime ?? null,
+            totalWallTime: run.totalWallTime,
             avgRouteLength: run.avgRouteLength,
-            solvabilitySummary,
-            top1Accuracy,
-            top10Accuracy,
+            tier0Validity: tierMetric ? metricResultFromEstimate(tierMetric) : null,
+            solv0Summary,
+            top1Accuracy: top1Metric ? metricResultFromEstimate(top1Metric) : null,
+            top10Accuracy: top10Metric ? metricResultFromEstimate(top10Metric) : null,
             executedAt: run.executedAt,
             submissionType: run.submissionType,
             isRetrained: run.isRetrained,
@@ -260,7 +262,7 @@ export async function getPredictionRunsForTarget(
             modelVersion: versionString,
             algorithmName: run.modelInstance.family.algorithm.name,
             executedAt: run.executedAt,
-            routeCount: run._count.predictionRoutes,
+            routeCount: run._count.predictionCandidates,
             availableRanks,
         }
     })
@@ -283,14 +285,23 @@ export async function getPredictionRunBreadcrumbData(runId: string): Promise<Run
     }
 }
 
-/** returns stocks that have statistics computed for a run. */
-export async function getStocksForRun(runId: string): Promise<StockListItem[]> {
-    const statsWithStocks = await statsData.findStocksWithStatsForRun(runId)
-    return statsWithStocks.map((stat) => ({
-        id: stat.stock.id,
-        name: stat.stock.name,
-        description: stat.stock.description || undefined,
-        itemCount: stat.stock._count.items,
+export interface RunEvaluationListItem {
+    id: string
+    metricLabel: string
+    stockName?: string
+    stockItemCount?: number
+}
+
+/** Returns every evaluation for a run, including custom labels without stock provenance. */
+export async function getEvaluationsForRun(runId: string): Promise<RunEvaluationListItem[]> {
+    const evaluations = await statsData.findEvaluationsForRun(runId)
+    return evaluations.map((evaluation) => ({
+        id: evaluation.id,
+        metricLabel: evaluation.metricLabel,
+        ...(evaluation.stock && {
+            stockName: evaluation.stock.name,
+            stockItemCount: evaluation.stock._count.items,
+        }),
     }))
 }
 
@@ -316,33 +327,38 @@ export async function getAvailableRouteLengths(runId: string): Promise<number[]>
     return benchmarkData.findAvailableRouteLengths(run.benchmarkSet.id)
 }
 
-/** returns full statistics for a run against a stock. */
-export async function getRunStatistics(runId: string, stockId: string): Promise<RunStatistics> {
-    const stats = await statsData.findStatisticsForRun(runId, stockId)
-
-    let parsedStats: ModelStatistics | undefined
-    try {
-        parsedStats = JSON.parse(stats.statisticsJson) as ModelStatistics
-    } catch (error) {
-        console.error('Failed to parse statistics JSON:', error)
-    }
-
-    if (!parsedStats) {
-        parsedStats = reconstructStatisticsFromMetrics(stats.metrics)
+/** Returns full statistics for one exact RetroCast evaluation identity. */
+export async function getRunStatistics(runId: string, evaluationId: string): Promise<RunStatistics> {
+    const evaluation = await statsData.findStatisticsForRun(runId, evaluationId)
+    const tierKey = findTier0Key(evaluation.metrics)
+    const solvKey = findSolv0Key(evaluation.metrics, evaluation.metricLabel)
+    const topKAccuracy: Record<string, StratifiedMetric> = {}
+    for (const key of new Set(evaluation.metrics.map((metric) => metric.metricKey))) {
+        if (topKFromMetricKey(key) === null) continue
+        const metric = buildStratifiedMetric(key, evaluation.metrics)
+        if (metric) topKAccuracy[displayMetricName(key)] = metric
     }
 
     return {
-        id: stats.id,
-        predictionRunId: stats.predictionRunId,
-        stockId: stats.stockId,
-        stock: {
-            id: stats.stock.id,
-            name: stats.stock.name,
-            description: stats.stock.description ?? undefined,
+        id: evaluation.id,
+        predictionRunId: evaluation.predictionRunId,
+        stockId: evaluation.stockId,
+        stock: evaluation.stock
+            ? {
+                  id: evaluation.stock.id,
+                  name: evaluation.stock.name,
+                  description: evaluation.stock.description ?? undefined,
+              }
+            : null,
+        metricLabel: evaluation.metricLabel,
+        analysisJson: evaluation.analysisJson,
+        statistics: {
+            metricLabel: evaluation.metricLabel,
+            tier0Validity: tierKey ? buildStratifiedMetric(tierKey, evaluation.metrics) : null,
+            solv0: solvKey ? buildStratifiedMetric(solvKey, evaluation.metrics) : null,
+            topKAccuracy,
         },
-        statisticsJson: stats.statisticsJson,
-        statistics: parsedStats,
-        computedAt: stats.computedAt,
+        computedAt: evaluation.createdAt,
     }
 }
 
@@ -352,7 +368,6 @@ export async function getRunStatistics(runId: string, stockId: string): Promise<
 export async function searchTargets(
     runId: string,
     query: string,
-    stockId?: string,
     routeLength?: number,
     onlyWithPredictions?: boolean,
     limit: number = 20
@@ -360,7 +375,7 @@ export async function searchTargets(
     const where: Prisma.BenchmarkTargetWhereInput = {}
     if (query?.trim()) {
         const q = query.trim()
-        where.OR = [{ targetId: { contains: q } }, { molecule: { smiles: { contains: q } } }]
+        where.OR = [{ targetId: { contains: q } }, { smiles: { contains: q } }]
     }
     if (routeLength !== undefined) {
         where.routeLength = routeLength
@@ -382,98 +397,6 @@ export async function searchTargets(
     }))
 }
 
-/** Fallback for when JSON parsing fails. */
-function reconstructStatisticsFromMetrics(
-    metrics: Array<{
-        metricName: string
-        groupKey: number | null
-        value: number
-        ciLower: number
-        ciUpper: number
-        nSamples: number
-        reliabilityCode: string
-        reliabilityMessage: string
-    }>
-): ModelStatistics {
-    // ... implementation remains the same
-    const solvabilityMetrics = metrics.filter((m) => m.metricName === 'Solvability')
-    const topKMetrics = metrics.filter((m) => m.metricName.startsWith('Top-'))
-    const solvabilityOverall = solvabilityMetrics.find((m) => m.groupKey === null)
-    const solvabilityByGroup: Record<number, MetricResult> = {}
-    for (const metric of solvabilityMetrics.filter((m) => m.groupKey !== null)) {
-        solvabilityByGroup[metric.groupKey!] = {
-            value: metric.value,
-            ciLower: metric.ciLower,
-            ciUpper: metric.ciUpper,
-            nSamples: metric.nSamples,
-            reliability: { code: metric.reliabilityCode as ReliabilityCode, message: metric.reliabilityMessage },
-        }
-    }
-    const solvability: StratifiedMetric = {
-        metricName: 'Solvability',
-        overall: solvabilityOverall
-            ? {
-                  value: solvabilityOverall.value,
-                  ciLower: solvabilityOverall.ciLower,
-                  ciUpper: solvabilityOverall.ciUpper,
-                  nSamples: solvabilityOverall.nSamples,
-                  reliability: {
-                      code: solvabilityOverall.reliabilityCode as ReliabilityCode,
-                      message: solvabilityOverall.reliabilityMessage,
-                  },
-              }
-            : { value: 0, ciLower: 0, ciUpper: 0, nSamples: 0, reliability: { code: 'LOW_N', message: 'No data' } },
-        byGroup: solvabilityByGroup,
-    }
-    const topKAccuracy: Record<string, StratifiedMetric> = {}
-    const topKNames = [...new Set(topKMetrics.map((m) => m.metricName))]
-    const topKMetricsByName = new Map<string, typeof topKMetrics>()
-    for (const metric of topKMetrics) {
-        const existing = topKMetricsByName.get(metric.metricName)
-        if (existing) {
-            existing.push(metric)
-        } else {
-            topKMetricsByName.set(metric.metricName, [metric])
-        }
-    }
-    for (const metricName of topKNames) {
-        const metricsForK = topKMetricsByName.get(metricName) ?? []
-        let overall: (typeof metricsForK)[number] | undefined
-        const byGroup: Record<number, MetricResult> = {}
-        for (const metric of metricsForK) {
-            if (metric.groupKey === null) {
-                overall = metric
-                continue
-            }
-
-            byGroup[metric.groupKey] = {
-                value: metric.value,
-                ciLower: metric.ciLower,
-                ciUpper: metric.ciUpper,
-                nSamples: metric.nSamples,
-                reliability: { code: metric.reliabilityCode as ReliabilityCode, message: metric.reliabilityMessage },
-            }
-        }
-        if (overall) {
-            topKAccuracy[metricName] = {
-                metricName,
-                overall: {
-                    value: overall.value,
-                    ciLower: overall.ciLower,
-                    ciUpper: overall.ciUpper,
-                    nSamples: overall.nSamples,
-                    reliability: {
-                        code: overall.reliabilityCode as ReliabilityCode,
-                        message: overall.reliabilityMessage,
-                    },
-                },
-                byGroup,
-            }
-        }
-    }
-    return { solvability, ...(Object.keys(topKAccuracy).length > 0 && { topKAccuracy }) }
-}
-
 /** DTO for the new run detail page title card. */
 export interface RunTitleCardData {
     modelFamilyName: string
@@ -481,6 +404,7 @@ export interface RunTitleCardData {
     algorithmName: string
     algorithmSlug: string
     benchmarkId: string
+    benchmarkSlug: string
     benchmarkName: string
     submissionType: SubmissionType
     isRetrained?: boolean | null
@@ -493,39 +417,39 @@ export interface RunTitleCardData {
 /** Prepares the DTO for the new run detail page title card. */
 export async function getRunTitleCardData(runId: string): Promise<RunTitleCardData> {
     const run = await runData.findPredictionRunDetailsById(runId)
-    const { modelInstance, benchmarkSet, statistics } = run
+    const { modelInstance, benchmarkSet } = run
     return {
         modelFamilyName: modelInstance.family.name,
         modelFamilySlug: modelInstance.family.slug,
         algorithmName: modelInstance.family.algorithm.name,
         algorithmSlug: modelInstance.family.algorithm.slug,
         benchmarkId: benchmarkSet.id,
+        benchmarkSlug: benchmarkSet.slug,
         benchmarkName: benchmarkSet.name,
         submissionType: run.submissionType,
         isRetrained: run.isRetrained,
         totalRoutes: run.totalRoutes,
         executedAt: run.executedAt,
-        totalWallTime: statistics[0]?.totalWallTime ?? null,
+        totalWallTime: run.totalWallTime,
         totalCost: run.totalCost,
     }
 }
 
-/** Determines the default stock and target for a run. */
+/** Determines the default evaluation and target for a run. */
 export async function getRunDefaults(
     runId: string,
-    currentStockId?: string,
+    currentEvaluationId?: string,
     currentTargetId?: string
-): Promise<{ stockId: string | undefined; targetId: string | undefined }> {
-    if (currentStockId) {
-        if (currentTargetId) return { stockId: currentStockId, targetId: currentTargetId }
+): Promise<{ evaluationId: string | undefined; targetId: string | undefined }> {
+    if (currentEvaluationId) {
+        if (currentTargetId) return { evaluationId: currentEvaluationId, targetId: currentTargetId }
         const targetIds = await getTargetIdsByRun(runId)
-        return { stockId: currentStockId, targetId: targetIds[0] }
+        return { evaluationId: currentEvaluationId, targetId: targetIds[0] }
     }
-    const stocks = await getStocksForRun(runId)
-    if (stocks.length === 0) return { stockId: undefined, targetId: undefined }
-    const defaultStockId = stocks[0].id
+    const evaluations = await getEvaluationsForRun(runId)
+    if (evaluations.length === 0) return { evaluationId: undefined, targetId: undefined }
     const targetIds = await getTargetIdsByRun(runId)
-    return { stockId: defaultStockId, targetId: targetIds[0] }
+    return { evaluationId: evaluations[0].id, targetId: targetIds[0] }
 }
 
 /** The "mega-dto" orchestrator for the target display section. */
@@ -533,18 +457,22 @@ export async function getTargetDisplayData(
     runId: string,
     targetId: string,
     rank: number,
-    stockId?: string,
+    evaluationId?: string,
     acceptableIndexProp?: number,
     layout?: string
 ): Promise<TargetDisplayData> {
     // Wave 1
-    const [targetPayload, predictionSummaries, acceptableRoutes, prediction, firstMatchRank] = await Promise.all([
-        benchmarkData.findTargetWithDetailsById(targetId),
-        routeData.findPredictionSummaries(targetId, runId),
-        routeData.findAcceptableRoutesForTarget(targetId),
-        routeData.findSinglePredictionForTarget(targetId, runId, rank, stockId),
-        stockId ? routeData.findFirstAcceptableMatchRank(targetId, runId, stockId) : Promise.resolve(undefined),
-    ])
+    const [targetPayload, predictionSummaries, acceptableRoutes, prediction, firstMatchRank, evaluationContext] =
+        await Promise.all([
+            benchmarkData.findTargetWithDetailsById(targetId),
+            routeData.findPredictionSummaries(targetId, runId),
+            routeData.findAcceptableRoutesForTarget(targetId),
+            routeData.findSinglePredictionForTarget(targetId, runId, rank, evaluationId),
+            evaluationId
+                ? routeData.findFirstAcceptableMatchRank(targetId, runId, evaluationId)
+                : Promise.resolve(undefined),
+            evaluationId ? statsData.findEvaluationContext(runId, evaluationId) : Promise.resolve(null),
+        ])
 
     // Process Wave 1
     const totalPredictions = predictionSummaries.length
@@ -555,7 +483,7 @@ export async function getTargetDisplayData(
     const selectedAcceptable = totalAcceptableRoutes > 0 ? acceptableRoutes[currentAcceptableIndex] : undefined
     const targetInfo: TargetInfo = {
         targetId: targetPayload.targetId,
-        molecule: targetPayload.molecule,
+        molecule: { ...targetPayload.molecule, smiles: targetPayload.smiles },
         routeLength: targetPayload.routeLength,
         isConvergent: targetPayload.isConvergent,
         hasAcceptableRoutes: targetPayload.acceptableRoutesCount > 0,
@@ -564,7 +492,7 @@ export async function getTargetDisplayData(
 
     // Wave 2
     const [predictedNodes, acceptableNodes] = await Promise.all([
-        prediction ? routeData.findNodesForRoute(prediction.route.id) : Promise.resolve(undefined),
+        prediction?.route ? routeData.findNodesForRoute(prediction.route.id) : Promise.resolve(undefined),
         selectedAcceptable ? routeData.findNodesForRoute(selectedAcceptable.route.id) : Promise.resolve(undefined),
     ])
 
@@ -581,6 +509,7 @@ export async function getTargetDisplayData(
         inStockInchiKeys: new Set<string>(),
         buyableMetadataMap: new Map<string, BuyableMetadata>(),
     }
+    const stockId = evaluationContext?.stock?.id
     if (stockId) {
         const [stockItems, stockNameResult] = await Promise.all([
             allInchiKeys.size > 0
@@ -595,24 +524,24 @@ export async function getTargetDisplayData(
     // Final Assembly
     const navState = _buildRunTargetNavigation(
         runId,
-        { targetId, rank, stockId, acceptableIndex: currentAcceptableIndex, layout },
+        { targetId, rank, evaluationId, acceptableIndex: currentAcceptableIndex, layout },
         { availableRanks: predictionSummaries.map((s) => s.rank), totalAcceptableRoutes }
     )
 
-    const solvabilityRecord = prediction?.solvabilityStatus.find((s) => s.stockId === stockId)
+    const evaluationRecord = prediction?.evaluations[0]
+    const tier0Status = evaluationRecord?.tierResults.find((result) => result.tier === 0)?.status ?? null
     let currentPrediction: TargetDisplayData['currentPrediction'] = null
-    if (prediction && predictedVizNode) {
+    if (prediction) {
         currentPrediction = {
-            predictionRoute: prediction,
-            route: prediction.route,
+            predictionCandidate: prediction,
+            route: prediction.route ?? null,
             visualizationNode: predictedVizNode,
-            // FIX: correctly map the record to the DTO shape
-            solvability: solvabilityRecord
+            evaluation: evaluationRecord
                 ? {
-                      stockId: solvabilityRecord.stockId,
-                      stockName: solvabilityRecord.stock.name,
-                      isSolvable: solvabilityRecord.isSolvable,
-                      matchesAcceptable: solvabilityRecord.matchesAcceptable,
+                      metricLabel: evaluationRecord.runEvaluation.metricLabel,
+                      tier0Status,
+                      constraintStatus: evaluationRecord.constraintStatus,
+                      matchesAcceptable: evaluationRecord.matchesAcceptable,
                   }
                 : undefined,
         }

@@ -37,7 +37,8 @@ const chartColors = {
  * Ensures consistent colors across all chart types.
  */
 export const metricColors = {
-    Solvability: { bar: '#c77dff', errorBar: '#9d4edd' },
+    'Tier-0 valid': { bar: '#c77dff', errorBar: '#9d4edd' },
+    'Solv-0': { bar: '#4cc9f0', errorBar: '#0077b6' },
     'Top-1': { bar: '#ffccd5', errorBar: '#ffb3c1' },
     'Top-2': { bar: '#ffb3c1', errorBar: '#ff8fa3' },
     'Top-3': { bar: '#ff8fa3', errorBar: '#ff758f' },
@@ -65,5 +66,6 @@ function getSeriesColors(index: number): { bar: string; errorBar: string } {
  * This ensures consistent colors across all chart types while supporting unknown metrics.
  */
 export function getMetricColors(metricName: string, fallbackIndex: number): { bar: string; errorBar: string } {
+    if (metricName.startsWith('Solv-0[')) return metricColors['Solv-0']
     return metricColors[metricName as keyof typeof metricColors] ?? getSeriesColors(fallbackIndex)
 }

@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 
 type BenchmarkOption = {
     id: string
+    slug: string
     name: string
     series: 'MARKET' | 'REFERENCE' | 'LEGACY' | 'OTHER'
 }
@@ -41,10 +42,10 @@ export function BenchmarkCombobox({ benchmarks, selectedId }: BenchmarkComboboxP
     const referenceBenchmarks = benchmarks.filter((b) => b.series === 'REFERENCE')
     const otherBenchmarks = benchmarks.filter((b) => b.series === 'LEGACY' || b.series === 'OTHER')
 
-    const handleSelect = (benchmarkId: string) => {
+    const handleSelect = (benchmarkSlug: string) => {
         // Update URL with new benchmark selection, preserving existing params
         const params = new URLSearchParams(searchParams.toString())
-        params.set('benchmarkId', benchmarkId)
+        params.set('benchmarkId', benchmarkSlug)
         router.push(`${pathname}?${params.toString()}`)
         setOpen(false)
     }
@@ -80,7 +81,7 @@ export function BenchmarkCombobox({ benchmarks, selectedId }: BenchmarkComboboxP
                                             <CommandItem
                                                 key={benchmark.id}
                                                 value={benchmark.name}
-                                                onSelect={() => handleSelect(benchmark.id)}
+                                                onSelect={() => handleSelect(benchmark.slug)}
                                             >
                                                 {benchmark.name}
                                                 <Check

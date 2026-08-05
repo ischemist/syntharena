@@ -6,6 +6,7 @@ import { unstable_cache as cache } from 'next/cache'
 import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/db'
+import { solvRateKey, topKFromMetricKey } from '@/lib/retrocast-metrics'
 
 // ============================================================================
 // reads
@@ -15,7 +16,7 @@ import prisma from '@/lib/db'
  * returns data needed for the main prediction run list.
  * supports developer mode filtering: when devMode is false, returns only the
  * "champion" (best-performing) run for each (model family, benchmark) combination.
- * champion is determined by Top-10 accuracy, falling back to Solvability.
+ * champion is determined by Top-10 accuracy, falling back to exact-label Solv-0.
  */
 async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput, devMode: boolean = false) {
     const allRuns = await prisma.predictionRun.findMany({
@@ -25,6 +26,7 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput,
             modelInstanceId: true,
             benchmarkSetId: true,
             totalRoutes: true,
+            totalWallTime: true,
             hourlyCost: true,
             totalCost: true,
             avgRouteLength: true,
@@ -57,23 +59,22 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput,
                 select: {
                     id: true,
                     name: true,
+                    slug: true,
                     stockId: true,
                     createdAt: true,
                     hasAcceptableRoutes: true,
                     series: true,
                 },
             },
-            statistics: {
+            evaluations: {
                 select: {
                     stockId: true,
-                    totalWallTime: true,
+                    metricLabel: true,
                     metrics: {
-                        where: {
-                            groupKey: null,
-                            metricName: { in: ['Solvability', 'Top-1', 'Top-10'] },
-                        },
+                        where: { stratum: '' },
                         select: {
-                            metricName: true,
+                            metricKey: true,
+                            stratum: true,
                             value: true,
                             ciLower: true,
                             ciUpper: true,
@@ -111,7 +112,7 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput,
         const groupRunsWithMetrics = groupRuns.map((run) => ({
             run,
             metricsByName: new Map(
-                (run.statistics[0]?.metrics ?? []).map((metric) => [metric.metricName, metric.value])
+                (run.evaluations[0]?.metrics ?? []).map((metric) => [metric.metricKey, metric.value])
             ),
         }))
 
@@ -121,18 +122,20 @@ async function _findPredictionRunsForList(where: Prisma.PredictionRunWhereInput,
 
         // find the champion using the same logic as leaderboard
         const champion = groupRunsWithMetrics.reduce((best, current) => {
-            const bestTop10 = getMetric(best, 'Top-10')
-            const currentTop10 = getMetric(current, 'Top-10')
+            const top10Key = [...current.metricsByName.keys()].find((key) => topKFromMetricKey(key) === 10)
+            const bestTop10 = top10Key ? getMetric(best, top10Key) : -1
+            const currentTop10 = top10Key ? getMetric(current, top10Key) : -1
 
             // if top-10 exists, it's the primary sorting key
             if (bestTop10 !== -1 || currentTop10 !== -1) {
                 return currentTop10 > bestTop10 ? current : best
             }
 
-            // otherwise, fall back to solvability
-            const bestSolvability = getMetric(best, 'Solvability')
-            const currentSolvability = getMetric(current, 'Solvability')
-            return currentSolvability > bestSolvability ? current : best
+            const bestLabel = best.run.evaluations[0]?.metricLabel
+            const currentLabel = current.run.evaluations[0]?.metricLabel
+            const bestSolv0 = bestLabel ? getMetric(best, solvRateKey(0, bestLabel)) : -1
+            const currentSolv0 = currentLabel ? getMetric(current, solvRateKey(0, currentLabel)) : -1
+            return currentSolv0 > bestSolv0 ? current : best
         })
 
         champions.push(champion.run)
@@ -151,7 +154,7 @@ async function _findPredictionRunDetailsById(runId: string) {
         include: {
             modelInstance: { include: { family: { include: { algorithm: true } } } },
             benchmarkSet: true,
-            statistics: {
+            evaluations: {
                 include: { stock: true, metrics: true },
             },
         },
@@ -172,9 +175,9 @@ async function _findPredictionRunHeaderById(runId: string) {
             totalRoutes: true,
             executedAt: true,
             totalCost: true,
+            totalWallTime: true,
             modelInstance: { select: { family: { select: { name: true } } } },
             benchmarkSet: { select: { id: true, name: true, hasAcceptableRoutes: true } },
-            statistics: { select: { totalWallTime: true }, take: 1 }, // only need one stat record for wall time
         },
     })
     if (!run) throw new Error('prediction run not found.')

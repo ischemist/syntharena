@@ -19,7 +19,7 @@ type StratifiedMetricsChartProps = {
 // Track which specific bar is being hovered
 type HoveredBar = {
     metricKey: string
-    length: number
+    stratum: string
 } | null
 
 /**
@@ -36,31 +36,30 @@ export function StratifiedMetricsChart({ metrics, minSamples = 5 }: StratifiedMe
     const filteredMetrics = filterPlateauStratifiedMetrics(metrics)
 
     // Extract all unique route lengths across all metrics
-    const allLengths = new Set<number>()
+    const allStrata = new Set<string>()
     filteredMetrics.forEach((m) => {
-        Object.keys(m.stratified.byGroup).forEach((length) => {
-            const len = parseInt(length)
-            const metric = m.stratified.byGroup[len]
+        Object.keys(m.stratified.byStratum).forEach((stratum) => {
+            const metric = m.stratified.byStratum[stratum]
             // Only include lengths with sufficient samples
             if (metric.nSamples >= minSamples) {
-                allLengths.add(len)
+                allStrata.add(stratum)
             }
         })
     })
 
-    const sortedLengths = Array.from(allLengths).sort((a, b) => a - b)
+    const sortedStrata = Array.from(allStrata).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
 
     // Transform data for recharts grouped bar chart
     // Each row is a route length, with columns for each metric
-    const chartData = sortedLengths.map((length, lengthIndex) => {
+    const chartData = sortedStrata.map((stratum, stratumIndex) => {
         const row: Record<string, unknown> = {
-            length,
+            stratum,
             // Unique identifier for this data point to help with key generation
-            _id: `length-${length}-idx-${lengthIndex}`,
+            _id: `stratum-${stratum}-idx-${stratumIndex}`,
         }
 
         filteredMetrics.forEach((m, metricIndex) => {
-            const metric = m.stratified.byGroup[length]
+            const metric = m.stratified.byStratum[stratum]
             if (metric) {
                 const metricKey = m.name.toLowerCase().replace(/[^a-z0-9]/g, '_')
                 const value = metric.value * 100 // Convert to percentage
@@ -124,12 +123,12 @@ export function StratifiedMetricsChart({ metrics, minSamples = 5 }: StratifiedMe
             >
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis
-                    dataKey="length"
+                    dataKey="stratum"
                     stroke="hsl(var(--foreground))"
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
-                    label={{ value: 'Route Length', position: 'insideBottom', offset: -10 }}
+                    label={{ value: 'Benchmark Stratum', position: 'insideBottom', offset: -10 }}
                 />
                 <YAxis
                     stroke="hsl(var(--foreground))"
@@ -151,7 +150,7 @@ export function StratifiedMetricsChart({ metrics, minSamples = 5 }: StratifiedMe
                         }
 
                         // Verify the hovered bar matches the current tooltip position
-                        if (hoveredBar.length !== label) {
+                        if (hoveredBar.stratum !== label) {
                             return null
                         }
 
@@ -164,7 +163,7 @@ export function StratifiedMetricsChart({ metrics, minSamples = 5 }: StratifiedMe
 
                         return (
                             <div className="border-border/50 bg-background rounded-lg border px-3 py-2 shadow-xl">
-                                <div className="mb-2 text-sm font-medium">Route Length: {label}</div>
+                                <div className="mb-2 text-sm font-medium">Stratum: {label}</div>
                                 <div className="space-y-1">
                                     <div className="flex items-center gap-2">
                                         <div className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: color }} />
@@ -212,8 +211,8 @@ export function StratifiedMetricsChart({ metrics, minSamples = 5 }: StratifiedMe
                             fill={barColor}
                             radius={[4, 4, 0, 0]}
                             onMouseEnter={(data) => {
-                                if (data && data.length !== undefined) {
-                                    setHoveredBar({ metricKey, length: data.length as number })
+                                if (data && data.stratum !== undefined) {
+                                    setHoveredBar({ metricKey, stratum: data.stratum as string })
                                 }
                             }}
                             onMouseLeave={() => setHoveredBar(null)}

@@ -8,14 +8,14 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { TargetPagination } from '../client/target-pagination'
 
 interface TargetGridProps {
-    benchmarkId: string
+    benchmarkSlug: string
     result: BenchmarkTargetSearchResult
 }
 
 /**
  * Synchronous component that displays a grid of benchmark targets from a pre-fetched result set.
  */
-export function TargetGrid({ benchmarkId, result }: TargetGridProps) {
+export function TargetGrid({ benchmarkSlug, result }: TargetGridProps) {
     if (result.targets.length === 0) {
         return (
             <Card variant="bordered">
@@ -31,7 +31,7 @@ export function TargetGrid({ benchmarkId, result }: TargetGridProps) {
             {/* Target grid */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                 {result.targets.map((target) => (
-                    <Link key={target.id} href={`/benchmarks/${benchmarkId}/targets/${target.id}`} prefetch={true}>
+                    <Link key={target.id} href={`/benchmarks/${benchmarkSlug}/targets/${target.id}`} prefetch={true}>
                         <Card variant="bordered" className="group hover:bg-accent/50 transition-colors">
                             <CardHeader className="px-4 pb-0">
                                 <div className="flex items-center justify-between gap-2">
@@ -52,7 +52,7 @@ export function TargetGrid({ benchmarkId, result }: TargetGridProps) {
                             </CardHeader>
                             <CardContent>
                                 <div className="flex items-center justify-center">
-                                    <SmileDrawerSvg smilesStr={target.molecule.smiles} width={200} height={200} />
+                                    <SmileDrawerSvg smilesStr={target.smiles} width={200} height={200} />
                                 </div>
                             </CardContent>
                         </Card>

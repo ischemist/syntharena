@@ -248,8 +248,7 @@ export function TargetSearch({
                                 <>
                                     <CommandGroup>
                                         {results.map((target) => {
-                                            const searchValue =
-                                                `${target.targetId} ${target.molecule.smiles}`.toLowerCase()
+                                            const searchValue = `${target.targetId} ${target.smiles}`.toLowerCase()
                                             return (
                                                 <CommandItem
                                                     key={target.id}
@@ -279,7 +278,7 @@ export function TargetSearch({
                                                         )}
                                                     </div>
                                                     <div className="text-muted-foreground w-full truncate font-mono text-xs">
-                                                        {target.molecule.smiles}
+                                                        {target.smiles}
                                                     </div>
                                                 </CommandItem>
                                             )

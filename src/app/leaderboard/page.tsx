@@ -56,7 +56,7 @@ async function LeaderboardContentWrapper({
         )
     }
 
-    const { leaderboardEntries, stratifiedMetricsByStock, stocks, metadata, allBenchmarks, selectedBenchmark } =
+    const { leaderboardEntries, stratifiedMetricsByLabel, metricLabels, metadata, allBenchmarks, selectedBenchmark } =
         pageData
     const { hasAcceptableRoutes, availableTopKMetrics } = metadata
 
@@ -73,8 +73,8 @@ async function LeaderboardContentWrapper({
                 <LeaderboardMetrics
                     leaderboardEntries={leaderboardEntries}
                     selectedBenchmark={selectedBenchmark}
-                    stratifiedMetricsByStock={stratifiedMetricsByStock}
-                    stocks={stocks}
+                    stratifiedMetricsByLabel={stratifiedMetricsByLabel}
+                    metricLabels={metricLabels}
                     hasAcceptableRoutes={hasAcceptableRoutes}
                     availableTopKMetrics={availableTopKMetrics}
                 />
@@ -87,27 +87,37 @@ async function LeaderboardContentWrapper({
 function LeaderboardMetrics({
     leaderboardEntries,
     selectedBenchmark,
-    stratifiedMetricsByStock,
-    stocks,
+    stratifiedMetricsByLabel,
+    metricLabels,
     hasAcceptableRoutes,
     availableTopKMetrics,
 }: Omit<LeaderboardPageData, 'allBenchmarks' | 'metadata' | 'firstTargetId'> & LeaderboardPageData['metadata']) {
-    const stockName = leaderboardEntries[0].stockName
+    const entriesByLabel = metricLabels.flatMap((metricLabel) => {
+        const entries = leaderboardEntries.filter((entry) => entry.metrics.solv0Label === metricLabel.label)
+        return entries.length > 0 ? [{ metricLabel, entries }] : []
+    })
 
     if (!hasAcceptableRoutes || availableTopKMetrics.length === 0) {
         return (
             <div className="flex flex-col gap-6">
-                <BenchmarkLeaderboardOverall
-                    entries={leaderboardEntries}
-                    benchmarkSeries={selectedBenchmark.series}
-                    hasAcceptableRoutes={hasAcceptableRoutes}
-                    stockName={stockName}
-                    topKMetricNames={[]}
-                />
+                {entriesByLabel.map(({ metricLabel, entries }) => (
+                    <div key={metricLabel.id} className="flex flex-col gap-6">
+                        {entriesByLabel.length > 1 && (
+                            <h2 className="text-xl font-semibold">Solv-0[{metricLabel.label}] evaluation</h2>
+                        )}
+                        <BenchmarkLeaderboardOverall
+                            entries={entries}
+                            benchmarkSeries={selectedBenchmark.series}
+                            hasAcceptableRoutes={hasAcceptableRoutes}
+                            metricLabel={metricLabel.label}
+                            topKMetricNames={[]}
+                        />
+                    </div>
+                ))}
                 <StratifiedMetricsWrapper
-                    metricsByStock={stratifiedMetricsByStock}
-                    stocks={stocks}
-                    metricNames={['Solvability']}
+                    metricsByLabel={stratifiedMetricsByLabel}
+                    metricLabels={metricLabels}
+                    metricNames={['Tier-0 valid']}
                 />
             </div>
         )
@@ -116,20 +126,27 @@ function LeaderboardMetrics({
     return (
         <PageLevelTopKSelector topKMetricNames={availableTopKMetrics}>
             <div className="flex flex-col gap-6">
-                <BenchmarkLeaderboardOverall
-                    entries={leaderboardEntries}
-                    benchmarkSeries={selectedBenchmark.series}
-                    hasAcceptableRoutes={hasAcceptableRoutes}
-                    stockName={stockName}
-                    topKMetricNames={availableTopKMetrics}
-                />
-                <Suspense fallback={<ParetoChartSkeleton />}>
-                    <BenchmarkParetoDisplay entries={leaderboardEntries} availableTopKMetrics={availableTopKMetrics} />
-                </Suspense>
+                {entriesByLabel.map(({ metricLabel, entries }) => (
+                    <div key={metricLabel.id} className="flex flex-col gap-6">
+                        {entriesByLabel.length > 1 && (
+                            <h2 className="text-xl font-semibold">Solv-0[{metricLabel.label}] evaluation</h2>
+                        )}
+                        <BenchmarkLeaderboardOverall
+                            entries={entries}
+                            benchmarkSeries={selectedBenchmark.series}
+                            hasAcceptableRoutes={hasAcceptableRoutes}
+                            metricLabel={metricLabel.label}
+                            topKMetricNames={availableTopKMetrics}
+                        />
+                        <Suspense fallback={<ParetoChartSkeleton />}>
+                            <BenchmarkParetoDisplay entries={entries} availableTopKMetrics={availableTopKMetrics} />
+                        </Suspense>
+                    </div>
+                ))}
                 <StratifiedMetricsWrapper
-                    metricsByStock={stratifiedMetricsByStock}
-                    stocks={stocks}
-                    metricNames={['Solvability', ...availableTopKMetrics]}
+                    metricsByLabel={stratifiedMetricsByLabel}
+                    metricLabels={metricLabels}
+                    metricNames={['Tier-0 valid', ...availableTopKMetrics]}
                 />
             </div>
         </PageLevelTopKSelector>
@@ -140,32 +157,36 @@ function LeaderboardMetrics({
  * Stratified metrics renderer - remains unchanged but is now called from a different parent.
  */
 function StratifiedMetricsWrapper({
-    metricsByStock,
-    stocks,
+    metricsByLabel,
+    metricLabels,
     metricNames,
 }: {
-    metricsByStock: LeaderboardPageData['stratifiedMetricsByStock']
-    stocks: LeaderboardPageData['stocks']
+    metricsByLabel: LeaderboardPageData['stratifiedMetricsByLabel']
+    metricLabels: LeaderboardPageData['metricLabels']
     metricNames: string[]
 }) {
-    if (stocks.length === 0) {
+    if (metricLabels.length === 0) {
         return null
     }
 
     return (
         <>
-            {stocks.map((stock) => {
-                const stockMetrics = metricsByStock.get(stock.id)
-                if (!stockMetrics) return null
+            {metricLabels.map((metricLabel) => {
+                const labelMetrics = metricsByLabel.get(metricLabel.id)
+                if (!labelMetrics) return null
+                const labelMetricNames = ['Tier-0 valid', `Solv-0[${metricLabel.label}]`, ...metricNames].filter(
+                    (name, index, names) => names.indexOf(name) === index
+                )
 
                 return (
-                    <div key={stock.id} className="flex flex-col gap-6">
-                        {/* If multiple stocks, add a header here */}
-                        {stocks.length > 1 && <h2 className="text-xl font-semibold">{stock.name} Metrics</h2>}
+                    <div key={metricLabel.id} className="flex flex-col gap-6">
+                        {metricLabels.length > 1 && (
+                            <h2 className="text-xl font-semibold">Solv-0[{metricLabel.label}] metrics</h2>
+                        )}
 
-                        {metricNames.map((metricName) => (
-                            <StratifiedMetricsFilter key={`${stock.id}-${metricName}`} metricName={metricName}>
-                                <StratifiedMetricCard metricName={metricName} metricsMap={stockMetrics} />
+                        {labelMetricNames.map((metricName) => (
+                            <StratifiedMetricsFilter key={`${metricLabel.id}-${metricName}`} metricName={metricName}>
+                                <StratifiedMetricCard metricName={metricName} metricsMap={labelMetrics} />
                             </StratifiedMetricsFilter>
                         ))}
                     </div>

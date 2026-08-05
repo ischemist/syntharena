@@ -27,7 +27,7 @@ export function BenchmarkList({ benchmarks }: { benchmarks: BenchmarkListItem[] 
                     <TableRow key={benchmark.id} className="group hover:bg-muted/50 relative transition-colors">
                         <TableCell className="font-semibold">
                             <Link
-                                href={`/benchmarks/${benchmark.id}`}
+                                href={`/benchmarks/${benchmark.slug}`}
                                 className="focus:ring-primary rounded-sm outline-none after:absolute after:inset-0 focus:ring-2"
                                 prefetch={true}
                             >
