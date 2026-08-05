@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+test_root="${SYNTHARENA_TEST_ROOT:-}"
+system_path() {
+    printf '%s%s\n' "${test_root%/}" "$1"
+}
+
+config_root="${SYNTHARENA_CONFIG_ROOT:-$(system_path /var/www/syntharena)}"
+app_root="${config_root}/app"
+expected_origin='https://github.com/ischemist/syntharena.git'
+original_command="${SSH_ORIGINAL_COMMAND:-}"
+
+if [[ "$original_command" =~ ^syntharena-deploy\ ([0-9a-f]{40})\ (sha256:[0-9a-f]{64})\ ([A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?(\[bot\])?)$ ]]; then
+    deployment_sha="${BASH_REMATCH[1]}"
+    image_digest="${BASH_REMATCH[2]}"
+    github_actor="${BASH_REMATCH[3]}"
+else
+    echo "rejected deployment command" >&2
+    exit 64
+fi
+
+if [ ! -d "${app_root}/.git" ] || [ ! -f "${config_root}/.env" ] || [ ! -d "${config_root}/production_data" ]; then
+    echo "SynthArena production layout is incomplete" >&2
+    exit 1
+fi
+
+if [ "$(git -C "$app_root" remote get-url origin)" != "$expected_origin" ]; then
+    echo "production checkout origin is not the reviewed public HTTPS repository" >&2
+    exit 1
+fi
+
+if [ -n "$(git -C "$app_root" status --porcelain --untracked-files=no)" ]; then
+    echo "production checkout has tracked changes" >&2
+    exit 1
+fi
+
+lock_file="${config_root}/.syntharena-deploy.lock"
+exec 9>"$lock_file"
+if ! flock -n 9; then
+    echo "another SynthArena deployment holds ${lock_file}" >&2
+    exit 1
+fi
+export SYNTHARENA_DEPLOY_LOCK_FD=9
+export SYNTHARENA_DEPLOY_LOCK_FILE="$lock_file"
+
+docker_config="$(mktemp -d)"
+cleanup() {
+    docker --config "$docker_config" logout ghcr.io >/dev/null 2>&1 || true
+    rm -rf "$docker_config"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+docker --config "$docker_config" login ghcr.io --username "$github_actor" --password-stdin
+export DOCKER_CONFIG="$docker_config"
+
+git -C "$app_root" fetch --no-tags origin master
+if ! git -C "$app_root" merge-base --is-ancestor "$deployment_sha" origin/master; then
+    echo "deployment revision is not part of master history" >&2
+    exit 1
+fi
+if [ "$(git -C "$app_root" show "${deployment_sha}:deployment/contract-version" 2>/dev/null || true)" != '2' ]; then
+    echo "deployment revision does not support contract 2" >&2
+    exit 1
+fi
+
+git -C "$app_root" checkout --detach "$deployment_sha"
+ln -sfn ../.env "${app_root}/.env"
+
+export SYNTHARENA_DATA_DIR="${config_root}/production_data"
+cd "$app_root"
+./scripts/deploy.sh "$deployment_sha" "$image_digest"

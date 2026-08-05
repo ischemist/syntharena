@@ -1,3 +1,36 @@
+x-app-service: &app-service
+    image: ${SYNTHARENA_APP_IMAGE:-ghcr.io/ischemist/syntharena:latest}
+    build:
+        context: .
+        target: runner
+        args:
+            SYNTHARENA_DEPLOYMENT_SHA: ${SYNTHARENA_DEPLOYMENT_SHA:-development}
+    env_file: .env
+    environment:
+        DATABASE_URL: file:/app/data/prod.db
+        SYNTHARENA_DATABASE_READONLY: 'true'
+    volumes:
+        # The corpus is published independently of application releases. Both
+        # slots intentionally read the same externally managed SQLite file.
+        - type: bind
+          source: ${SYNTHARENA_DATA_DIR:-./production_data}
+          target: /app/data
+          read_only: true
+    restart: unless-stopped
+    user: '${SYNTHARENA_UID:-1002}:${SYNTHARENA_GID:-1002}'
+    healthcheck:
+        test:
+            [
+                'CMD',
+                'node',
+                '-e',
+                "require('http').get('http://127.0.0.1:3000/api/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))",
+            ]
+        interval: 10s
+        timeout: 5s
+        retries: 6
+        start_period: 20s
+
 services:
     migrate:
         profiles:
@@ -13,30 +46,12 @@ services:
             - ${SYNTHARENA_DATA_DIR:-./production_data}:/app/data
         user: '${SYNTHARENA_UID:-1002}:${SYNTHARENA_GID:-1002}'
 
-    app:
-        container_name: syntharena-app
-        image: ghcr.io/ischemist/syntharena:latest
-        build:
-            context: .
-            target: runner
+    app-blue:
+        <<: *app-service
         ports:
-            - '1000:3000'
-        env_file: .env
-        environment:
-            DATABASE_URL: file:/app/data/prod.db
-        volumes:
-            - ${SYNTHARENA_DATA_DIR:-./production_data}:/app/data
-        restart: unless-stopped
-        user: '${SYNTHARENA_UID:-1002}:${SYNTHARENA_GID:-1002}'
-        healthcheck:
-            test:
-                [
-                    'CMD',
-                    'node',
-                    '-e',
-                    "require('http').get('http://127.0.0.1:3000/api/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))",
-                ]
-            interval: 30s
-            timeout: 5s
-            retries: 5
-            start_period: 20s
+            - '${APP_BIND_HOST:-127.0.0.1}:1001:3000'
+
+    app-green:
+        <<: *app-service
+        ports:
+            - '${APP_BIND_HOST:-127.0.0.1}:1002:3000'

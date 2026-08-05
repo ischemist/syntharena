@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+test_root="${SYNTHARENA_TEST_ROOT:-}"
+if [ -n "$test_root" ]; then
+    case "$test_root" in
+        /*) ;;
+        *)
+            echo "SYNTHARENA_TEST_ROOT must be an absolute path" >&2
+            exit 1
+            ;;
+    esac
+    test_root="$(readlink -f "$test_root")"
+    if [ "$test_root" = / ]; then
+        echo "SYNTHARENA_TEST_ROOT must not resolve to /" >&2
+        exit 1
+    fi
+fi
+
+system_path() {
+    printf '%s%s\n' "${test_root%/}" "$1"
+}
+
+config_dir="$(system_path /etc/nginx/syntharena-upstreams)"
+active_link="$(system_path /etc/nginx/conf.d/syntharena-upstream.conf)"
+ready_marker="$(system_path /var/lib/syntharena-deploy/blue-green-ready)"
+
+current_slot() {
+    local target
+
+    [ -f "$ready_marker" ] || return 1
+    target="$(readlink -f "$active_link" 2>/dev/null || true)"
+
+    case "$target" in
+        "$config_dir/legacy.conf") printf 'legacy\n' ;;
+        "$config_dir/blue.conf") printf 'blue\n' ;;
+        "$config_dir/green.conf") printf 'green\n' ;;
+        *) return 1 ;;
+    esac
+}
+
+if [ "${1:-}" = current ]; then
+    current_slot || {
+        echo "SynthArena's active Nginx upstream is not configured" >&2
+        exit 1
+    }
+    exit 0
+fi
+
+if [ "$EUID" -ne 0 ] && [ -z "$test_root" ]; then
+    echo "syntharena-switch-upstream must run as root" >&2
+    exit 1
+fi
+
+slot="${1:-}"
+case "$slot" in
+    legacy | blue | green) ;;
+    *)
+        echo "usage: syntharena-switch-upstream {current|legacy|blue|green}" >&2
+        exit 1
+        ;;
+esac
+
+target="$config_dir/${slot}.conf"
+if [ ! -f "$target" ]; then
+    echo "missing Nginx upstream configuration: $target" >&2
+    exit 1
+fi
+
+previous_target=''
+if [ -L "$active_link" ]; then
+    previous_target="$(readlink -f "$active_link" 2>/dev/null || true)"
+    case "$previous_target" in
+        "$config_dir/legacy.conf" | "$config_dir/blue.conf" | "$config_dir/green.conf") ;;
+        *)
+            echo "refusing to replace an unknown SynthArena upstream link: $active_link" >&2
+            exit 1
+            ;;
+    esac
+elif [ -e "$active_link" ]; then
+    echo "refusing to replace a non-symlink SynthArena upstream file: $active_link" >&2
+    exit 1
+fi
+temporary_link="${active_link}.tmp.$$"
+
+cleanup() {
+    rm -f "$temporary_link"
+}
+trap cleanup EXIT
+
+restore_previous() {
+    if [ -n "$previous_target" ]; then
+        ln -s "$previous_target" "$temporary_link"
+        mv -Tf "$temporary_link" "$active_link"
+    else
+        rm -f "$active_link"
+    fi
+}
+
+ln -s "$target" "$temporary_link"
+mv -Tf "$temporary_link" "$active_link"
+
+if ! nginx -t; then
+    restore_previous
+    echo "Nginx rejected the ${slot} upstream; restored the previous configuration" >&2
+    exit 1
+fi
+
+if ! systemctl reload nginx; then
+    restore_previous
+    nginx -t && systemctl reload nginx || true
+    echo "Nginx reload failed; restored the previous configuration" >&2
+    exit 1
+fi
+
+printf '%s\n' "$slot"

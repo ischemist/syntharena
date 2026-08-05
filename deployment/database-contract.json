@@ -1,0 +1,10 @@
+{
+    "databaseSchemaVersion": 2,
+    "artifactSchemaVersion": "2",
+    "inventorySchemaVersion": "2",
+    "inventorySha256": "424bead4efdab900c5ff7409d8b2e9e8681c7b8f1d0399ffa6e2cce8358582bf",
+    "catalogSha256": "b4eee1b29e379a6110670064507629fbccca07ef3570cc12649d29a72da221f0",
+    "legacyUrlAliasesSha256": "62c55f80371fa7c22645d652314ea52d01eea3dfc7fe783152ed243d271910e4",
+    "producerTrustPolicySha256": "7c1ede82bc905a97b52fcec96bc2c55609ebf6d1edffb693a936dd99ec280b57",
+    "retrocastVersion": "0.8.3"
+}
