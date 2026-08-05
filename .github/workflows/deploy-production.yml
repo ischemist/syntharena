@@ -29,7 +29,7 @@ jobs:
 
         steps:
             - name: Checkout requested revision
-              uses: actions/checkout@v4
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
               with:
                   fetch-depth: 0
                   ref: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.sha }}
@@ -103,7 +103,7 @@ jobs:
 
         steps:
             - name: Checkout deployment tooling from workflow revision
-              uses: actions/checkout@v4
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
               with:
                   # Rollback targets can predate this helper; execute tooling from the exact workflow revision.
                   ref: ${{ github.workflow_sha }}

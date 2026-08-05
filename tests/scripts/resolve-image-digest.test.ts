@@ -10,6 +10,7 @@ const repoRoot = resolve(import.meta.dirname, '../..')
 const resolver = join(repoRoot, 'scripts/resolve-image-digest.sh')
 const revision = '1'.repeat(40)
 const image = `ghcr.io/ischemist/syntharena:sha-${revision}`
+const pinnedCheckout = 'uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2'
 
 function runResolver(rawManifest: string) {
     const fixture = mkdtempSync(join(tmpdir(), 'syntharena-image-digest-'))
@@ -52,10 +53,14 @@ describe('image digest resolver', () => {
 
         expect(checkout).toBeGreaterThan(-1)
         expect(resolverCall).toBeGreaterThan(checkout)
+        expect(checkoutBlock).toContain(pinnedCheckout)
         expect(checkoutBlock).toContain('ref: ${{ github.workflow_sha }}')
         expect(checkoutBlock).not.toContain('ref: ${{ needs.prepare.outputs.sha }}')
         expect(checkoutBlock).toContain('Rollback targets can predate this helper')
         expect(checkoutBlock).toContain('persist-credentials: false')
+
+        const checkoutUses = workflow.match(/uses: actions\/checkout@\S+(?:\s+#.*)?/g) ?? []
+        expect(checkoutUses).toEqual([pinnedCheckout, pinnedCheckout])
     })
 
     test('hashes the exact raw top-level OCI index bytes', () => {
