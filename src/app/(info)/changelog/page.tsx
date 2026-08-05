@@ -9,6 +9,32 @@ export const metadata: Metadata = {
 
 const versions = [
     {
+        version: 'v0.5.0',
+        date: 'August 4, 2026',
+        changes: [
+            {
+                type: ChangeType.FEAT,
+                description:
+                    'Reframed target-level results in the Solv-N framework: fraction Tier-0 valid and Solv-0[stock], without implying unmeasured Tier-1 validity',
+            },
+            {
+                type: ChangeType.DATA,
+                description:
+                    'Rebuilt the benchmark corpus from RetroCast v0.8.3 schema-v2 outputs, replacing the legacy v0.5 representation and restoring verified runtime and cost data for all 84 runs',
+            },
+            {
+                type: ChangeType.UI_UX,
+                description:
+                    'Added readable canonical benchmark slugs with permanent redirects for legacy benchmark, run, and target URLs',
+            },
+            {
+                type: ChangeType.PERF,
+                description:
+                    'Introduced a reproducible streaming Rust corpus builder with artifact provenance checks and optimized SQLite loading',
+            },
+        ],
+    },
+    {
         version: 'v0.4.1',
         date: 'May 5, 2026',
         changes: [
