@@ -1,0 +1,27 @@
+{
+    "schema_version": 1,
+    "benchmark_slugs": [
+        {
+            "from": "mkt-cnv-160-single-gt",
+            "to": "mkt-cnv-160",
+            "reason": "single-gt-fold"
+        },
+        {
+            "from": "mkt-lin-500-single-gt",
+            "to": "mkt-lin-500",
+            "reason": "single-gt-fold"
+        }
+    ],
+    "model_instance_slugs": [
+        {
+            "from": "og-r-v1-1-0",
+            "to": "og-r-v0-1-0",
+            "reason": "corrected-model-version"
+        },
+        {
+            "from": "og-rh-v1-1-0",
+            "to": "og-rh-v0-1-0",
+            "reason": "corrected-model-version"
+        }
+    ]
+}

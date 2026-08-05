@@ -2,11 +2,11 @@ use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, Params, Transaction, params};
-use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::{
+    aliases,
     config::CorpusCatalog,
     stock_enrichment,
     stream::{
@@ -52,52 +52,6 @@ pub fn load_reference_data(
     })
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct LegacyUrlAliasManifest {
-    schema_version: u8,
-    source: LegacyAliasSource,
-    #[serde(default)]
-    benchmark_aliases: Vec<BenchmarkAlias>,
-    #[serde(default)]
-    prediction_run_aliases: Vec<PredictionRunAlias>,
-    #[serde(default)]
-    benchmark_target_aliases: Vec<BenchmarkTargetAlias>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct LegacyAliasSource {
-    database_sha256: String,
-    description: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct BenchmarkAlias {
-    alias: String,
-    benchmark_slug: String,
-    reason: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct PredictionRunAlias {
-    alias: String,
-    benchmark_slug: String,
-    model_instance_slug: String,
-    reason: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct BenchmarkTargetAlias {
-    alias: String,
-    benchmark_slug: String,
-    target_id: String,
-    reason: String,
-}
-
 pub fn load_legacy_url_aliases(
     connection: &mut Connection,
     corpus_root: &Path,
@@ -106,18 +60,8 @@ pub fn load_legacy_url_aliases(
     let Some(config) = &catalog.legacy_url_aliases else {
         return Ok(());
     };
-    let path = resolve_confined_regular(corpus_root, &config.manifest_path)?;
-    let bytes = fs::read(&path)?;
-    if crate::sha256_bytes(&bytes) != config.manifest_sha256 {
-        bail!("legacy URL alias manifest SHA-256 disagrees with catalog");
-    }
-    let manifest: LegacyUrlAliasManifest = serde_json::from_slice(&bytes)?;
-    if manifest.schema_version != 1
-        || manifest.source.description.trim().is_empty()
-        || !valid_sha256(&manifest.source.database_sha256)
-    {
-        bail!("legacy URL alias manifest metadata is invalid");
-    }
+    let path = resolve_confined_regular(corpus_root, &config.artifact_path)?;
+    let manifest = aliases::read_manifest(&path, &config.artifact_sha256)?;
     let transaction = connection.transaction()?;
     let mut seen_benchmarks = std::collections::HashSet::new();
     for alias in manifest.benchmark_aliases {
@@ -209,18 +153,8 @@ pub fn validate_legacy_url_alias_contract(
     let Some(config) = &catalog.legacy_url_aliases else {
         return Ok(());
     };
-    let path = resolve_confined_regular(corpus_root, &config.manifest_path)?;
-    let bytes = fs::read(&path)?;
-    if crate::sha256_bytes(&bytes) != config.manifest_sha256 {
-        bail!("legacy URL alias manifest SHA-256 disagrees with catalog");
-    }
-    let manifest: LegacyUrlAliasManifest = serde_json::from_slice(&bytes)?;
-    if manifest.schema_version != 1
-        || manifest.source.description.trim().is_empty()
-        || !valid_sha256(&manifest.source.database_sha256)
-    {
-        bail!("legacy URL alias manifest metadata is invalid");
-    }
+    let path = resolve_confined_regular(corpus_root, &config.artifact_path)?;
+    let manifest = aliases::read_manifest(&path, &config.artifact_sha256)?;
 
     let benchmark_names: std::collections::HashSet<_> = catalog
         .benchmarks
@@ -299,12 +233,6 @@ fn validate_alias(
         bail!("legacy URL alias is empty, duplicated, or lacks an audit reason");
     }
     Ok(())
-}
-
-fn valid_sha256(value: &str) -> bool {
-    value.len() == 64
-        && value.bytes().all(|byte| byte.is_ascii_hexdigit())
-        && value == value.to_ascii_lowercase()
 }
 
 fn load_models(

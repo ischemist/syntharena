@@ -25,8 +25,8 @@ pub struct CorpusCatalog {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct LegacyUrlAliasConfig {
-    pub manifest_path: String,
-    pub manifest_sha256: String,
+    pub artifact_path: String,
+    pub artifact_sha256: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -178,15 +178,18 @@ pub fn validate_catalog(catalog: &CorpusCatalog) -> Result<()> {
         bail!("corpus catalog is outside the supported Tier-0 schema-v2 capability");
     }
     if let Some(aliases) = &catalog.legacy_url_aliases {
-        validate_relative("legacy URL alias manifest_path", &aliases.manifest_path)?;
-        if aliases.manifest_sha256.len() != 64
+        validate_relative("legacy URL alias artifact_path", &aliases.artifact_path)?;
+        if !aliases.artifact_path.ends_with(".json.gz") {
+            bail!("legacy URL alias artifact_path must end in .json.gz");
+        }
+        if aliases.artifact_sha256.len() != 64
             || !aliases
-                .manifest_sha256
+                .artifact_sha256
                 .bytes()
                 .all(|byte| byte.is_ascii_hexdigit())
-            || aliases.manifest_sha256 != aliases.manifest_sha256.to_ascii_lowercase()
+            || aliases.artifact_sha256 != aliases.artifact_sha256.to_ascii_lowercase()
         {
-            bail!("legacy URL alias manifest_sha256 is invalid");
+            bail!("legacy URL alias artifact_sha256 is invalid");
         }
     }
     if let Some(trust) = &catalog.producer_trust {

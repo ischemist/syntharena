@@ -122,11 +122,11 @@ pub fn set_coverage(root: &Path, mode: config::CoverageMode) -> Result<()> {
 pub fn set_legacy_url_aliases(root: &Path, source: &Path) -> Result<()> {
     let (mut catalog, inventory) = load_workspace(root)?;
     let source_sha256 = stream::sha256_file(source)?;
-    let relative = format!("aliases/legacy-url-aliases.{source_sha256}.json");
+    let relative = format!("aliases/legacy-url-aliases.{source_sha256}.json.gz");
     copy_regular_noclobber(source, &root.join(&relative))?;
     catalog.legacy_url_aliases = Some(config::LegacyUrlAliasConfig {
-        manifest_path: relative.clone(),
-        manifest_sha256: source_sha256,
+        artifact_path: relative.clone(),
+        artifact_sha256: source_sha256,
     });
     let mut benchmark_targets = std::collections::HashMap::new();
     for benchmark in &catalog.benchmarks {
@@ -550,7 +550,7 @@ fn validate_workspace_paths(
         stream::resolve_confined_regular(root, &manifest)?;
     }
     if let Some(aliases) = &catalog.legacy_url_aliases {
-        stream::resolve_confined_regular(root, &aliases.manifest_path)?;
+        stream::resolve_confined_regular(root, &aliases.artifact_path)?;
     }
     if let Some(trust) = &catalog.producer_trust {
         stream::resolve_confined_regular(root, &trust.policy_path)?;

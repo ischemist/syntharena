@@ -14,8 +14,8 @@
         "policy_sha256": "7c1ede82bc905a97b52fcec96bc2c55609ebf6d1edffb693a936dd99ec280b57"
     },
     "legacy_url_aliases": {
-        "manifest_path": "aliases/legacy-url-aliases.cb26f880c1b5f29dc9d32ecec1818f49d34a327251b3ff0567f62c6dfa52f273.json",
-        "manifest_sha256": "cb26f880c1b5f29dc9d32ecec1818f49d34a327251b3ff0567f62c6dfa52f273"
+        "artifact_path": "aliases/legacy-url-aliases.62c55f80371fa7c22645d652314ea52d01eea3dfc7fe783152ed243d271910e4.json.gz",
+        "artifact_sha256": "62c55f80371fa7c22645d652314ea52d01eea3dfc7fe783152ed243d271910e4"
     },
     "stocks": [
         {

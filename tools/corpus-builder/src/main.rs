@@ -4,9 +4,10 @@ use anyhow::{Context, Result, bail};
 use clap::{Args, Parser, Subcommand};
 use syntharena_corpus_builder::{
     AddBenchmarkOptions, AddModelOptions, AddRunOptions, AddStockEnrichmentOptions,
-    AddStockOptions, BuildOptions, CoverageMode, add_benchmark, add_model, add_run, add_stock,
-    add_stock_enrichment, adopt_workspace, build_corpus, init_workspace, set_coverage,
-    set_legacy_url_aliases, set_producer_trust, validate_workspace,
+    AddStockOptions, BuildOptions, CoverageMode, DeriveLegacyUrlAliasesOptions, add_benchmark,
+    add_model, add_run, add_stock, add_stock_enrichment, adopt_workspace, build_corpus,
+    derive_legacy_url_aliases, init_workspace, set_coverage, set_legacy_url_aliases,
+    set_producer_trust, validate_workspace,
 };
 
 #[derive(Debug, Parser)]
@@ -47,12 +48,14 @@ enum Command {
         #[arg(long)]
         mode: String,
     },
-    /// Copy and register a legacy URL alias manifest.
+    /// Derive a deterministic compressed redirect artifact from legacy and canonical databases.
+    DeriveAliases(DeriveAliases),
+    /// Copy and register a compressed legacy URL alias artifact.
     Aliases {
         #[arg(long)]
         corpus: PathBuf,
         #[arg(long)]
-        manifest: PathBuf,
+        artifact: PathBuf,
     },
     /// Copy and register the reviewed producer release/executable trust policy.
     TrustPolicy {
@@ -149,6 +152,21 @@ struct AddRun {
 }
 
 #[derive(Debug, Args)]
+struct DeriveAliases {
+    #[arg(long)]
+    legacy_database: PathBuf,
+    #[arg(long)]
+    canonical_database: PathBuf,
+    /// Explicit benchmark and model-instance renames applied during the join.
+    #[arg(long)]
+    rules: PathBuf,
+    #[arg(long)]
+    output: PathBuf,
+    #[arg(long)]
+    source_description: String,
+}
+
+#[derive(Debug, Args)]
 struct Build {
     #[arg(long)]
     corpus: PathBuf,
@@ -208,7 +226,14 @@ fn main() -> Result<()> {
             execution_stats_path: args.execution_stats_path,
         }),
         Command::Coverage { corpus, mode } => set_coverage(&corpus, parse_coverage(&mode)?),
-        Command::Aliases { corpus, manifest } => set_legacy_url_aliases(&corpus, &manifest),
+        Command::DeriveAliases(args) => derive_legacy_url_aliases(DeriveLegacyUrlAliasesOptions {
+            legacy_database: args.legacy_database,
+            canonical_database: args.canonical_database,
+            rules: args.rules,
+            output: args.output,
+            source_description: args.source_description,
+        }),
+        Command::Aliases { corpus, artifact } => set_legacy_url_aliases(&corpus, &artifact),
         Command::TrustPolicy { corpus, policy } => set_producer_trust(&corpus, &policy),
         Command::Validate { corpus } => validate_workspace(&corpus),
         Command::Build(args) => {

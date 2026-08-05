@@ -1,3 +1,4 @@
+mod aliases;
 mod bundle;
 mod config;
 mod contract;
@@ -22,6 +23,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tempfile::Builder as TempBuilder;
 
+pub use aliases::{DeriveLegacyUrlAliasesOptions, derive_legacy_url_aliases};
 pub use config::{CoverageMode, ModelVersion};
 pub use contract::{RETROCAST_RELEASE_COMMIT, RETROCAST_RELEASE_TAG, RETROCAST_VERSION};
 pub use workspace::{
@@ -172,7 +174,7 @@ fn build_staging_database(options: &BuildOptions, path: &Path) -> Result<Staging
             catalog
                 .legacy_url_aliases
                 .as_ref()
-                .map(|value| value.manifest_sha256.as_str()),
+                .map(|value| value.artifact_sha256.as_str()),
             identity_baseline_sha256,
             catalog
                 .producer_trust

@@ -1,6 +1,6 @@
 use std::{
     fs,
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -203,12 +203,17 @@ fn make_fixture(root: &Path) -> Fixture {
         true,
     );
 
-    let aliases = root.join("aliases.json");
-    write_json(
+    let aliases = root.join("aliases.json.gz");
+    write_gzip_json(
         &aliases,
         &json!({
-            "schema_version": 1,
-            "source": {"database_sha256": "e".repeat(64), "description": "fixture legacy database"},
+            "schema_version": 2,
+            "source": {
+                "legacy_database_sha256": "e".repeat(64),
+                "canonical_database_sha256": "c".repeat(64),
+                "rules_sha256": "d".repeat(64),
+                "description": "fixture legacy database"
+            },
             "benchmark_aliases": [{"alias": "old-benchmark", "benchmark_slug": "bench", "reason": "legacy id"}],
             "prediction_run_aliases": [{"alias": "old-run", "benchmark_slug": "bench", "model_instance_slug": "model-v1", "reason": "legacy id"}],
             "benchmark_target_aliases": [{"alias": "old-target", "benchmark_slug": "bench", "target_id": "t1", "reason": "legacy id"}]
@@ -466,7 +471,7 @@ fn complete_cli_workflow_is_retry_safe_and_builds_prisma_readable_sqlite() {
     cli()
         .args(["aliases", "--corpus"])
         .arg(&corpus)
-        .arg("--manifest")
+        .arg("--artifact")
         .arg(&fixture.aliases)
         .assert()
         .success();
@@ -645,4 +650,124 @@ fn complete_cli_workflow_is_retry_safe_and_builds_prisma_readable_sqlite() {
         .assert()
         .failure();
     assert!(!rejected.exists());
+}
+
+#[test]
+fn derives_deterministic_compressed_aliases_from_explicit_rules() {
+    let directory = tempfile::tempdir().unwrap();
+    let legacy_path = directory.path().join("legacy.db");
+    let canonical_path = directory.path().join("canonical.db");
+    let rules_path = directory.path().join("rules.json");
+    let output_path = directory.path().join("aliases.json.gz");
+    let second_output_path = directory.path().join("aliases-again.json.gz");
+
+    let legacy = Connection::open(&legacy_path).unwrap();
+    legacy
+        .execute_batch(
+            "CREATE TABLE BenchmarkSet (id TEXT PRIMARY KEY, name TEXT NOT NULL);
+             CREATE TABLE BenchmarkTarget (id TEXT PRIMARY KEY, benchmarkSetId TEXT NOT NULL, targetId TEXT NOT NULL);
+             CREATE TABLE ModelInstance (id TEXT PRIMARY KEY, slug TEXT NOT NULL);
+             CREATE TABLE PredictionRun (id TEXT PRIMARY KEY, benchmarkSetId TEXT NOT NULL, modelInstanceId TEXT NOT NULL);
+             INSERT INTO BenchmarkSet VALUES ('old-benchmark', 'bench-single-gt');
+             INSERT INTO BenchmarkTarget VALUES ('old-target', 'old-benchmark', 't1');
+             INSERT INTO ModelInstance VALUES ('old-model', 'model-v9');
+             INSERT INTO PredictionRun VALUES ('old-run', 'old-benchmark', 'old-model');",
+        )
+        .unwrap();
+    drop(legacy);
+
+    let canonical = Connection::open(&canonical_path).unwrap();
+    canonical
+        .execute_batch(
+            "CREATE TABLE BenchmarkSet (id TEXT PRIMARY KEY, slug TEXT NOT NULL);
+             CREATE TABLE BenchmarkTarget (id TEXT PRIMARY KEY, benchmarkSetId TEXT NOT NULL, targetId TEXT NOT NULL);
+             CREATE TABLE ModelInstance (id TEXT PRIMARY KEY, slug TEXT NOT NULL);
+             CREATE TABLE PredictionRun (id TEXT PRIMARY KEY, benchmarkSetId TEXT NOT NULL, modelInstanceId TEXT NOT NULL);
+             INSERT INTO BenchmarkSet VALUES ('canonical-benchmark', 'bench');
+             INSERT INTO BenchmarkTarget VALUES ('canonical-target', 'canonical-benchmark', 't1');
+             INSERT INTO ModelInstance VALUES ('canonical-model', 'model-v1');
+             INSERT INTO PredictionRun VALUES ('canonical-run', 'canonical-benchmark', 'canonical-model');",
+        )
+        .unwrap();
+    drop(canonical);
+
+    write_json(
+        &rules_path,
+        &json!({
+            "schema_version": 1,
+            "benchmark_slugs": [{"from": "bench-single-gt", "to": "bench", "reason": "single-gt-fold"}],
+            "model_instance_slugs": [{"from": "model-v9", "to": "model-v1", "reason": "corrected-model-version"}]
+        }),
+    );
+    cli()
+        .arg("derive-aliases")
+        .arg("--legacy-database")
+        .arg(&legacy_path)
+        .arg("--canonical-database")
+        .arg(&canonical_path)
+        .arg("--rules")
+        .arg(&rules_path)
+        .arg("--output")
+        .arg(&output_path)
+        .args(["--source-description", "published fixture database"])
+        .assert()
+        .success();
+
+    let compressed = fs::read(&output_path).unwrap();
+    let mut decoder = flate2::read::GzDecoder::new(compressed.as_slice());
+    let mut bytes = Vec::new();
+    decoder.read_to_end(&mut bytes).unwrap();
+    let manifest: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(manifest["schema_version"], 2);
+    assert_eq!(
+        manifest["source"]["legacy_database_sha256"],
+        sha256(&fs::read(&legacy_path).unwrap())
+    );
+    assert_eq!(
+        manifest["source"]["canonical_database_sha256"],
+        sha256(&fs::read(&canonical_path).unwrap())
+    );
+    assert_eq!(
+        manifest["source"]["rules_sha256"],
+        sha256(&fs::read(&rules_path).unwrap())
+    );
+    assert_eq!(manifest["benchmark_aliases"][0]["alias"], "old-benchmark");
+    assert_eq!(
+        manifest["benchmark_target_aliases"][0]["alias"],
+        "old-target"
+    );
+    assert_eq!(manifest["prediction_run_aliases"][0]["alias"], "old-run");
+    assert_eq!(
+        manifest["prediction_run_aliases"][0]["reason"],
+        "single-gt-fold+corrected-model-version"
+    );
+
+    cli()
+        .arg("derive-aliases")
+        .arg("--legacy-database")
+        .arg(&legacy_path)
+        .arg("--canonical-database")
+        .arg(&canonical_path)
+        .arg("--rules")
+        .arg(&rules_path)
+        .arg("--output")
+        .arg(&second_output_path)
+        .args(["--source-description", "published fixture database"])
+        .assert()
+        .success();
+    assert_eq!(compressed, fs::read(second_output_path).unwrap());
+
+    cli()
+        .arg("derive-aliases")
+        .arg("--legacy-database")
+        .arg(&legacy_path)
+        .arg("--canonical-database")
+        .arg(&canonical_path)
+        .arg("--rules")
+        .arg(&rules_path)
+        .arg("--output")
+        .arg(&output_path)
+        .args(["--source-description", "published fixture database"])
+        .assert()
+        .failure();
 }

@@ -135,7 +135,7 @@ DATABASE_URL="file:./prisma/dev.db"
 
 SynthArena has one ingestion path: the offline Rust corpus tool. It manages a self-contained workspace and compiles that workspace into a new SQLite database. It never incrementally mutates an existing database and never overwrites its output.
 
-The authored `catalog.json` defines stocks, benchmarks, model versions, coverage, and an optional hash-bound legacy URL alias manifest. The generated `inventory.json` locks verified run evidence. Artifacts live under `inputs/` and `bundles/`; registration copies them into those confined paths atomically. The current capability gate intentionally accepts only RetroCast v0.8.3 schema-v2 Tier-0 bundles.
+The authored `catalog.json` defines stocks, benchmarks, model versions, coverage, and an optional hash-bound legacy URL alias artifact. The generated `inventory.json` locks verified run evidence. Artifacts live under `inputs/`, `bundles/`, and `aliases/`; registration copies them into those confined paths atomically. The current capability gate intentionally accepts only RetroCast v0.8.3 schema-v2 Tier-0 bundles.
 
 Each benchmark's database ID is the full lowercase SHA-256 of its registered gzip artifact. Its unique human name is also its public slug, so the readable URL remains `/benchmarks/mkt-lin-500`; database-backed aliases resolve historical IDs and content-addressed ID URLs to that slug. Reusing a slug for different benchmark bytes is rejected by identity continuity. Scientifically changed benchmark content must use a new versioned slug.
 
@@ -202,13 +202,29 @@ inside the stock transaction, and records the enrichment path, SHA-256, and sche
 
 `add-run` verifies every manifest output and source hash while producer paths are available. It also requires `producer.json` to match the hash-bound reviewed trust policy across release version, tag, commit, URL, release asset SHA-256, and executable SHA-256. Later builds recheck the self-contained bundle and producer lock without depending on producer-machine paths. Absolute producer-machine paths are redacted from stored `manifestJson`; the SHA-256 of the original manifest remains the provenance identity.
 
-Coverage is explicit by default. After registering a complete matrix, require every benchmark/model combination and optionally register the legacy redirect map:
+Coverage is explicit by default. After registering a complete matrix, require every benchmark/model combination:
 
 ```bash
 pnpm corpus -- coverage --corpus /path/to/corpus --mode cross-product
-pnpm corpus -- aliases --corpus /path/to/corpus --manifest corpus/legacy-url-aliases.v1.json
+```
+
+Historical opaque IDs cannot be inferred from their URL shape. Derive their semantic destinations by joining the published legacy database to a canonical staging database. The small checked-in rules file records the exceptional benchmark and model-instance renames; the Rust tool owns the full join and writes deterministic gzip without overwriting an existing artifact:
+
+```bash
+pnpm corpus -- derive-aliases \
+  --legacy-database /path/to/published-legacy.db \
+  --canonical-database /path/to/canonical-staging.db \
+  --rules corpus/legacy-url-alias-rules.v1.json \
+  --output /path/to/legacy-url-aliases.v1.json.gz \
+  --source-description "Published SynthArena database dump <artifact> (decompressed)"
+
+pnpm corpus -- aliases --corpus /path/to/corpus \
+  --artifact /path/to/legacy-url-aliases.v1.json.gz
+
 pnpm corpus -- validate --corpus /path/to/corpus
 ```
+
+The generated manifest records SHA-256 identities for the legacy database, canonical database, and rules file alongside the source description. Registration validates that provenance and the complete decompressed manifest against the corpus, copies it to a SHA-addressed `aliases/legacy-url-aliases.<sha256>.json.gz` path, and binds that compressed-artifact hash in `catalog.json`. Full generated alias artifacts stay outside Git; only the compact derivation rules and Rust test fixtures are checked in.
 
 Compile a staging database:
 
