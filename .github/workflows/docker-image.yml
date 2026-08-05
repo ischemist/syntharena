@@ -68,6 +68,8 @@ jobs:
                   target: runner
                   push: true
                   tags: ${{ steps.image.outputs.tags }}
+                  build-args: |
+                      SYNTHARENA_DEPLOYMENT_SHA=${{ github.sha }}
                   labels: |
                       org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
                       org.opencontainers.image.revision=${{ github.sha }}

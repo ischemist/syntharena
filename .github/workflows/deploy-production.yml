@@ -1,0 +1,149 @@
+name: Deploy Production
+
+on:
+    release:
+        types: [published]
+    workflow_dispatch:
+        inputs:
+            sha:
+                description: Full master commit SHA to deploy
+                required: true
+                type: string
+
+concurrency:
+    group: syntharena-production-deploy
+    cancel-in-progress: false
+
+jobs:
+    prepare:
+        name: Verify deployment revision
+        if: >-
+            github.event_name == 'workflow_dispatch' ||
+            (github.event.release.draft == false && github.event.release.prerelease == false)
+        permissions:
+            actions: read
+            contents: read
+        runs-on: blacksmith-2vcpu-ubuntu-2404
+        outputs:
+            sha: ${{ steps.revision.outputs.sha }}
+
+        steps:
+            - name: Checkout requested revision
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  ref: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.sha }}
+
+            - name: Resolve and validate exact revision
+              id: revision
+              env:
+                  RELEASE_TAG: ${{ github.event.release.tag_name }}
+                  REQUESTED_SHA: ${{ inputs.sha }}
+              run: |
+                  if [ "$GITHUB_EVENT_NAME" = release ]; then
+                    if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                      echo "stable production releases must use a vMAJOR.MINOR.PATCH tag" >&2
+                      exit 1
+                    fi
+                    sha="$(git rev-list -n 1 "$RELEASE_TAG")"
+                  else
+                    sha="$REQUESTED_SHA"
+                  fi
+
+                  if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+                    echo "deployment revision must be a full lowercase git SHA" >&2
+                    exit 1
+                  fi
+
+                  git fetch --no-tags origin master
+                  if ! git merge-base --is-ancestor "$sha" origin/master; then
+                    echo "deployment revision must be part of master history" >&2
+                    exit 1
+                  fi
+
+                  if [ "$(git show "${sha}:deployment/contract-version" 2>/dev/null || true)" != '2' ]; then
+                    echo "deployment revision does not support CI deployment contract 2" >&2
+                    exit 1
+                  fi
+
+                  echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+            - name: Verify exact revision passed required master workflows
+              env:
+                  DEPLOY_SHA: ${{ steps.revision.outputs.sha }}
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  for workflow in tests.yml code-quality.yml rust-corpus-builder.yml docker-image.yml; do
+                    successful_runs="$(
+                      gh api --method GET \
+                        "repos/$GITHUB_REPOSITORY/actions/workflows/${workflow}/runs" \
+                        -f branch=master \
+                        -f event=push \
+                        -f head_sha="$DEPLOY_SHA" \
+                        -f status=success \
+                        -f per_page=1 \
+                        --jq '.total_count'
+                    )"
+                    if [ "$successful_runs" -lt 1 ]; then
+                      echo "$workflow has no successful master run for $DEPLOY_SHA" >&2
+                      exit 1
+                    fi
+                  done
+
+    deploy:
+        name: Deploy exact release to production
+        needs: [prepare]
+        environment:
+            name: Production
+            url: https://syntharena.ischemist.com
+        permissions:
+            contents: read
+            packages: read
+        runs-on: blacksmith-2vcpu-ubuntu-2404
+
+        steps:
+            - name: Login to GHCR to resolve immutable image
+              uses: docker/login-action@v4
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Freeze exact image digest
+              id: image
+              env:
+                  DEPLOY_SHA: ${{ needs.prepare.outputs.sha }}
+              run: |
+                  image="ghcr.io/${GITHUB_REPOSITORY,,}:sha-${DEPLOY_SHA}"
+                  digest="$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}')"
+                  if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+                    echo "registry returned an invalid image digest: $digest" >&2
+                    exit 1
+                  fi
+                  echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+            - name: Configure SSH
+              env:
+                  SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+                  SSH_KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+              run: |
+                  install -d -m 700 ~/.ssh
+                  printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/syntharena-deploy
+                  printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+                  chmod 600 ~/.ssh/syntharena-deploy ~/.ssh/known_hosts
+
+            - name: Request restricted production deployment
+              env:
+                  DEPLOY_SHA: ${{ needs.prepare.outputs.sha }}
+                  IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+                  GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  SSH_HOST: ${{ vars.PRODUCTION_SSH_HOST }}
+                  SSH_PORT: ${{ vars.PRODUCTION_SSH_PORT }}
+                  SSH_USER: ${{ vars.PRODUCTION_SSH_USER }}
+              run: |
+                  ssh_port="${SSH_PORT:-22}"
+                  printf '%s' "$GHCR_TOKEN" | ssh \
+                    -i ~/.ssh/syntharena-deploy \
+                    -p "$ssh_port" \
+                    "$SSH_USER@$SSH_HOST" \
+                    "syntharena-deploy $DEPLOY_SHA $IMAGE_DIGEST $GITHUB_ACTOR"

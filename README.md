@@ -71,16 +71,16 @@ mkdir -p "${SYNTHARENA_DATA_DIR:-./production_data}"
 chown -R "${SYNTHARENA_UID:-1002}:${SYNTHARENA_GID:-1002}" "${SYNTHARENA_DATA_DIR:-./production_data}"
 ```
 
-Run migrations with the one-shot `migrate` service before starting the app:
+Run migrations with the one-shot `migrate` service before starting a local app slot:
 
 ```bash
 docker compose --profile tools run --rm migrate
-docker compose up --build -d app
+docker compose up --build -d app-blue
 ```
 
-The platform will be available at [http://localhost:1000](http://localhost:1000)
+The platform will be available at [http://localhost:1001](http://localhost:1001).
 
-To use a different port, edit the `ports` section in `docker-compose.yml` (e.g., change `1000:3000` to `3000:3000`).
+To use a different port, edit the `ports` section in `docker-compose.yml` (e.g., change `1001:3000` to `3000:3000`). Production uses both app slots; see [Production deployment](docs/operations/deployment.md).
 
 ### Option 2: Local Development
 
@@ -112,6 +112,8 @@ The platform will be available at [http://localhost:3000](http://localhost:3000)
 ### Health Check
 
 `GET /api/health` returns `200` when the Next.js app can reach the SQLite database and `503` with `health.database_unavailable` when the database check fails. It is intended for uptime monitors such as Better Stack.
+
+`GET /api/deployment` reports the image's exact Git revision and the connected corpus database schema version. The production deployer validates both values before and after moving traffic.
 
 The hosted deployment is monitored at [status.ischemist.com](https://status.ischemist.com).
 

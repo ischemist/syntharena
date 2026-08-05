@@ -31,14 +31,17 @@ RUN mkdir -p /app/data
 CMD ["pnpm", "exec", "prisma", "migrate", "deploy"]
 
 FROM base AS runner
+ARG SYNTHARENA_DEPLOYMENT_SHA=development
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV DATABASE_URL="file:/app/data/prod.db"
+ENV SYNTHARENA_DEPLOYMENT_SHA=${SYNTHARENA_DEPLOYMENT_SHA}
 
 COPY --from=builder --chown=syntharena:syntharena /app/.next/standalone ./
 COPY --from=builder --chown=syntharena:syntharena /app/.next/static ./.next/static
 COPY --from=builder --chown=syntharena:syntharena /app/public ./public
+COPY --from=builder --chown=syntharena:syntharena /app/deployment/database-contract.json ./deployment/database-contract.json
 COPY --from=deps --chown=syntharena:syntharena /app/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Release/better_sqlite3.node ./node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Release/better_sqlite3.node
 RUN mkdir -p /app/data && chown -R syntharena:syntharena /app/data
 USER syntharena
