@@ -6,6 +6,14 @@ minimumReleaseAgeStrict: true
 minimumReleaseAgeExclude:
     - '@ischemist/*'
 
+# Security floors for indirect dependencies whose parents have not yet updated
+# their declared ranges.
+overrides:
+    deepmerge-ts: 8.0.0
+    lodash: 4.18.1
+    vite: 8.2.2
+    yaml: 2.9.0
+
 # pnpm 11 replaced onlyBuiltDependencies with allowBuilds.
 # Keep native/prisma build scripts explicit so strict dependency builds stay on.
 allowBuilds:
